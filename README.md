@@ -3,8 +3,8 @@
 
 Sibilant is a dialect of LISP which compiles to [Python] bytecode.
 
-This was a project was begun in 2007 and subsequently left abaondoned
-in early 2008, and I'm putting it up on GitHub as-is for posterity.
+This was a project begun in 2007 and subsequently left abaondoned in
+early 2008, and I'm putting it up on GitHub as-is for posterity.
 There is a strong possibility that I may want to hack on it later.
 
 I believe this project grew out of my hacking with the absurdity that
