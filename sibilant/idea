@@ -1,0 +1,37 @@
+
+
+input:
+
+"(foo bar (lambda () baz))"
+
+
+step 1:
+
+["foo", "bar", ["lambda, [], "baz"]]
+
+
+step 2: 
+
+the head of the expression is checked against syntax rules. If it
+matches one, the syntax rule is evaluated and the result is swapped
+into its place. repeat this step until the head of the expression is
+no longer a syntax rule
+
+
+step 3:
+
+the head of the expression is checked against special forms. If it
+matches one, the special form is instantiated with the expression
+tree, and it is the form's job to perform step 2 and step 3 on any sub
+expressions
+
+
+step 4:
+
+if the head of the expression is not a syntax form or a special form,
+then it becomes an Eval and recurses from step 2 on all sub
+expressions
+
+Eval(Symbol("foo"), Symbol("bar"), Lambda([], Symbol("baz")))
+
+

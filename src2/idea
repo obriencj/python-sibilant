@@ -1,0 +1,117 @@
+
+
+special, non-overridable builtins:
+
+(apply expression (expression*))
+(lambda (symbol*) expression*)
+(begin expression*)
+(cond (expression expression*)*)
+(eval expression)
+
+
+
+1: parsing
+
+use an event-driven parsing mechanism to produce a representation of
+sexpr from a stream
+
+
+2: ast
+
+
+2.1: handle events to produce the initial abstract syntax tree. This
+tree will be comprised of a simplified form of Lists and Atoms
+
+
+2.2: walk the simple ast from 2.1 to produce a special ast. This tree
+will be comprised of Specials and Atoms
+
+
+2.3: walk the special ast to determine variable scoping (use formals
+in lambda, etc)
+
+
+3: call conformity
+
+
+the ast will need to be transformed into a chain of (activity, next
+link) pairs. Function calls will be transformed to accept their
+continuation as a first argument. Application of functions will be
+transformed to agree with this convention.
+
+
+The "result" of each individual evaluation is a pair consisting of the
+continuation and data for that continuation.
+
+
+3.1: transformation of Apply
+
+
+Apply(fun, arg1, arg2, arg3) becomes
+Apply_k(k, fun, arg1, arg2, arg3) -> k1
+
+k1: -> (k2, evaluate fun)
+k2 f: -> (k3, evaluate arg1)
+k3 a1: -> (k4, evaluate arg2)
+k4 a2: -> (k5, evaluate arg3)
+k5 a3: -> evaluate f(k, a1, a2, a3)
+
+Apply(fun, Apply(proc1, arg1), arg2) becomes
+Apply_k(k, fun, Apply(proc1, arg1), arg2) -> k
+
+k3: -> (k4, evaluate fun)
+k4 f: -> evaluate Apply_k(k5, proc1, arg1)
+k5 a1: -> (k6, f, a1, evaluate arg2)
+k6 a2: -> evaluate f(k, a1, a2)
+
+Apply_k(k5, proc1, arg1) -> k7
+
+k7: -> (k8, evaluate proc1)
+k8 p1: -> (k9, p1, evaluate arg1)
+
+
+3.2 transformation of Begin
+
+Begin(a,b,c...,z) becomes
+Begin_k(k, a, b, c... , z) -> k1
+k1: evaluate a -> (k2,)
+k2: evaluate b -> (k3,)
+k3: evaluate c -> (k4,)
+k4: -> (k, evaluate z)
+
+
+3.3 transformation of Lambda
+
+
+3.4 transformation of Cond
+
+
+-----
+
+
+((lambda (a b) (+ a b)) 2 7)
+
+Apply \
+  Lambda (a b) \
+    Apply \
+      +
+      a, b
+  2, 7
+
+
+any expression is compiled into a single code object, which is evaluated
+by creating a function taking k, where k is fn(*r)
+
+
+emit block k1 for lambda creation
+emit block k2 to evaluate 2 (returns k, 2)
+emit block k3 to evaluate 7 (returns k, 7)
+emit block k4 to 
+
+load const for fun
+eval 2
+eval 7
+apply_k None, fun, 2, 7
+
+
+# the end.
