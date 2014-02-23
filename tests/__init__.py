@@ -22,13 +22,64 @@ license: LGPL v.3
 
 
 from unittest import TestCase
-import sibilant
+from sibilant import cons, nil, niltype, last
+from sibilant import car, cdr
+from sibilant import first, second, third, fourth, fifth
 
 
-class SibilantTest(TestCase):
+class ConsTest(TestCase):
 
-    def test_pass(self):
-        pass
+    def test_cons(self):
+        a = cons(2, nil)
+        b = cons(1, a)
+        c = cons(0, b)
+
+        self.assertTrue(a.is_proper())
+        self.assertTrue(b.is_proper())
+        self.assertTrue(c.is_proper())
+
+        self.assertEqual(first(b), 1)
+        self.assertEqual(second(b), 2)
+
+        self.assertEqual(first(c), 0)
+        self.assertEqual(second(c), 1)
+        self.assertEqual(third(c), 2)
+
+        self.assertSequenceEqual(list(c), [0, 1, 2])
+        self.assertSequenceEqual(tuple(c), (0, 1, 2))
+        self.assertEqual(repr(c), "(0 1 2)")
+
+        self.assertEqual(car(a), 2)
+        self.assertEqual(cdr(a), nil)
+
+        self.assertEqual(car(b), 1)
+        self.assertEqual(cdr(b), a)
+
+        z = cons(1, 2)
+        self.assertFalse(z.is_proper())
+        self.assertEqual(first(z), 1)
+
+        # this should actually fail with a TypeError, need to review
+        #self.assertEqual(second(z), 2)
+
+
+    def test_nil(self):
+        self.assertIsInstance(nil, cons)
+        self.assertFalse(nil)
+        self.assertEqual(repr(nil), "()")
+
+        # singleton nil check
+        self.assertEqual(id(nil), id(niltype()))
+        self.assertEqual(id(niltype()), id(niltype()))
+
+        with self.assertRaises(TypeError):
+            car(nil)
+
+        with self.assertRaises(TypeError):
+            cdr(nil)
+
+        self.assertEqual(list(nil), list())
+        self.assertEqual(tuple(nil), tuple())
 
 
 #

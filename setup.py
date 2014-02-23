@@ -24,6 +24,7 @@ license: LGPL v.3
 """
 
 
+
 from setuptools import setup
 
 
@@ -40,9 +41,9 @@ setup( name = "sibilant",
        url = "https://github.com/obriencj/python-sibilant",
        license = "GNU Lesser General Public License",
 
-       description = "Scheme modules for Python"
+       description = "Scheme modules for Python",
 
-       provides = [ "sibilant", ]
+       provides = [ "sibilant", ],
        requires = [],
        platforms = [ "python3 >= 3.3", ],
 
