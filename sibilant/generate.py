@@ -51,7 +51,7 @@ class TrampolineCodeGenerator(CodeGenerator):
         # the last member is called with our original continuation
 
         pass
-    
+
 
     def visitPrint(self, node):
         # print TOS
@@ -68,15 +68,15 @@ class TrampolineCodeGenerator(CodeGenerator):
         # presume k is TOS
 
         pass
-        
+
 
     def visitApply(self, node):
 
         # ; for each param
         # if parameter is non-literal:
         #  load const x
-        #  
-        
+        #
+
         # push k onto the stack
         # eval func, collect f into closure for arg1
         # eval arg1, collect f,a1 into closure for arg2
@@ -89,14 +89,11 @@ class TrampolineCodeGenerator(CodeGenerator):
         pass
 
 
-
 def evaluate(a, *b):
     while a:
-        next = a(*b)
-        a, b = next[0], next[1:]
-
+        a, *b = a(*b)
     return b
-            
+
 
 #
 # The end.

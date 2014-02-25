@@ -1,28 +1,45 @@
+# This library is free software; you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as
+# published by the Free Software Foundation; either version 3 of the
+# License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, see
+# <http://www.gnu.org/licenses/>.
+
+
 """
+ast for Sibilant
+
+author: Christopher O'Brien  <obriencj@gmail.com>
+license: LGPL v.3
 """
 
+
+from io import StringIO
+from .visitor import Visitor
 
 import parse
-
 
 
 # TRANSFORM  =  in-place modifications
 # TRANSLATE  =  return new instance with modifications
 
 
-
 # basics
-
 
 
 typep = lambda t: lambda n: isinstance(n, t)
 
 
-
 class Node(object):
     def translate(self):
         return self
-
 
 
 class Comment(Node):
@@ -31,18 +48,15 @@ class Comment(Node):
         self.text = txt
 
 
-
 class Expression(Node):
     pass
 
 
-
-# node representing a mark character, and the single expression following 
+# node representing a mark character, and the single expression following
 class Marked(Node):
     def __init__(self, line, expression=None):
         self.line = line
         self.expression = expression
-
 
 
 class Atom(Expression):
@@ -51,11 +65,10 @@ class Atom(Expression):
         self.token = token
 
 
-
 # proper or improper list of expressions
 class List(Expression):
 
-    
+
     def __init__(self, line, *members):
         self.line = line
         self.proper = True
@@ -72,17 +85,17 @@ class List(Expression):
             if is_symbol(fun):
                 klass = specials.get(fun.token)
                 if klass:
-                    print "list into special", klass
+                    print("list into special", klass)
                     tmp = klass(self.line, *param)
                     tmp.transform()
                     return tmp
 
             # if member[0] isn't a symbol, or isn't a symbol that is
             # considered special, it's a function application
-            
+
             membs = [m.translate() for m in self.members]
             return Apply(self.line, fun, *param)
-        
+
         else:
             return self
 
@@ -90,9 +103,7 @@ class List(Expression):
 is_list = typep(List)
 
 
-
 # literals
-
 
 
 class Symbol(Atom):
@@ -100,7 +111,6 @@ class Symbol(Atom):
 
 
 is_symbol = typep(Symbol)
-
 
 
 class Number(Atom):
@@ -111,9 +121,7 @@ class String(Atom):
     pass
 
 
-
 # sharps
-
 
 
 class Sharp(Marked):
@@ -132,7 +140,7 @@ class Sharp(Marked):
             elif ident == "\\":
                 # xxx
                 return Character(self.line, self.expression)
-            
+
         elif is_list(self.expression):
             return Vector(self.line, self.expression.members)
 
@@ -140,63 +148,51 @@ class Sharp(Marked):
             pass
 
 
-
 class Boolean(Atom):
     pass
-
 
 
 class Character(Atom):
     pass
 
 
-
 class Vector(Atom):
     pass
 
 
-
 # quotes
-
 
 
 class Quote(Marked):
     pass
 
 
-
 class Quasi(Marked):
     pass
-
 
 
 class Unquote(Marked):
     pass
 
 
-
 class Splice(Marked):
     pass
 
 
-
 # specials
-
 
 
 class Special(Expression):
     pass
 
 
-
 class Apply(Special):
-    
+
     def __init__(self, line, fun, *args):
         self.function = fun
         self.args = args
 
-    
-    
+
 class Begin(Special):
 
     def __init__(self, line, *body):
@@ -207,24 +203,20 @@ class Begin(Special):
         self.body = [e.translate() for e in self.body]
 
 
-
 class Cond(Special):
     pass
-
 
 
 class Define(Special):
     pass
 
 
-
 class If(Special):
     pass
 
 
-
 class Lambda(Special):
-    
+
     def __init__(self, line, formals, *body):
         self.line = line
         self.formals = formals
@@ -235,17 +227,16 @@ class Lambda(Special):
         self.body = [e.translate() for e in self.body]
 
 
-
 class Let(Special):
 
     def __init__(self, line, x, *y):
         self.line = line
-        
+
         if is_list(x):
             self.name = None
             self.pairs = [p.members for p in x.members]
             self.body = y
-            
+
         elif is_token(x):
             self.name = x
             self.pairs = [p.members for p in y[0].members]
@@ -261,7 +252,6 @@ class Let(Special):
         self.body = [e.translate() for e in self.body]
 
 
-
 class Not(Special):
 
     def __init__(self, line, expr):
@@ -271,7 +261,6 @@ class Not(Special):
 
     def transform(self):
         self.expression = self.expression.translate()
-
 
 
 class Print(Special):
@@ -285,9 +274,8 @@ class Print(Special):
         self.expression = self.expression.translate()
 
 
-
 class Set(Special):
-    
+
     def __init__(self, line, var, val):
         self.line = line
         self.var = var
@@ -298,72 +286,36 @@ class Set(Special):
         self.val = self.val.translate()
 
 
-
 class While(Special):
     pass
-
 
 
 class Operator(Special):
     pass
 
 
-
 class Op_Add(Operator):
     pass
-
 
 
 class Op_Sub(Operator):
     pass
 
 
-
 class Op_Mult(Operator):
     pass
-
 
 
 class Op_Div(Operator):
     pass
 
 
-
 class Op_And(Operator):
     pass
 
 
-
 class Op_Or(Operator):
     pass
-
-
-
-# a way to process the nodes
-
-
-class Visitor(object):
-
-
-    def visit(self, node, *args):
-        if not hasattr(self, "_kcache"):
-            self._kcache = {}
-
-        klass = node.__class__
-        method = self._kcache.get(klass, None)
-
-        if not method:
-            classname = klass.__name__
-            method = getattr(self, 'visit'+classname, self.default)
-            self._kcache[klass] = method
-
-        return method(node, *args)        
-
-
-
-    def default(self, node):
-        raise Exception("no handler for visiting node %r" % node)
-
 
 
 specials = {
@@ -392,7 +344,6 @@ procedures = {
     }
 
 
-
 def translate_special(listnode):
     # turn a List instance into one of the specials, calls translate on
     # any sub-expressions that might need it
@@ -400,11 +351,9 @@ def translate_special(listnode):
     pass
 
 
-
 def translate_quote(quotenode):
     # translates unquote and splice contents
     pass
-
 
 
 def translate_sharp(sharpnode):
@@ -413,10 +362,8 @@ def translate_sharp(sharpnode):
     pass
 
 
-
 def translate(node):
     return node.translate()
-
 
 
 klass_events = {
@@ -433,36 +380,33 @@ klass_events = {
     }
 
 
-
 def create_node(line_no, event, *args):
     klass = klass_events.get(event)
     if klass:
-        print "create_node", klass.__name__
+        print("create_node", klass.__name__)
         return klass(line_no, *args)
     else:
         return None
 
 
-
 def compose(parser_gen, starting_line=1):
-    
+
     ret = None
     stack = []
     line_no = starting_line
 
-    for e in parser_gen:
-        event = e[0]
-        node = create_node(line_no, *e)
-        
+    for event, *data in parser_gen:
+        node = create_node(line_no, event, *data)
+
         if not ret:
             ret = node
-        
+
         if event == parse.E_NEWLINE:
             line_no += 1
-            
+
         elif event == parse.E_COMMENT:
             pass
-        
+
         elif event == parse.E_OPEN:
             stack.append(node)
             continue
@@ -473,39 +417,36 @@ def compose(parser_gen, starting_line=1):
 
         elif event == parse.E_CLOSE:
             node = stack.pop()
-        
+
         elif event in (parse.E_SHARP,
                        parse.E_QUOTE, parse.E_QUASI,
                        parse.E_UNQUOTE, parse.E_SPLICE):
-            
+
             marked = compose(parser_gen, line_no)
             node.expression = marked
-        
+
         elif event in (parse.E_SYMBOL, parse.E_NUMBER,
                        parse.E_STRING):
             pass
 
-        # now take node and stick it in the param slot for 
+        # now take node and stick it in the param slot for
         if stack:
-            print "stack", stack
+            print("stack", stack)
             stack[-1].members.append(node)
-            
+
         else:
             break
 
     return ret
 
 
-
 def compose_from_str(src_str, starting_line=1):
-    from cStringIO import StringIO
 
     buf = StringIO(src_str)
     pgen = parse.parse(buf)
     ast = compose(pgen, starting_line)
 
     return ast
-
 
 
 def _test():
@@ -516,19 +457,19 @@ def _test():
 
     i = 0
     for s in srcs:
+        print()
+        print(s)
         i += 1
 
         t = compose_from_str(s, i)
-        print t
-        
-        z = t.translate()
-        print z
+        print(t)
 
+        z = t.translate()
+        print(z)
 
 
 if __name__ == "__main__":
     _test()
-
 
 
 #

@@ -131,6 +131,9 @@ class cons(object):
 
 
 class niltype(cons):
+    """
+    The canonical empty cons cell, nil.
+    """
 
     __slots__ = ()
 
@@ -216,7 +219,6 @@ def last(seq):
 
     for val in iter(seq): pass
     return val
-
 
 
 def cli(options, args):

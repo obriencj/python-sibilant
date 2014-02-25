@@ -1,9 +1,27 @@
+# This library is free software; you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as
+# published by the Free Software Foundation; either version 3 of the
+# License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, see
+# <http://www.gnu.org/licenses/>.
+
+
+"""
+Simple event-emitting Sexp parser for Sibilant
+
+author: Christopher O'Brien  <obriencj@gmail.com>
+license: LGPL v.3
 """
 
-Simple event-emitting Sexp parser.
 
-"""
-
+from functools import partial
 
 
 # these are the events that can be emitted.
@@ -22,12 +40,11 @@ E_COMMENT = "comment"
 E_NEWLINE = "newline"
 
 
-
 def parse(stream):
     for c in stream_chars(stream):
         if c in "\n\r":
             yield (E_NEWLINE,)
-            
+
         elif c.isspace():
             continue
 
@@ -62,7 +79,7 @@ def parse(stream):
             yield (E_UNQUOTE,)
 
         elif c == "@":
-            yield (E_SPLICE,)        
+            yield (E_SPLICE,)
 
         elif c == ";":
             stream_unread(stream)
@@ -73,67 +90,74 @@ def parse(stream):
             yield (E_SYMBOL, parse_token(stream))
 
 
-
 def stream_chars(stream):
-    c = stream.read(1)
-    while c:
-        yield c
-        c = stream.read(1)
+    """
+    iterate over stream one character at a time
+    """
+
+    return iter(partial(stream.read, 1), '')
 
 
+def stream_unread(stream, count=1):
+    """
+    rewinds stream count (default=1) characters
+    """
 
-def stream_unread(stream):
-    stream.seek(-1,1)
-
+    stream.seek(stream.tell()-count, 0)
 
 
 def read_until(stream, testf):
-    from cStringIO import StringIO
-    tok = StringIO()
+    """
+    returns string of characters from stream up until testf(c) passes
+    """
+
+    start = stream.tell()
 
     for c in stream_chars(stream):
         if testf(c):
             stream_unread(stream)
             break
-        
-        else:
-            tok.write(c)
 
-    return tok.getvalue()
-    
+    end = stream.tell()
+    stream.seek(start, 0)
+    return stream.read(end - start)
 
 
 def parse_token(stream):
     return read_until(stream, lambda c: c.isspace() or c in "()")
 
 
-
 def parse_comment(stream):
     return read_until(stream, lambda c: c in "\n\r")
-
 
 
 # this is using c-style escapes. I need to convert it into
 # scheme-style, which would be #\Newline instead of \n
 def parse_string(stream):
-    from cStringIO import StringIO
-    tok = StringIO()
+    start = stream.tell()
     esc = False
 
+    c = stream.read(1)
     for c in stream_chars(stream):
-        if (not esc) and c == "\"":
+        if (not esc) and c == '\"':
+            stream_unread(stream)
             break
+        esc = (not esc) and c == '\\'
 
-        tok.write(c)
-        esc = (not esc) and c == "\\"
+    end = stream.tell()
 
-    return tok.getvalue()
+    # rewind and get the string contents in a single read
+    stream.seek(start, 0)
+    value = stream.read(end - start)
 
+    # discard the closing sentinel
+    stream.read(1)
+
+    return value
 
 
 def _test():
-    from cStringIO import StringIO
-
+    from io import StringIO
     srcl = ("testing",
             "(testing a thing)",
             "'a",
@@ -145,17 +169,14 @@ def _test():
             "; a comment \n;() \n;'a")
 
     for s in srcl:
-        print "testing: %r" % s
+        print()
+        print("testing:", repr(s))
         for e in parse(StringIO(s)):
-            print " ", e
-
-    # done
-
+            print(" ", e)
 
 
 if __name__ == "__main__":
     _test()
-
 
 
 #

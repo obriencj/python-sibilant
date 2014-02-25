@@ -106,12 +106,24 @@ by creating a function taking k, where k is fn(*r)
 emit block k1 for lambda creation
 emit block k2 to evaluate 2 (returns k, 2)
 emit block k3 to evaluate 7 (returns k, 7)
-emit block k4 to 
+emit block k4 to
 
 load const for fun
 eval 2
 eval 7
 apply_k None, fun, 2, 7
+
+
+-----
+
+
+I wonder if Spexy may not have been on to something rather
+clever. Instead of attempting to emit Python bytecode, maybe emitting
+Python syntax and then having *that* become the bytecode really is a
+better model. I wouldn't need to be as obscene about is as I was with
+Spexy, but I could emit a module-like object that would have the
+callable objects embedded. How does that correlate to a compiled
+(.pyc) module? Can I go from lisp -> python -> pyc ?
 
 
 # the end.
