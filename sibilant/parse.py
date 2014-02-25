@@ -156,28 +156,5 @@ def parse_string(stream):
     return value
 
 
-def _test():
-    from io import StringIO
-    srcl = ("testing",
-            "(testing a thing)",
-            "'a",
-            "`a",
-            "#t",
-            r"#\newline (foo)",
-            ",@(foo)",
-            '''"hello world"''',
-            "; a comment \n;() \n;'a")
-
-    for s in srcl:
-        print()
-        print("testing:", repr(s))
-        for e in parse(StringIO(s)):
-            print(" ", e)
-
-
-if __name__ == "__main__":
-    _test()
-
-
 #
 # The end.
