@@ -14,32 +14,35 @@
 
 
 """
-visitor utility class for Sibilant
+mro dispatch utility class for Sibilant
 
 author: Christopher O'Brien  <obriencj@gmail.com>
 license: LGPL v.3
 """
 
 
-class NoVisitMethod(Exception):
+class NoDispatchMethod(Exception):
     pass
 
 
-class Visitor(object):
+class Dispatch(object):
+
+    _dispatch_prefix = "dispatch"
 
 
-    def visit(self, obj, *args, **kwds):
+    def dispatch(self, obj, *args, **kwds):
         """
-        Finds a `visit<Type>` method and calls it with `node` and `*args`
+        Finds a `dispatch<Type>` method and calls it with `node` and
+        `*args`
 
-        If no `visit<Type>` for the type of `node` is found, then the
-        next type (by MRO) is checked, and so on. If there is no
-        matching visit method for any type in the MRO of the node's
-        class, the `default` method will be called.
+        If no `dispatch<Type>` for the type of `node` is found, then
+        the next type (by MRO) is checked, and so on. If there is no
+        matching `dispatch...` method for any type in the MRO of the
+        node's class, the `default` method will be called.
         """
 
         # ensure we have the visit method cache
-        if not hasattr(self, "_visit_k_cache"):
+        if not hasattr(self, "_dispatch_k_cache"):
             self._visit_k_cache = {}
         cache = self._visit_k_cache
 
@@ -49,7 +52,8 @@ class Visitor(object):
         for k in klass.mro():
             method = cache.get(k, None)
             if not method:
-                method = getattr(self, 'visit'+k.__name__, None)
+                nom = self._dispatch_prefix + k.__name__
+                method = getattr(self, nom, None)
                 if method:
                     cache[klass] = method
                     cache[k] = method
@@ -64,10 +68,10 @@ class Visitor(object):
 
     def default(self, obj, *args, **kwds):
         """
-        Raises a `NoVisitMethod`
+        Raises a `NoDispatchMethod`
         """
 
-        raise NoVisitMethod(type(obj))
+        raise NoDispatchMethod(type(obj))
 
 
 #

@@ -14,14 +14,14 @@
 
 
 """
-unittest for sibilant.visitor
+unittest for sibilant.dispatch
 
 author: Christopher O'Brien  <obriencj@gmail.com>
 license: LGPL v.3
 """
 
 
-from sibilant.visitor import Visitor, NoVisitMethod
+from sibilant.dispatch import Dispatch, NoDispatchMethod
 from unittest import TestCase
 
 
@@ -41,32 +41,32 @@ class Qux(object):
     pass
 
 
-class V(Visitor):
+class D(Dispatch):
 
-    def visitFoo(self, o):
+    def dispatchFoo(self, o):
         return "foo"
 
-    def visitBar(self, o):
+    def dispatchBar(self, o):
         return "bar"
 
 
-class VisitorTest(TestCase):
+class DispatchTest(TestCase):
 
 
-    def test_visit(self):
-        v = V()
+    def test_dispatch(self):
+        dis = D().dispatch
 
         foo = Foo()
         bar = Bar()
         baz = Baz()
         qux = Qux()
 
-        self.assertEqual(v.visit(foo), "foo")
-        self.assertEqual(v.visit(bar), "bar")
-        self.assertEqual(v.visit(baz), "foo")
+        self.assertEqual(dis(foo), "foo")
+        self.assertEqual(dis(bar), "bar")
+        self.assertEqual(dis(baz), "foo")
 
-        with self.assertRaises(NoVisitMethod):
-            v.visit(qux)
+        with self.assertRaises(NoDispatchMethod):
+            dis(qux)
 
 
 #
