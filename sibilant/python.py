@@ -2,12 +2,13 @@
 """
 
 
-from .visitor import Visitor
+from .dispatch import Dispatch
+
 import compiler.ast as pyast
 import ast
 
 
-class PythonicTranslator(Visitor):
+class PythonicTranslator(Dispatch):
 
 
     def collectChain(self, node, k):
@@ -18,10 +19,10 @@ class PythonicTranslator(Visitor):
         now, next = nodelist[0], nodelist[1:]
 
         expr = pyast.Lambda()
-        #expr.add(pyast.Tuple(self.visit(now), self.dropChain(
+        #expr.add(pyast.Tuple(self.dispatch(now), self.dropChain(
 
         if isatom(now):
-            expr.add(pyast.Tuple(self.dropChain(next, k), self.visit(now)))
+            expr.add(pyast.Tuple(self.dropChain(next, k), self.dispatch(now)))
         else:
             pass
             #expr.add(pyast.Tuple(self.
@@ -29,7 +30,7 @@ class PythonicTranslator(Visitor):
         return expr
 
 
-    def visitApply(self, node, k):
+    def dispatchApply(self, node, k):
         pass
 
 

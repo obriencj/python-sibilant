@@ -2,10 +2,10 @@
 """
 
 
-from .visitor import Visitor
+from .dispatch import Dispatch
 
 
-class CodeGenerator(Visitor):
+class CodeGenerator(Dispatch):
 
 
     def __init__(self, node, name="<module>", filename="<string>"):
@@ -19,7 +19,7 @@ class CodeGenerator(Visitor):
 
 
     def walk(self):
-        return self.visit(self.tree)
+        return self.dispatch(self.tree)
 
 
     def get_code(self):
@@ -36,38 +36,39 @@ class TrampolineCodeGenerator(CodeGenerator):
     def createBeginCont(self, node):
         # pushes a block
         # accept parameter k
-        # visit node
+        # dispatch node
         # pop and returns block
         pass
 
 
-    def visitBegin(self, node):
-        # thread a continuation through all the members, such that
-        # the first member is called with a continuation to call the second
-        # member, with a continuation to call the third member, etc, until
-        # the last member is called with our original continuation
+    def dispatchBegin(self, node):
+        # thread a continuation through all the members, such that the
+        # first member is called with a continuation to call the
+        # second member, with a continuation to call the third member,
+        # etc, until the last member is called with our original
+        # continuation
 
         pass
 
 
-    def visitPrint(self, node):
+    def dispatchPrint(self, node):
         # print TOS
         self.emit()
 
 
-    def visitString(self, node):
+    def dispatchString(self, node):
         # add string to constants pool
         # push reference onto stack
         self.emit()
 
 
-    def visitLambda(self, node):
+    def dispatchLambda(self, node):
         # presume k is TOS
 
         pass
 
 
-    def visitApply(self, node):
+    def dispatchApply(self, node):
 
         # ; for each param
         # if parameter is non-literal:

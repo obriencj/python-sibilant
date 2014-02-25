@@ -2,11 +2,10 @@
 """
 
 
-import visitor
+from .dispatch import Dispatch
 
 
-
-class ClosureInfo(visitor.Visitor):
+class ClosureInfo(Dispatch):
 
 
     def __init__(self):
@@ -18,33 +17,29 @@ class ClosureInfo(visitor.Visitor):
         return info
 
 
-    def default(self, node):
-        pass
-
-
-    def visitSymbol(self, node):
+    def dispatchSymbol(self, node):
         syms = set([node.name,])
-        
+
         self.node_info[self] = syms
         return syms
-    
 
-    def visitApply(self, node):
+
+    def dispatchApply(self, node):
         syms = set()
-        
-        syms.extend(self.visit(node.func))
+
+        syms.extend(self.dispatch(node.func))
         for p in node.args:
-            syms.extend(self.visit(p))
+            syms.extend(self.dispatch(p))
 
         self.node_info[node] = syms
         return syms
-    
 
-    def visitLambda(self, node):
+
+    def dispatchLambda(self, node):
         syms = set()
-        
+
         for b in node.body:
-            syms.extend(self.visit(b))
+            syms.extend(self.dispatch(b))
 
         for formal in node.formals:
             syms.remove(formal.name)
@@ -53,21 +48,20 @@ class ClosureInfo(visitor.Visitor):
         return syms
 
 
-    def visitLet(self, node):
+    def dispatchLet(self, node):
         syms = set()
 
         for b in node.body:
-            syms.extend(self.visit(b))
+            syms.extend(self.dispatch(b))
 
         for k,v in self.pairs:
             syms.remove(k.name)
 
         for k,v in self.pairs:
-            syms.append(self.visit(v))
+            syms.append(self.dispatch(v))
 
         self.node_info[node] = syms
         return syms
-
 
 
 #

@@ -22,7 +22,6 @@ license: LGPL v.3
 
 
 from io import StringIO
-from .visitor import Visitor
 
 import parse
 
