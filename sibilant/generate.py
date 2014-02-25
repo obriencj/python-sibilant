@@ -2,11 +2,10 @@
 """
 
 
-import visitor
+from .visitor import Visitor
 
 
-
-class CodeGenerator(visitor.Visitor):
+class CodeGenerator(Visitor):
 
 
     def __init__(self, node, name="<module>", filename="<string>"):
@@ -27,13 +26,11 @@ class CodeGenerator(visitor.Visitor):
         return self.graph.getCode()
 
 
-
-
 class TrampolineCodeGenerator(CodeGenerator):
 
 
     def prep(self):
-        self.k = [, ]
+        self.k = list()
 
 
     def createBeginCont(self, node):

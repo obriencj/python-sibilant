@@ -6,7 +6,7 @@ import ast
 
 
 
-def ChainCreator(ast.Visitor):
+class ChainCreator(ast.Visitor):
 
 
     def drop_cont(self, kchain):
@@ -15,18 +15,18 @@ def ChainCreator(ast.Visitor):
 
     # returns an ATOMIC
     def chain_begin(self, nodes, kchain):
-        
+
         if len(nodes) == 1:
             return self.visit(nodes[0], kchain)
 
         elif nodes:
             ncont = self.chain_begin(nodes[1:], kchain)
-            
-            # create an atomic taking only the continuation            
+
+            # create an atomic taking only the continuation
             self.pushblock(1)
             self.emittuple((ncont, ))
             return self.popblock()
-        
+
 
     def chain_apply(self, nodes, kchain):
         pass

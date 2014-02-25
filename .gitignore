@@ -7,10 +7,12 @@
 *.tar
 *~
 .#*
+.coverage
 MANIFEST
 __pycache__
 _build
 _deploy
 build
 dist
+htmlcov
 tmp
