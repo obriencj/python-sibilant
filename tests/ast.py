@@ -132,13 +132,32 @@ class TestParse(TestCase):
         self.assertFalse(col.expression.proper)
 
 
-    def test_apply(self):
+    def test_special_apply(self):
         src = "(testing for fun)"
         col = compose_ast(src)
         exp = Apply(1,
                     Symbol(1, "testing"),
                     Symbol(1, "for"),
                     Symbol(1, "fun"))
+
+        self.assertEqual(col, exp)
+
+
+    def test_special_begin(self):
+        src = "(begin to dance)"
+        col = compose_ast(src)
+        exp = Begin(1,
+                    Symbol(1, "to"),
+                    Symbol(1, "dance"))
+
+        self.assertEqual(col, exp)
+
+        src = "(begin (to dance))"
+        col = compose_ast(src)
+        exp = Begin(1,
+                    Apply(1,
+                          Symbol(1, "to"),
+                          Symbol(1, "dance")))
 
         self.assertEqual(col, exp)
 

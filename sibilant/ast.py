@@ -59,6 +59,18 @@ class Comment(Node):
         self.line = line
         self.text = txt
 
+    def __eq__(self, other):
+        return ((type(self) is type(other)) and
+                (self.line == other.line) and
+                (self.text == other.text))
+
+    def __repr__(self):
+        data = (type(self).__name__,
+                self.line,
+                self.text)
+
+        return "%s(line=%i,txt=%r)" % data
+
 
 class Expression(Node):
     pass
@@ -268,11 +280,26 @@ class Apply(Special):
 class Begin(Special):
 
     def __init__(self, line, *body):
-        self.body = body
+        self.line = line
+        self.body = list(body)
 
 
     def transform(self):
         self.body = [e.translate() for e in self.body]
+
+
+    def __eq__(self, other):
+        return ((type(self) is type(other)) and
+                (self.body == other.body))
+
+
+    def __repr__(self):
+        data = (type(self).__name__,
+                self.line,
+                ",".join(map(repr, self.body)))
+
+        return "%s(line=%i,body=[%s])" % data
+
 
 
 class Cond(Special):
