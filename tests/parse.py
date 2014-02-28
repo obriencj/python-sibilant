@@ -66,11 +66,23 @@ class TestParse(TestCase):
         self.assertEqual(col, exp)
 
 
-    def test_quote(self):
+    def test_quote_symbol(self):
         src = "'foo"
         col = collect_emissions(src)
         exp = [(E_QUOTE,),
                (E_SYMBOL, "foo")]
+
+        self.assertEqual(col, exp)
+
+
+    def test_quote_list(self):
+        src = "'(foo bar)"
+        col = collect_emissions(src)
+        exp = [(E_QUOTE,),
+               (E_OPEN, ),
+               (E_SYMBOL, "foo"),
+               (E_SYMBOL, "bar"),
+               (E_CLOSE, )]
 
         self.assertEqual(col, exp)
 

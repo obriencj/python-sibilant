@@ -23,7 +23,7 @@ license: LGPL v.3
 
 from io import StringIO
 
-import parse
+import sibilant.parse as parse
 
 
 # TRANSFORM  =  in-place modifications
@@ -37,8 +37,21 @@ typep = lambda t: lambda n: isinstance(n, t)
 
 
 class Node(object):
+
+    def __init__(self, line=1):
+        self.line = line
+
     def translate(self):
         return self
+
+    def __ne__(self, other):
+        return not (self == other)
+
+    def __repr__(self):
+        return "%s(line=%i)" % (type(self).__name__, self.line)
+
+    def __str__(self):
+        return repr(self)
 
 
 class Comment(Node):
@@ -53,20 +66,48 @@ class Expression(Node):
 
 # node representing a mark character, and the single expression following
 class Marked(Node):
+
     def __init__(self, line, expression=None):
         self.line = line
         self.expression = expression
 
 
+    def __eq__(self, other):
+        return ((type(self) is type(other)) and
+                (self.line == other.line) and
+                (self.expression == other.expression))
+
+
+    def __repr__(self):
+        data = (type(self).__name__,
+                self.line,
+                self.expression)
+
+        return "%s(line=%i,%r)" % data
+
+
 class Atom(Expression):
+
     def __init__(self, line, token):
         self.line = line
         self.token = token
 
 
+    def __eq__(self, other):
+        return ((type(self) is type(other)) and
+                (self.line == other.line) and
+                (self.token == other.token))
+
+
+    def __repr__(self):
+        data = (type(self).__name__,
+                self.line,
+                self.token)
+        return "%s(line=%i,%r)" % data
+
+
 # proper or improper list of expressions
 class List(Expression):
-
 
     def __init__(self, line, *members):
         self.line = line
@@ -84,7 +125,7 @@ class List(Expression):
             if is_symbol(fun):
                 klass = specials.get(fun.token)
                 if klass:
-                    print("list into special", klass)
+                    #print("list into special", klass)
                     tmp = klass(self.line, *param)
                     tmp.transform()
                     return tmp
@@ -97,6 +138,21 @@ class List(Expression):
 
         else:
             return self
+
+
+    def __repr__(self):
+        data = (type(self).__name__,
+                self.line,
+                self.proper,
+                ",".join(map(repr, self.members)))
+        return "%s(line=%i,proper=%r,members=[%s])" % data
+
+
+    def __eq__(self, other):
+        return ((type(self) is type(other)) and
+                (self.line == other.line) and
+                (self.proper == other.proper) and
+                (self.members == other.members))
 
 
 is_list = typep(List)
@@ -127,9 +183,9 @@ class Sharp(Marked):
 
     def translate(self):
         if is_symbol(self.expression):
-            ident = self.expression[0]
+            ident = self.expression.token
             if ident in "ft":
-                return Boolean(self.line, ident == "t")
+                return Boolean(self.line, ident)
             elif ident in "bodx":
                 # xxx
                 return Number(self.line, self.expression)
@@ -188,8 +244,25 @@ class Special(Expression):
 class Apply(Special):
 
     def __init__(self, line, fun, *args):
+        self.line = line
         self.function = fun
         self.args = args
+
+
+    def __eq__(self, other):
+        return ((type(self) is type(other)) and
+                (self.line == other.line) and
+                (self.function == other.function) and
+                (self.args == other.args))
+
+
+    def __repr__(self):
+        data = (type(self).__name__,
+                self.line,
+                self.function,
+                ",".join(map(repr, self.args)))
+
+        return "%s(line=%i,fun=%r,args=[%s])" % data
 
 
 class Begin(Special):
@@ -340,7 +413,7 @@ procedures = {
     "/": Op_Div,
     "and": Op_And,
     "or": Op_Or,
-    }
+}
 
 
 def translate_special(listnode):
@@ -376,13 +449,13 @@ klass_events = {
     parse.E_SPLICE: Splice,
     parse.E_OPEN: List,
     parse.E_COMMENT: Comment,
-    }
+}
 
 
 def create_node(line_no, event, *args):
     klass = klass_events.get(event)
     if klass:
-        print("create_node", klass.__name__)
+        #print("create_node", klass.__name__)
         return klass(line_no, *args)
     else:
         return None
@@ -430,7 +503,7 @@ def compose(parser_gen, starting_line=1):
 
         # now take node and stick it in the param slot for
         if stack:
-            print("stack", stack)
+            #print("stack", stack)
             stack[-1].members.append(node)
 
         else:
