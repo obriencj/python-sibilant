@@ -14,22 +14,20 @@
 
 
 """
-unittest for sibilant.parse
+unittest for sibilant.ast
 
 author: Christopher O'Brien  <obriencj@gmail.com>
 license: LGPL v.3
 """
 
 
-from io import StringIO
 from unittest import TestCase
 from sibilant.ast import *
 from sibilant.parse import parse
 
 
 def compose_ast(src_str, starting_line=1):
-    pgen = parse(StringIO(src_str))
-    tree = compose(pgen, starting_line)
+    tree = compose_from_str(src_str, starting_line=starting_line)
     return tree.translate()
 
 

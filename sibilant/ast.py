@@ -14,7 +14,7 @@
 
 
 """
-ast for Sibilant
+Abstract Syntax Tree for Sibilant
 
 author: Christopher O'Brien  <obriencj@gmail.com>
 license: LGPL v.3
@@ -37,6 +37,9 @@ typep = lambda t: lambda n: isinstance(n, t)
 
 
 class Node(object):
+    """
+    Base class for all AST node types
+    """
 
     def __init__(self, line=1):
         self.line = line
@@ -55,6 +58,10 @@ class Node(object):
 
 
 class Comment(Node):
+    """
+    A comment
+    """
+
     def __init__(self, line, txt):
         self.line = line
         self.text = txt
@@ -76,8 +83,10 @@ class Expression(Node):
     pass
 
 
-# node representing a mark character, and the single expression following
 class Marked(Node):
+    """
+    Parent class for mark indicators which augment another expression
+    """
 
     def __init__(self, line, expression=None):
         self.line = line
@@ -99,6 +108,9 @@ class Marked(Node):
 
 
 class Atom(Expression):
+    """
+    Parent class for single-token expressions
+    """
 
     def __init__(self, line, token):
         self.line = line
@@ -118,8 +130,10 @@ class Atom(Expression):
         return "%s(line=%i,%r)" % data
 
 
-# proper or improper list of expressions
 class List(Expression):
+    """
+    A collection of sub-expressions
+    """
 
     def __init__(self, line, *members):
         self.line = line
@@ -250,6 +264,10 @@ class Splice(Marked):
 
 
 class Special(Expression):
+    """
+    parent class for all special form expressions
+    """
+
     pass
 
 
@@ -299,7 +317,6 @@ class Begin(Special):
                 ",".join(map(repr, self.body)))
 
         return "%s(line=%i,body=[%s])" % data
-
 
 
 class Cond(Special):
@@ -481,11 +498,7 @@ klass_events = {
 
 def create_node(line_no, event, *args):
     klass = klass_events.get(event)
-    if klass:
-        #print("create_node", klass.__name__)
-        return klass(line_no, *args)
-    else:
-        return None
+    return klass(line_no, *args) if klass else None
 
 
 def compose(parser_gen, starting_line=1):
@@ -504,6 +517,7 @@ def compose(parser_gen, starting_line=1):
             line_no += 1
 
         elif event == parse.E_COMMENT:
+            # don't bother representing comments in the AST
             pass
 
         elif event == parse.E_OPEN:
@@ -540,35 +554,8 @@ def compose(parser_gen, starting_line=1):
 
 
 def compose_from_str(src_str, starting_line=1):
-
-    buf = StringIO(src_str)
-    pgen = parse.parse(buf)
-    ast = compose(pgen, starting_line)
-
-    return ast
-
-
-def _test():
-
-    srcs = ( "'(#t #f)",
-             "(lambda (a . b) b)",
-             "(foo 'a a 100)" )
-
-    i = 0
-    for s in srcs:
-        print()
-        print(s)
-        i += 1
-
-        t = compose_from_str(s, i)
-        print(t)
-
-        z = t.translate()
-        print(z)
-
-
-if __name__ == "__main__":
-    _test()
+    pgen = parse.parse(StringIO(src_str))
+    return compose(pgen, starting_line)
 
 
 #
