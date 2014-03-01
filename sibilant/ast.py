@@ -272,6 +272,9 @@ class Special(Expression):
 
 
 class Apply(Special):
+    """
+    Application of a function
+    """
 
     def __init__(self, line, fun, *args):
         self.line = line
@@ -296,6 +299,9 @@ class Apply(Special):
 
 
 class Begin(Special):
+    """
+    Evaluate sub expressions in order
+    """
 
     def __init__(self, line, *body):
         self.line = line
@@ -332,15 +338,33 @@ class If(Special):
 
 
 class Lambda(Special):
+    """
+    Function definition
+    """
 
     def __init__(self, line, formals, *body):
         self.line = line
         self.formals = formals
-        self.body = body
+        self.body = list(body)
 
 
     def transform(self):
         self.body = [e.translate() for e in self.body]
+
+
+    def __eq__(self, other):
+        return ((type(self) is type(other)) and
+                (self.line == other.line) and
+                (self.body == other.body))
+
+
+    def __repr__(self):
+        data = (type(self).__name__,
+                self.line,
+                ",".join(map(repr, self.formals)),
+                ",".join(map(repr, self.body)))
+
+        return "%s(line=%i,formals=[%s],body=[%s])" % data
 
 
 class Let(Special):
@@ -502,23 +526,30 @@ def create_node(line_no, event, *args):
 
 
 def compose(parser_gen, starting_line=1):
+    """
+    Composes a single element or statement from the event stream
+    `parser_gen`
+    """
 
     ret = None
-    stack = []
+    stack = list()
     line_no = starting_line
 
     for event, *data in parser_gen:
         node = create_node(line_no, event, *data)
 
-        if not ret:
+        # if we aren't already working on our return node,
+        # then this is probably the one
+        if ret is None:
             ret = node
 
         if event == parse.E_NEWLINE:
             line_no += 1
+            continue
 
         elif event == parse.E_COMMENT:
             # don't bother representing comments in the AST
-            pass
+            continue
 
         elif event == parse.E_OPEN:
             stack.append(node)
@@ -535,27 +566,34 @@ def compose(parser_gen, starting_line=1):
                        parse.E_QUOTE, parse.E_QUASI,
                        parse.E_UNQUOTE, parse.E_SPLICE):
 
-            marked = compose(parser_gen, line_no)
+            marked, line_no = compose(parser_gen, line_no)
             node.expression = marked
 
         elif event in (parse.E_SYMBOL, parse.E_NUMBER,
                        parse.E_STRING):
             pass
 
-        # now take node and stick it in the param slot for
+        # finished lists, literals should reach here
+        assert(node is not None)
         if stack:
-            #print("stack", stack)
             stack[-1].members.append(node)
-
-        else:
+        elif ret:
             break
 
-    return ret
+    return ret, line_no
 
 
 def compose_from_str(src_str, starting_line=1):
     pgen = parse.parse(StringIO(src_str))
     return compose(pgen, starting_line)
+
+
+def compose_all_from_str(src_str, starting_line=1):
+    pgen = parse.parse(StringIO(src_str))
+    comp, ln = compose(pgen, starting_line)
+    while comp is not None:
+        yield comp, ln
+        comp, ln = compose(pgen, ln)
 
 
 #

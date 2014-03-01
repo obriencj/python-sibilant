@@ -27,8 +27,14 @@ from sibilant.parse import parse
 
 
 def compose_ast(src_str, starting_line=1):
-    tree = compose_from_str(src_str, starting_line=starting_line)
+    tree, ln = compose_from_str(src_str, starting_line=starting_line)
     return tree.translate()
+
+
+def compose_all_ast(src_str, starting_line=1):
+    trees = compose_all_from_str(src_str, starting_line=starting_line)
+    trees = [tree.translate() for tree,ln in trees]
+    return trees
 
 
 class TestParse(TestCase):
@@ -59,6 +65,18 @@ class TestParse(TestCase):
         src = "#f"
         col = compose_ast(src)
         exp = Boolean(1, "f")
+
+        self.assertEqual(col, exp)
+
+
+    def test_multi_bool(self):
+        src = """
+        #t
+        #f
+        """
+        col = compose_all_ast(src)
+        exp = [Boolean(2, "t"),
+               Boolean(3, "f")]
 
         self.assertEqual(col, exp)
 
@@ -156,6 +174,36 @@ class TestParse(TestCase):
                     Apply(1,
                           Symbol(1, "to"),
                           Symbol(1, "dance")))
+
+        self.assertEqual(col, exp)
+
+
+    def test_special_lambda(self):
+        src = "(lambda (i) i)"
+
+        col = compose_ast(src)
+        exp = Lambda(1,
+                     List(1,
+                          Symbol(1, "i")),
+                     Symbol(1, "i"))
+
+        self.assertEqual(col, exp)
+
+        src = """
+        (lambda (x)
+            (lambda (y) (add x y)))
+        """
+        col = compose_ast(src)
+        exp = Lambda(2,
+                     List(2,
+                          Symbol(2, "x")),
+                     Lambda(3,
+                            List(3,
+                                 Symbol(3, "y")),
+                            Apply(3,
+                                  Symbol(3, "add"),
+                                  Symbol(3, "x"),
+                                  Symbol(3, "y"))))
 
         self.assertEqual(col, exp)
 
