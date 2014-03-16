@@ -119,7 +119,7 @@ class cons(object):
         else:
             # otherwise, we need to inject a dot to indicate just how
             # improper this list is
-            l.insert(". ", -1)
+            l.insert(-1, ". ")
 
         l[0] = "("
         l.append(")")

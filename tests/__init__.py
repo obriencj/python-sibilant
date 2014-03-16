@@ -59,6 +59,7 @@ class ConsTest(TestCase):
         z = cons(1, 2)
         self.assertFalse(z.is_proper())
         self.assertEqual(first(z), 1)
+        self.assertEqual(repr(z), "(1 . 2)")
 
         # this should actually fail with a TypeError, need to review
         #self.assertEqual(second(z), 2)
@@ -72,6 +73,7 @@ class ConsTest(TestCase):
         # singleton nil check
         self.assertEqual(id(nil), id(niltype()))
         self.assertEqual(id(niltype()), id(niltype()))
+        self.assertTrue(nil is niltype())
 
         with self.assertRaises(TypeError):
             car(nil)
@@ -99,6 +101,9 @@ class SymbolTest(TestCase):
         self.assertEqual(z, x)
         self.assertEqual(z, y)
         self.assertEqual(z, z)
+
+        self.assertEqual(id(x), id(y))
+        self.assertEqual(id(y), id(z))
 
         self.assertTrue(x is y)
         self.assertTrue(y is z)
