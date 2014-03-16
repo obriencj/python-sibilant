@@ -9,13 +9,8 @@ class CodeGenerator(Dispatch):
 
 
     def __init__(self, node, name="<module>", filename="<string>"):
-        self.tree = tree
+        self.tree = list()
         self.graph = pyassem.PyFlowGraph(name, filename)
-        self.prep()
-
-
-    def prep(self):
-        pass
 
 
     def walk(self):
@@ -26,71 +21,45 @@ class CodeGenerator(Dispatch):
         return self.graph.getCode()
 
 
-class TrampolineCodeGenerator(CodeGenerator):
-
-
-    def prep(self):
-        self.k = list()
-
-
-    def createBeginCont(self, node):
-        # pushes a block
-        # accept parameter k
-        # dispatch node
-        # pop and returns block
-        pass
-
-
     def dispatchBegin(self, node):
-        # thread a continuation through all the members, such that the
-        # first member is called with a continuation to call the
-        # second member, with a continuation to call the third member,
-        # etc, until the last member is called with our original
-        # continuation
-
         pass
 
 
     def dispatchPrint(self, node):
-        # print TOS
-        self.emit()
+        pass
 
 
     def dispatchString(self, node):
-        # add string to constants pool
-        # push reference onto stack
-        self.emit()
+        pass
 
 
     def dispatchLambda(self, node):
-        # presume k is TOS
-
         pass
 
 
     def dispatchApply(self, node):
-
-        # ; for each param
-        # if parameter is non-literal:
-        #  load const x
-        #
-
-        # push k onto the stack
-        # eval func, collect f into closure for arg1
-        # eval arg1, collect f,a1 into closure for arg2
-        # eval arg2, collect f,a1,a2 into closure for arg3
-        # etc...
-        # push a* onto stack
-        # push f onto stack
-        # call f
-
         pass
 
 
 def evaluate(a, *b):
-    while a:
-        a, *b = a(*b)
-    return b
+    result = list()
+    evaluate(result.append, a, *b)
+    return result[0]
+
+
+def evaluate_k(k, a, *b):
+    cont = partial(a, k, *b)
+    while True:
+        try:
+            cont()
+        except (ContinuationCall, TrampolineCall) as bounce:
+            cont = bounce.args[0]
+        except Exception:
+            raise
+        else:
+            break
+
+
 
 
 #
