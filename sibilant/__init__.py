@@ -161,7 +161,7 @@ class niltype(cons):
     The canonical empty cons cell, nil.
     """
 
-    __slots__ = ()
+    __slots__ = tuple()
 
     __nil = None
 
@@ -240,7 +240,7 @@ fifth = caddddr
 
 def last(seq):
     """
-    returns the last item in an iterable sequence
+    returns the last item in an iterable sequence.
     """
 
     for val in iter(seq): pass
