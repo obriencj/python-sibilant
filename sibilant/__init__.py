@@ -40,9 +40,22 @@ class SibilantException(Exception):
     pass
 
 
+class ContinuationCall(BaseException):
+    pass
+
+
+class TrampolineCall(BaseException):
+    pass
+
+
 class cons(object):
     """
-    a cons cell
+    cons cell type.
+
+    Singly-linked list implementation. Use `car(l)` to get the head or
+    value of `l`. Use `cdr(l)` to get the next cons cell in the
+    list. The singleton `nil` represents an empty cons cell, or the
+    end of a list.
     """
 
     __slots__ = ( "_car", "_cdr" )
@@ -92,12 +105,26 @@ class cons(object):
 
 
     def __repr__(self):
-        l = list(self.items())
-        if l[-1] is nil:
-            return ("(" + " ".join(map(repr, l[:-1])) + ")")
+        l = []
+
+        for val in self.items():
+            l.append(" ")
+            l.append(repr(val))
+
+        if val is nil:
+            # if it's a proper list, then we need to pop off the
+            # trailing space and nil
+            l.pop()
+            l.pop()
         else:
-            return ("(" + " ".join(map(repr, l[:-1])) +
-                    " . " + repr(l[-1]) + ")")
+            # otherwise, we need to inject a dot to indicate just how
+            # improper this list is
+            l.insert(". ", -1)
+
+        l[0] = "("
+        l.append(")")
+
+        return "".join(l)
 
 
     def items(self):
@@ -129,7 +156,6 @@ class cons(object):
         return last(self.items()) is nil
 
 
-
 class niltype(cons):
     """
     The canonical empty cons cell, nil.
@@ -137,14 +163,14 @@ class niltype(cons):
 
     __slots__ = ()
 
-    _nil = None
+    __nil = None
 
 
     def __new__(t):
-        nil = t._nil
+        nil = t.__nil
         if nil is None:
             nil = super().__new__(t)
-            t._nil = nil
+            t.__nil = nil
         return nil
 
 
@@ -219,6 +245,45 @@ def last(seq):
 
     for val in iter(seq): pass
     return val
+
+
+class symbol(str):
+    """
+    symbol type.
+
+    Symbol instances are automatically interned. Symbols are equal
+    only to themselves. Symbols hash the same as their str
+    representation.
+    """
+
+    __slots__ = tuple()
+
+    __intern = {}
+
+
+    def __new__(t, name):
+        name = str(name)
+        s = t.__intern.get(name)
+        if s is None:
+            s = super().__new__(t, name)
+            t.__intern[name] = s
+        return s
+
+
+    def __repr__(self):
+        return "symbol({})".format(repr(str(self)))
+
+
+    def __eq__(self, other):
+        return self is other
+
+
+    def __ne__(self, other):
+        return self is not other
+
+
+    def __hash__(self):
+        return super(symbol).__hash__()
 
 
 def cli(options, args):
