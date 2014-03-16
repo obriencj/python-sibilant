@@ -25,6 +25,7 @@ from unittest import TestCase
 from sibilant import cons, nil, niltype, last
 from sibilant import car, cdr
 from sibilant import first, second, third, fourth, fifth
+from sibilant import symbol
 
 
 class ConsTest(TestCase):
@@ -80,6 +81,64 @@ class ConsTest(TestCase):
 
         self.assertEqual(list(nil), list())
         self.assertEqual(tuple(nil), tuple())
+
+
+class SymbolTest(TestCase):
+
+    def test_symbol(self):
+        x = symbol('x')
+        y = symbol('x')
+        z = symbol(x)
+
+        self.assertEqual(x, x)
+        self.assertEqual(x, y)
+        self.assertEqual(x, z)
+        self.assertEqual(y, x)
+        self.assertEqual(y, y)
+        self.assertEqual(y, z)
+        self.assertEqual(z, x)
+        self.assertEqual(z, y)
+        self.assertEqual(z, z)
+
+        self.assertTrue(x is y)
+        self.assertTrue(y is z)
+
+        w = symbol('w')
+
+        self.assertNotEqual(x, w)
+        self.assertNotEqual(w, x)
+        self.assertFalse(x is w)
+
+
+    def test_dict(self):
+        x = symbol('x')
+        y = symbol('y')
+
+        d = dict()
+        d[x] = "cookies"
+        d[y] = "cake"
+        d['x'] = "chicken"
+        d['y'] = "tuna"
+
+        self.assertEqual(d[x], "cookies")
+        self.assertEqual(d[y], "cake")
+        self.assertEqual(d['x'], "chicken")
+        self.assertEqual(d['y'], "tuna")
+
+
+    def test_repr_str(self):
+        x = symbol('x')
+        self.assertEqual(repr(x), "symbol('x')")
+        self.assertEqual(str(x), 'x')
+
+
+    def test_against_str(self):
+        x = symbol('x')
+
+        self.assertFalse(x is 'x')
+
+        self.assertNotEqual(x, 'x')
+        self.assertNotEqual('x', x)
 
 
 #
