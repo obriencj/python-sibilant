@@ -2,12 +2,13 @@
 
 special, non-overridable builtins:
 
-(apply expression (expression*))
-(lambda (symbol*) expression*)
+(apply expression ([expression*]))
+(lambda ([(symbol expression)*]) expression*)
 (begin expression*)
 (cond (expression expression*)*)
 (eval expression)
-
+(define symbol [expression])
+(set! symbol expression)
 
 
 1: parsing
@@ -113,9 +114,7 @@ eval 2
 eval 7
 apply_k None, fun, 2, 7
 
-
 -----
-
 
 I wonder if Spexy may not have been on to something rather
 clever. Instead of attempting to emit Python bytecode, maybe emitting
@@ -124,6 +123,37 @@ better model. I wouldn't need to be as obscene about is as I was with
 Spexy, but I could emit a module-like object that would have the
 callable objects embedded. How does that correlate to a compiled
 (.pyc) module? Can I go from lisp -> python -> pyc ?
+
+-----
+
+starting from a representation of the AST, create a dispatcher which
+will step through the tree, and emit literal python. However, unlike
+with spexy, we are allowed to use external imports (spexy builtins
+being imported implicitly)
+
+(string or file) -> stream -> event iteration -> \
+   ast -> special ast -> \
+   python ast -> callable obj -> module instance
+
+parse -> compile -> load
+
+-----
+
+possible idea:
+
+each expression becomes a function definition, honoring the k-passing
+call conformity.
+
+the result of a module load is a single function when called with a
+globals/locals it executes the content of the function (which is the
+module as written) and binds any lambdas etc to the global dict
+
+the global dict can then be considered the module.
+
+-----
+
+note: define works on locals, set! works on whatever it finds first
+unless it finds nothing, in which case it sets it in globals
 
 
 # the end.
