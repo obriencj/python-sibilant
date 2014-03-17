@@ -26,16 +26,6 @@ from io import StringIO
 import sibilant.parse as parse
 
 
-# TRANSFORM  =  in-place modifications
-# TRANSLATE  =  return new instance with modifications
-
-
-# basics
-
-
-typep = lambda t: lambda n: isinstance(n, t)
-
-
 class Node(object):
     """
     Base class for all AST node types
@@ -77,53 +67,6 @@ class Comment(Node):
                 self.text)
 
         return "%s(position=%r,txt=%r)" % data
-
-
-class Marked(Node):
-    """
-    Parent class for mark indicators which augment another expression
-    """
-
-    def __init__(self, position, expression=None):
-        self.position = position
-        self.expression = expression
-
-
-    def __eq__(self, other):
-        return ((type(self) is type(other)) and
-                (self.position == other.position) and
-                (self.expression == other.expression))
-
-
-    def __repr__(self):
-        data = (type(self).__name__,
-                self.position,
-                self.expression)
-
-        return "%s(position=%r,%r)" % data
-
-
-class Atom(Node):
-    """
-    Parent class for single-token expressions
-    """
-
-    def __init__(self, position, token):
-        self.position = position
-        self.token = token
-
-
-    def __eq__(self, other):
-        return ((type(self) is type(other)) and
-                (self.position == other.position) and
-                (self.token == other.token))
-
-
-    def __repr__(self):
-        data = (type(self).__name__,
-                self.position,
-                self.token)
-        return "%s(position=%r,%r)" % data
 
 
 class List(Node):
@@ -177,6 +120,29 @@ class List(Node):
                 (self.members == other.members))
 
 
+class Atom(Node):
+    """
+    Parent class for single-token expressions
+    """
+
+    def __init__(self, position, token):
+        self.position = position
+        self.token = token
+
+
+    def __eq__(self, other):
+        return ((type(self) is type(other)) and
+                (self.position == other.position) and
+                (self.token == other.token))
+
+
+    def __repr__(self):
+        data = (type(self).__name__,
+                self.position,
+                self.token)
+        return "%s(position=%r,%r)" % data
+
+
 class Symbol(Atom):
     pass
 
@@ -189,7 +155,28 @@ class String(Atom):
     pass
 
 
-# sharps
+class Marked(Node):
+    """
+    Parent class for mark indicators which augment another expression
+    """
+
+    def __init__(self, position, expression=None):
+        self.position = position
+        self.expression = expression
+
+
+    def __eq__(self, other):
+        return ((type(self) is type(other)) and
+                (self.position == other.position) and
+                (self.expression == other.expression))
+
+
+    def __repr__(self):
+        data = (type(self).__name__,
+                self.position,
+                self.expression)
+
+        return "%s(position=%r,%r)" % data
 
 
 class Sharp(Marked):
@@ -209,19 +196,8 @@ class Sharp(Marked):
                 # xxx
                 return Character(self.position, self.expression)
 
-        elif is_list(self.expression):
-            return Vector(self.position, self.expression.members)
-
         else:
             pass
-
-
-class Boolean(Atom):
-    pass
-
-
-class Character(Atom):
-    pass
 
 
 # quotes
@@ -319,12 +295,38 @@ def compose(parser_gen):
     return ret
 
 
+def compose_from_stream(stream):
+    """
+    compose an AST from an input stream
+    """
+
+    pgen = parse.parse(stream)
+    return compose(pgen)
+
+
 def compose_from_str(src_str):
+    """
+    compose an AST from src_str
+    """
+
     pgen = parse.parse(StringIO(src_str))
     return compose(pgen)
 
 
+def compose_all_from_stream(stream):
+    """
+    compose all AST from input stream
+    """
+
+    pgen = parse.parse(stream)
+    return iter(partial(compose, pgen), None)
+
+
 def compose_all_from_str(src_str):
+    """
+    compose all AST from src_str
+    """
+
     pgen = parse.parse(StringIO(src_str))
     return iter(partial(compose, pgen), None)
 
