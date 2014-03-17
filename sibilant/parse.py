@@ -24,6 +24,13 @@ license: LGPL v.3
 from functools import partial
 
 
+__all__ = ( "parse",
+            "E_SYMBOL", "E_NUMBER", "E_SHARP", "E_STRING",
+            "E_QUOTE", "E_QUASI", "E_UNQUOTE", "E_SPLICE",
+            "E_OPEN", "E_CLOSE", "E_DOT", "E_COMMENT",
+            "E_NEWLINE" )
+
+
 # these are the events that can be emitted.
 E_SYMBOL = "symbol"
 E_NUMBER = "number"
@@ -41,53 +48,95 @@ E_NEWLINE = "newline"
 
 
 def parse(stream):
+    """
+    generator emitting tuples in the form `(event, (line_number,
+    col_number), *event_data)`
+    """
+
+    lin = 1
+    col = -1
+
     for c in stream_chars(stream):
-        if c in "\n\r":
-            yield (E_NEWLINE,)
+        col += 1
+
+        if c == "\n":
+            yield (E_NEWLINE, (lin, col))
+            lin += 1
+            col = -1
+            continue
+
+        elif c == "\r":
+            col = -1
+            continue
 
         elif c.isspace():
             continue
 
         elif c.isdigit():
             stream_unread(stream)
-            yield (E_NUMBER, parse_token(stream))
+
+            r = stream.tell()
+            t = parse_token(stream)
+            yield (E_NUMBER, (lin, col), t)
+            col += (stream.tell() - r) - 1
+            continue
 
         elif c == "(":
-            yield (E_OPEN, )
+            yield (E_OPEN, (lin, col))
+            continue
 
         elif c == ")":
-            yield (E_CLOSE, )
+            yield (E_CLOSE, (lin, col))
+            continue
 
         elif c == ".":
-            yield (E_DOT, )
+            yield (E_DOT, (lin, col))
+            continue
 
         elif c == "#":
-            #stream_unread(stream)
-            #yield (E_SHARP, parse_token(stream))
-            yield (E_SHARP, )
+            yield (E_SHARP, (lin, col))
+            continue
 
         elif c == "\"":
-            yield (E_STRING, parse_string(stream))
+            r = stream.tell()
+            t = parse_string(stream)
+            yield (E_STRING, (lin, col), t)
+            col += (stream.tell() - r)
+            continue
 
         elif c == "'":
-            yield (E_QUOTE,)
+            yield (E_QUOTE, (lin, col))
+            continue
 
         elif c == "`":
-            yield (E_QUASI,)
+            yield (E_QUASI, (lin, col))
+            continue
 
         elif c == ",":
-            yield (E_UNQUOTE,)
+            yield (E_UNQUOTE, (lin, col))
+            continue
 
         elif c == "@":
-            yield (E_SPLICE,)
+            yield (E_SPLICE, (lin, col))
+            continue
 
         elif c == ";":
             stream_unread(stream)
-            yield (E_COMMENT, parse_comment(stream))
+
+            r = stream.tell()
+            t = parse_comment(stream)
+            yield (E_COMMENT, (lin, col), t)
+            col += (stream.tell() - r) - 1
+            continue
 
         else:
             stream_unread(stream)
-            yield (E_SYMBOL, parse_token(stream))
+
+            r = stream.tell()
+            t = parse_token(stream)
+            yield (E_SYMBOL, (lin, col), t)
+            col += (stream.tell() - r) - 1
+            continue
 
 
 def stream_chars(stream):

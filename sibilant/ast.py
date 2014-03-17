@@ -41,8 +41,8 @@ class Node(object):
     Base class for all AST node types
     """
 
-    def __init__(self, line=1):
-        self.line = line
+    def __init__(self, position=(1, 0)):
+        self.position = position
 
     def translate(self):
         return self
@@ -51,7 +51,7 @@ class Node(object):
         return not (self == other)
 
     def __repr__(self):
-        return "%s(line=%i)" % (type(self).__name__, self.line)
+        return "%s(position=%r)" % (type(self).__name__, self.position)
 
     def __str__(self):
         return repr(self)
@@ -62,25 +62,21 @@ class Comment(Node):
     A comment
     """
 
-    def __init__(self, line, txt):
-        self.line = line
+    def __init__(self, position, txt):
+        self.position = position
         self.text = txt
 
     def __eq__(self, other):
         return ((type(self) is type(other)) and
-                (self.line == other.line) and
+                (self.position == other.position) and
                 (self.text == other.text))
 
     def __repr__(self):
         data = (type(self).__name__,
-                self.line,
+                self.position,
                 self.text)
 
-        return "%s(line=%i,txt=%r)" % data
-
-
-class Expression(Node):
-    pass
+        return "%s(position=%r,txt=%r)" % data
 
 
 class Marked(Node):
@@ -88,55 +84,55 @@ class Marked(Node):
     Parent class for mark indicators which augment another expression
     """
 
-    def __init__(self, line, expression=None):
-        self.line = line
+    def __init__(self, position, expression=None):
+        self.position = position
         self.expression = expression
 
 
     def __eq__(self, other):
         return ((type(self) is type(other)) and
-                (self.line == other.line) and
+                (self.position == other.position) and
                 (self.expression == other.expression))
 
 
     def __repr__(self):
         data = (type(self).__name__,
-                self.line,
+                self.position,
                 self.expression)
 
-        return "%s(line=%i,%r)" % data
+        return "%s(position=%r,%r)" % data
 
 
-class Atom(Expression):
+class Atom(Node):
     """
     Parent class for single-token expressions
     """
 
-    def __init__(self, line, token):
-        self.line = line
+    def __init__(self, position, token):
+        self.position = position
         self.token = token
 
 
     def __eq__(self, other):
         return ((type(self) is type(other)) and
-                (self.line == other.line) and
+                (self.position == other.position) and
                 (self.token == other.token))
 
 
     def __repr__(self):
         data = (type(self).__name__,
-                self.line,
+                self.position,
                 self.token)
-        return "%s(line=%i,%r)" % data
+        return "%s(position=%r,%r)" % data
 
 
-class List(Expression):
+class List(Node):
     """
     A collection of sub-expressions
     """
 
-    def __init__(self, line, *members):
-        self.line = line
+    def __init__(self, position, *members):
+        self.position = position
         self.proper = True
         self.members = list(members)
 
@@ -152,7 +148,7 @@ class List(Expression):
                 klass = specials.get(fun.token)
                 if klass:
                     #print("list into special", klass)
-                    tmp = klass(self.line, *param)
+                    tmp = klass(self.position, *param)
                     tmp.transform()
                     return tmp
 
@@ -160,7 +156,7 @@ class List(Expression):
             # considered special, it's a function application
 
             membs = [m.translate() for m in self.members]
-            return Apply(self.line, fun, *param)
+            return Apply(self.position, fun, *param)
 
         else:
             return self
@@ -168,30 +164,21 @@ class List(Expression):
 
     def __repr__(self):
         data = (type(self).__name__,
-                self.line,
+                self.position,
                 self.proper,
                 ",".join(map(repr, self.members)))
-        return "%s(line=%i,proper=%r,members=[%s])" % data
+        return "%s(position=%r,proper=%r,members=[%s])" % data
 
 
     def __eq__(self, other):
         return ((type(self) is type(other)) and
-                (self.line == other.line) and
+                (self.position == other.position) and
                 (self.proper == other.proper) and
                 (self.members == other.members))
 
 
-is_list = typep(List)
-
-
-# literals
-
-
 class Symbol(Atom):
     pass
-
-
-is_symbol = typep(Symbol)
 
 
 class Number(Atom):
@@ -211,19 +198,19 @@ class Sharp(Marked):
         if is_symbol(self.expression):
             ident = self.expression.token
             if ident in "ft":
-                return Boolean(self.line, ident)
+                return Boolean(self.position, ident)
             elif ident in "bodx":
                 # xxx
-                return Number(self.line, self.expression)
+                return Number(self.position, self.expression)
             elif ident in "ie":
                 # xxx
-                return Number(self.line, self.expression)
+                return Number(self.position, self.expression)
             elif ident == "\\":
                 # xxx
-                return Character(self.line, self.expression)
+                return Character(self.position, self.expression)
 
         elif is_list(self.expression):
-            return Vector(self.line, self.expression.members)
+            return Vector(self.position, self.expression.members)
 
         else:
             pass
@@ -234,10 +221,6 @@ class Boolean(Atom):
 
 
 class Character(Atom):
-    pass
-
-
-class Vector(Atom):
     pass
 
 
@@ -260,252 +243,6 @@ class Splice(Marked):
     pass
 
 
-# specials
-
-
-class Special(Expression):
-    """
-    parent class for all special form expressions
-    """
-
-    pass
-
-
-class Apply(Special):
-    """
-    Application of a function
-    """
-
-    def __init__(self, line, fun, *args):
-        self.line = line
-        self.function = fun
-        self.args = args
-
-
-    def __eq__(self, other):
-        return ((type(self) is type(other)) and
-                (self.line == other.line) and
-                (self.function == other.function) and
-                (self.args == other.args))
-
-
-    def __repr__(self):
-        data = (type(self).__name__,
-                self.line,
-                self.function,
-                ",".join(map(repr, self.args)))
-
-        return "%s(line=%i,fun=%r,args=[%s])" % data
-
-
-class Begin(Special):
-    """
-    Evaluate sub expressions in order
-    """
-
-    def __init__(self, line, *body):
-        self.line = line
-        self.body = list(body)
-
-
-    def transform(self):
-        self.body = [e.translate() for e in self.body]
-
-
-    def __eq__(self, other):
-        return ((type(self) is type(other)) and
-                (self.body == other.body))
-
-
-    def __repr__(self):
-        data = (type(self).__name__,
-                self.line,
-                ",".join(map(repr, self.body)))
-
-        return "%s(line=%i,body=[%s])" % data
-
-
-class Cond(Special):
-    pass
-
-
-class Define(Special):
-    pass
-
-
-class If(Special):
-    pass
-
-
-class Lambda(Special):
-    """
-    Function definition
-    """
-
-    def __init__(self, line, formals, *body):
-        self.line = line
-        self.formals = formals
-        self.body = list(body)
-
-
-    def transform(self):
-        self.body = [e.translate() for e in self.body]
-
-
-    def __eq__(self, other):
-        return ((type(self) is type(other)) and
-                (self.line == other.line) and
-                (self.body == other.body))
-
-
-    def __repr__(self):
-        data = (type(self).__name__,
-                self.line,
-                ",".join(map(repr, self.formals)),
-                ",".join(map(repr, self.body)))
-
-        return "%s(line=%i,formals=[%s],body=[%s])" % data
-
-
-class Let(Special):
-
-    def __init__(self, line, x, *y):
-        self.line = line
-
-        if is_list(x):
-            self.name = None
-            self.pairs = [p.members for p in x.members]
-            self.body = y
-
-        elif is_token(x):
-            self.name = x
-            self.pairs = [p.members for p in y[0].members]
-            self.body = y[1:]
-
-
-    def translate_let_pair(self, pair):
-        return List(pair.line, pair.members[0], pair.members[1].translate())
-
-
-    def transform(self):
-        self.pairs = [(k, v.translate()) for k, v in self.pairs]
-        self.body = [e.translate() for e in self.body]
-
-
-class Not(Special):
-
-    def __init__(self, line, expr):
-        self.line = line
-        self.expression = expr
-
-
-    def transform(self):
-        self.expression = self.expression.translate()
-
-
-class Print(Special):
-
-    def __init__(self, line, expr):
-        self.line = line
-        self.expression = expr
-
-
-    def transform(self):
-        self.expression = self.expression.translate()
-
-
-class Set(Special):
-
-    def __init__(self, line, var, val):
-        self.line = line
-        self.var = var
-        self.val = val
-
-
-    def transform(self):
-        self.val = self.val.translate()
-
-
-class While(Special):
-    pass
-
-
-class Operator(Special):
-    pass
-
-
-class Op_Add(Operator):
-    pass
-
-
-class Op_Sub(Operator):
-    pass
-
-
-class Op_Mult(Operator):
-    pass
-
-
-class Op_Div(Operator):
-    pass
-
-
-class Op_And(Operator):
-    pass
-
-
-class Op_Or(Operator):
-    pass
-
-
-specials = {
-    "begin": Begin,
-    "cond": Cond,
-    "define": Define,
-    "if": If,
-    "lambda": Lambda,
-    "let": Let,
-    "print": Print, # just for testing purposes
-    "set!": Set,
-    "while": While,
-}
-
-
-procedures = {
-    "apply": Apply,
-    "not": Not,
-
-    "+": Op_Add,
-    "-": Op_Sub,
-    "*": Op_Mult,
-    "/": Op_Div,
-    "and": Op_And,
-    "or": Op_Or,
-}
-
-
-def translate_special(listnode):
-    # turn a List instance into one of the specials, calls translate on
-    # any sub-expressions that might need it
-
-    pass
-
-
-def translate_quote(quotenode):
-    # translates unquote and splice contents
-    pass
-
-
-def translate_sharp(sharpnode):
-    # translates sharps into the appropriate subclasses and translates
-    # vector items
-    pass
-
-
-def translate(node):
-    return node.translate()
-
-
 klass_events = {
     parse.E_SYMBOL: Symbol,
     parse.E_NUMBER: Number,
@@ -520,12 +257,12 @@ klass_events = {
 }
 
 
-def create_node(line_no, event, *args):
+def create_node(position, event, *args):
     klass = klass_events.get(event)
-    return klass(line_no, *args) if klass else None
+    return klass(position, *args) if klass else None
 
 
-def compose(parser_gen, starting_line=1):
+def compose(parser_gen):
     """
     Composes a single element or statement from the event stream
     `parser_gen`
@@ -533,10 +270,9 @@ def compose(parser_gen, starting_line=1):
 
     ret = None
     stack = list()
-    line_no = starting_line
 
-    for event, *data in parser_gen:
-        node = create_node(line_no, event, *data)
+    for event, position, *data in parser_gen:
+        node = create_node(position, event, *data)
 
         # if we aren't already working on our return node,
         # then this is probably the one
@@ -544,7 +280,7 @@ def compose(parser_gen, starting_line=1):
             ret = node
 
         if event == parse.E_NEWLINE:
-            line_no += 1
+            # let the parser count lines for us
             continue
 
         elif event == parse.E_COMMENT:
@@ -566,7 +302,7 @@ def compose(parser_gen, starting_line=1):
                        parse.E_QUOTE, parse.E_QUASI,
                        parse.E_UNQUOTE, parse.E_SPLICE):
 
-            marked, line_no = compose(parser_gen, line_no)
+            marked = compose(parser_gen)
             node.expression = marked
 
         elif event in (parse.E_SYMBOL, parse.E_NUMBER,
@@ -580,20 +316,17 @@ def compose(parser_gen, starting_line=1):
         elif ret:
             break
 
-    return ret, line_no
+    return ret
 
 
-def compose_from_str(src_str, starting_line=1):
+def compose_from_str(src_str):
     pgen = parse.parse(StringIO(src_str))
-    return compose(pgen, starting_line)
+    return compose(pgen)
 
 
-def compose_all_from_str(src_str, starting_line=1):
+def compose_all_from_str(src_str):
     pgen = parse.parse(StringIO(src_str))
-    comp, ln = compose(pgen, starting_line)
-    while comp is not None:
-        yield comp, ln
-        comp, ln = compose(pgen, ln)
+    return iter(partial(compose, pgen), None)
 
 
 #

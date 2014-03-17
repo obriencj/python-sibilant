@@ -32,11 +32,15 @@ def collect_emissions(source):
 
 class TestParse(TestCase):
 
+    def __init__(self, *args, **kwds):
+        super(TestParse, self).__init__(*args, **kwds)
+        self.maxDiff = None
+
 
     def test_symbol(self):
         src = "lambda"
         col = collect_emissions(src)
-        exp = [(E_SYMBOL, "lambda")]
+        exp = [(E_SYMBOL, (1, 0), "lambda")]
 
         self.assertEqual(col, exp)
 
@@ -44,7 +48,7 @@ class TestParse(TestCase):
     def test_number(self):
         src = "123"
         col = collect_emissions(src)
-        exp = [(E_NUMBER, "123")]
+        exp = [(E_NUMBER, (1, 0), "123")]
 
         self.assertEqual(col, exp)
 
@@ -52,8 +56,8 @@ class TestParse(TestCase):
     def test_sharp(self):
         src = "#t"
         col = collect_emissions(src)
-        exp = [(E_SHARP,),
-               (E_SYMBOL, "t")]
+        exp = [(E_SHARP, (1, 0)),
+               (E_SYMBOL, (1, 1), "t")]
 
         self.assertEqual(col, exp)
 
@@ -61,7 +65,7 @@ class TestParse(TestCase):
     def test_string(self):
         src = '"hello world"'
         col = collect_emissions(src)
-        exp = [(E_STRING, "hello world")]
+        exp = [(E_STRING, (1, 0), "hello world")]
 
         self.assertEqual(col, exp)
 
@@ -69,8 +73,8 @@ class TestParse(TestCase):
     def test_quote_symbol(self):
         src = "'foo"
         col = collect_emissions(src)
-        exp = [(E_QUOTE,),
-               (E_SYMBOL, "foo")]
+        exp = [(E_QUOTE, (1, 0)),
+               (E_SYMBOL, (1, 1), "foo")]
 
         self.assertEqual(col, exp)
 
@@ -78,11 +82,11 @@ class TestParse(TestCase):
     def test_quote_list(self):
         src = "'(foo bar)"
         col = collect_emissions(src)
-        exp = [(E_QUOTE,),
-               (E_OPEN, ),
-               (E_SYMBOL, "foo"),
-               (E_SYMBOL, "bar"),
-               (E_CLOSE, )]
+        exp = [(E_QUOTE, (1, 0)),
+               (E_OPEN, (1, 1)),
+               (E_SYMBOL, (1, 2), "foo"),
+               (E_SYMBOL, (1, 6), "bar"),
+               (E_CLOSE, (1, 9))]
 
         self.assertEqual(col, exp)
 
@@ -90,8 +94,8 @@ class TestParse(TestCase):
     def test_quasi(self):
         src = "`bar"
         col = collect_emissions(src)
-        exp = [(E_QUASI,),
-               (E_SYMBOL, "bar")]
+        exp = [(E_QUASI, (1, 0)),
+               (E_SYMBOL, (1, 1), "bar")]
 
         self.assertEqual(col, exp)
 
@@ -99,8 +103,8 @@ class TestParse(TestCase):
     def test_unquote(self):
         src = ",baz"
         col = collect_emissions(src)
-        exp = [(E_UNQUOTE,),
-               (E_SYMBOL, "baz")]
+        exp = [(E_UNQUOTE, (1, 0)),
+               (E_SYMBOL, (1, 1), "baz")]
 
         self.assertEqual(col, exp)
 
@@ -108,8 +112,8 @@ class TestParse(TestCase):
     def test_splice(self):
         src = "@qux"
         col = collect_emissions(src)
-        exp = [(E_SPLICE,),
-               (E_SYMBOL, "qux")]
+        exp = [(E_SPLICE, (1, 0)),
+               (E_SYMBOL, (1, 1), "qux")]
 
         self.assertEqual(col, exp)
 
@@ -117,11 +121,11 @@ class TestParse(TestCase):
     def test_list(self):
         src = "(testing a thing)"
         col = collect_emissions(src)
-        exp = [(E_OPEN,),
-               (E_SYMBOL, "testing"),
-               (E_SYMBOL, "a"),
-               (E_SYMBOL, "thing"),
-               (E_CLOSE,)]
+        exp = [(E_OPEN, (1, 0)),
+               (E_SYMBOL, (1, 1), "testing"),
+               (E_SYMBOL, (1, 9), "a"),
+               (E_SYMBOL, (1, 11), "thing"),
+               (E_CLOSE, (1, 16))]
 
         self.assertEqual(col, exp)
 
@@ -129,11 +133,11 @@ class TestParse(TestCase):
     def test_dot(self):
         src = "(testing . 123)"
         col = collect_emissions(src)
-        exp = [(E_OPEN,),
-               (E_SYMBOL, "testing"),
-               (E_DOT,),
-               (E_NUMBER, "123"),
-               (E_CLOSE,)]
+        exp = [(E_OPEN, (1, 0)),
+               (E_SYMBOL, (1, 1), "testing"),
+               (E_DOT, (1, 9)),
+               (E_NUMBER, (1, 11), "123"),
+               (E_CLOSE, (1, 14))]
 
         self.assertEqual(col, exp)
 
@@ -144,39 +148,39 @@ class TestParse(TestCase):
         a test )
         """
         col = collect_emissions(src)
-        exp = [(E_NEWLINE,),
-               (E_OPEN,),
-               (E_SYMBOL, "this"),
-               (E_SYMBOL, "is"),
-               (E_NEWLINE,),
-               (E_SYMBOL, "a"),
-               (E_SYMBOL, "test"),
-               (E_CLOSE,),
-               (E_NEWLINE,)]
+        exp = [(E_NEWLINE, (1, 0)),
+               (E_OPEN, (2, 8)),
+               (E_SYMBOL, (2, 10), "this"),
+               (E_SYMBOL, (2, 15), "is"),
+               (E_NEWLINE, (2, 17)),
+               (E_SYMBOL, (3, 8), "a"),
+               (E_SYMBOL, (3, 10), "test"),
+               (E_CLOSE, (3, 15)),
+               (E_NEWLINE, (3, 16))]
 
         self.assertEqual(col, exp)
 
 
-    def test_newline(self):
+    def test_comments(self):
         src = """
         ; Let's check out the comments
         ( this is ; well it's something
         a test ) ; this ought to work
         """
         col = collect_emissions(src)
-        exp = [(E_NEWLINE,),
-               (E_COMMENT, "; Let's check out the comments"),
-               (E_NEWLINE,),
-               (E_OPEN,),
-               (E_SYMBOL, "this"),
-               (E_SYMBOL, "is"),
-               (E_COMMENT, "; well it's something"),
-               (E_NEWLINE,),
-               (E_SYMBOL, "a"),
-               (E_SYMBOL, "test"),
-               (E_CLOSE,),
-               (E_COMMENT, "; this ought to work"),
-               (E_NEWLINE,)]
+        exp = [(E_NEWLINE, (1, 0)),
+               (E_COMMENT, (2, 8), "; Let's check out the comments"),
+               (E_NEWLINE, (2, 38)),
+               (E_OPEN, (3, 8)),
+               (E_SYMBOL, (3, 10), "this"),
+               (E_SYMBOL, (3, 15), "is"),
+               (E_COMMENT, (3, 18), "; well it's something"),
+               (E_NEWLINE, (3, 39)),
+               (E_SYMBOL, (4, 8), "a"),
+               (E_SYMBOL, (4, 10), "test"),
+               (E_CLOSE, (4, 15)),
+               (E_COMMENT, (4, 17), "; this ought to work"),
+               (E_NEWLINE, (4, 37))]
 
         self.assertEqual(col, exp)
 
