@@ -33,6 +33,9 @@ class Expression(object):
 
     __metaclass__ = ABCMeta
 
+    def transform(self, dispatcher):
+        pass
+
 
 class Variable(Expression):
     """
@@ -87,6 +90,11 @@ class Apply(Special):
         return "%s(position=%i,fun=%r,args=[%s])" % data
 
 
+    def transform(self, dispatcher):
+        self.function = dispatcher.dispatch(self.function)
+        self.args = [dispatcher.dispatch(a) for a in self.args]
+
+
 class Begin(Special):
     """
     Evaluate sub expressions in order
@@ -95,10 +103,6 @@ class Begin(Special):
     def __init__(self, position, *body):
         self.position = position
         self.body = list(body)
-
-
-    def transform(self):
-        self.body = [e.translate() for e in self.body]
 
 
     def __eq__(self, other):
@@ -112,6 +116,10 @@ class Begin(Special):
                 ",".join(map(repr, self.body)))
 
         return "%s(position=%i,body=[%s])" % data
+
+
+    def transform(self, dispatcher):
+        self.body = [dispatcher.dispatch(b) for b in self.body]
 
 
 class Cond(Special):
@@ -137,10 +145,6 @@ class Lambda(Special):
         self.body = list(body)
 
 
-    def transform(self):
-        self.body = [e.translate() for e in self.body]
-
-
     def __eq__(self, other):
         return ((type(self) is type(other)) and
                 (self.position == other.position) and
@@ -154,6 +158,10 @@ class Lambda(Special):
                 ",".join(map(repr, self.body)))
 
         return "%s(position=%i,formals=[%s],body=[%s])" % data
+
+
+    def transform(self):
+        self.body = [e.translate() for e in self.body]
 
 
 class Let(Special):
@@ -189,8 +197,8 @@ class Not(Special):
         self.expression = expr
 
 
-    def transform(self):
-        self.expression = self.expression.translate()
+    def transform(self, dispatcher):
+        self.expression = dispatcher.dispatch(self.expression)
 
 
 class Print(Special):
@@ -200,25 +208,25 @@ class Print(Special):
         self.expression = expr
 
 
-    def transform(self):
-        self.expression = self.expression.translate()
+    def transform(self, dispatcher):
+        self.expression = dispatcher.dispatch(self.expression)
 
 
 class Setf(Special):
     """
     (set! symbol value)
-    (set! symbol address value)
     (set! (car symbol) value)
     (set! (cdr symbol) value)
     """
 
     def __init__(self, position, var, val):
         self.position = position
+
         self.var = var
         self.val = val
 
 
-    def transform(self):
+    def transform(self, dispatcher):
         self.val = self.val.translate()
 
 
@@ -293,7 +301,7 @@ class Fraction(Number):
     pass
 
 
-class Imaginary(Number):
+class Complex(Number):
     pass
 
 
@@ -318,9 +326,87 @@ class String(Literal):
 
 
 class ExpressionTransformer(Dispatch):
+    """
+    transforms ast.Node instances into Expression instances
+    """
 
-    def dispatchSymbol(self, sym):
+    def dispatchList(self, node):
+        pos = node.position
+        fun = node.members[0]
+        par = node.members[1:]
+
+        tmp = None
+        if isinstance(fun, ast.Symbol):
+            klass = specials.get(fun.token)
+            if klass is not None:
+                tmp = klass(pos, *par)
+
+        if tmp is None:
+            tmp = Apply(pos, fun, *par)
+
+        tmp.transform(self)
+        return tmp
+
+
+    def dispatchSymbol(self, node):
+        return Variable(node.position, node.token)
+
+
+    def dispatchNumber(self, node):
+        pos = node.position
+        tok = node.token
+
+        def parse_num(stok):
+            if '/' in tok:
+                l, r = tok.split('/', 1)
+                return Fraction(pos, parse_num(l), parse_num(r))
+            elif tok[-1] in "ij":
+                return Complex(pos, tok)
+            elif '.' in tok:
+                return Decimal(pos, tok)
+            else:
+                return Integer(pos, tok)
+
+        return parse_num(tok)
+
+
+    def dispatchString(self, node):
+        return String(node.position, node.token)
+
+
+    def dispatchSharp(self, node):
+        pos = node.position
+        sub = node.expression
+        if isinstance(sub, ast.Symbol):
+            ident = sub.token
+            if ident in "ft":
+                return Boolean(pos, ident == 't')
+            elif ident in 'bodx':
+                return Number(pos, ident)
+            elif ident in 'ie':
+                return Number(pos, ident)
+            elif ident[0] == '\\':
+                return Character(pos, ident)
+
+        # fall-through from above
+        raise SyntaxError(pos, "unkown sharp expression")
+
+
+    def dispatchQuote(self, node):
         pass
+
+
+    def dispatchQuasi(self, node):
+        pass
+
+
+    def dispatchUnquote(self, node):
+        pass
+
+
+    def dispatchSplice(self, node):
+        pass
+
 
 
 def translate_node(node):

@@ -80,31 +80,6 @@ class List(Node):
         self.members = list(members)
 
 
-    def translate(self):
-        if self.members:
-            fun = self.members[0]
-            param = self.members[1:]
-
-            # if member[0] is a symbol, we expand into a specific
-            # special form instance and then translate that
-            if is_symbol(fun):
-                klass = specials.get(fun.token)
-                if klass:
-                    #print("list into special", klass)
-                    tmp = klass(self.position, *param)
-                    tmp.transform()
-                    return tmp
-
-            # if member[0] isn't a symbol, or isn't a symbol that is
-            # considered special, it's a function application
-
-            membs = [m.translate() for m in self.members]
-            return Apply(self.position, fun, *param)
-
-        else:
-            return self
-
-
     def __repr__(self):
         data = (type(self).__name__,
                 self.position,
@@ -180,27 +155,7 @@ class Marked(Node):
 
 
 class Sharp(Marked):
-
-    def translate(self):
-        if is_symbol(self.expression):
-            ident = self.expression.token
-            if ident in "ft":
-                return Boolean(self.position, ident)
-            elif ident in "bodx":
-                # xxx
-                return Number(self.position, self.expression)
-            elif ident in "ie":
-                # xxx
-                return Number(self.position, self.expression)
-            elif ident == "\\":
-                # xxx
-                return Character(self.position, self.expression)
-
-        else:
-            pass
-
-
-# quotes
+    pass
 
 
 class Quote(Marked):
@@ -220,15 +175,15 @@ class Splice(Marked):
 
 
 klass_events = {
+    parse.E_OPEN: List,
     parse.E_SYMBOL: Symbol,
+    parse.E_STRING: String,
     parse.E_NUMBER: Number,
     parse.E_SHARP: Sharp,
-    parse.E_STRING: String,
     parse.E_QUOTE: Quote,
     parse.E_QUASI: Quasi,
     parse.E_UNQUOTE: Unquote,
     parse.E_SPLICE: Splice,
-    parse.E_OPEN: List,
     parse.E_COMMENT: Comment,
 }
 
