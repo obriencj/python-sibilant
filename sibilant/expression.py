@@ -173,7 +173,8 @@ class Let(Special):
 
 
     def translate_let_pair(self, pair):
-        return List(pair.position, pair.members[0], pair.members[1].translate())
+        return List(pair.position, pair.members[0],
+                    pair.members[1].translate())
 
 
     def transform(self):
@@ -203,10 +204,12 @@ class Print(Special):
         self.expression = self.expression.translate()
 
 
-class Set(Special):
+class Setf(Special):
     """
-    (setf symbol value)
-    (setf symbol address value)
+    (set! symbol value)
+    (set! symbol address value)
+    (set! (car symbol) value)
+    (set! (cdr symbol) value)
     """
 
     def __init__(self, position, var, val):
@@ -261,7 +264,7 @@ specials = {
     "lambda": Lambda,
     "let": Let,
     "print": Print, # just for testing purposes
-    "set!": Set,
+    "set!": Setf,
     "while": While,
 
     "not": Not,
