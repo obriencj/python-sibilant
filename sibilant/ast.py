@@ -199,16 +199,10 @@ def compose(parser_gen):
     `parser_gen`
     """
 
-    ret = None
     stack = list()
 
     for event, position, *data in parser_gen:
         node = create_node(position, event, *data)
-
-        # if we aren't already working on our return node,
-        # then this is probably the one
-        if ret is None:
-            ret = node
 
         if event == parse.E_NEWLINE:
             # let the parser count lines for us
@@ -234,6 +228,8 @@ def compose(parser_gen):
                        parse.E_UNQUOTE, parse.E_SPLICE):
 
             marked = compose(parser_gen)
+            if marked is None:
+                raise SyntaxError("unterminated mark")
             node.expression = marked
 
         elif event in (parse.E_SYMBOL, parse.E_NUMBER,
@@ -244,10 +240,13 @@ def compose(parser_gen):
         assert(node is not None)
         if stack:
             stack[-1].members.append(node)
-        elif ret:
+        else:
             break
 
-    return ret
+    if stack:
+        raise SyntaxError("unterminated list")
+
+    return node
 
 
 def compose_from_stream(stream):

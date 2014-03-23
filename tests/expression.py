@@ -21,70 +21,81 @@ license: LGPL v.3
 """
 
 
+from sibilant.ast import compose_from_str
+from sibilant.expression import *
 from unittest import TestCase
 
 
-class TestEval(object):
-    # temporarily not a TestCase, still writing it
+def compose_expr(src_str):
+    node = compose_from_str(src_str)
+    return translate_node(node)
+
+
+class TestEval(TestCase):
 
     def test_special_apply(self):
         src = "(testing for fun)"
-        col = compose_ast(src)
-        exp = Apply(1,
-                    Symbol(1, "testing"),
-                    Symbol(1, "for"),
-                    Symbol(1, "fun"))
+        col = compose_expr(src)
+        exp = Apply((1, 0),
+                    Variable((1, 1), "testing"),
+                    Variable((1, 9), "for"),
+                    Variable((1, 13), "fun"))
 
         self.assertEqual(col, exp)
+        self.assertEqual(repr(col), repr(exp))
 
 
     def test_special_begin(self):
         src = "(begin to dance)"
-        col = compose_ast(src)
-        exp = Begin(1,
-                    Symbol(1, "to"),
-                    Symbol(1, "dance"))
+        col = compose_expr(src)
+        exp = Begin((1, 0),
+                    Variable((1, 7), "to"),
+                    Variable((1, 10), "dance"))
 
         self.assertEqual(col, exp)
+        self.assertEqual(repr(col), repr(exp))
 
         src = "(begin (to dance))"
-        col = compose_ast(src)
-        exp = Begin(1,
-                    Apply(1,
-                          Symbol(1, "to"),
-                          Symbol(1, "dance")))
+        col = compose_expr(src)
+        exp = Begin((1, 0),
+                    Apply((1, 7),
+                          Variable((1, 8), "to"),
+                          Variable((1, 11), "dance")))
 
         self.assertEqual(col, exp)
+        self.assertEqual(repr(col), repr(exp))
 
 
     def test_special_lambda(self):
         src = "(lambda (i) i)"
 
-        col = compose_ast(src)
-        exp = Lambda(1,
-                     List(1,
-                          Symbol(1, "i")),
-                     Symbol(1, "i"))
+        col = compose_expr(src)
+        exp = Lambda((1, 0),
+                     FormalsList((1, 8),
+                          Formal((1, 9), "i")),
+                     Variable((1, 12), "i"))
 
         self.assertEqual(col, exp)
+        self.assertEqual(repr(col), repr(exp))
 
         src = """
         (lambda (x)
             (lambda (y) (add x y)))
         """
-        col = compose_ast(src)
-        exp = Lambda(2,
-                     List(2,
-                          Symbol(2, "x")),
-                     Lambda(3,
-                            List(3,
-                                 Symbol(3, "y")),
-                            Apply(3,
-                                  Symbol(3, "add"),
-                                  Symbol(3, "x"),
-                                  Symbol(3, "y"))))
+        col = compose_expr(src)
+        exp = Lambda((2, 8),
+                     FormalsList((2, 16),
+                                 Formal((2, 17), "x")),
+                     Lambda((3, 12),
+                            FormalsList((3, 20),
+                                        Formal((3, 21), "y")),
+                            Apply((3, 24),
+                                  Variable((3, 25), "add"),
+                                  Variable((3, 29), "x"),
+                                  Variable((3, 31), "y"))))
 
         self.assertEqual(col, exp)
+        self.assertEqual(repr(col), repr(exp))
 
 
 #

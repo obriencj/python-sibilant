@@ -24,6 +24,7 @@ license: LGPL v.3
 from abc import ABCMeta, abstractmethod
 
 import sibilant.ast as ast
+from .dispatch import Dispatch
 
 
 class Expression(object):
@@ -33,8 +34,27 @@ class Expression(object):
 
     __metaclass__ = ABCMeta
 
-    def transform(self, dispatcher):
-        pass
+
+    def __init__(self, position, value):
+        self.position = position
+        self.value = value
+
+
+    def __eq__(self, other):
+        return ((type(self) is type(other)) and
+                (self.position == other.position) and
+                (self.value == other.value))
+
+
+    def __ne__(self, other):
+        return not (self.__eq__(other))
+
+
+    def __repr__(self):
+        data = (type(self).__name__,
+                self.position,
+                self.value)
+        return "%s(position=%r,value=%r)" % data
 
 
 class Variable(Expression):
@@ -42,9 +62,11 @@ class Variable(Expression):
     A symbolic lookup of a value in the runtime namespace
     """
 
-    def __init__(self, position, name):
-        self.position = position
-        self.name = name
+    def __repr__(self):
+        data = (type(self).__name__,
+                self.position,
+                self.value)
+        return "%s(position=%r,name=%r)" % data
 
 
 class Literal(Expression):
@@ -87,12 +109,7 @@ class Apply(Special):
                 self.function,
                 ",".join(map(repr, self.args)))
 
-        return "%s(position=%i,fun=%r,args=[%s])" % data
-
-
-    def transform(self, dispatcher):
-        self.function = dispatcher.dispatch(self.function)
-        self.args = [dispatcher.dispatch(a) for a in self.args]
+        return "%s(position=%r,fun=%r,args=[%s])" % data
 
 
 class Begin(Special):
@@ -107,6 +124,7 @@ class Begin(Special):
 
     def __eq__(self, other):
         return ((type(self) is type(other)) and
+                (self.position == other.position) and
                 (self.body == other.body))
 
 
@@ -115,11 +133,7 @@ class Begin(Special):
                 self.position,
                 ",".join(map(repr, self.body)))
 
-        return "%s(position=%i,body=[%s])" % data
-
-
-    def transform(self, dispatcher):
-        self.body = [dispatcher.dispatch(b) for b in self.body]
+        return "%s(position=%r,body=[%s])" % data
 
 
 class Cond(Special):
@@ -132,6 +146,76 @@ class Define(Special):
 
 class If(Special):
     pass
+
+
+class Formal(object):
+    """
+    A named parameter to a function, or a name for a `let` binding
+    """
+
+    def __init__(self, position, name):
+        self.position = position
+        self.name = name
+
+
+    def __eq__(self, other):
+        return ((type(self) is type(other)) and
+                (self.position == other.position) and
+                (self.name == other.name))
+
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+
+    def __repr__(self):
+        data = (type(self).__name__,
+                self.position,
+                self.name)
+        return "%s(position=%r,name=%r)" % data
+
+
+class FormalsList(object):
+    """
+    List of Formals. Can be proper or improper
+
+    Examples
+    ========
+    >>> FormalsList((2, 5), Formal((2, 6), "a"), rest=Formal((2, 9), "tail"))
+
+    """
+
+    def __init__(self, position, *frmls, **kwds):
+        self.position = position
+        self.frmls = list(frmls)
+        self.rest = kwds.get('rest')
+
+
+    def __eq__(self, other):
+        return ((type(self) is type(other)) and
+                (self.position == other.position) and
+                (self.frmls == other.frmls) and
+                (self.rest == other.rest))
+
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+
+    def __repr__(self):
+        if self.rest:
+            data = (type(self).__name__,
+                    self.position,
+                    ",".join(map(repr, self.frmls)),
+                    self.rest)
+            msg = "%s(position=%r,args=[%s],rest=%r)"
+        else:
+            data = (type(self).__name__,
+                    self.position,
+                    ",".join(map(repr, self.frmls)))
+            msg = "%s(position=%r,args=[%s])"
+
+        return msg % data
 
 
 class Lambda(Special):
@@ -148,20 +232,17 @@ class Lambda(Special):
     def __eq__(self, other):
         return ((type(self) is type(other)) and
                 (self.position == other.position) and
+                (self.formals == other.formals) and
                 (self.body == other.body))
 
 
     def __repr__(self):
         data = (type(self).__name__,
                 self.position,
-                ",".join(map(repr, self.formals)),
+                self.formals,
                 ",".join(map(repr, self.body)))
 
-        return "%s(position=%i,formals=[%s],body=[%s])" % data
-
-
-    def transform(self):
-        self.body = [e.translate() for e in self.body]
+        return "%s(position=%r,args=%r,body=[%s])" % data
 
 
 class Let(Special):
@@ -180,33 +261,19 @@ class Let(Special):
             self.body = y[1:]
 
 
-    def translate_let_pair(self, pair):
-        return List(pair.position, pair.members[0],
-                    pair.members[1].translate())
-
-
-    def transform(self):
-        self.pairs = [(k, v.translate()) for k, v in self.pairs]
-        self.body = [e.translate() for e in self.body]
+    def transform(self, dispatcher):
+        trans = dispatcher.dispatch
+        self.pairs = [(k, trans(v)) for k, v in self.pairs]
+        self.body = [trans(e) for e in self.body]
 
 
 class Not(Special):
-
-    def __init__(self, position, expr):
-        self.position = position
-        self.expression = expr
-
 
     def transform(self, dispatcher):
         self.expression = dispatcher.dispatch(self.expression)
 
 
 class Print(Special):
-
-    def __init__(self, position, expr):
-        self.position = position
-        self.expression = expr
-
 
     def transform(self, dispatcher):
         self.expression = dispatcher.dispatch(self.expression)
@@ -221,13 +288,29 @@ class Setf(Special):
 
     def __init__(self, position, var, val):
         self.position = position
-
         self.var = var
         self.val = val
 
 
+    def __eq__(self, other):
+        return ((type(self) is type(other)) and
+                (self.position == other.position) and
+                (self.var == other.var) and
+                (self.val == other.val))
+
+
+    def __repr__(self):
+        data = (type(self).__name__,
+                self.position,
+                self.var,
+                self.val)
+
+        return "%s(position=%r,var=%r,value=%r" % data
+
+
     def transform(self, dispatcher):
-        self.val = self.val.translate()
+        self.var = dispatcher.dispatch(self.var)
+        self.val = dispatcher.dispatch(self.val)
 
 
 class While(Special):
@@ -260,29 +343,6 @@ class Op_And(Operator):
 
 class Op_Or(Operator):
     pass
-
-
-specials = {
-    "apply": Apply,
-
-    "begin": Begin,
-    "cond": Cond,
-    "define": Define,
-    "if": If,
-    "lambda": Lambda,
-    "let": Let,
-    "print": Print, # just for testing purposes
-    "set!": Setf,
-    "while": While,
-
-    "not": Not,
-    "+": Op_Add,
-    "-": Op_Sub,
-    "*": Op_Mult,
-    "/": Op_Div,
-    "and": Op_And,
-    "or": Op_Or,
-}
 
 
 class Number(Literal):
@@ -325,9 +385,62 @@ class String(Literal):
     pass
 
 
-class ExpressionTransformer(Dispatch):
+def special_apply(disp, position, fun, *params):
+    fun = disp.dispatch(fun)
+    return Apply(position, fun, params)
+
+
+def special_begin(disp, position, *body):
+    return Begin(position, *(disp.dispatch(e) for e in body))
+
+
+def special_cond(disp, position, *cond_pairs):
+    d = disp.dispatch
+    return Cond(position, *((d(con),d(exp)) for con,exp in cond_pairs))
+
+
+def special_define(disp, name, val):
+    return Define(position, Name(name.position, name.token),
+                  disp.dispatch(val))
+
+
+def special_lambda(disp, position, formals, *body):
+    frml = FormalsList(formals.position)
+    frml.frmls = [Formal(f.position, f.token) for f in formals.members]
+
+    if not formals.proper:
+        frml.rest = frml.frmls.pop()
+
+    body = [disp.dispatch(e) for e in body]
+    return Lambda(position, frml, *body)
+
+
+specials = {
+    "apply": special_apply,
+    "begin": special_begin,
+    "cond": special_cond,
+    "define": special_define,
+    "if": If,
+    "lambda": special_lambda,
+    "let": Let,
+    "print": Print, # just for testing purposes
+    "set!": Setf,
+    "while": While,
+
+    # these are actually builtins
+    "not": Not,
+    "+": Op_Add,
+    "-": Op_Sub,
+    "*": Op_Mult,
+    "/": Op_Div,
+    "and": Op_And,
+    "or": Op_Or,
+}
+
+
+class NodeTranslator(Dispatch):
     """
-    transforms ast.Node instances into Expression instances
+    translates ast.Node instances into Expression instances
     """
 
     def dispatchList(self, node):
@@ -335,17 +448,16 @@ class ExpressionTransformer(Dispatch):
         fun = node.members[0]
         par = node.members[1:]
 
-        tmp = None
+        expr = None
         if isinstance(fun, ast.Symbol):
             klass = specials.get(fun.token)
             if klass is not None:
-                tmp = klass(pos, *par)
+                expr = klass(self, pos, *par)
 
-        if tmp is None:
-            tmp = Apply(pos, fun, *par)
+        if expr is None:
+            expr = special_apply(self, pos, fun, *par)
 
-        tmp.transform(self)
-        return tmp
+        return expr
 
 
     def dispatchSymbol(self, node):
@@ -408,14 +520,13 @@ class ExpressionTransformer(Dispatch):
         pass
 
 
-
 def translate_node(node):
     """
-    Compiles an `Node` instance into an `Expression`
+    Translates an `ast.Node` instance into an `Expression`
     """
 
-    eva = ExpressionTransformer()
-    return eva.transform(node)
+    eva = NodeTranslator()
+    return eva.dispatch(node)
 
 
 #
