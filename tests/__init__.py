@@ -22,10 +22,9 @@ license: LGPL v.3
 
 
 from unittest import TestCase
-from sibilant import cons, nil, niltype, last
-from sibilant import car, cdr
-from sibilant import symbol
+from sibilant import cons, nil, niltype, car, cdr, setcar, setcdr, last
 from sibilant import ref, attr, undefined, deref, setref
+from sibilant import symbol
 
 
 class ConsTest(TestCase):
@@ -38,6 +37,10 @@ class ConsTest(TestCase):
         self.assertTrue(a.is_proper())
         self.assertTrue(b.is_proper())
         self.assertTrue(c.is_proper())
+
+        self.assertFalse(a.is_recursive())
+        self.assertFalse(b.is_recursive())
+        self.assertFalse(c.is_recursive())
 
         self.assertEqual(car(b), 1)
         self.assertEqual(car(cdr(b)), 2)
@@ -99,6 +102,16 @@ class ConsTest(TestCase):
 
         self.assertEqual(list(nil), list())
         self.assertEqual(tuple(nil), tuple())
+
+
+    def test_recursive_cons(self):
+        a = cons(1, cons(2, cons(3, nil)))
+        setcdr(cdr(cdr(a)), a)
+
+        self.assertTrue(a.is_proper())
+        self.assertTrue(a.is_recursive())
+
+        self.assertEqual(car(a), car(cdr(cdr(cdr(a)))))
 
 
 class SymbolTest(TestCase):

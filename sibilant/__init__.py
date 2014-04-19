@@ -201,6 +201,8 @@ class cons(object):
 
 
     def __str__(self):
+        # TODO: handle recursive
+
         l = list()
 
         val = nil
@@ -225,13 +227,15 @@ class cons(object):
 
 
     def __repr__(self):
+        # TODO: handle recursive
         return "cons(%r, %r)" % (self._car, self._cdr)
 
 
     def count(self):
         """
         recursive count of items in this list, omitting trailing nil for
-        proper lists
+        proper lists. Stops counting if/when recursive cells are
+        detected.
         """
 
         i = -1
@@ -241,7 +245,8 @@ class cons(object):
 
     def items(self):
         """
-        iterator that includes a trailing nil for proper lists
+        iterator that includes a trailing nil for proper lists. Recursive
+        cons lists result in infinite items
         """
 
         current = self
@@ -253,23 +258,56 @@ class cons(object):
 
     def unpack(self):
         """
-        iterator that omits a trailing nil
+        iterator that omits a trailing nil.
+
+        if the list formed by this cons is recursive, unpack stops
+        emiting items once recursion is detected.
         """
 
+        found = set()
         current = self
-        while isinstance(current, cons) and (current is not nil):
+
+        while (type(current) is cons) and (id(current) not in found):
+            found.add(id(current))
             yield current._car
             current = current._cdr
+
         if current is not nil:
             yield current
 
 
-    def is_proper(self):
+    def is_recursive(self):
         """
-        proper lists have a trailing nil
+        false if this is an improper list, or terminates with a nil
         """
 
-        return last(self.items()) is nil
+        found = set()
+        current = self
+        while type(current) is cons:
+            if id(current) in found:
+                return True
+            else:
+                found.add(id(current))
+                current = cdr(current)
+
+        return False
+
+
+    def is_proper(self):
+        """
+        proper lists have a trailing nil, or are recursive.
+        """
+
+        found = set()
+        current = self
+        while type(current) is cons:
+            if id(current) in found:
+                return True
+            else:
+                found.add(id(current))
+                current = cdr(current)
+
+        return current is nil
 
 
 class niltype(cons):
@@ -323,6 +361,10 @@ class niltype(cons):
         return "niltype()"
 
 
+    def is_recursive(self):
+        return False
+
+
     def is_proper(self):
         # according to the Scheme wiki, '() is a proper list
         return True
@@ -357,6 +399,26 @@ def cdr(c):
         raise TypeError("expected cons instance")
     else:
         return c._cdr
+
+
+def setcar(c, value):
+    if c is nil:
+        raise TypeError("cannod set car of nil")
+    elif type(c) is not cons:
+        raise TypeError("expected cons instance")
+    else:
+        c._car = value
+        return value
+
+
+def setcdr(c, value):
+    if c is nil:
+        raise TypeError("cannod set car of nil")
+    elif type(c) is not cons:
+        raise TypeError("expected cons instance")
+    else:
+        c._cdr = value
+        return value
 
 
 cadr = lambda c: car(cdr(c))
