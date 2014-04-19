@@ -39,13 +39,24 @@ class TestParse(TestCase):
     def test_number(self):
         src = "123"
         col = compose_from_str(src)
-        exp = Number((1, 0), "123")
+        exp = Integer((1, 0), "123")
 
         self.assertEqual(col, exp)
 
         src = "1/2"
         col = compose_from_str(src)
-        exp = Number((1, 0), "1/2")
+        exp = Fraction((1, 0), "1/2")
+
+        self.assertEqual(col, exp)
+        src = "1.5"
+        col = compose_from_str(src)
+        exp = Decimal((1, 0), "1.5")
+
+        self.assertEqual(col, exp)
+
+        src = "8+1j"
+        col = compose_from_str(src)
+        exp = Complex((1, 0), "8+1j")
 
         self.assertEqual(col, exp)
 
@@ -110,7 +121,7 @@ class TestParse(TestCase):
         exp = Quote((1, 0),
                     List((1, 1),
                          Symbol((1, 2), "testing"),
-                         Number((1, 12), "123")))
+                         Integer((1, 12), "123")))
         exp.expression.proper = False
 
         self.assertEqual(col, exp)

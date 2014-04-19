@@ -21,9 +21,30 @@ license: LGPL v.3
 """
 
 
+from abc import ABCMeta, abstractmethod
+from fractions import Fraction as fraction
 from io import StringIO
+from sibilant import cons, nil, symbol
+from sibilant import SibilantException, NotYetImplemented
 
 import sibilant.parse as parse
+
+
+__all__ = (
+    "SyntaxError",
+    "Node", "List", "Atom", "Symbol",
+    "Literal", "Number", "Integer", "Decimal",
+    "Fraction", "Complex", "Nil", "String",
+    "Marked", "Quote", "Quasi", "Unquote", "Splice",
+    "compose", "compose_from_str",
+    "compose_all_from_stream", "compose_all_from_str" )
+
+
+class SyntaxError(SibilantException):
+    """
+    An error while parsing sibilant code
+    """
+    pass
 
 
 class Node(object):
@@ -31,42 +52,28 @@ class Node(object):
     Base class for all AST node types
     """
 
+    __metaclass__ = ABCMeta
+
+
     def __init__(self, position=(1, 0)):
         self.position = position
 
-    def translate(self):
-        return self
+
+    @abstractmethod
+    def simplify(self, positions):
+        pass
+
 
     def __ne__(self, other):
         return not (self == other)
 
+
     def __repr__(self):
         return "%s(position=%r)" % (type(self).__name__, self.position)
 
+
     def __str__(self):
         return repr(self)
-
-
-class Comment(Node):
-    """
-    A comment
-    """
-
-    def __init__(self, position, txt):
-        self.position = position
-        self.text = txt
-
-    def __eq__(self, other):
-        return ((type(self) is type(other)) and
-                (self.position == other.position) and
-                (self.text == other.text))
-
-    def __repr__(self):
-        data = (type(self).__name__,
-                self.position,
-                self.text)
-
-        return "%s(position=%r,txt=%r)" % data
 
 
 class List(Node):
@@ -78,6 +85,24 @@ class List(Node):
         self.position = position
         self.proper = True
         self.members = list(members)
+
+
+    def simplify(self, positions):
+        c = None
+
+        for member in self.members[::-1]:
+            s = member.simplify(positions)
+            if c is None:
+                c = cons(s, nil) if self.proper else s
+            else:
+                c = cons(s, c)
+
+            positions[id(c)] = member.position
+
+        if c is None:
+            c = nil
+
+        return c
 
 
     def __repr__(self):
@@ -119,25 +144,72 @@ class Atom(Node):
 
 
 class Symbol(Atom):
+
+    def simplify(self, positions):
+        return symbol(self.token)
+
+
+class Literal(Atom):
     pass
 
 
-class Number(Atom):
-    pass
+class Number(Literal):
+
+    def __new__(klass, position, token):
+        if klass is Number:
+            klass = Integer
+
+            if token[-1] in "ij":
+                klass = Complex
+            elif "/" in token:
+                klass = Fraction
+            elif "." in token:
+                klass = Decimal
+
+        return super().__new__(klass)
 
 
-class String(Atom):
-    pass
+class Integer(Number):
+
+    def simplify(self, positions):
+        return int(self.token, 0)
+
+
+class Decimal(Number):
+
+    def simplify(self, positions):
+        return float(self.token)
+
+
+class Fraction(Number):
+
+    def simplify(self, positions):
+        return fraction(self.token)
+
+
+class Complex(Number):
+
+    def simplify(self, positions):
+        return complex(self.token)
+
+
+class Nil(Literal):
+
+    def simplify(self, positions):
+        return nil
+
+
+class String(Literal):
+
+    def simplify(self, positions):
+        return self.token
 
 
 class Marked(Node):
-    """
-    Parent class for mark indicators which augment another expression
-    """
 
-    def __init__(self, position, expression=None):
+    def __init__(self, position, expr=None):
         self.position = position
-        self.expression = expression
+        self.expression = expr
 
 
     def __eq__(self, other):
@@ -150,28 +222,31 @@ class Marked(Node):
         data = (type(self).__name__,
                 self.position,
                 self.expression)
-
-        return "%s(position=%r,%r)" % data
-
-
-class Sharp(Marked):
-    pass
+        return "%s(position=%r,expr=%r" % data
 
 
 class Quote(Marked):
-    pass
+
+    def simplify(self, positions):
+        raise NotYetImplemented()
 
 
 class Quasi(Marked):
-    pass
+
+    def simplify(self, positions):
+        raise NotYetImplemented()
 
 
 class Unquote(Marked):
-    pass
+
+    def simplify(self, positions):
+        raise NotYetImplemented()
 
 
 class Splice(Marked):
-    pass
+
+    def simplify(self, positions):
+        raise NotYetImplemented()
 
 
 klass_events = {
@@ -179,12 +254,10 @@ klass_events = {
     parse.E_SYMBOL: Symbol,
     parse.E_STRING: String,
     parse.E_NUMBER: Number,
-    parse.E_SHARP: Sharp,
     parse.E_QUOTE: Quote,
     parse.E_QUASI: Quasi,
     parse.E_UNQUOTE: Unquote,
     parse.E_SPLICE: Splice,
-    parse.E_COMMENT: Comment,
 }
 
 
@@ -223,8 +296,7 @@ def compose(parser_gen):
         elif event == parse.E_CLOSE:
             node = stack.pop()
 
-        elif event in (parse.E_SHARP,
-                       parse.E_QUOTE, parse.E_QUASI,
+        elif event in (parse.E_QUOTE, parse.E_QUASI,
                        parse.E_UNQUOTE, parse.E_SPLICE):
 
             marked = compose(parser_gen)

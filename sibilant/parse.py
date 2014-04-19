@@ -22,29 +22,29 @@ license: LGPL v.3
 
 
 from functools import partial
+from sibilant import symbol
 
 
 __all__ = ( "parse",
-            "E_SYMBOL", "E_NUMBER", "E_SHARP", "E_STRING",
+            "E_SYMBOL", "E_NUMBER", "E_STRING",
             "E_QUOTE", "E_QUASI", "E_UNQUOTE", "E_SPLICE",
             "E_OPEN", "E_CLOSE", "E_DOT", "E_COMMENT",
             "E_NEWLINE" )
 
 
 # these are the events that can be emitted.
-E_SYMBOL = "symbol"
-E_NUMBER = "number"
-E_SHARP = "sharp"
-E_STRING = "string"
-E_QUOTE = "quote"
-E_QUASI = "quasi"
-E_UNQUOTE = "unquote"
-E_SPLICE = "splice"
-E_OPEN = "open-paren"
-E_CLOSE = "close-paren"
-E_DOT = "dot"
-E_COMMENT = "comment"
-E_NEWLINE = "newline"
+E_SYMBOL = symbol("E_SYMBOL")
+E_NUMBER = symbol("E_NUMBER")
+E_STRING = symbol("E_STRING")
+E_QUOTE = symbol("E_QUOTE")
+E_QUASI = symbol("E_QUASI")
+E_UNQUOTE = symbol("E_UNQUOTE")
+E_SPLICE = symbol("E_SPLICE")
+E_OPEN = symbol("E_OPEN")
+E_CLOSE = symbol("E_CLOSE")
+E_DOT = symbol("E_DOT")
+E_COMMENT = symbol("E_COMMENT")
+E_NEWLINE = symbol("E_NEWLINE")
 
 
 def parse(stream):
@@ -91,10 +91,6 @@ def parse(stream):
 
         elif c == ".":
             yield (E_DOT, (lin, col))
-            continue
-
-        elif c == "#":
-            yield (E_SHARP, (lin, col))
             continue
 
         elif c == "\"":

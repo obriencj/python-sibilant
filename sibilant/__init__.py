@@ -22,30 +22,133 @@ license: LGPL v.3
 
 
 import sys
-from itertools import islice
 
 
-__all__ = ( "SibilantException",
-            "cons", "niltype",
+__all__ = ( "SibilantException", "NotYetImplemented",
             "main", "cli", "cli_option_parser",
-            "car", "cdr",
-            "cadr", "caddr", "cadddr", "caddddr",
-            "first", "second", "third", "fourth", "fifth", )
+            "symbol",
+            "cons", "car", "cdr",
+            "nil", "niltype",
+            "ref", "attr", "deref", "setref",
+            "undefined", "undefinedtype", )
 
 
 class SibilantException(Exception):
     """
-    Base class for all Exceptions raised by Sibilant
+    Base class for error-driven Exceptions raised by Sibilant
     """
     pass
 
 
-class ContinuationCall(BaseException):
+class NotYetImplemented(SibilantException):
+    """
+    Raised as a placeholder for features that haven't been implemented
+    yet.
+    """
     pass
 
 
-class TrampolineCall(BaseException):
-    pass
+class undefinedtype(object):
+    """
+    an undefined value. singleton indicating a value has not been
+    assigned to a ref yet.
+    """
+
+    __instance = None
+
+    def __new__(k):
+        inst = k.__instance
+        if inst is None:
+            inst = super().__new__(k)
+            k.__instance = inst
+        return inst
+
+    def __repr__(self):
+        return "#<unspecified>"
+
+    def __str__(self):
+        return "#<unspecified>"
+
+
+# undefined singleton
+undefined = undefinedtype()
+
+
+class ref(object):
+    """
+    mutable reference
+    """
+
+    __slots__ = ("sym", "_value")
+
+
+    def __init__(self, sym, value=undefinedtype()):
+        if type(sym) is not symbol:
+            raise TypeError("sym must be a symbol")
+
+        self.sym = sym
+        self._value = value
+
+
+    def _get_value(self, k):
+        return k(self._value)
+
+
+    def _set_value(self, k, value):
+        self._value = value
+        return k(value)
+
+
+    def __repr__(self):
+        return "%s(%r)" % (type(self).__name__, self.sym)
+
+
+class attr(ref):
+    """
+    computed attribute references
+    """
+
+    __slots__ = ("sym", "_get_value", "_set_value")
+
+
+    def __init__(self, sym, getter, setter=None):
+        self.sym = sym
+        self._get_value = getter
+        self._set_value = setter or self._ro_value
+
+
+    def _ro_value(self, k, value):
+        raise AttributeError("%s is read-only" % str(self.sym))
+
+
+def _return_v(v):
+    """
+    simple continuation that uses python's in-built return to pass the
+    value back to the original caller.
+    """
+    return v
+
+
+def deref(r):
+    return deref_k(_return_v, r)
+
+
+def deref_k(k, r):
+    if isinstance(r, ref):
+        return r._get_value(k)
+    else:
+        raise TypeError("expected ref instance")
+
+
+def setref(r, value):
+    return setref_k(_return_v, r, value)
+
+
+def setref_k(k, r, value):
+    if isinstance(r, ref):
+        return r._set_value(k, value)
+    else:
+        raise TypeError("expected ref instance")
 
 
 class cons(object):
@@ -66,50 +169,44 @@ class cons(object):
         self._cdr = cdr
 
 
-    def __car__(self):
-        return self._car
-
-
-    def __cdr__(self):
-        return self._cdr
-
-
-    def __setcar__(self, value):
-        self._car = value
-
-
-    def __setcdr__(self, value):
-        self._cdr = value
-
-
     def __getitem__(self, index):
         if index == 0:
-            return self.__car__()
+            return self._car
         elif index == 1:
-            return self.__cdr__()
+            return self._cdr
         else:
             raise IndexError()
 
 
     def __setitem__(self, index, value):
         if index == 0:
-            self.__setcar__(value)
+            self._car = value
         elif index == 1:
-            self.__setcdr__(value)
+            self._cdr = value
         else:
             raise IndexError()
+
+
+    def __len__(self):
+        return 2
+
+
+    def __iter__(self):
+        yield self._car
+        yield self._cdr
 
 
     def __bool__(self):
         return True
 
 
-    def __repr__(self):
-        l = []
+    def __str__(self):
+        l = list()
 
+        val = nil
         for val in self.items():
             l.append(" ")
-            l.append(repr(val))
+            l.append(str(val))
 
         if val is nil:
             # if it's a proper list, then we need to pop off the
@@ -127,6 +224,21 @@ class cons(object):
         return "".join(l)
 
 
+    def __repr__(self):
+        return "cons(%r, %r)" % (self._car, self._cdr)
+
+
+    def count(self):
+        """
+        recursive count of items in this list, omitting trailing nil for
+        proper lists
+        """
+
+        i = -1
+        for i, v in enumerate(self.unpack()): pass
+        return i + 1
+
+
     def items(self):
         """
         iterator that includes a trailing nil for proper lists
@@ -134,25 +246,29 @@ class cons(object):
 
         current = self
         while isinstance(current, cons) and (current is not nil):
-            yield current.__car__()
-            current = current.__cdr__()
+            yield current._car
+            current = current._cdr
         yield current
 
 
-    def __iter__(self):
+    def unpack(self):
         """
         iterator that omits a trailing nil
         """
 
         current = self
         while isinstance(current, cons) and (current is not nil):
-            yield current.__car__()
-            current = current.__cdr__()
+            yield current._car
+            current = current._cdr
         if current is not nil:
             yield current
 
 
     def is_proper(self):
+        """
+        proper lists have a trailing nil
+        """
+
         return last(self.items()) is nil
 
 
@@ -161,12 +277,13 @@ class niltype(cons):
     The canonical empty cons cell, nil.
     """
 
-    __slots__ = tuple()
+    __slots__ = ()
 
     __nil = None
 
 
     def __new__(t):
+        # make nil a singleton
         nil = t.__nil
         if nil is None:
             nil = super().__new__(t)
@@ -190,28 +307,20 @@ class niltype(cons):
             yield None
 
 
+    def __len__(self):
+        return 0
+
+
     def __bool__(self):
         return False
 
 
-    def __repr__(self):
+    def __str__(self):
         return "()"
 
 
-    def __car__(self):
-        raise TypeError()
-
-
-    def __cdr__(self):
-        raise TypeError()
-
-
-    def __setcar__(self, value):
-        raise TypeError()
-
-
-    def __setcdr__(self, value):
-        raise TypeError()
+    def __repr__(self):
+        return "niltype()"
 
 
     def is_proper(self):
@@ -223,13 +332,37 @@ class niltype(cons):
 nil = niltype()
 
 
-car = lambda c: c.__car__()
-cdr = lambda c: c.__cdr__()
+def car(c):
+    """
+    retrieve the first portion of a cons cell
+    """
 
-cadr = lambda c: c.__cdr__().__car__()
-caddr = lambda c: c.__cdr__().__cdr__().__car__()
-cadddr = lambda c: c.__cdr__().__cdr__().__cdr__().__car__()
-caddddr = lambda c: c.__cdr__().__cdr__().__cdr__().__cdr__().__car__()
+    if c is nil:
+        raise TypeError("cannot get car of nil")
+    elif type(c) is not cons:
+        raise TypeError("expected cons instance")
+    else:
+        return c._car
+
+
+def cdr(c):
+    """
+    retrieve the tail of a cons cell, or the second value for an
+    improper cell
+    """
+
+    if c is nil:
+        raise TypeError("cannot get cdr of nil")
+    elif type(c) is not cons:
+        raise TypeError("expected cons instance")
+    else:
+        return c._cdr
+
+
+cadr = lambda c: car(cdr(c))
+caddr = lambda c: car(cdr(cdr(c)))
+cadddr = lambda c: car(cdr(cdr(cdr(c))))
+caddddr = lambda c: car(cdr(cdr(cdr(cdr(c)))))
 
 first = car
 second = cadr
@@ -256,7 +389,7 @@ class symbol(str):
     representation.
     """
 
-    __slots__ = tuple()
+    __slots__ = ()
 
     __intern = {}
 
@@ -283,7 +416,14 @@ class symbol(str):
 
 
     def __hash__(self):
-        return super(symbol).__hash__()
+        return super(symbol, self).__hash__()
+
+
+def _k_wrap(fun):
+    def fun_k(k, *args):
+        return k(fun(*args))
+    update_wrapper(fun_k, fun)
+    return fun_k
 
 
 def cli(options, args):

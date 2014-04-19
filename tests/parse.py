@@ -56,8 +56,7 @@ class TestParse(TestCase):
     def test_sharp(self):
         src = "#t"
         col = collect_emissions(src)
-        exp = [(E_SHARP, (1, 0)),
-               (E_SYMBOL, (1, 1), "t")]
+        exp = [(E_SYMBOL, (1, 0), "#t")]
 
         self.assertEqual(col, exp)
 
