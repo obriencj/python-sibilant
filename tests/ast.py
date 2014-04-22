@@ -21,12 +21,19 @@ license: LGPL v.3
 """
 
 
-from unittest import TestCase
+from fractions import Fraction as fraction
+from sibilant import cons, nil
 from sibilant.ast import *
-from sibilant.parse import parse
+from unittest import TestCase
 
 
-class TestParse(TestCase):
+def simplify(src_str, positions=None):
+    if positions is None:
+        positions = dict()
+    return compose_from_str(src_str).simplify(positions)
+
+
+class TestCompose(TestCase):
 
     def test_symbol(self):
         src = "lambda"
@@ -126,6 +133,81 @@ class TestParse(TestCase):
 
         self.assertEqual(col, exp)
         self.assertFalse(col.expression.proper)
+
+
+class TestSimplify(TestCase):
+
+    def test_number(self):
+        src = "123"
+        col = simplify(src)
+        self.assertEqual(col, 123)
+
+        src = "-123"
+        col = simplify(src)
+        self.assertEqual(col, -123)
+
+        src = "1/2"
+        col = simplify(src)
+        self.assertEqual(col, fraction(1, 2))
+
+        src = "-1/2"
+        col = simplify(src)
+        self.assertEqual(col, fraction(-1, 2))
+
+        src = "1.5"
+        col = simplify(src)
+        self.assertEqual(col, 1.5)
+
+        src = ".5"
+        col = simplify(src)
+        self.assertEqual(col, 0.5)
+
+        src = "1."
+        col = simplify(src)
+        self.assertEqual(col, 1.0)
+
+        src = "-1.5"
+        col = simplify(src)
+        self.assertEqual(col, -1.5)
+
+        src = "-.5"
+        col = simplify(src)
+        self.assertEqual(col, -0.5)
+
+        src = "-1."
+        col = simplify(src)
+        self.assertEqual(col, -1.0)
+
+        src = "8+1j"
+        col = simplify(src)
+        self.assertEqual(col, complex("8+1j"))
+
+        src = "3+i"
+        col = simplify(src)
+        self.assertEqual(col, complex("3+j"))
+
+        src = "-1.1+2j"
+        col = simplify(src)
+        self.assertEqual(col, complex("-1.1+2j"))
+
+
+    def test_dot(self):
+
+        src = "(1.4)"
+        col = simplify(src)
+        self.assertEqual(col, cons(1.4, nil))
+
+        src = "(1. 4)"
+        col = simplify(src)
+        self.assertEqual(col, cons(1.0, cons(4, nil)))
+
+        src = "(1 .4)"
+        col = simplify(src)
+        self.assertEqual(col, cons(1, cons(0.4, nil)))
+
+        src = "(1 . 4)"
+        col = simplify(src)
+        self.assertEqual(col, cons(1, 4))
 
 
 #
