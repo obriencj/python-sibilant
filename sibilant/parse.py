@@ -24,6 +24,8 @@ license: LGPL v.3
 from functools import partial
 from sibilant import symbol
 
+import re
+
 
 __all__ = ( "parse",
             "E_SYMBOL", "E_NUMBER", "E_STRING",
@@ -72,25 +74,12 @@ def parse(stream):
         elif c.isspace():
             continue
 
-        elif c.isdigit():
-            stream_unread(stream)
-
-            r = stream.tell()
-            t = parse_token(stream)
-            yield (E_NUMBER, (lin, col), t)
-            col += (stream.tell() - r) - 1
-            continue
-
         elif c == "(":
             yield (E_OPEN, (lin, col))
             continue
 
         elif c == ")":
             yield (E_CLOSE, (lin, col))
-            continue
-
-        elif c == ".":
-            yield (E_DOT, (lin, col))
             continue
 
         elif c == "\"":
@@ -130,9 +119,37 @@ def parse(stream):
 
             r = stream.tell()
             t = parse_token(stream)
-            yield (E_SYMBOL, (lin, col), t)
+
+            if t == ".":
+                yield (E_DOT, (lin, col))
+            elif number_like(t):
+                yield (E_NUMBER, (lin, col), t)
+            else:
+                yield (E_SYMBOL, (lin, col), t)
+
             col += (stream.tell() - r) - 1
             continue
+
+
+_decimal = re.compile(r"-?(\d*\.?\d+|\d+\.?\d*)")
+_fraction = re.compile(r"\d*/\d*")
+_complex = re.compile(r"-?\d*\.?\d+\+\d*\.?\d*[ij]")
+
+
+def number_like(s):
+    return _decimal.match(s) or _fraction.match(s) or _complex.match(s)
+
+
+def integer_like(s):
+    return _numeric.match(s)
+
+
+def fraction_like(s):
+    return _fraction.match(s)
+
+
+def complex_like(s):
+    return _complex.match(s)
 
 
 def stream_chars(stream):

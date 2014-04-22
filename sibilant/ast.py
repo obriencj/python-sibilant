@@ -23,6 +23,7 @@ license: LGPL v.3
 
 from abc import ABCMeta, abstractmethod
 from fractions import Fraction as fraction
+from functools import partial
 from io import StringIO
 from sibilant import cons, nil, symbol
 from sibilant import SibilantException, NotYetImplemented
@@ -190,7 +191,11 @@ class Fraction(Number):
 class Complex(Number):
 
     def simplify(self, positions):
-        return complex(self.token)
+        t = self.token
+        if t[-1] == "i":
+            return complex(self.token[:-1]+"j")
+        else:
+            return complex(self.token)
 
 
 class Nil(Literal):
@@ -290,8 +295,11 @@ def compose(parser_gen):
             continue
 
         elif event == parse.E_DOT:
-            stack[-1].proper = False
-            continue
+            if not stack:
+                raise SyntaxError(". without list")
+            else:
+                stack[-1].proper = False
+                continue
 
         elif event == parse.E_CLOSE:
             node = stack.pop()
