@@ -200,6 +200,43 @@ class cons(object):
         return True
 
 
+    def __eq__(self, other):
+        if type(other) is not cons:
+            return False
+
+        left = self
+        right = other
+
+        lf = dict()
+        rf = dict()
+
+        index = 1
+
+        while left is not right:
+            if (left is nil) or (right is nil):
+                return False
+            a,left = left
+            b,right = right
+            if a != b:
+                return False
+            lin = lf.get(id(left), 0)
+            rin = rf.get(id(right), 0)
+            if lin != rin:
+                return False
+            elif lin:
+                return True
+            else:
+                lf[id(left)] = index
+                rf[id(right)] = index
+                index += 1
+        else:
+            return True
+
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+
     def __str__(self):
         col = list()
         found = set()
@@ -353,6 +390,14 @@ class niltype(cons):
 
     def __init__(self):
         pass
+
+
+    def __eq__(self, other):
+        return type(self) is type(other)
+
+
+    def __ne__(self, other):
+        return type(self) is not type(other)
 
 
     def __iter__(self):

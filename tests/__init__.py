@@ -73,6 +73,18 @@ class ConsTest(TestCase):
         self.assertEqual(car(b), 1)
         self.assertEqual(cdr(b), a)
 
+        w = cons(0, cons(1, cons(2, nil)))
+        self.assertEqual(c, w)
+        self.assertEqual(w, c)
+
+        u = cons(99, c)
+        v = cons(99, w)
+        self.assertEqual(u, v)
+        self.assertEqual(v, u)
+
+        self.assertNotEqual(cons(99, nil), u)
+        self.assertNotEqual(u, cons(99, nil))
+
 
     def test_improper_cons(self):
         z = cons(1, 2)
@@ -93,6 +105,10 @@ class ConsTest(TestCase):
         self.assertFalse(nil)
         self.assertEqual(str(nil), "()")
         self.assertEqual(repr(nil), "niltype()")
+
+        self.assertEqual(nil, nil)
+        self.assertNotEqual(nil, cons(1, nil))
+        self.assertNotEqual(cons(1, nil), nil)
 
         with self.assertRaises(TypeError):
             car(nil)
@@ -115,6 +131,18 @@ class ConsTest(TestCase):
 
         self.assertEqual(str(a), "(1 2 3 ...)")
         self.assertEqual(repr(a), "cons(1, cons(2, cons(3, ...)))")
+
+        b = cons(0, a)
+        c = cons(0, a)
+        self.assertEqual(b, c)
+        self.assertNotEqual(a, b)
+        self.assertNotEqual(a, c)
+
+        z = cons(1, cons(2, cons(3, nil)))
+        setcdr(cdr(cdr(z)), z)
+
+        self.assertEqual(a, z)
+        self.assertEqual(z, a)
 
 
 class SymbolTest(TestCase):
