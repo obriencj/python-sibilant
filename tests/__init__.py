@@ -113,6 +113,9 @@ class ConsTest(TestCase):
 
         self.assertEqual(car(a), car(cdr(cdr(cdr(a)))))
 
+        self.assertEqual(str(a), "(1 2 3 ...)")
+        self.assertEqual(repr(a), "cons(1, cons(2, cons(3, ...)))")
+
 
 class SymbolTest(TestCase):
 

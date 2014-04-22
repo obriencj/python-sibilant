@@ -201,34 +201,56 @@ class cons(object):
 
 
     def __str__(self):
-        # TODO: handle recursive
+        col = list()
+        found = set()
 
-        l = list()
+        rest = self
+        while rest is not nil:
+            if type(rest) is cons:
+                if id(rest) in found:
+                    # recursive
+                    col.append(" ...")
+                    break
+                else:
+                    # normal so far
+                    found.add(id(rest))
+                    val, rest = rest
+                    col.append(" ")
+                    col.append(str(val))
+            else:
+                # end of improper list
+                col.append(" . ")
+                col.append(str(rest))
+                break
 
-        val = nil
-        for val in self.items():
-            l.append(" ")
-            l.append(str(val))
+        col[0] = "("
+        col.append(")")
 
-        if val is nil:
-            # if it's a proper list, then we need to pop off the
-            # trailing space and nil
-            l.pop()
-            l.pop()
-        else:
-            # otherwise, we need to inject a dot to indicate just how
-            # improper this list is
-            l.insert(-1, ". ")
-
-        l[0] = "("
-        l.append(")")
-
-        return "".join(l)
+        return "".join(col)
 
 
     def __repr__(self):
-        # TODO: handle recursive
-        return "cons(%r, %r)" % (self._car, self._cdr)
+        col = list()
+        found = set()
+
+        rest = self
+        while type(rest) is cons:
+            if id(rest) in found:
+                # recursive
+                col.append("...")
+                break
+            else:
+                # normal so far
+                found.add(id(rest))
+                val, rest = rest
+                col.append("cons(")
+                col.append(repr(val))
+                col.append(", ")
+        else:
+            col.append(repr(rest))
+
+        col.append(")"*len(found))
+        return "".join(col)
 
 
     def count(self):
