@@ -156,4 +156,14 @@ note: define works on locals, set! works on whatever it finds first
 unless it finds nothing, in which case it sets it in globals
 
 
+-----
+
+while I'd like to be able to steal the closure cell trickery that
+Python uses (operation to load a value from a closure rather than
+attempting to resolve by name through nested namespaces), I'm not sure
+how well that works with incremental compilation! I need a way to hint
+to newly generated interior code that I can supply it with locals for
+cells.
+
+
 # the end.
