@@ -165,5 +165,15 @@ how well that works with incremental compilation! I need a way to hint
 to newly generated interior code that I can supply it with locals for
 cells.
 
+-----
+
+2014-05-03
+
+I've lost my direction a bit. Do I really want to care about improper
+(dotted) pairs? Should I look for a type-aware dispatch of cons,
+instead? Should I aim to be more like Clojure than CL?? How about
+symbol namespaces? Should I go for a single namespace, or should I do
+a per-module namespace?
+
 
 # the end.
