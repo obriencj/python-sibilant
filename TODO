@@ -175,5 +175,35 @@ instead? Should I aim to be more like Clojure than CL?? How about
 symbol namespaces? Should I go for a single namespace, or should I do
 a per-module namespace?
 
+-----
+
+2014-06-14
+
+Let's focus on this
+
+- skipping the CPS call conformity compiler for now (make it a
+  settable mode, later)
+- go straight to compiling into a python AST
+- use Pythonic lists, but supply a cons cell (possibly renamed to
+  pair)
+- adapt the cons call into a generic append/insert
+- upward-only continuations when not within the special CPS mode
+- still doing import extension from within "normal" python
+- still aiming to get bilingual stack traces
+- macros to start, defsyntax later
+- keyword as subclass of symbol
+
+-----
+
+2014-08-26
+
+The trampoline can be a signalling location, via exceptions. If we use
+an exception to signal continuation calling, to signal stack dropping,
+and to signal exception handler registration/popping, we can
+effectively perform all functions without breaking from normal
+exception usage! We can even do cooperative multi-threading with a
+yield type exception that causes the trampoline to switch to another
+worker continuation context.
+
 
 # the end.
