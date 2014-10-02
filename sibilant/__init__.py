@@ -16,11 +16,12 @@
 """
 Sibilant, a Scheme for Python
 
-author: Christopher O'Brien  <obriencj@gmail.com>
-license: LGPL v.3
+:author: Christopher O'Brien  <obriencj@gmail.com>
+:license: LGPL v.3
 """
 
 
+from functools import reduce
 import sys
 
 
@@ -151,7 +152,7 @@ def setref_k(k, r, value):
         raise TypeError("expected ref instance")
 
 
-class cons(object):
+class constype(object):
     """
     cons cell type.
 
@@ -201,7 +202,7 @@ class cons(object):
 
 
     def __eq__(self, other):
-        if type(other) is not cons:
+        if type(other) is not constype:
             return False
 
         left = self
@@ -215,6 +216,9 @@ class cons(object):
         while left is not right:
             if (left is nil) or (right is nil):
                 return False
+            elif (type(left) is not constype):
+                return left == right
+
             a,left = left
             b,right = right
             if a != b:
@@ -243,7 +247,7 @@ class cons(object):
 
         rest = self
         while rest is not nil:
-            if type(rest) is cons:
+            if type(rest) is constype:
                 if id(rest) in found:
                     # recursive
                     col.append(" ...")
@@ -267,34 +271,39 @@ class cons(object):
 
 
     def __repr__(self):
-        col = list()
-        found = set()
+        col = ["cons("]
+        found = {}
+        index = 0
 
         rest = self
-        while type(rest) is cons:
-            if id(rest) in found:
-                # recursive
-                col.append("...")
-                break
-            else:
-                # normal so far
-                found.add(id(rest))
+        while type(rest) is constype:
+            rid = id(rest)
+            found_at = found.get(rid, None)
+            if found_at is None:
+                # we insert two elements for every non-recursive
+                # entry
+                index += 2
+                found[rid] = index
                 val, rest = rest
-                col.append("cons(")
                 col.append(repr(val))
                 col.append(", ")
+            else:
+                col.append("recursive=True")
+                if rest is not self:
+                    col.insert(found_at-1, "cons(")
+                    col.append(")")
+                break
         else:
             col.append(repr(rest))
 
-        col.append(")"*len(found))
+        col.append(")")
         return "".join(col)
 
 
     def count(self):
         """
-        recursive count of items in this list, omitting trailing nil for
-        proper lists. Stops counting if/when recursive cells are
-        detected.
+        number of items in this list, omitting trailing nil for proper
+        lists. Stops counting if/when recursive cells are detected.
         """
 
         i = -1
@@ -309,7 +318,7 @@ class cons(object):
         """
 
         current = self
-        while isinstance(current, cons) and (current is not nil):
+        while isinstance(current, constype) and (current is not nil):
             yield current._car
             current = current._cdr
         yield current
@@ -319,14 +328,14 @@ class cons(object):
         """
         iterator that omits a trailing nil.
 
-        if the list formed by this cons is recursive, unpack stops
-        emiting items once recursion is detected.
+        if the list formed by this cons cell is recursive, unpack
+        stops emiting items once recursion is detected.
         """
 
         found = set()
         current = self
 
-        while (type(current) is cons) and (id(current) not in found):
+        while (type(current) is constype) and (id(current) not in found):
             found.add(id(current))
             yield current._car
             current = current._cdr
@@ -342,7 +351,7 @@ class cons(object):
 
         found = set()
         current = self
-        while type(current) is cons:
+        while type(current) is constype:
             if id(current) in found:
                 return True
             else:
@@ -359,7 +368,7 @@ class cons(object):
 
         found = set()
         current = self
-        while type(current) is cons:
+        while type(current) is constype:
             if id(current) in found:
                 return True
             else:
@@ -369,7 +378,26 @@ class cons(object):
         return current is nil
 
 
-class niltype(cons):
+def cons(a, *b, recursive=False, ltype=constype):
+    """
+    Construct a singly-linked list from arguments. If final argument
+    is not `nil`, the list will be considered improper. If recursive
+    is True, the final link in the list will reference the start of
+    the list.
+    """
+
+    if recursive:
+        a = ltype(a, nil)
+        setcdr(a, reduce(lambda x,y:ltype(y,x), b[::-1], a))
+        return a
+    else:
+        b, *c = b
+        if c:
+            b = ltype(b, reduce(lambda x,y:ltype(y,x), c[::-1]))
+        return ltype(a, b)
+
+
+class niltype(constype):
     """
     The canonical empty cons cell, nil.
     """
@@ -448,8 +476,8 @@ def car(c):
 
     if c is nil:
         raise TypeError("cannot get car of nil")
-    elif type(c) is not cons:
-        raise TypeError("expected cons instance")
+    elif not isinstance(c, constype):
+        raise TypeError("expected constype instance")
     else:
         return c._car
 
@@ -462,8 +490,8 @@ def cdr(c):
 
     if c is nil:
         raise TypeError("cannot get cdr of nil")
-    elif type(c) is not cons:
-        raise TypeError("expected cons instance")
+    elif not isinstance(c, constype):
+        raise TypeError("expected constype instance")
     else:
         return c._cdr
 
@@ -471,8 +499,8 @@ def cdr(c):
 def setcar(c, value):
     if c is nil:
         raise TypeError("cannod set car of nil")
-    elif type(c) is not cons:
-        raise TypeError("expected cons instance")
+    elif not isinstance(c, constype):
+        raise TypeError("expected constype instance")
     else:
         c._car = value
         return value
@@ -481,8 +509,8 @@ def setcar(c, value):
 def setcdr(c, value):
     if c is nil:
         raise TypeError("cannod set car of nil")
-    elif type(c) is not cons:
-        raise TypeError("expected cons instance")
+    elif not isinstance(c, constype):
+        raise TypeError("expected constype instance")
     else:
         c._cdr = value
         return value
@@ -548,7 +576,12 @@ class symbol(str):
         return super(symbol, self).__hash__()
 
 
-def _k_wrap(fun):
+def k_wrap(fun):
+    """
+    Wrap a non-continuation-style function to accept a continuation as
+    the first argument.
+    """
+
     def fun_k(k, *args):
         return k(fun(*args))
     update_wrapper(fun_k, fun)
@@ -598,7 +631,7 @@ def main(args):
     try:
         cli(options, args)
 
-    except KeyboardInterrupt as keyi:
+    except KeyboardInterrupt:
         return -130
 
     else:

@@ -22,7 +22,8 @@ license: LGPL v.3
 
 
 from unittest import TestCase
-from sibilant import cons, nil, niltype, car, cdr, setcar, setcdr, last
+from sibilant import cons, constype, nil, niltype
+from sibilant import car, cdr, setcar, setcdr, last
 from sibilant import ref, attr, undefined, deref, setref
 from sibilant import symbol
 
@@ -65,7 +66,7 @@ class ConsTest(TestCase):
         self.assertSequenceEqual(list(c.unpack()), [0, 1, 2])
         self.assertSequenceEqual(tuple(c.unpack()), (0, 1, 2))
         self.assertEqual(str(c), "(0 1 2)")
-        self.assertEqual(repr(c), "cons(0, cons(1, cons(2, niltype())))")
+        self.assertEqual(repr(c), "cons(0, 1, 2, niltype())")
 
         self.assertEqual(car(a), 2)
         self.assertEqual(cdr(a), nil)
@@ -101,7 +102,7 @@ class ConsTest(TestCase):
         self.assertTrue(nil is niltype())
 
         # behavior
-        self.assertIsInstance(nil, cons)
+        self.assertIsInstance(nil, constype)
         self.assertFalse(nil)
         self.assertEqual(str(nil), "()")
         self.assertEqual(repr(nil), "niltype()")
@@ -121,8 +122,7 @@ class ConsTest(TestCase):
 
 
     def test_recursive_cons(self):
-        a = cons(1, cons(2, cons(3, nil)))
-        setcdr(cdr(cdr(a)), a)
+        a = cons(1, 2, 3, recursive=True)
 
         self.assertTrue(a.is_proper())
         self.assertTrue(a.is_recursive())
@@ -130,7 +130,32 @@ class ConsTest(TestCase):
         self.assertEqual(car(a), car(cdr(cdr(cdr(a)))))
 
         self.assertEqual(str(a), "(1 2 3 ...)")
-        self.assertEqual(repr(a), "cons(1, cons(2, cons(3, ...)))")
+        self.assertEqual(repr(a), "cons(1, 2, 3, recursive=True)")
+
+        b = constype(0, a)
+        c = constype(0, a)
+        self.assertEqual(b, c)
+        self.assertNotEqual(a, b)
+        self.assertNotEqual(a, c)
+
+        z = cons(1, cons(2, cons(3, nil)))
+        setcdr(cdr(cdr(z)), z)
+
+        self.assertEqual(a, z)
+        self.assertEqual(z, a)
+
+
+    def test_recursive_tail_cons(self):
+        a = cons(1, 2, cons(3, recursive=True))
+
+        self.assertTrue(a.is_proper())
+        self.assertTrue(a.is_recursive())
+
+        self.assertEqual(car(cdr(cdr(cdr(a)))),
+                         car((cdr(cdr(cdr(cdr(a)))))))
+
+        self.assertEqual(str(a), "(1 2 3 ...)")
+        self.assertEqual(repr(a), "cons(1, 2, cons(3, recursive=True))")
 
         b = cons(0, a)
         c = cons(0, a)
@@ -138,8 +163,9 @@ class ConsTest(TestCase):
         self.assertNotEqual(a, b)
         self.assertNotEqual(a, c)
 
-        z = cons(1, cons(2, cons(3, nil)))
-        setcdr(cdr(cdr(z)), z)
+        z = cons(3, nil)
+        setcdr(z, z)
+        z = cons(1, cons(2, z))
 
         self.assertEqual(a, z)
         self.assertEqual(z, a)

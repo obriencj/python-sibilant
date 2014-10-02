@@ -19,8 +19,8 @@
 """
 Sibilant, Scheme for Python
 
-author: Christopher O'Brien  <obriencj@gmail.com>
-license: LGPL v.3
+:author: Christopher O'Brien  <obriencj@gmail.com>
+:license: LGPL v.3
 """
 
 
@@ -46,7 +46,7 @@ setup( name = "sibilant",
        requires = [],
        platforms = [ "python3 >= 3.3", ],
 
-       zip_safe = False,
+       zip_safe = True,
 
        classifiers = [ "Intended Audience :: Developers",
                        "Programming Language :: Python :: 3",
