@@ -34,6 +34,11 @@ setup( name = "sibilant",
 
        test_suite = "tests",
 
+       entry_points = {
+           "console_scripts": [
+               'sibilant = sibilant:main', ],
+       },
+
        # PyPI information
        author = "Christopher O'Brien",
        author_email = "obriencj@gmail.com",

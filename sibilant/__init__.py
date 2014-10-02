@@ -630,9 +630,9 @@ def cli_option_parser():
     return parser
 
 
-def main(args):
+def main(args=sys.argv):
     """
-    Invoked when module is run as __main__
+    Entry point for the REPL
     """
 
     parser = cli_option_parser()
@@ -648,10 +648,6 @@ def main(args):
 
     else:
         return 0
-
-
-if __name__ == '__main__':
-    sys.exit(main(sys.argv))
 
 
 #

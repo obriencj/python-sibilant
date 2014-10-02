@@ -93,6 +93,7 @@ class ConsTest(TestCase):
 
     def test_improper_cons(self):
         z = cons(1, 2)
+        self.assertEqual(z.count(), 2)
         self.assertFalse(z.is_proper())
         self.assertEqual(car(z), 1)
         self.assertEqual(cdr(z), 2)
