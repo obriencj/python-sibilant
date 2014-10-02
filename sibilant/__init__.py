@@ -324,6 +324,15 @@ class constype(object):
         yield current
 
 
+    def take(self, count):
+        """
+        iterator showing the first `count` results from the `items()`
+        method
+        """
+
+        return islice(self.items(), 0, count)
+
+
     def unpack(self):
         """
         iterator that omits a trailing nil.
@@ -335,7 +344,10 @@ class constype(object):
         found = set()
         current = self
 
-        while (type(current) is constype) and (id(current) not in found):
+        while (type(current) is constype):
+            if id(current) in found:
+                return
+
             found.add(id(current))
             yield current._car
             current = current._cdr

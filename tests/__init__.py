@@ -22,7 +22,7 @@ license: LGPL v.3
 
 
 from unittest import TestCase
-from sibilant import cons, constype, nil, niltype
+from sibilant import cons, nil, constype, niltype
 from sibilant import car, cdr, setcar, setcdr, last
 from sibilant import ref, attr, undefined, deref, setref
 from sibilant import symbol
@@ -34,6 +34,10 @@ class ConsTest(TestCase):
         a = cons(2, nil)
         b = cons(1, a)
         c = cons(0, b)
+
+        self.assertEqual(a.count(), 1)
+        self.assertEqual(b.count(), 2)
+        self.assertEqual(c.count(), 3)
 
         self.assertTrue(a.is_proper())
         self.assertTrue(b.is_proper())
@@ -93,6 +97,7 @@ class ConsTest(TestCase):
         self.assertEqual(car(z), 1)
         self.assertEqual(cdr(z), 2)
         self.assertEqual(str(z), "(1 . 2)")
+        self.assertEqual(repr(z), "cons(1, 2)")
 
 
     def test_nil(self):
@@ -127,6 +132,8 @@ class ConsTest(TestCase):
         self.assertTrue(a.is_proper())
         self.assertTrue(a.is_recursive())
 
+        self.assertEqual(a.count(), 3)
+
         self.assertEqual(car(a), car(cdr(cdr(cdr(a)))))
 
         self.assertEqual(str(a), "(1 2 3 ...)")
@@ -151,9 +158,13 @@ class ConsTest(TestCase):
         self.assertTrue(a.is_proper())
         self.assertTrue(a.is_recursive())
 
+        self.assertEqual(a.count(), 3)
+
         self.assertEqual(car(cdr(cdr(cdr(a)))),
                          car((cdr(cdr(cdr(cdr(a)))))))
 
+        # TODO: is this really how scheme would print this, when only
+        # the 3 would repeat?
         self.assertEqual(str(a), "(1 2 3 ...)")
         self.assertEqual(repr(a), "cons(1, 2, cons(3, recursive=True))")
 
