@@ -21,6 +21,7 @@ license: LGPL v.3
 """
 
 
+from functools import partial
 from unittest import TestCase
 from sibilant import cons, nil, constype, niltype
 from sibilant import car, cdr, setcar, setcdr, last
@@ -260,7 +261,7 @@ class RefTest(TestCase):
 
     def test_attr(self):
         a = ref(symbol('a'))
-        b = attr(symbol('b'), a._get_value, a._set_value)
+        b = attr(symbol('b'), partial(deref, a), partial(setref, a))
 
         self.assertEqual(deref(a), deref(b))
         self.assertEqual(deref(b), undefined)
@@ -273,7 +274,7 @@ class RefTest(TestCase):
         self.assertEqual(deref(b), 102)
         self.assertEqual(deref(a), 102)
 
-        c = attr(symbol('c'), a._get_value)
+        c = attr(symbol('c'), partial(deref, a))
 
         self.assertEqual(deref(c), 102)
 

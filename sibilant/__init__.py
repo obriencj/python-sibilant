@@ -21,7 +21,7 @@ Sibilant, a Scheme for Python
 """
 
 
-from functools import reduce
+from functools import partial, reduce, wraps
 import sys
 
 
@@ -49,77 +49,74 @@ class NotYetImplemented(SibilantException):
     pass
 
 
-class undefinedtype(object):
+def k_style(func):
     """
-    an undefined value. singleton indicating a value has not been
-    assigned to a ref yet.
-    """
-
-    __instance = None
-
-    def __new__(k):
-        inst = k.__instance
-        if inst is None:
-            inst = super().__new__(k)
-            k.__instance = inst
-        return inst
-
-    def __repr__(self):
-        return "#<unspecified>"
-
-    def __str__(self):
-        return "#<unspecified>"
-
-
-# undefined singleton
-undefined = undefinedtype()
-
-
-class ref(object):
-    """
-    mutable reference
+    Decorator to indicate that a function is written in the k-style
+    for use by `k_call`.
     """
 
-    __slots__ = ("sym", "_value")
+    func.__k_style = True
+    return func
 
 
-    def __init__(self, sym, value=undefinedtype()):
-        if type(sym) is not symbol:
-            raise TypeError("sym must be a symbol")
-
-        self.sym = sym
-        self._value = value
-
-
-    def _get_value(self, k):
-        return k(self._value)
-
-
-    def _set_value(self, k, value):
-        self._value = value
-        return k(value)
-
-
-    def __repr__(self):
-        return "%s(%r)" % (type(self).__name__, self.sym)
-
-
-class attr(ref):
+def k_wrap(func):
     """
-    computed attribute references
+    Wrap a function to accept a firt-argument continuation, and mark
+    it as being k-style. If the function is already k-style, it's
+    returned unaltered. If the function has a k-style adaptor, the
+    adaptor will be returned.
     """
 
-    __slots__ = ("sym", "_get_value", "_set_value")
+    if func is None:
+        return None
+
+    elif getattr(func, "__k_style", False):
+        return func
+
+    else:
+        wrapped = getattr(func, "__k_adapt", None)
+        if not wrapped:
+            def wrapped(k, *p, **kw):
+                return k(func(*p, **kw))
+            wrapped.__k_style = True
+            wraps(wrapped, func)
+        return wrapped
 
 
-    def __init__(self, sym, getter, setter=None):
-        self.sym = sym
-        self._get_value = getter
-        self._set_value = setter or self._ro_value
+# def k_method_wrap(meth):
+#     if getattr(meth, "__k_style", False):
+#         return meth
+
+#     else:
+#         wrapped = getattr(meth, "__k_adapt", None)
+#         if not wrapped:
+#             def wrapped(self, k, *p, **kw):
+#                 return k(func(self, *p, **kw))
+#             wrapped.__k_style = True
+#             wraps(wrapped, func)
+#         return wrapped
 
 
-    def _ro_value(self, k, value):
-        raise AttributeError("%s is read-only" % str(self.sym))
+def k_adapt(wrapped=None):
+    """
+    Decorator to create a simple k-style wrapper for a non-k-style
+    function, and to mark it as supported for use by `k_call`. The
+    wrapper will be attached to `func.__k_adapt`
+    """
+
+    def decorator(func):
+        func.__k_adapt = wrapped if wrapped else k_wrap(func)
+        return func
+
+    return decorator
+
+
+# def k_method_adapt(wrapped=None):
+#     def decorator(func):
+#         func.__k_adapt = wrapped if wrapped else k_method_wrap(func)
+#         return func
+
+#     return decorator
 
 
 def _return_v(v):
@@ -130,26 +127,165 @@ def _return_v(v):
     return v
 
 
-def deref(r):
-    return deref_k(_return_v, r)
+@k_style
+def k_call(k, func, *args, **params):
+    """
+    Call a function which may or may-not be written k-style. If it is
+    decorated as a k-style function, it will be called. If it has an
+    adaptation that is k-style, the adaptation will be called.
+    Otherwise, the function will be called and the result will be
+    passed to the continuation k.
+    """
+
+    if getattr(func, "__k_style", False):
+        return func(k, *args, **params)
+    else:
+        k_style_func = getattr(func, "__k_adapt", None)
+        if k_style_func is None:
+            return k(func, *args, **params)
+        else:
+            return k(func(*args, **params))
 
 
+def de_k_call(func, *args, **params):
+    """
+    Calls a k-style function with a continuation that collects and
+    returns the result here. Note that a continuation captured from
+    within this call chain will not be able to be re-called, as the
+    continuation chain is broken in order to adapt to the normal
+    Pythonic return style. Use this at your own risk.
+    """
+
+    k_style_func = getattr(func, "__k_style", None)
+    if k_style_func is None:
+        return func(*args, **params)
+    else:
+        return k_style_func(_return_v, *args, **params)
+
+
+class undefinedtype(object):
+    """
+    an undefined value. singleton indicating a value has not been
+    assigned to a ref yet.
+    """
+
+    __instance = None
+
+
+    def __new__(k):
+        inst = k.__instance
+        if inst is None:
+            inst = super().__new__(k)
+            k.__instance = inst
+        return inst
+
+
+    def __repr__(self):
+        return "#<unspecified>"
+
+
+    def __str__(self):
+        return "#<unspecified>"
+
+
+# undefined singleton
+undefined = undefinedtype()
+
+
+class reftype(object):
+    """
+    mutable reference
+    """
+
+    __slots__ = ("sym", "_value")
+
+
+    def __init__(self, sym, value=undefined):
+        if type(sym) is not symbol:
+            raise TypeError("sym must be a symbol")
+
+        self.sym = sym
+        self._value = value
+
+
+    def _get_value_k(self, k):
+        return k(self._value)
+
+
+    def _get_value(self):
+        return self._value
+
+
+    def _set_value_k(self, k, value):
+        self._value = value
+        return k(value)
+
+
+    def _set_value(self, value):
+        self._value = value
+        return value
+
+
+    def __repr__(self):
+        return "".join(("ref(", repr(self.sym), ")"))
+
+
+def ref(sym, value=undefined):
+    return reftype(sym, value)
+
+
+class attrtype(reftype):
+    """
+    computed attribute references
+    """
+
+    __slots__ = ("sym", "_get_value_k", "_set_value_k")
+
+
+    def __init__(self, sym, getter_k, setter_k=None):
+        self.sym = sym
+        self._get_value_k = getter_k
+        self._set_value_k = setter_k or self._ro_value_k
+
+
+    def _get_value(self):
+        return self._get_value_k(_return_v)
+
+
+    def _set_value(self, value):
+        return self._set_value_k(_return_v, value)
+
+
+    def _ro_value_k(self, k, value):
+        raise AttributeError("%s is read-only" % str(self.sym))
+
+
+    def __repr__(self):
+        return "".join(("attr(", repr(self.sym), ")"))
+
+
+def attr(sym, getter, setter=None):
+    return attrtype(sym, k_wrap(getter), k_wrap(setter))
+
+
+@k_style
 def deref_k(k, r):
-    if isinstance(r, ref):
-        return r._get_value(k)
-    else:
-        raise TypeError("expected ref instance")
+    return r._get_value_k(k)
 
 
-def setref(r, value):
-    return setref_k(_return_v, r, value)
+@k_adapt(deref_k)
+def deref(r):
+    return r._get_value()
 
 
+@k_style
 def setref_k(k, r, value):
-    if isinstance(r, ref):
-        return r._set_value(k, value)
-    else:
-        raise TypeError("expected ref instance")
+    return r._set_value_k(k, value)
+
+
+@k_adapt(setref_k)
+def setref(r, value):
+    return r._set_value(value)
 
 
 class constype(object):
@@ -452,6 +588,10 @@ class niltype(constype):
             yield None
 
 
+    def count(self):
+        return 0
+
+
     def __len__(self):
         return 0
 
@@ -540,11 +680,26 @@ fourth = cadddr
 fifth = caddddr
 
 
-def last(seq):
+@k_style
+def last_k(k, seq):
     """
-    returns the last item in an iterable sequence.
+    returns the last item in an iterable sequence, or undefined if the
+    sequence is empty
     """
 
+    val = undefined
+    for val in iter(seq): pass
+    return k(val)
+
+
+@k_adapt(last_k)
+def last(seq):
+    """
+    returns the last item in an iterable sequence, or undefined if the
+    sequence is empty
+    """
+
+    val = undefined
     for val in iter(seq): pass
     return val
 
@@ -573,7 +728,7 @@ class symbol(str):
 
 
     def __repr__(self):
-        return "symbol({})".format(repr(str(self)))
+        return "".join(("symbol(", repr(str(self)), ")"))
 
 
     def __eq__(self, other):
@@ -586,18 +741,6 @@ class symbol(str):
 
     def __hash__(self):
         return super(symbol, self).__hash__()
-
-
-def k_wrap(fun):
-    """
-    Wrap a non-continuation-style function to accept a continuation as
-    the first argument.
-    """
-
-    def fun_k(k, *args):
-        return k(fun(*args))
-    update_wrapper(fun_k, fun)
-    return fun_k
 
 
 def cli(options, args):
@@ -644,7 +787,7 @@ def main(args=sys.argv):
         cli(options, args)
 
     except KeyboardInterrupt:
-        return -130
+        return 130
 
     else:
         return 0
