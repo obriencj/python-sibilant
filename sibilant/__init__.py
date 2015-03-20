@@ -86,7 +86,7 @@ class reftype(object):
     __slots__ = ("sym", "_value")
 
 
-    def __init__(self, sym, value=undefined):
+    def __init__(self, sym, value):
         if type(sym) is not symbol:
             raise TypeError("sym must be a symbol")
 
@@ -125,24 +125,16 @@ class attrtype(reftype):
     computed attribute references
     """
 
-    __slots__ = ("sym", "_get_value_k", "_set_value_k")
+    __slots__ = ("sym", "_get_value", "_set_value")
 
 
-    def __init__(self, sym, getter_k, setter_k=None):
+    def __init__(self, sym, getter, setter):
         self.sym = sym
-        self._get_value_k = getter_k
-        self._set_value_k = setter_k or self._ro_value_k
+        self._get_value = getter
+        self._set_value = setter or self._ro_value
 
 
-    def _get_value(self):
-        return self._get_value_k(_return_v)
-
-
-    def _set_value(self, value):
-        return self._set_value_k(_return_v, value)
-
-
-    def _ro_value_k(self, k, value):
+    def _ro_value(self, value):
         raise AttributeError("%s is read-only" % str(self.sym))
 
 
@@ -151,25 +143,13 @@ class attrtype(reftype):
 
 
 def attr(sym, getter, setter=None):
-    return attrtype(sym, k_wrap(getter), k_wrap(setter) if setter else None)
+    return attrtype(sym, getter, setter)
 
 
-@k_style
-def deref_k(k, r):
-    return r._get_value_k(k)
-
-
-@k_adapt(deref_k)
 def deref(r):
     return r._get_value()
 
 
-@k_style
-def setref_k(k, r, value):
-    return r._set_value_k(k, value)
-
-
-@k_adapt(setref_k)
 def setref(r, value):
     return r._set_value(value)
 
@@ -566,19 +546,6 @@ fourth = cadddr
 fifth = caddddr
 
 
-@k_style
-def last_k(k, seq):
-    """
-    returns the last item in an iterable sequence, or undefined if the
-    sequence is empty
-    """
-
-    val = undefined
-    for val in iter(seq): pass
-    return k(val)
-
-
-@k_adapt(last_k)
 def last(seq):
     """
     returns the last item in an iterable sequence, or undefined if the
