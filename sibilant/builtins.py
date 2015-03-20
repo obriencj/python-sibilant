@@ -14,7 +14,8 @@
 
 
 """
-builtin definitions for sibilant
+builtin definitions for sibilant. These are all following k-style
+conventions.
 
 author: Christopher O'Brien  <obriencj@gmail.com>
 license: LGPL v.3
@@ -25,39 +26,38 @@ import operator
 from functools import reduce
 
 
-def _number_op_k(opf):
+__all__ = (
+    "add", "sub", "mult", "divide", "mod", "pow",
+)
+
+
+def _reduce_op(opf, alias=None):
     fun = lambda k, *a: k(reduce(opf, a))
     fun.__name__ = opf.__name__
     fun.__doc__ = opf.__doc__
+    if alias:
+        globals()[alias] = fun
     return fun
 
 
-add_k = _number_op_k(numbers.__add__)
-sub_k = _number_op_k(numbers.__sub__)
-mult_k = _number_op_k(numbers.__mult__)
-divide_k = _number_op_k(numbers.__div__)
-mod_k = _number_op_k(numbers.__mod__)
-pow_k = _number_op_k(numbers.__pow__)
+def _op(opf, alias=None):
+    fun = wraps(opf)
+    if alias:
+        globals()[alias] = fun
+    return fun
 
 
-def cons_k(k, item, l):
-    return k(cons(item, l))
-
-
-def car_k(k, l):
-    return k(car(l))
-
-
-def cdr_k(k, l):
-    return k(cdr(l))
-
-
-def list_k(k, *a):
-    return k(reduce(lambda x,y: cons(y,x), a[::-1], null))
-
-
-def apply_k(k, f, *a):
-    return f(k, *a)
+__add__ = _reduce_op(operator.__add__, "+")
+__sub__ = _reduce_op(operator.__sub__, "-")
+__mul__ = _reduce_op(operator.__mul__, "*")
+__pow__ = _op(operator.__pow__, "**")
+__div__ = _op(operator.__div__, "/")
+__mod__ = _op(operator.__mod__, "%")
+__floordiv__ = _op(operator.__floordiv__, "//")
+__bitwise_or__ = _op(operator.__or__, "|")
+__bitwise_and__ = _op(operator.__and__, "&")
+__bitwise_xor__ = _op(operator.__xor__, "^")
+__bitwise_invert__ = _op(operator.__invert__, "~")
 
 
 #

@@ -14,19 +14,36 @@
 
 
 """
-Evaluation for Sibilant's continuation-passing style trampoline
+builtin definitions for sibilant. These are all following k-style
+conventions.
 
 author: Christopher O'Brien  <obriencj@gmail.com>
 license: LGPL v.3
 """
 
 
-from functools import partial
+import operator
+from functools import reduce
 
 
-__all__ = ( "SibilantError",
-            "bounce", "bounce_exit",
-            "evaluate", "evaluate_and_return" )
+__all__ = (
+    "add", "sub", "mult", "divide", "mod", "pow",
+)
+
+
+def _number_op_k(opf):
+    fun = lambda k, *a: k(reduce(opf, a))
+    fun.__name__ = opf.__name__
+    fun.__doc__ = opf.__doc__
+    return fun
+
+
+add_k = _number_op_k(numbers.__add__)
+sub_k = _number_op_k(numbers.__sub__)
+mult_k = _number_op_k(numbers.__mult__)
+divide_k = _number_op_k(numbers.__div__)
+mod_k = _number_op_k(numbers.__mod__)
+pow_k = _number_op_k(numbers.__pow__)
 
 
 #

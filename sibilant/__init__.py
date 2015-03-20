@@ -21,15 +21,15 @@ Sibilant, a Scheme for Python
 """
 
 
-from functools import partial, reduce, wraps
+from functools import reduce
 import sys
 
 
 __all__ = ( "SibilantException", "NotYetImplemented",
-            "main", "cli", "cli_option_parser",
             "symbol",
-            "cons", "car", "cdr",
+            "cons", "constype",
             "nil", "niltype",
+            "car", "cdr",
             "ref", "attr", "deref", "setref",
             "undefined", "undefinedtype", )
 
@@ -47,120 +47,6 @@ class NotYetImplemented(SibilantException):
     yet.
     """
     pass
-
-
-def k_style(func):
-    """
-    Decorator to indicate that a function is written in the k-style
-    for use by `k_call`.
-    """
-
-    func.__k_style = True
-    return func
-
-
-def k_wrap(func):
-    """
-    Wrap a function to accept a firt-argument continuation, and mark
-    it as being k-style. If the function is already k-style, it's
-    returned unaltered. If the function has a k-style adaptor, the
-    adaptor will be returned.
-    """
-
-    if func is None:
-        return None
-
-    elif getattr(func, "__k_style", False):
-        return func
-
-    else:
-        wrapped = getattr(func, "__k_adapt", None)
-        if not wrapped:
-            def wrapped(k, *p, **kw):
-                return k(func(*p, **kw))
-            wrapped.__k_style = True
-            wraps(wrapped, func)
-        return wrapped
-
-
-# def k_method_wrap(meth):
-#     if getattr(meth, "__k_style", False):
-#         return meth
-
-#     else:
-#         wrapped = getattr(meth, "__k_adapt", None)
-#         if not wrapped:
-#             def wrapped(self, k, *p, **kw):
-#                 return k(func(self, *p, **kw))
-#             wrapped.__k_style = True
-#             wraps(wrapped, func)
-#         return wrapped
-
-
-def k_adapt(wrapped=None):
-    """
-    Decorator to create a simple k-style wrapper for a non-k-style
-    function, and to mark it as supported for use by `k_call`. The
-    wrapper will be attached to `func.__k_adapt`
-    """
-
-    def decorator(func):
-        func.__k_adapt = wrapped if wrapped else k_wrap(func)
-        return func
-
-    return decorator
-
-
-# def k_method_adapt(wrapped=None):
-#     def decorator(func):
-#         func.__k_adapt = wrapped if wrapped else k_method_wrap(func)
-#         return func
-
-#     return decorator
-
-
-def _return_v(v):
-    """
-    simple continuation that uses python's in-built return to pass the
-    value back to the original caller.
-    """
-    return v
-
-
-@k_style
-def k_call(k, func, *args, **params):
-    """
-    Call a function which may or may-not be written k-style. If it is
-    decorated as a k-style function, it will be called. If it has an
-    adaptation that is k-style, the adaptation will be called.
-    Otherwise, the function will be called and the result will be
-    passed to the continuation k.
-    """
-
-    if getattr(func, "__k_style", False):
-        return func(k, *args, **params)
-    else:
-        k_style_func = getattr(func, "__k_adapt", None)
-        if k_style_func is None:
-            return k(func, *args, **params)
-        else:
-            return k(func(*args, **params))
-
-
-def de_k_call(func, *args, **params):
-    """
-    Calls a k-style function with a continuation that collects and
-    returns the result here. Note that a continuation captured from
-    within this call chain will not be able to be re-called, as the
-    continuation chain is broken in order to adapt to the normal
-    Pythonic return style. Use this at your own risk.
-    """
-
-    k_style_func = getattr(func, "__k_style", None)
-    if k_style_func is None:
-        return func(*args, **params)
-    else:
-        return k_style_func(_return_v, *args, **params)
 
 
 class undefinedtype(object):
@@ -265,7 +151,7 @@ class attrtype(reftype):
 
 
 def attr(sym, getter, setter=None):
-    return attrtype(sym, k_wrap(getter), k_wrap(setter))
+    return attrtype(sym, k_wrap(getter), k_wrap(setter) if setter else None)
 
 
 @k_style

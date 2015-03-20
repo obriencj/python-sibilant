@@ -206,4 +206,37 @@ yield type exception that causes the trampoline to switch to another
 worker continuation context.
 
 
+-----
+
+2014-10-05
+
+- sibilant
+: contains basic types, functions, exceptions
+
+- sibilant.cli
+: contains CLI entry points
+
+- sibilant.builtins
+: basic functions
+
+- sibilant.ast
+: AST for parsing, composing sibilant structure literals
+
+- sibilant.generate
+: incremental compilation of sibilant literals into python objects
+
+- sibilant.module
+: special module data type that accepts symbols as keys... wait that's
+a terrible idea.
+
+- sibilant.cps
+: continuation-passing-style stuff, trampoline
+
+- sibilant.cps.kstyle
+: contains k-style convention wrappers, decorators, checkers, callers
+
+- sibilant.cps.builtins
+: k-style basic functions
+
+
 # the end.
