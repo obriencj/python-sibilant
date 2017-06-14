@@ -27,35 +27,38 @@ Sibilant, Scheme for Python
 from setuptools import setup
 
 
-setup( name = "sibilant",
-       version = "0.9.0",
+setup(name = "sibilant",
+      version = "0.9.0",
 
-       packages = [ "sibilant", ],
+      packages = ["sibilant", ],
 
-       test_suite = "tests",
+      test_suite = "tests",
 
-       entry_points = {
-           "console_scripts": [
-               'sibilant = sibilant:main', ],
-       },
+      entry_points = {
+          "console_scripts": [
+              'sibilant = sibilant:main',
+          ],
+      },
 
-       # PyPI information
-       author = "Christopher O'Brien",
-       author_email = "obriencj@gmail.com",
-       url = "https://github.com/obriencj/python-sibilant",
-       license = "GNU Lesser General Public License",
+      # PyPI information
+      author = "Christopher O'Brien",
+      author_email = "obriencj@gmail.com",
+      url = "https://github.com/obriencj/python-sibilant",
+      license = "GNU Lesser General Public License",
 
-       description = "Scheme modules for Python",
+      description = "Scheme modules for Python",
 
-       provides = [ "sibilant", ],
-       requires = [],
-       platforms = [ "python3 >= 3.3", ],
+      provides = ["sibilant", ],
+      requires = [],
+      platforms = ["python3 >= 3.3", ],
 
-       zip_safe = True,
+      zip_safe = True,
 
-       classifiers = [ "Intended Audience :: Developers",
-                       "Programming Language :: Python :: 3",
-                       "Topic :: Software Development", ], )
+      classifiers = [
+          "Intended Audience :: Developers",
+          "Programming Language :: Python :: 3",
+          "Topic :: Software Development", ],
+)
 
 
 #
