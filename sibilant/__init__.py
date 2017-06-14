@@ -640,9 +640,11 @@ def main(args=sys.argv):
         cli(options, args)
 
     except KeyboardInterrupt:
+        print()
         return 130
 
     else:
+        print()
         return 0
 
 
