@@ -127,7 +127,6 @@ class CodeSpace(object):
 
 
     def declare_const(self, value):
-        print("declare_const", value)
         return _list_unique_append(self.consts, value)
 
 
@@ -279,7 +278,6 @@ class CodeSpace(object):
 
 
     def pseudop_expr(self, c):
-        #print("pseudop_expr", c)
         if isinstance(c, constype):
             self.pseudop_apply(c)
         elif isinstance(c, symbol):
@@ -382,7 +380,6 @@ def max_stack(pseudops):
         assert(stac >= 0)
 
     for op, *args in pseudops:
-        print(op, stac, maxc)
         if op is Pseudop.APPLY:
             pop()
             pop(args[0])

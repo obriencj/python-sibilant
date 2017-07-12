@@ -39,7 +39,9 @@ def _reduce_op(opf, name=None):
     fun.__name__ = name
     fun.__doc__ = opf.__doc__
     fun.__symbol__ = sym
+
     globals()[sym] = fun
+    globals()[str(sym)] = fun
 
     return fun
 
@@ -54,12 +56,14 @@ def _op(opf, name=None):
     fun.__doc__ = opf.__doc__
     fun.__symbol__ = sym
     globals()[sym] = fun
+    globals()[str(sym)] = fun
 
     return fun
 
 
 def _val(value, name):
     globals()[sibilant.symbol(name)] = value
+    globals()[str(name)] = value
     return value
 
 
@@ -129,13 +133,16 @@ def _eval(v, env):
 __eval = _op(_eval, "eval")
 
 
-def _prep_env(base=None):
-    if base is None:
-        base = {}
+def _prep_env(**base):
 
-    base = {__symbol(k): v for k, v in base.items()} if base else {}
-    base[__builtins_sym] = {k: v for k, v in globals().items()
-                            if type(k) is __symbol}
+    gl = globals()
+
+    base.update({__symbol(k): v for k, v in base.items()})
+
+    base["__builtins__"] = gl
+    base[__builtins_sym] = gl
+
+    # {k: v for k, v in gl.items() if type(k) is __symbol}
 
     return base
 
