@@ -21,32 +21,29 @@ license: LGPL v.3
 """
 
 
+from enum import Enum
 from functools import partial
-from sibilant import symbol
+from re import compile as regex
 
-import re
-
-
-__all__ = ( "parse",
-            "E_SYMBOL", "E_NUMBER", "E_STRING",
-            "E_QUOTE", "E_QUASI", "E_UNQUOTE", "E_SPLICE",
-            "E_OPEN", "E_CLOSE", "E_DOT", "E_COMMENT",
-            "E_NEWLINE" )
+from . import symbol
 
 
-# these are the events that can be emitted.
-E_SYMBOL = symbol("E_SYMBOL")
-E_NUMBER = symbol("E_NUMBER")
-E_STRING = symbol("E_STRING")
-E_QUOTE = symbol("E_QUOTE")
-E_QUASI = symbol("E_QUASI")
-E_UNQUOTE = symbol("E_UNQUOTE")
-E_SPLICE = symbol("E_SPLICE")
-E_OPEN = symbol("E_OPEN")
-E_CLOSE = symbol("E_CLOSE")
-E_DOT = symbol("E_DOT")
-E_COMMENT = symbol("E_COMMENT")
-E_NEWLINE = symbol("E_NEWLINE")
+__all__ = ( "Event", "parse", )
+
+
+class Event(Enum):
+    SYMBOL = symbol("SYMBOL")
+    NUMBER = symbol("NUMBER")
+    STRING = symbol("STRING")
+    QUOTE = symbol("QUOTE")
+    QUASI = symbol("QUASI")
+    UNQUOTE = symbol("UNQUOTE")
+    SPLICE = symbol("SPLICE")
+    OPEN = symbol("OPEN")
+    CLOSE = symbol("CLOSE")
+    DOT = symbol("DOT")
+    COMMENT = symbol("COMMENT")
+    NEWLINE = symbol("NEWLINE")
 
 
 def parse(stream):
@@ -62,7 +59,7 @@ def parse(stream):
         col += 1
 
         if c == "\n":
-            yield (E_NEWLINE, (lin, col))
+            yield (Event.NEWLINE, (lin, col))
             lin += 1
             col = -1
             continue
@@ -75,34 +72,34 @@ def parse(stream):
             continue
 
         elif c == "(":
-            yield (E_OPEN, (lin, col))
+            yield (Event.OPEN, (lin, col))
             continue
 
         elif c == ")":
-            yield (E_CLOSE, (lin, col))
+            yield (Event.CLOSE, (lin, col))
             continue
 
         elif c == "\"":
             r = stream.tell()
             t = parse_string(stream)
-            yield (E_STRING, (lin, col), t)
+            yield (Event.STRING, (lin, col), t)
             col += (stream.tell() - r)
             continue
 
         elif c == "'":
-            yield (E_QUOTE, (lin, col))
+            yield (Event.QUOTE, (lin, col))
             continue
 
         elif c == "`":
-            yield (E_QUASI, (lin, col))
+            yield (Event.QUASI, (lin, col))
             continue
 
         elif c == ",":
-            yield (E_UNQUOTE, (lin, col))
+            yield (Event.UNQUOTE, (lin, col))
             continue
 
         elif c == "@":
-            yield (E_SPLICE, (lin, col))
+            yield (Event.SPLICE, (lin, col))
             continue
 
         elif c == ";":
@@ -110,7 +107,7 @@ def parse(stream):
 
             r = stream.tell()
             t = parse_comment(stream)
-            yield (E_COMMENT, (lin, col), t)
+            yield (Event.COMMENT, (lin, col), t)
             col += (stream.tell() - r) - 1
             continue
 
@@ -121,35 +118,25 @@ def parse(stream):
             t = parse_token(stream)
 
             if t == ".":
-                yield (E_DOT, (lin, col))
+                yield (Event.DOT, (lin, col))
             elif number_like(t):
-                yield (E_NUMBER, (lin, col), t)
+                yield (Event.NUMBER, (lin, col), t)
             else:
-                yield (E_SYMBOL, (lin, col), t)
+                yield (Event.SYMBOL, (lin, col), t)
 
             col += (stream.tell() - r) - 1
             continue
 
 
-_decimal = re.compile(r"-?(\d*\.?\d+|\d+\.?\d*)")
-_fraction = re.compile(r"\d*/\d*")
-_complex = re.compile(r"-?\d*\.?\d+\+\d*\.?\d*[ij]")
+decimal_like = regex(r"-?(\d*\.?\d+|\d+\.?\d*)").match
+
+fraction_like = regex(r"\d*/\d*").match
+
+complex_like = regex(r"-?\d*\.?\d+\+\d*\.?\d*[ij]").match
 
 
 def number_like(s):
-    return _decimal.match(s) or _fraction.match(s) or _complex.match(s)
-
-
-def integer_like(s):
-    return _numeric.match(s)
-
-
-def fraction_like(s):
-    return _fraction.match(s)
-
-
-def complex_like(s):
-    return _complex.match(s)
+    return decimal_like(s) or fraction_like(s) or complex_like(s)
 
 
 def stream_chars(stream):
@@ -165,7 +152,7 @@ def stream_unread(stream, count=1):
     rewinds stream count (default=1) characters
     """
 
-    stream.seek(stream.tell()-count, 0)
+    stream.seek(stream.tell() - count, 0)
 
 
 def read_until(stream, testf):
@@ -190,7 +177,7 @@ def parse_token(stream):
 
 
 def parse_comment(stream):
-    return read_until(stream, lambda c: c in "\n\r")
+    return read_until(stream, "\n\r".__contains__)
 
 
 # this is using c-style escapes. I need to convert it into

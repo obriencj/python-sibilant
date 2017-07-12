@@ -25,10 +25,10 @@ from abc import ABCMeta, abstractmethod
 from fractions import Fraction as fraction
 from functools import partial
 from io import StringIO
-from sibilant import cons, nil, symbol
-from sibilant import SibilantException, NotYetImplemented
 
-import sibilant.parse as parse
+from . import cons, nil, symbol
+from . import SibilantException, NotYetImplemented
+from .parse import Event, parse
 
 
 __all__ = (
@@ -38,7 +38,8 @@ __all__ = (
     "Fraction", "Complex", "Nil", "String",
     "Marked", "Quote", "Quasi", "Unquote", "Splice",
     "compose", "compose_from_str",
-    "compose_all_from_stream", "compose_all_from_str" )
+    "compose_all_from_stream", "compose_all_from_str",
+)
 
 
 class SyntaxError(SibilantException):
@@ -230,39 +231,41 @@ class Marked(Node):
         return "%s(position=%r,expr=%r" % data
 
 
+    def simplify(self, positions):
+        s = cons(self._q, self.expression.simplify(positions))
+        positions[id(s)] = self.position
+        return s
+
+
 class Quote(Marked):
 
-    def simplify(self, positions):
-        raise NotYetImplemented()
+    _q = symbol("quote")
 
 
 class Quasi(Marked):
 
-    def simplify(self, positions):
-        raise NotYetImplemented()
+    _q = symbol("quasiquote")
 
 
 class Unquote(Marked):
 
-    def simplify(self, positions):
-        raise NotYetImplemented()
+    _q = symbol("unquote")
 
 
 class Splice(Marked):
 
-    def simplify(self, positions):
-        raise NotYetImplemented()
+    _q = symbol("splice")
 
 
 klass_events = {
-    parse.E_OPEN: List,
-    parse.E_SYMBOL: Symbol,
-    parse.E_STRING: String,
-    parse.E_NUMBER: Number,
-    parse.E_QUOTE: Quote,
-    parse.E_QUASI: Quasi,
-    parse.E_UNQUOTE: Unquote,
-    parse.E_SPLICE: Splice,
+    Event.OPEN: List,
+    Event.SYMBOL: Symbol,
+    Event.STRING: String,
+    Event.NUMBER: Number,
+    Event.QUOTE: Quote,
+    Event.QUASI: Quasi,
+    Event.UNQUOTE: Unquote,
+    Event.SPLICE: Splice,
 }
 
 
@@ -282,38 +285,38 @@ def compose(parser_gen):
     for event, position, *data in parser_gen:
         node = create_node(position, event, *data)
 
-        if event == parse.E_NEWLINE:
+        if event == Event.NEWLINE:
             # let the parser count lines for us
             continue
 
-        elif event == parse.E_COMMENT:
+        elif event == Event.COMMENT:
             # don't bother representing comments in the AST
             continue
 
-        elif event == parse.E_OPEN:
+        elif event == Event.OPEN:
             stack.append(node)
             continue
 
-        elif event == parse.E_DOT:
+        elif event == Event.DOT:
             if not stack:
-                raise SyntaxError(". without list")
+                raise SyntaxError(". without list", position)
             else:
                 stack[-1].proper = False
                 continue
 
-        elif event == parse.E_CLOSE:
+        elif event == Event.CLOSE:
             node = stack.pop()
 
-        elif event in (parse.E_QUOTE, parse.E_QUASI,
-                       parse.E_UNQUOTE, parse.E_SPLICE):
+        elif event in (Event.QUOTE, Event.QUASI,
+                       Event.UNQUOTE, Event.SPLICE):
 
             marked = compose(parser_gen)
             if marked is None:
-                raise SyntaxError("unterminated mark")
+                raise SyntaxError("unterminated mark", position)
             node.expression = marked
 
-        elif event in (parse.E_SYMBOL, parse.E_NUMBER,
-                       parse.E_STRING):
+        elif event in (Event.SYMBOL, Event.NUMBER,
+                       Event.STRING):
             pass
 
         # finished lists, literals should reach here
@@ -324,7 +327,7 @@ def compose(parser_gen):
             break
 
     if stack:
-        raise SyntaxError("unterminated list")
+        raise SyntaxError("unterminated list", position)
 
     return node
 
@@ -334,7 +337,7 @@ def compose_from_stream(stream):
     compose an AST from an input stream
     """
 
-    pgen = parse.parse(stream)
+    pgen = parse(stream)
     return compose(pgen)
 
 
@@ -343,7 +346,7 @@ def compose_from_str(src_str):
     compose an AST from src_str
     """
 
-    pgen = parse.parse(StringIO(src_str))
+    pgen = parse(StringIO(src_str))
     return compose(pgen)
 
 
@@ -352,7 +355,7 @@ def compose_all_from_stream(stream):
     compose all AST from input stream
     """
 
-    pgen = parse.parse(stream)
+    pgen = parse(stream)
     return iter(partial(compose, pgen), None)
 
 
@@ -361,7 +364,7 @@ def compose_all_from_str(src_str):
     compose all AST from src_str
     """
 
-    pgen = parse.parse(StringIO(src_str))
+    pgen = parse(StringIO(src_str))
     return iter(partial(compose, pgen), None)
 
 

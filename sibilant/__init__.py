@@ -21,17 +21,20 @@ Sibilant, a Scheme for Python
 """
 
 
-from functools import reduce
 import sys
 
+from functools import reduce
 
-__all__ = ( "SibilantException", "NotYetImplemented",
-            "symbol",
-            "cons", "constype",
-            "nil", "niltype",
-            "car", "cdr",
-            "ref", "attr", "deref", "setref",
-            "undefined", "undefinedtype", )
+
+__all__ = (
+    "SibilantException", "NotYetImplemented",
+    "symbol",
+    "cons", "constype",
+    "nil", "niltype",
+    "car", "cdr",
+    "ref", "attr", "deref", "setref",
+    "undefined", "undefinedtype",
+)
 
 
 class SibilantException(Exception):
@@ -83,7 +86,7 @@ class reftype(object):
     mutable reference
     """
 
-    __slots__ = ("sym", "_value")
+    __slots__ = ("sym", "_value", )
 
 
     def __init__(self, sym, value):
@@ -125,7 +128,7 @@ class attrtype(reftype):
     computed attribute references
     """
 
-    __slots__ = ("sym", "_get_value", "_set_value")
+    __slots__ = ("sym", "_get_value", "_set_value", )
 
 
     def __init__(self, sym, getter, setter):
@@ -164,7 +167,7 @@ class constype(object):
     end of a list.
     """
 
-    __slots__ = ( "_car", "_cdr" )
+    __slots__ = ( "_car", "_cdr", )
 
 
     def __init__(self, car, cdr):
@@ -221,8 +224,8 @@ class constype(object):
             elif (type(left) is not constype):
                 return left == right
 
-            a,left = left
-            b,right = right
+            a, left = left
+            b, right = right
             if a != b:
                 return False
             lin = lf.get(id(left), 0)
@@ -292,7 +295,7 @@ class constype(object):
             else:
                 col.append("recursive=True")
                 if rest is not self:
-                    col.insert(found_at-1, "cons(")
+                    col.insert(found_at - 1, "cons(")
                     col.append(")")
                 break
         else:
@@ -309,7 +312,8 @@ class constype(object):
         """
 
         i = -1
-        for i, v in enumerate(self.unpack()): pass
+        for i, _v in enumerate(self.unpack()):
+            pass
         return i + 1
 
 
@@ -402,12 +406,12 @@ def cons(a, *b, recursive=False, ltype=constype):
 
     if recursive:
         a = ltype(a, nil)
-        setcdr(a, reduce(lambda x,y:ltype(y,x), b[::-1], a))
+        setcdr(a, reduce(lambda x, y: ltype(y, x), b[::-1], a))
         return a
     else:
         b, *c = b
         if c:
-            b = ltype(b, reduce(lambda x,y:ltype(y,x), c[::-1]))
+            b = ltype(b, reduce(lambda x, y: ltype(y, x), c[::-1]))
         return ltype(a, b)
 
 
@@ -435,11 +439,11 @@ class niltype(constype):
 
 
     def __eq__(self, other):
-        return type(self) is type(other)
+        return self is other
 
 
     def __ne__(self, other):
-        return type(self) is not type(other)
+        return self is not other
 
 
     def __iter__(self):
@@ -557,7 +561,7 @@ def last(seq):
     return val
 
 
-class symbol(str):
+class symbol(object):
     """
     symbol type.
 
@@ -566,22 +570,21 @@ class symbol(str):
     representation.
     """
 
-    __slots__ = ()
+    __slots__ = ("_name", )
 
     __intern = {}
 
 
     def __new__(t, name):
+        # applying str auto-interns
         name = str(name)
+
         s = t.__intern.get(name)
         if s is None:
-            s = super().__new__(t, name)
+            s = super().__new__(t)
+            s._name = name
             t.__intern[name] = s
         return s
-
-
-    def __repr__(self):
-        return "".join(("symbol(", repr(str(self)), ")"))
 
 
     def __eq__(self, other):
@@ -593,7 +596,15 @@ class symbol(str):
 
 
     def __hash__(self):
-        return super(symbol, self).__hash__()
+        return self._name.__hash__()
+
+
+    def __repr__(self):
+        return "".join(("symbol(", repr(self._name), ")"))
+
+
+    def __str__(self):
+        return self._name
 
 
 def cli(options, args):
@@ -613,16 +624,11 @@ def cli(options, args):
 
 def cli_option_parser():
     """
-    Create an `OptionParser` instance with the options requested by
+    Create an `ArgumentParser` instance with the options requested by
     the `cli` function
     """
 
-    from optparse import OptionParser
-
-    parser = OptionParser()
-
-    # todo: add CLI options
-
+    parser = ArgumentParser()
     return parser
 
 
@@ -632,7 +638,7 @@ def main(args=sys.argv):
     """
 
     parser = cli_option_parser()
-    options, args = parser.parse_args(args)
+    options = parser.parse_args(args[1:])
 
     # todo: arg checking, emit problems using `parser.error`
 
@@ -640,12 +646,16 @@ def main(args=sys.argv):
         cli(options, args)
 
     except KeyboardInterrupt:
-        print()
+        print(file=sys.stderr)
         return 130
 
     else:
         print()
         return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
 
 
 #

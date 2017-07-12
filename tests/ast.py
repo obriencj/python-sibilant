@@ -22,9 +22,10 @@ license: LGPL v.3
 
 
 from fractions import Fraction as fraction
+from unittest import TestCase
+
 from sibilant import cons, nil
 from sibilant.ast import *
-from unittest import TestCase
 
 
 def simplify(src_str, positions=None):
@@ -104,6 +105,18 @@ class TestCompose(TestCase):
         src = "@qux"
         col = compose_from_str(src)
         exp = Splice((1, 0), Symbol((1, 1), "qux"))
+
+        self.assertEqual(col, exp)
+
+
+    def test_quote_unquote_splice(self):
+        src = "`(,@foo)"
+        col = compose_from_str(src)
+        exp = Quasi((1, 0),
+                    List((1, 1),
+                         Unquote((1, 2),
+                                 Splice((1, 3),
+                                        Symbol((1, 4), "foo")))))
 
         self.assertEqual(col, exp)
 
@@ -195,19 +208,29 @@ class TestSimplify(TestCase):
 
         src = "(1.4)"
         col = simplify(src)
-        self.assertEqual(col, cons(1.4, nil))
+        val = cons(1.4, nil)
+        self.assertEqual(col, val)
+        self.assertEqual(src, str(val))
 
         src = "(1. 4)"
         col = simplify(src)
-        self.assertEqual(col, cons(1.0, cons(4, nil)))
+        val = cons(1.0, 4, nil)
+        self.assertEqual(col, val)
+        # this can't pass, because 1. becomes 1.0
+        # self.assertEqual(src, str(val))
 
         src = "(1 .4)"
         col = simplify(src)
-        self.assertEqual(col, cons(1, cons(0.4, nil)))
+        val = cons(1, 0.4, nil)
+        self.assertEqual(col, val)
+        # this can't pass, because .4 becomes 0.4
+        # self.assertEqual(src, str(val))
 
         src = "(1 . 4)"
         col = simplify(src)
-        self.assertEqual(col, cons(1, 4))
+        val = cons(1, 4)
+        self.assertEqual(col, val)
+        self.assertEqual(src, str(val))
 
 
 #

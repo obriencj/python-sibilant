@@ -9,6 +9,10 @@ special, non-overridable builtins:
 (eval expression)
 (define symbol [expression])
 (set! symbol expression)
+(quote expr)
+(quasiquote expr)
+(unquote expr)
+(splice expr)
 
 
 1: parsing

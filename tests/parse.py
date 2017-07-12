@@ -23,7 +23,8 @@ license: LGPL v.3
 
 from io import StringIO
 from unittest import TestCase
-from sibilant.parse import *
+
+from sibilant.parse import Event, parse
 
 
 def collect_emissions(source):
@@ -40,7 +41,7 @@ class TestParse(TestCase):
     def test_symbol(self):
         src = "lambda"
         col = collect_emissions(src)
-        exp = [(E_SYMBOL, (1, 0), "lambda")]
+        exp = [(Event.SYMBOL, (1, 0), "lambda")]
 
         self.assertEqual(col, exp)
 
@@ -48,7 +49,7 @@ class TestParse(TestCase):
     def test_number(self):
         src = "123"
         col = collect_emissions(src)
-        exp = [(E_NUMBER, (1, 0), "123")]
+        exp = [(Event.NUMBER, (1, 0), "123")]
 
         self.assertEqual(col, exp)
 
@@ -56,7 +57,7 @@ class TestParse(TestCase):
     def test_sharp(self):
         src = "#t"
         col = collect_emissions(src)
-        exp = [(E_SYMBOL, (1, 0), "#t")]
+        exp = [(Event.SYMBOL, (1, 0), "#t")]
 
         self.assertEqual(col, exp)
 
@@ -64,7 +65,7 @@ class TestParse(TestCase):
     def test_string(self):
         src = '"hello world"'
         col = collect_emissions(src)
-        exp = [(E_STRING, (1, 0), "hello world")]
+        exp = [(Event.STRING, (1, 0), "hello world")]
 
         self.assertEqual(col, exp)
 
@@ -72,8 +73,8 @@ class TestParse(TestCase):
     def test_quote_symbol(self):
         src = "'foo"
         col = collect_emissions(src)
-        exp = [(E_QUOTE, (1, 0)),
-               (E_SYMBOL, (1, 1), "foo")]
+        exp = [(Event.QUOTE, (1, 0)),
+               (Event.SYMBOL, (1, 1), "foo")]
 
         self.assertEqual(col, exp)
 
@@ -81,11 +82,11 @@ class TestParse(TestCase):
     def test_quote_list(self):
         src = "'(foo bar)"
         col = collect_emissions(src)
-        exp = [(E_QUOTE, (1, 0)),
-               (E_OPEN, (1, 1)),
-               (E_SYMBOL, (1, 2), "foo"),
-               (E_SYMBOL, (1, 6), "bar"),
-               (E_CLOSE, (1, 9))]
+        exp = [(Event.QUOTE, (1, 0)),
+               (Event.OPEN, (1, 1)),
+               (Event.SYMBOL, (1, 2), "foo"),
+               (Event.SYMBOL, (1, 6), "bar"),
+               (Event.CLOSE, (1, 9))]
 
         self.assertEqual(col, exp)
 
@@ -93,8 +94,8 @@ class TestParse(TestCase):
     def test_quasi(self):
         src = "`bar"
         col = collect_emissions(src)
-        exp = [(E_QUASI, (1, 0)),
-               (E_SYMBOL, (1, 1), "bar")]
+        exp = [(Event.QUASI, (1, 0)),
+               (Event.SYMBOL, (1, 1), "bar")]
 
         self.assertEqual(col, exp)
 
@@ -102,8 +103,8 @@ class TestParse(TestCase):
     def test_unquote(self):
         src = ",baz"
         col = collect_emissions(src)
-        exp = [(E_UNQUOTE, (1, 0)),
-               (E_SYMBOL, (1, 1), "baz")]
+        exp = [(Event.UNQUOTE, (1, 0)),
+               (Event.SYMBOL, (1, 1), "baz")]
 
         self.assertEqual(col, exp)
 
@@ -111,8 +112,21 @@ class TestParse(TestCase):
     def test_splice(self):
         src = "@qux"
         col = collect_emissions(src)
-        exp = [(E_SPLICE, (1, 0)),
-               (E_SYMBOL, (1, 1), "qux")]
+        exp = [(Event.SPLICE, (1, 0)),
+               (Event.SYMBOL, (1, 1), "qux")]
+
+        self.assertEqual(col, exp)
+
+
+    def test_quote_unquote_splice(self):
+        src = """`(,@foo)"""
+        col = collect_emissions(src)
+        exp = [(Event.QUASI, (1, 0)),
+               (Event.OPEN, (1, 1)),
+               (Event.UNQUOTE, (1, 2)),
+               (Event.SPLICE, (1, 3)),
+               (Event.SYMBOL, (1, 4), "foo"),
+               (Event.CLOSE, (1, 7))]
 
         self.assertEqual(col, exp)
 
@@ -120,11 +134,11 @@ class TestParse(TestCase):
     def test_list(self):
         src = "(testing a thing)"
         col = collect_emissions(src)
-        exp = [(E_OPEN, (1, 0)),
-               (E_SYMBOL, (1, 1), "testing"),
-               (E_SYMBOL, (1, 9), "a"),
-               (E_SYMBOL, (1, 11), "thing"),
-               (E_CLOSE, (1, 16))]
+        exp = [(Event.OPEN, (1, 0)),
+               (Event.SYMBOL, (1, 1), "testing"),
+               (Event.SYMBOL, (1, 9), "a"),
+               (Event.SYMBOL, (1, 11), "thing"),
+               (Event.CLOSE, (1, 16))]
 
         self.assertEqual(col, exp)
 
@@ -132,11 +146,11 @@ class TestParse(TestCase):
     def test_dot(self):
         src = "(testing . 123)"
         col = collect_emissions(src)
-        exp = [(E_OPEN, (1, 0)),
-               (E_SYMBOL, (1, 1), "testing"),
-               (E_DOT, (1, 9)),
-               (E_NUMBER, (1, 11), "123"),
-               (E_CLOSE, (1, 14))]
+        exp = [(Event.OPEN, (1, 0)),
+               (Event.SYMBOL, (1, 1), "testing"),
+               (Event.DOT, (1, 9)),
+               (Event.NUMBER, (1, 11), "123"),
+               (Event.CLOSE, (1, 14))]
 
         self.assertEqual(col, exp)
 
@@ -147,15 +161,15 @@ class TestParse(TestCase):
         a test )
         """
         col = collect_emissions(src)
-        exp = [(E_NEWLINE, (1, 0)),
-               (E_OPEN, (2, 8)),
-               (E_SYMBOL, (2, 10), "this"),
-               (E_SYMBOL, (2, 15), "is"),
-               (E_NEWLINE, (2, 17)),
-               (E_SYMBOL, (3, 8), "a"),
-               (E_SYMBOL, (3, 10), "test"),
-               (E_CLOSE, (3, 15)),
-               (E_NEWLINE, (3, 16))]
+        exp = [(Event.NEWLINE, (1, 0)),
+               (Event.OPEN, (2, 8)),
+               (Event.SYMBOL, (2, 10), "this"),
+               (Event.SYMBOL, (2, 15), "is"),
+               (Event.NEWLINE, (2, 17)),
+               (Event.SYMBOL, (3, 8), "a"),
+               (Event.SYMBOL, (3, 10), "test"),
+               (Event.CLOSE, (3, 15)),
+               (Event.NEWLINE, (3, 16))]
 
         self.assertEqual(col, exp)
 
@@ -167,19 +181,19 @@ class TestParse(TestCase):
         a test ) ; this ought to work
         """
         col = collect_emissions(src)
-        exp = [(E_NEWLINE, (1, 0)),
-               (E_COMMENT, (2, 8), "; Let's check out the comments"),
-               (E_NEWLINE, (2, 38)),
-               (E_OPEN, (3, 8)),
-               (E_SYMBOL, (3, 10), "this"),
-               (E_SYMBOL, (3, 15), "is"),
-               (E_COMMENT, (3, 18), "; well it's something"),
-               (E_NEWLINE, (3, 39)),
-               (E_SYMBOL, (4, 8), "a"),
-               (E_SYMBOL, (4, 10), "test"),
-               (E_CLOSE, (4, 15)),
-               (E_COMMENT, (4, 17), "; this ought to work"),
-               (E_NEWLINE, (4, 37))]
+        exp = [(Event.NEWLINE, (1, 0)),
+               (Event.COMMENT, (2, 8), "; Let's check out the comments"),
+               (Event.NEWLINE, (2, 38)),
+               (Event.OPEN, (3, 8)),
+               (Event.SYMBOL, (3, 10), "this"),
+               (Event.SYMBOL, (3, 15), "is"),
+               (Event.COMMENT, (3, 18), "; well it's something"),
+               (Event.NEWLINE, (3, 39)),
+               (Event.SYMBOL, (4, 8), "a"),
+               (Event.SYMBOL, (4, 10), "test"),
+               (Event.CLOSE, (4, 15)),
+               (Event.COMMENT, (4, 17), "; this ought to work"),
+               (Event.NEWLINE, (4, 37))]
 
         self.assertEqual(col, exp)
 

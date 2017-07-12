@@ -214,6 +214,33 @@ class SymbolTest(TestCase):
         self.assertFalse(x is w)
 
 
+    def test_symbol_2(self):
+        w = "X"
+        x = symbol(w)
+        y = symbol(str(x))
+        z = symbol(str(y))
+
+        self.assertEqual(x, x)
+        self.assertEqual(x, y)
+        self.assertEqual(x, z)
+        self.assertEqual(y, x)
+        self.assertEqual(y, y)
+        self.assertEqual(y, z)
+        self.assertEqual(z, x)
+        self.assertEqual(z, y)
+        self.assertEqual(z, z)
+
+        self.assertEqual(id(x), id(y))
+        self.assertEqual(id(y), id(z))
+
+        self.assertTrue(x is y)
+        self.assertTrue(y is z)
+
+        self.assertEqual(id(w), id(str(x)))
+        self.assertEqual(id(w), id(str(y)))
+        self.assertEqual(id(w), id(str(z)))
+
+
     def test_dict(self):
         x = symbol('x')
         y = symbol('y')

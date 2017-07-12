@@ -41,25 +41,6 @@ class CodeGenerator(Dispatch):
         pass
 
 
-def evaluate(a, *b):
-    result = list()
-    evaluate(result.append, a, *b)
-    return result[0]
-
-
-def evaluate_k(k, a, *b):
-    cont = partial(a, k, *b)
-    while True:
-        try:
-            cont()
-        except (ContinuationCall, TrampolineCall) as bounce:
-            cont = bounce.args[0]
-        except Exception:
-            raise
-        else:
-            break
-
-
 
 
 #
