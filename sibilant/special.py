@@ -17,6 +17,9 @@ import dis
 
 from enum import Enum
 from functools import wraps
+from types import CodeType
+
+from . import constype, symbol
 
 
 def memoized():
@@ -71,6 +74,16 @@ class Opcode(Enum):
 Opcode = Opcode("Opcode", dis.opmap)
 
 
+class Pseudop(Enum):
+    APPLY = 1
+    CONST = 2
+    GET_VAR = 3
+    SET_VAR = 4
+    POP = 5
+    LAMBDA = 6
+    RETURN = 7
+
+
 def _list_unique_append(l, v):
     if v in l:
         return l.index(v)
@@ -102,6 +115,8 @@ class CodeSpace(object):
         self.names = []
         self.consts = []
 
+        self.pseudops = []
+
 
     def child(self):
         return CodeSpace(self)
@@ -112,6 +127,7 @@ class CodeSpace(object):
 
 
     def declare_const(self, value):
+        print("declare_const", value)
         return _list_unique_append(self.consts, value)
 
 
@@ -186,88 +202,220 @@ class CodeSpace(object):
         self.names.append(name)
 
 
-    def add(*op_args):
-        self.operations.append(op_args)
+    def max_stack(self):
+        return max_stack(self.pseudops)
+
+
+    def gen_code(self):
+        for op, *args in self.pseudops:
+            if op is Pseudop.APPLY:
+                yield Opcode.CALL_FUNCTION, args[0] - 1, 0
+
+            elif op is Pseudop.CONST:
+                i = self.consts.index(args[0])
+                yield Opcode.LOAD_CONST, i, 0
+
+            elif op is Pseudop.GET_VAR:
+                n = args[0]
+                if n in self.fast_vars:
+                    i = self.fast_vars.index(n)
+                    yield Opcode.LOAD_FAST, i, 0
+                elif n in self.cell_vars:
+                    i = self.cell_vars.index(n)
+                    yield Opcode.LOAD_DEREF, i, 0
+                elif n in self.free_vars:
+                    i = self.free_vars.index(n) + len(self.cell_vars)
+                    yield Opcode.LOAD_DEREF, i, 0
+                elif n in self.global_vars:
+                    i = self.names.index(n)
+                    yield Opcode.LOAD_GLOBAL, i, 0
+                else:
+                    assert(False)
+
+            elif op is Pseudop.SET_VAR:
+                pass
+
+            elif op is Pseudop.POP:
+                yield Opcode.POP_TOP,
+
+            elif op is Pseudop.LAMBDA:
+                c = args[0]
+                i = self.consts.index(c)
+                if c.co_freevars:
+                    # closure
+                    for n in c.co_freevars:
+                        if n in self.cell_vars:
+                            i = self.cell_vars.index(n)
+                        elif n in self.free_vars:
+                            i = self.free_vars.index(n) + len(self.cell_vars)
+                        else:
+                            assert(False)
+                        yield OpCode.LOAD_CLOSURE, i
+                    yield OpCode.MAKE_TUPLE, len(c.co_freevars)
+                    yield OpCode.LOAD_CONST, i
+                    yield OpCode.MAKE_CLOSURE, 0
+
+                else:
+                    # function
+                    yield OpCode.LOAD_CONST, i
+                    yield Opcode.MAKE_FUNCTION, 0
+
+            elif op is Pseudop.RETURN:
+                yield Opcode.RETURN_VALUE,
+
+
+    def pseudop(self, *op_args):
+        self.pseudops.append(op_args)
+
+
+    def pseudop_const(self, val):
+        self.declare_const(val)
+        self.pseudop(Pseudop.CONST, val)
+
+
+    def pseudop_var(self, name):
+        self.request_var(name)
+        self.pseudop(Pseudop.GET_VAR, name)
+
+
+    def pseudop_expr(self, c):
+        #print("pseudop_expr", c)
+        if isinstance(c, constype):
+            self.pseudop_apply(c)
+        elif isinstance(c, symbol):
+            self.pseudop_var(str(c))
+        else:
+            self.pseudop_const(c)
+
+
+    def pseudop_apply(self, c):
+        for pos in c.unpack():
+            self.pseudop_expr(pos)
+        self.pseudop(Pseudop.APPLY, c.count())
+
+
+    def pseudop_progn(self, cl):
+        if not cl:
+            # because all things are expressions, an empty progn still
+            # needs to have a return value. In this case, the return value
+            # will by the python None
+            return self.pseudop_const(None)
+
+        # interleave pops with expr, except for the last one
+        first = True
+        for c in cl:
+            if first:
+                first = False
+            else:
+                self.pseudop(Pseudop.POP)
+            self.pseudop_expr(c)
+
+
+    def pseudop_lambda(self, cl):
+
+        subc = self.child()
+        args, body = split_lambda(cl)
+        for arg in args:
+            subc.declare_arg(arg)
+        subc.pseudop_progn(body)
+        subc.pseudop(Pseudop.RETURN)
+
+        code = subc.complete()
+        self.pseudop_const(code)
+        self.pseudop(Pseudop.LAMBDA, code)
+
+
+    def pseudop_return(self):
+        self.pseudop(Pseudop.RETURN)
+
+
+    def pseudop_return_none(self):
+        self.pseudop_const(None)
+        self.pseudop(Pseudop.RETURN)
 
 
     def complete(self):
-        pass
+        argcount = len(self.args)
+
+        # this is the number of fast variables, plus the variables
+        # converted to cells for child scope usage
+        nlocals = len(self.fast_vars) + len(self.cell_vars)
+
+        stacksize = self.max_stack()
+
+        flags = 0x12  # NEWLOCALS, NESTED
+
+        code = b''.join([(bytes([o.value, *args])) for o, *args
+                         in self.gen_code()])
+
+        consts = tuple(self.consts)
+        names = tuple(self.names)
+        varnames = *self.args, *self.fast_vars
+        filename = ""
+        name = "<sibilant.lambda>"
+
+        # TODO: create a line number table
+        firstlineno = 0
+        lnotab = b""
+
+        freevars = tuple(self.free_vars)
+        cellvars = tuple(self.cell_vars)
+
+        return CodeType(argcount, 0, nlocals, stacksize, flags, code,
+                        consts, names, varnames, filename, name,
+                        firstlineno, lnotab, freevars, cellvars)
 
 
+def max_stack(pseudops):
+    maxc = 0
+    stac = 0
 
-def special_apply(ast, code, env, scratch):
-    """
-    push the instructions for a function application into c
-    """
+    def push(by=1):
+        nonlocal maxc, stac
+        stac += by
+        if stac > maxc:
+            maxc = stac
 
-    pass
+    def pop(by=1):
+        nonlocal stac
+        stac -= by
+        assert(stac >= 0)
 
+    for op, *args in pseudops:
+        print(op, stac, maxc)
+        if op is Pseudop.APPLY:
+            pop()
+            pop(args[0])
 
-def special_lambda(ast, code, env, scratch):
-    """
-    push the instructions for a lambda definition into c
-    """
+        elif op is Pseudop.CONST:
+            push()
 
-    pass
+        elif op is Pseudop.GET_VAR:
+            push()
 
+        elif op is Pseudop.SET_VAR:
+            pop()
 
-def special_syntax(ast, env, scratch):
-    """
-    Given a sibilant AST describing a syntax(macro), return an
-    equivalent python AST
-    """
+        elif op is Pseudop.POP:
+            pop()
 
-    pass
+        elif op is Pseudop.LAMBDA:
+            push()
+            a = args[0].co_freevars
+            if a:
+                push(a)
+                pop(a)
+            pop()
+            push()
 
+        elif op is Pseudop.RETURN:
+            pop()
 
-def special_setter(ast, env, scratch):
-    pass
-
-
-def special_getter(ast, env, scratch):
-    pass
-
-
-def compile_apply(codespace, c):
-    for pos in c:
-        if is_list(c):
-            compile_apply(codespace, c):
-        elif is_const(c):
-            codespace.add(LOAD_CONSTANT, c)
-        elif is_symbol(c):
-            codespace.add(LOAD_SYMBOL, c)
-    codespace.add(CALL_FN, len(c))
-
-
-def compile_progn(codespace, cl):
-    first = True
-    for c in cl:
-        if first:
-            first = False
         else:
-            codespace.add(POP_TOP)
+            assert(False)
 
-        if is_list(c):
-            compile_apply(codespace, c)
-        elif is_const(c):
-            codespace.add(LOAD_CONSTANT, c)
-        elif is_symbol(c):
-            codespace.add(LOAD_SYMBOL, c)
-
-
-def compile_lambda(codespace, cl):
-
-    subc = codespace.child()
-    args, body = split_lambda(cl)
-    for arg in args:
-        subc.declare_arg(arg)
-    compile_progn(subc, body)
-    subc.add(RETURN)
-
-    codeobj = subc.to_code()
-    codespace.add(LOAD_CONST, codeobj)
-    codespace.add(CREATE_LAMBDA)
-
+        assert(stac <= 1)
+        return maxc
 
 #
 # The end.
