@@ -19,7 +19,10 @@ from enum import Enum
 from functools import wraps
 from types import CodeType
 
-from . import constype, symbol, car, cdr
+from . import constype, symbol, car, cdr, nil
+
+
+_PYVER = (3, 5)
 
 
 def memoized():
@@ -265,10 +268,14 @@ class CodeSpace(object):
                         else:
                             assert(False)
                         yield Opcode.LOAD_CLOSURE, fi, 0
-                    yield Opcode.MAKE_TUPLE, len(c.co_freevars), 0
+                    yield Opcode.BUILD_TUPLE, len(c.co_freevars), 0
                     yield Opcode.LOAD_CONST, ci, 0
                     yield Opcode.LOAD_CONST, ni, 0
-                    yield Opcode.MAKE_FUNCTION, 0x08, 0
+
+                    if _PYVER == (3, 6):
+                        yield Opcode.MAKE_FUNCTION, 0x08, 0
+                    elif (3, 3) <= _PYVER <= (3, 5):
+                        yield Opcode.MAKE_CLOSURE, 0x00, 0
 
                 else:
                     # function
@@ -294,13 +301,51 @@ class CodeSpace(object):
         self.pseudop(Pseudop.GET_VAR, name)
 
 
-    def special_lookup(self, name):
-        print("special_lookup(%r)" % name)
+    def special_lookup(self, namesym):
+        if namesym is _quote_sym:
+            return self.pseudop_quote
+
+        elif namesym is _quasiquote_sym:
+            return self.pseudop_quasiquote
+
+        elif namesym is _lambda_sym:
+            return self.pseudop_lambda
+
+        else:
+            name = str(namesym)
+            macro = None
+
+            if "__macros__" in self.env:
+                macro = self.env["__macros__"].get(name)
+
+            if not macro and "__builtins__" in self.env:
+                builtins = self.env["__builtins__"]
+                if "__macros__" in builtins:
+                    macro = builtins["__macros__"].get(name)
+
+            if macro:
+                return lambda cl: macro(*cl.unpack())
+
         return None
 
 
     def pseudop_quote(self, body):
-        return None
+        if body is nil:
+            self.pseudop_var("nil")
+
+        elif isinstance(body, symbol):
+            self.pseudop_var("symbol")
+            self.pseudop_const(str(body))
+            self.pseudop(Pseudop.APPLY, 2)
+
+        elif isinstance(body, constype):
+            self.pseudop_var("cons")
+            for c in body.unpack():
+                self.pseudop_quote(c)
+            self.pseudop(Pseudop.APPLY, body.count() + 1)
+
+        else:
+            self.pseudop_const(body)
 
 
     def pseudop_quasiquote(self, body):
@@ -311,20 +356,13 @@ class CodeSpace(object):
         if isinstance(c, constype):
             s = car(c)
             if isinstance(s, symbol):
-                if s is _quote_sym:
-                    self.pseudop_quote(cdr(c))
-                elif s is _quasiquote_sym:
-                    self.pseudop_quasiquote(cdr(c))
-                elif s is _lambda_sym:
-                    self.pseudop_lambda(cdr(c))
+                special = self.special_lookup(s)
+                if special:
+                    transform = special(cdr(c))
+                    if transform is not None:
+                        self.pseudop_expr(transform)
                 else:
-                    f = self.special_lookup(str(s))
-                    if f:
-                        # apply the special transform
-                        new_c = f(*cdr(c).unpack())
-                        self.pseudop_expr(new_c)
-                    else:
-                        self.pseudop_apply(c)
+                    self.pseudop_apply(c)
             else:
                 self.pseudop_apply(c)
 
@@ -372,6 +410,9 @@ class CodeSpace(object):
         self.declare_const(code.co_name)
         self.pseudop(Pseudop.LAMBDA, code)
 
+        # no additional transform needed
+        return None
+
 
     def pseudop_return(self):
         self.pseudop(Pseudop.RETURN)
@@ -398,7 +439,7 @@ class CodeSpace(object):
 
         consts = tuple(self.consts)
         names = tuple(self.names)
-        varnames = *self.args, *self.fast_vars
+        varnames = *self.fast_vars, *self.cell_vars
         filename = "<sibilant>"
         name = "<lambda>"
 
@@ -438,7 +479,7 @@ def max_stack(pseudops):
         assert(stac >= 0)
 
     for op, *args in pseudops:
-        # print(op, args, maxc, stac)
+        print(op, args, maxc, stac)
 
         if op is Pseudop.APPLY:
             pop()
@@ -458,7 +499,7 @@ def max_stack(pseudops):
 
         elif op is Pseudop.LAMBDA:
             push()
-            a = args[0].co_freevars
+            a = len(args[0].co_freevars)
             if a:
                 push(a)
                 pop(a)
