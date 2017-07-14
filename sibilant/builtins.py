@@ -97,10 +97,10 @@ __undefined = _val(sibilant.undefined, "undefined")
 
 __builtins_sym = __symbol("__builtins__")
 
-__quote_sym = __symbol("__builtins__.quote")
-__unquote_sym = __symbol("__builtins__.unquote")
-__quasiquote_sym = __symbol("__builtins__.quasiquote")
-__splice_sym = __symbol("__builtins__.splice")
+__quote_sym = __symbol("quote")
+__unquote_sym = __symbol("unquote")
+__quasiquote_sym = __symbol("quasiquote")
+__splice_sym = __symbol("splice")
 
 
 def is_special(f):

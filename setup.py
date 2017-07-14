@@ -50,7 +50,7 @@ setup(name = "sibilant",
 
       provides = ["sibilant", ],
       requires = [],
-      platforms = ["python3 >= 3.3", ],
+      platforms = ["python3 >= 3.6", ],
 
       zip_safe = True,
 
