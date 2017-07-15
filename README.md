@@ -3,38 +3,70 @@
 
 Sibilant is a dialect of LISP which compiles to [Python] bytecode.
 
+
+## Origins
+
 This was a project begun in 2007 and subsequently left abaondoned in
 early 2008, and I'm putting it up on GitHub as-is for posterity.
 There is a strong possibility that I may want to hack on it later.
 
 I believe this project grew out of my hacking with the absurdity that
 is [Spexy]. Entirely unlike Spexy, Sibilant had a goal to create a
-full-featured, fast, and sane LISP compiler which would emit Python
-bytecode.
+full-featured, sane-ish LISP compiler which would emit Python bytecode.
 
 Unfortunately (as with Spexy) the code was originally kept in CVS on a
 host which no longer exists. The `cvsroot` seems to have not been
 migrated along as time went by -- or if it did, it moved into a place
 where I have been unable to find it.
 
-Whether this code ever gets attention in the future is entirely up in
-the air. Perhaps it would be a good project for Python 3 (since most
-of my work is tied to Python 2).
-
-If you have any interest in this code, feel free to poke at it. But it
-is in a decidedly non-functioning state as of right now. Consider it
-akin to a bin of broken or unassembled bits and pieces.
-
-If you want to use a real LISP on Python, I encourage you to direct
-your interest towards [Clojure on Python].
-
 [Python]: http://python.org/
 
 [Spexy]: https://github.com/obriencj/python-spexy
 "A hackish, LISP-like preprocessor for Python"
 
-[Clojure on Python]: https://github.com/halgari/clojure-py
-"An implementation of Clojure in pure Python"
+
+## Reborn
+
+Some time in 2014 I started poking half-heartedly at this code
+again. For the next three years I made pathetic incremental changes
+that went mostly nowhere. I wrote unit tests, wrote types to mimic
+cons cells and symbols. I poked around with the idea of a trampoline
+and continuation-passing style.
+
+Then suddenly in July of 2017 I went nuts and threw together the
+compiler in a week while drinking at a barcade.
+
+It's still a work-in-progress, but it's able to compile nested lambdas
+directly into python bytecode
+
+
+## Model
+
+It's currently convoluted. Some of this can be cut away in the future,
+but the result of all the half-hearted poking over all these years is
+a bunch of transformations on the input.
+
+* A string or stream representing S-Expressions is parsed into a
+  series of events (parse.py)
+* The event stream is collected and an ast is formed (ast.py)
+* The full ast is simplified into a series of cons cells
+* Those cons cells are fed into a combined code/name-space which
+  tracks variable scoping and constant values, and collects a series
+  of pseudo opcodes (compile.py)
+* When the code space is completed, the pseudo ops compile into real
+  cpython operations, and a python code is emitted, ready for eval.
+
+I'd like to skip a transform in there somewhere. The ast is nice
+because it has line and offset information. However special forms and
+runtime defmacro will want to operate on the cons cells. I might be
+able to associate the line/offset information with the cons cell
+object IDs, and drop the ast entirely. I haven't decided yet.
+
+I really like the pseudop (pseudo opecode) step. It makes it easy to
+keep track of only what's important in each distinct operation. It
+also allows me to defer proper bytecode emission (and hence worrying
+about which minor version of CPython I'm running on). Not getting rid
+of that for now.
 
 
 ## Contact
