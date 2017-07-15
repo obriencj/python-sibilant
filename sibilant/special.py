@@ -517,10 +517,11 @@ class CodeSpace(object):
 
         for op, *args in self.pseudops:
             if op is Pseudop.APPLY:
-                yield Opcode.CALL_FUNCTION, args[0], 0
+                n = args[0]
+                yield Opcode.CALL_FUNCTION, n, 0
 
             elif op is Pseudop.CONST:
-                i = self.consts.index(args[0])
+                i = self.consts.index(*args)
                 yield Opcode.LOAD_CONST, i, 0
 
             elif op is Pseudop.GET_VAR:
