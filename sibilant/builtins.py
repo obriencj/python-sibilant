@@ -14,8 +14,8 @@
 
 
 """
-builtin definitions for sibilant. These are all following k-style
-conventions.
+builtin definitions for sibilant. These are made available in the
+scope of all loaded modules.
 
 author: Christopher O'Brien  <obriencj@gmail.com>
 license: LGPL v.3
@@ -28,11 +28,7 @@ import sibilant
 from functools import reduce
 
 
-__all__ = ["is_special"]
-
-
-def is_special(f):
-    return callable(getattr(f, "__special__", False))
+__all__ = []
 
 
 def _reduce_op(opf, name=None):
@@ -86,8 +82,6 @@ _op(operator.and_, "&")
 _op(operator.xor, "^")
 _op(operator.invert, "~")
 
-_op(print, "print")
-
 _op(sibilant.cons)
 _op(sibilant.car)
 _op(sibilant.cdr)
@@ -96,13 +90,24 @@ _op(sibilant.attr)
 _op(sibilant.deref)
 _op(sibilant.setref)
 
-_val(sibilant.symbol, "symbol")
 _val(sibilant.nil, "nil")
+_val(sibilant.symbol, "symbol")
 _val(sibilant.constype, "constype")
 _val(sibilant.niltype, "niltype")
 _val(sibilant.reftype, "reftype")
 _val(sibilant.attrtype, "attrtype")
 _val(sibilant.undefined, "undefined")
+
+_op((lambda o: o is nil), "nil?")
+_op((lambda o: instanceof(o, symbol)), "symbol?")
+_op((lambda o: instanceof(o, constype)), "list?")
+_op((lambda o: callable(o)), "function?")
+_op((lambda o: callable(getattr(o, "__special__", False))), "special?")
+
+_op(print, "print")
+_op(format, "format")
+_op((lambda o, a, d=None: getattr(o, str(a), d)), "getattr")
+_op((lambda o, a: setattr(o, str(a))), "setattr")
 
 
 __all__ = tuple(__all__)

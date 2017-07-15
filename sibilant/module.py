@@ -16,55 +16,42 @@
 import types
 import sibilant.builtins
 
+from sibilant.ast import compose_all_from_str, compose_all_from_stream
+from sibilant.compiler import compile_from_ast
+
 
 __all__ = (
-    "ModuleType", "module", "module_from_parser",
-    "module_from_stream", "module_from_str",
+    "module",
 )
 
 
-class ModuleType(types.ModuleType):
-    pass
-
-
 def module(name, thing, builtins=None, defaults=None):
+
     if isinstance(thing, str):
         thing = compose_all_from_str(thing)
     elif isinstance(thing, IOBase):
         thing = compose_all_from_stream(thing)
     elif isinstance(thing, Node):
         thing = [thing]
-
     else:
-        pass
+        raise TypeError("Expected thing type of str, IOBase,"
+                        " sibilant.ast.Node")
 
-
-    mod = ModuleType(name)
+    mod = types.ModuleType(name)
+    glbls = mod.__dict__
 
     if defaults:
-        mod.__dict__.update(defaults)
+        glbls.update(defaults)
 
     if builtins is None:
         builtins = sibilant.builtins
-    mod.__dict__["__builtins__"] = builtins
+    glbls["__builtins__"] = builtins
 
-    positions = positions or dict()
+    for astree in thing:
+        code = compile_from_ast(astree, glbls)
+        eval(code, glbls)
 
-    evaluate(sib_ast, positions, module)
-
-    return module
-
-
-def module_from_parser(name, parser_gen):
-    return module(name, compose(parser_gen))
-
-
-def module_from_stream(name, stream):
-    return module(name, compose_from_stream(stream))
-
-
-def module_from_str(name, src_str):
-    return module(name, compose_from_str(src_str))
+    return mod
 
 
 #

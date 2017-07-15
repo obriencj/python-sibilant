@@ -778,9 +778,19 @@ def compile_from_stream(stream, env):
     return compile_from_ast(astree, env)
 
 
-def compile_from_str(src_str, env, positions=None):
+def compile_from_str(src_str, env):
     astree = compose_from_str(src_str)
     return compile_from_ast(astree, env)
+
+
+def compile_all_from_stream(stream, env):
+    for astree in compose_all_from_stream(stream):
+        yield compile_from_ast(astree, env)
+
+
+def compile_all_from_str(src_str, env):
+    for astree in compose_all_from_str(src_str):
+        yield compile_from_ast(astree, env)
 
 
 #
