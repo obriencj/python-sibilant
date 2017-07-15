@@ -21,6 +21,8 @@ license: LGPL v.3
 """
 
 
+import dis
+
 from fractions import Fraction as fraction
 from functools import partial
 from unittest import TestCase
@@ -235,8 +237,8 @@ class TestCompiler(TestCase):
         self.assertTrue(callable(setter))
 
         self.assertEqual(getter(), 0)
-        #self.assertEqual(setter(5), 5)
-        #self.assertEqual(getter(), 5)
+        self.assertEqual(setter(5), 5)
+        self.assertEqual(getter(), 5)
 
 
 #
