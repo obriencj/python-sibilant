@@ -92,6 +92,7 @@ class Pseudop(Enum):
     LAMBDA = 6
     RET_VAL = 7
     DEFINE = 8
+    DUP = 9
 
 
 def _list_unique_append(l, v):
@@ -105,17 +106,18 @@ def _list_unique_append(l, v):
 # specials defined internal to the compiler have these symbols
 
 _define_sym = symbol("define")
-_defun_sym = symbol("defun")
 _defmacro_sym = symbol("defmacro")
-_lambda_sym = symbol("lambda")
-_progn_sym = symbol("progn")
-_if_sym = symbol("if")
+_defun_sym = symbol("defun")
 _else_sym = symbol("else")
-_quote_sym = symbol("quote")
-_unquote_sym = symbol("unquote")
-_quasiquote_sym = symbol("quasiquote")
-_splice_sym = symbol("splice")
+_if_sym = symbol("if")
+_lambda_sym = symbol("lambda")
 _let_sym = symbol("let")
+_progn_sym = symbol("progn")
+_quasiquote_sym = symbol("quasiquote")
+_quote_sym = symbol("quote")
+_setf_sym = symbol("set!")
+_splice_sym = symbol("splice")
+_unquote_sym = symbol("unquote")
 
 
 class CodeSpace(object):
@@ -249,6 +251,18 @@ class CodeSpace(object):
         elif namesym is _progn_sym:
             return self.special_progn
 
+        elif namesym is _define_sym:
+            return self.special_define
+
+        elif namesym is _defun_sym:
+            return self.special_defun
+
+        elif namesym is _defmacro_sym:
+            return self.special_defmacro
+
+        elif namesym is _setf_sym:
+            return self.special_setf
+
         else:
             macro = find_macro(str(namesym), self.env)
             if macro:
@@ -370,6 +384,35 @@ class CodeSpace(object):
 
         # no additional transform needed
         return None
+
+
+    def special_setf(self, cl):
+
+        binding, body = cl
+
+        self.special_progn(body)
+        self.pseudop(Pseudop.DUP)
+
+        if isinstance(binding, symbol):
+            self.pseudop_set_var(str(binding))
+
+        elif isinstance(binding, constype):
+            pass
+
+        else:
+            assert(False)
+
+
+    def special_define(self, cl):
+        binding, body = cl
+
+        self.special_progn(body)
+        self.pseudop(Pseudop.DUP)
+
+        if isinstance(binding, symbol):
+            self.pseudop_define(str(binding))
+        else:
+            assert(False)
 
 
     def pseudop(self, *op_args):
@@ -561,7 +604,29 @@ class CodeSpace(object):
                     assert(False)
 
             elif op is Pseudop.SET_VAR:
-                pass
+                n = args[0]
+                if n in self.fast_vars:
+                    i = self.fast_vars.index(n)
+                    yield Opcode.STORE_FAST, i, 0
+                elif n in self.cell_vars:
+                    i = self.cell_vars.index(n)
+                    yield Opcode.STORE_DEREF, i, 0
+                elif n in self.free_vars:
+                    i = self.free_vars.index(n) + len(self.cell_vars)
+                    yield Opcode.STORE_DEREF, i, 0
+                elif n in self.global_vars:
+                    i = self.names.index(n)
+                    yield Opcode.STORE_GLOBAL, i, 0
+                else:
+                    assert(False)
+
+            elif op is Pseudop.DEFINE:
+                n = args[0]
+                if n in self.global_vars:
+                    i = self.names.index(n)
+                    yield Opcode.STORE_GLOBAL, i, 0
+                else:
+                    assert(False)
 
             elif op is Pseudop.POP:
                 yield Opcode.POP_TOP,
@@ -571,6 +636,9 @@ class CodeSpace(object):
 
             elif op is Pseudop.RET_VAL:
                 yield Opcode.RETURN_VALUE,
+
+            elif op is Pseudop.DUP:
+                yield Opcode.DUP_TOP,
 
             else:
                 assert(False)
@@ -633,10 +701,7 @@ def max_stack(pseudops):
         assert(stac >= 0)
 
     for op, *args in pseudops:
-        #print(op, args, maxc, stac)
-
         if op is Pseudop.APPLY:
-            pop()
             pop(args[0])
 
         elif op is Pseudop.CONST:
@@ -645,7 +710,13 @@ def max_stack(pseudops):
         elif op is Pseudop.GET_VAR:
             push()
 
+        elif op is Pseudop.DUP:
+            push()
+
         elif op is Pseudop.SET_VAR:
+            pop()
+
+        elif op is Pseudop.DEFINE:
             pop()
 
         elif op is Pseudop.POP:
@@ -666,8 +737,8 @@ def max_stack(pseudops):
         else:
             assert(False)
 
-        assert(stac <= 1)
-        return maxc
+    assert(stac == 0)
+    return maxc
 
 
 class Macro(object):
