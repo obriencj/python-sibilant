@@ -140,13 +140,103 @@ class TestCompiler(TestCase):
         stmt, env = compile_expr(src)
         self.assertEqual(stmt(), cons(1, 2, 3, nil))
 
-        src = "'(1 . 2)"
-        stmt, env = compile_expr(src)
-        self.assertEqual(stmt(), cons(1, 2))
-
 
     def test_dot(self):
-        pass
+        src = "'(1.4)"
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), cons(1.4, nil))
+
+        src = "'(1. 4)"
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), cons(1.0, 4, nil))
+
+        src = "'(1 .4)"
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), cons(1, 0.4, nil))
+
+        src = "'(1 . 4)"
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), cons(1, 4))
+
+        src = "'(1. . .4)"
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), cons(1.0, 0.4))
+
+
+    def test_lambda(self):
+        src = "(lambda () tacos)"
+        stmt, env = compile_expr(src)
+        fun = stmt()
+        self.assertTrue(callable(fun))
+        self.assertRaises(NameError, fun)
+
+        src = "(lambda () tacos)"
+        stmt, env = compile_expr(src, tacos=5)
+        fun = stmt()
+        self.assertTrue(callable(fun))
+        self.assertEqual(fun(), 5)
+
+        src = "(lambda (tacos) tacos)"
+        stmt, env = compile_expr(src, tacos=5)
+        fun = stmt()
+        self.assertTrue(callable(fun))
+        self.assertEqual(fun(1), 1)
+
+
+    def test_make_adder(self):
+        src = "(lambda (X) (lambda (Y) (+ X Y)))"
+        stmt, env = compile_expr(src)
+        make_adder = stmt()
+        self.assertTrue(callable(make_adder))
+
+        add_8 = make_adder(8)
+        self.assertEqual(add_8(1), 9)
+
+        hello = make_adder("hello ")
+        self.assertEqual(hello("world"), "hello world")
+
+        # just to show the cell wasn't polluted by the new make_adder
+        # call
+        self.assertEqual(add_8(2), 10)
+
+
+    def test_let(self):
+        src = "(let ((tacos 1) (beer 2)) (cons tacos beer))"
+        stmt, env = compile_expr(src, tacos=5)
+        self.assertEqual(stmt(), cons(1, 2))
+
+        src = "(let ((tacos 1) (beer 2)) (cons tacos beer nil))"
+        stmt, env = compile_expr(src, tacos=5)
+        self.assertEqual(stmt(), cons(1, 2, nil))
+
+        src = "(let () (cons tacos beer nil))"
+        stmt, env = compile_expr(src, tacos=5, beer=9)
+        self.assertEqual(stmt(), cons(5, 9, nil))
+
+        src = "(let ((tacos 1)) (cons tacos beer))"
+        stmt, env = compile_expr(src, tacos=5, beer=9)
+        self.assertEqual(stmt(), cons(1, 9))
+
+
+    def test_getter_setter(self):
+        src = """
+        (lambda (value)
+          (cons (lambda () value)
+                (lambda (v) (set! value v))))
+        """
+
+        stmt, env = compile_expr(src)
+
+        getter_setter = stmt()
+        self.assertTrue(callable(getter_setter))
+
+        getter, setter = getter_setter(0)
+        self.assertTrue(callable(getter))
+        self.assertTrue(callable(setter))
+
+        self.assertEqual(getter(), 0)
+        #self.assertEqual(setter(5), 5)
+        #self.assertEqual(getter(), 5)
 
 
 #
