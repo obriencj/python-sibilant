@@ -4,6 +4,16 @@
 Sibilant is a dialect of LISP which compiles to [Python] bytecode.
 
 
+## But Why?
+
+Mostly "why not" and "I do what I want"
+
+But also because I really love the idea of domain-specific languages.
+I wanted defmacro in Python so bad! So I made defmacro in Python to
+let me write some other things a little easier. The worst kind of
+lazy.
+
+
 ## Origins
 
 This was a project begun in 2007 and subsequently left abaondoned in

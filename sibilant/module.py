@@ -14,24 +14,44 @@
 
 
 import types
+import sibilant.builtins
 
 
-__all__ = ( "ModuleType", "module", "module_from_parser",
-            "module_from_stream", "module_from_str" )
+__all__ = (
+    "ModuleType", "module", "module_from_parser",
+    "module_from_stream", "module_from_str",
+)
 
 
 class ModuleType(types.ModuleType):
     pass
 
 
-def module(name, sib_ast, positions=None, builtins=None, defaults=None):
+def module(name, thing, builtins=None, defaults=None):
+    if isinstance(thing, str):
+        thing = compose_all_from_str(thing)
+    elif isinstance(thing, IOBase):
+        thing = compose_all_from_stream(thing)
+    elif isinstance(thing, Node):
+        thing = [thing]
+
+    else:
+        pass
+
+
     mod = ModuleType(name)
 
     if defaults:
         mod.__dict__.update(defaults)
 
+    if builtins is None:
+        builtins = sibilant.builtins
+    mod.__dict__["__builtins__"] = builtins
+
     positions = positions or dict()
+
     evaluate(sib_ast, positions, module)
+
     return module
 
 

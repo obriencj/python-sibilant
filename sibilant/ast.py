@@ -281,6 +281,7 @@ def compose(parser_gen):
     """
 
     stack = list()
+    node = None
 
     for event, position, *data in parser_gen:
         node = create_node(position, event, *data)

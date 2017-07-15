@@ -25,126 +25,87 @@ license: LGPL v.3
 import operator
 import sibilant
 
-from functools import partial, reduce
+from functools import reduce
+
+
+__all__ = ["is_special"]
+
+
+def is_special(f):
+    return callable(getattr(f, "__special__", False))
 
 
 def _reduce_op(opf, name=None):
+    # in the future, this can become a special. Ops invoked with two
+    # arguments can result in the normal call. Ops invoked with more
+    # than two arguments can be wrapped in a reduce call.
 
     def fun(*a):
         return reduce(opf, a)
 
     name = name if name else opf.__name__
-    sym = sibilant.symbol(name)
 
     fun.__name__ = name
     fun.__doc__ = opf.__doc__
-    fun.__symbol__ = sym
+    fun.__symbol__ = sibilant.symbol(name)
 
-    globals()[sym] = fun
-    globals()[str(sym)] = fun
-
-    return fun
+    globals()[name] = fun
+    __all__.append(name)
 
 
 def _op(opf, name=None):
-    fun = partial(opf)
+    #def fun(*a):
+    #    return opf(*a)
 
     name = name if name else opf.__name__
     sym = sibilant.symbol(name)
 
-    fun.__name__ = name
-    fun.__doc__ = opf.__doc__
-    fun.__symbol__ = sym
-    globals()[sym] = fun
-    globals()[str(sym)] = fun
+    #fun.__name__ = name
+    #fun.__doc__ = opf.__doc__
+    #fun.__symbol__ = symbol(name)
 
-    return fun
+    globals()[name] = opf  # fun
+    __all__.append(name)
 
 
 def _val(value, name):
-    globals()[sibilant.symbol(name)] = value
-    globals()[str(name)] = value
-    return value
+    globals()[name] = value
+    __all__.append(name)
 
 
-__add__ = _reduce_op(operator.add, "+")
-__sub__ = _reduce_op(operator.sub, "-")
-__mul__ = _reduce_op(operator.mul, "*")
-__pow__ = _op(operator.pow, "**")
-__div__ = _op(operator.truediv, "/")
-__mod__ = _op(operator.mod, "%")
-__floordiv__ = _op(operator.floordiv, "//")
-__bitwise_or__ = _op(operator.or_, "|")
-__bitwise_and__ = _op(operator.and_, "&")
-__bitwise_xor__ = _op(operator.xor, "^")
-__bitwise_invert__ = _op(operator.invert, "~")
+_reduce_op(operator.add, "+")
+_reduce_op(operator.sub, "-")
+_reduce_op(operator.mul, "*")
 
-__cons = _op(sibilant.cons)
-__car = _op(sibilant.car)
-__cdr = _op(sibilant.cdr)
-__ref = _op(sibilant.ref)
-__attr = _op(sibilant.attr)
-__deref = _op(sibilant.deref)
-__setref = _op(sibilant.setref)
+_op(operator.pow, "**")
+_op(operator.truediv, "/")
+_op(operator.mod, "%")
+_op(operator.floordiv, "//")
+_op(operator.or_, "|")
+_op(operator.and_, "&")
+_op(operator.xor, "^")
+_op(operator.invert, "~")
 
-__symbol = _val(sibilant.symbol, "symbol")
-__nil = _val(sibilant.nil, "nil")
-__constype = _val(sibilant.constype, "constype")
-__niltype  = _val(sibilant.niltype, "niltype")
-__reftype = _val(sibilant.reftype, "reftype")
-__attrtype = _val(sibilant.attrtype, "attrtype")
-__undefined = _val(sibilant.undefined, "undefined")
+_op(print, "print")
 
-__builtins_sym = __symbol("__builtins__")
+_op(sibilant.cons)
+_op(sibilant.car)
+_op(sibilant.cdr)
+_op(sibilant.ref)
+_op(sibilant.attr)
+_op(sibilant.deref)
+_op(sibilant.setref)
 
-__quote_sym = __symbol("quote")
-__unquote_sym = __symbol("unquote")
-__quasiquote_sym = __symbol("quasiquote")
-__splice_sym = __symbol("splice")
+_val(sibilant.symbol, "symbol")
+_val(sibilant.nil, "nil")
+_val(sibilant.constype, "constype")
+_val(sibilant.niltype, "niltype")
+_val(sibilant.reftype, "reftype")
+_val(sibilant.attrtype, "attrtype")
+_val(sibilant.undefined, "undefined")
 
 
-def is_special(f):
-    return hasattr(f, "special")
-
-
-def _eval(v, env):
-    print("_eval: ", v)
-
-    if isinstance(v, __symbol):
-        return env[v] if v in env else env[__builtins_sym][v]
-
-    elif isinstance(v, __constype):
-        s = __car(v)
-        if s is __quote_sym:
-            return __cdr(v)
-        elif s is __quasiquote_sym:
-            pass
-        else:
-            f = _eval(__car(v), env)
-            if is_special(f):
-                return f.special(v, env)
-            else:
-                a = (_eval(i, env) for i in __cdr(v).unpack())
-                return f(*a)
-    else:
-        return v
-
-
-__eval = _op(_eval, "eval")
-
-
-def _prep_env(**base):
-
-    gl = globals()
-
-    base.update({__symbol(k): v for k, v in base.items()})
-
-    base["__builtins__"] = gl
-    base[__builtins_sym] = gl
-
-    # {k: v for k, v in gl.items() if type(k) is __symbol}
-
-    return base
+__all__ = tuple(__all__)
 
 
 #

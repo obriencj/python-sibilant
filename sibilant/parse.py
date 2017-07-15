@@ -186,7 +186,6 @@ def parse_string(stream):
     start = stream.tell()
     esc = False
 
-    c = stream.read(1)
     for c in stream_chars(stream):
         if (not esc) and c == '\"':
             stream_unread(stream)

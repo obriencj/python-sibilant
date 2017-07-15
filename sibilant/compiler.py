@@ -14,16 +14,21 @@
 
 
 import dis
-import sys
 
 from enum import Enum
 from functools import wraps
+from sys import version_info
 from types import CodeType
 
-from . import constype, symbol, car, cdr, nil
+from . import car, cdr, constype, nil, symbol
+from .ast import compose_from_str, compose_from_stream
 
 
-_PYVER = sys.version_info
+__all__ = (
+    "Opcode", "Pseudop",
+    "CodeSpace", "compile_from_str", "compile_from_stream",
+    "compile_from_ast",
+)
 
 
 def memoized():
@@ -85,7 +90,8 @@ class Pseudop(Enum):
     SET_VAR = 4
     POP = 5
     LAMBDA = 6
-    RETURN = 7
+    RET_VAL = 7
+    DEFINE = 8
 
 
 def _list_unique_append(l, v):
@@ -95,6 +101,8 @@ def _list_unique_append(l, v):
         l.append(v)
         return len(l)
 
+
+# specials defined internal to the compiler have these symbols
 
 _define_sym = symbol("define")
 _defun_sym = symbol("defun")
@@ -242,19 +250,9 @@ class CodeSpace(object):
             return self.special_progn
 
         else:
-            name = str(namesym)
-            macro = None
-
-            if "__macros__" in self.env:
-                macro = self.env["__macros__"].get(name)
-
-            if not macro and "__builtins__" in self.env:
-                builtins = self.env["__builtins__"]
-                if "__macros__" in builtins:
-                    macro = builtins["__macros__"].get(name)
-
+            macro = find_macro(str(namesym), self.env)
             if macro:
-                return lambda cl: macro(*cl.unpack())
+                return macro.__special__
 
         return None
 
@@ -265,18 +263,22 @@ class CodeSpace(object):
         """
 
         if body is nil:
-            self.pseudop_var("nil")
+            self.pseudop_get_var("nil")
 
         elif isinstance(body, symbol):
-            self.pseudop_var("symbol")
+            self.pseudop_get_var("symbol")
             self.pseudop_const(str(body))
             self.pseudop(Pseudop.APPLY, 1)
 
         elif isinstance(body, constype):
-            self.pseudop_var("cons")
+            self.pseudop_get_var("cons")
+            cl = body.count()
             for c in body.unpack():
                 self.special_quote(c)
-            self.pseudop(Pseudop.APPLY, body.count())
+            if body.is_proper():
+                cl += 1
+                self.pseudop_get_var("nil")
+            self.pseudop(Pseudop.APPLY, cl)
 
         else:
             self.pseudop_const(body)
@@ -385,12 +387,20 @@ class CodeSpace(object):
         self.pseudop(Pseudop.CONST, val)
 
 
-    def pseudop_var(self, name):
+    def pseudop_get_var(self, name):
         """
         Pushes a pseudo op to load a named value
         """
         self.request_var(name)
         self.pseudop(Pseudop.GET_VAR, name)
+
+
+    def pseudop_set_var(self, name):
+        """
+        Pushes a pseudo op to assign to a named value
+        """
+        self.request_var(name)
+        self.pseudop(Pseudop.SET_VAR, name)
 
 
     def pseudop_lambda(self, code):
@@ -406,7 +416,7 @@ class CodeSpace(object):
         """
         Pushes a pseudo op to return the top of stack
         """
-        self.pseudop(Pseudop.RETURN)
+        self.pseudop(Pseudop.RET_VAL)
 
 
     def pseudop_return_none(self):
@@ -414,7 +424,16 @@ class CodeSpace(object):
         Pushes a pseudo op to return None
         """
         self.pseudop_const(None)
-        self.pseudop(Pseudop.RETURN)
+        self.pseudop(Pseudop.RET_VAL)
+
+
+    def pseudop_define(self, name):
+        """
+        Pushes a pseudo op to globally define TOS to name
+        """
+        _list_unique_append(self.global_vars, name)
+        _list_unique_append(self.names, name)
+        self.pseudop(Pseudop.DEFINE, name)
 
 
     def add_expression(self, expr):
@@ -441,7 +460,7 @@ class CodeSpace(object):
                 return self.special_apply(expr)
 
             elif isinstance(expr, symbol):
-                return self.pseudop_var(str(expr))
+                return self.pseudop_get_var(str(expr))
 
             else:
                 # TODO there are some literal types that can't be used
@@ -456,7 +475,7 @@ class CodeSpace(object):
 
     def add_expression_with_return(self, expr):
         self.add_expression(expr)
-        self.pseudop(Pseudop.RETURN)
+        self.pseudop(Pseudop.RET_VAL)
 
 
     def complete(self):
@@ -550,7 +569,7 @@ class CodeSpace(object):
             elif op is Pseudop.LAMBDA:
                 yield from self._gen_lambda(*args)
 
-            elif op is Pseudop.RETURN:
+            elif op is Pseudop.RET_VAL:
                 yield Opcode.RETURN_VALUE,
 
             else:
@@ -579,9 +598,9 @@ class CodeSpace(object):
             yield Opcode.LOAD_CONST, ci, 0
             yield Opcode.LOAD_CONST, ni, 0
 
-            if (3, 6) <= _PYVER:
+            if (3, 6) <= version_info:
                 yield Opcode.MAKE_FUNCTION, 0x08, 0
-            elif (3, 3) <= _PYVER < (3, 6):
+            elif (3, 3) <= version_info < (3, 6):
                 yield Opcode.MAKE_CLOSURE, 0x00, 0
             else:
                 #print("Unsupported:", _PYVER)
@@ -641,7 +660,7 @@ def max_stack(pseudops):
             pop(2)
             push()
 
-        elif op is Pseudop.RETURN:
+        elif op is Pseudop.RET_VAL:
             pop()
 
         else:
@@ -649,6 +668,48 @@ def max_stack(pseudops):
 
         assert(stac <= 1)
         return maxc
+
+
+class Macro(object):
+    def __init__(self, fun):
+        self.__expand__ = fun
+
+    def __special__(self, cl):
+        return self.__expand__(*cl.unpack())
+
+
+def find_macro(name, env):
+    val = None
+
+    if name in env:
+        val = env[name]
+
+    elif "__builtins__" in env:
+        env = env["__builtins__"].__dict__
+        if name in env:
+            val = env[name]
+
+    if val and isinstance(val, Macro):
+        return val
+    else:
+        return None
+
+
+def compile_from_ast(astree, env):
+    positions = {}
+    codespace = CodeSpace(env)
+    codespace.add_expression_with_return(astree.simplify(positions))
+    return codespace.complete()
+
+
+def compile_from_stream(stream, env):
+    astree = compose_from_stream(stream)
+    return compile_from_ast(astree, env)
+
+
+def compile_from_str(src_str, env, positions=None):
+    astree = compose_from_str(src_str)
+    return compile_from_ast(astree, env)
 
 
 #

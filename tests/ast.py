@@ -56,6 +56,7 @@ class TestCompose(TestCase):
         exp = Fraction((1, 0), "1/2")
 
         self.assertEqual(col, exp)
+
         src = "1.5"
         col = compose_from_str(src)
         exp = Decimal((1, 0), "1.5")
@@ -70,6 +71,12 @@ class TestCompose(TestCase):
 
 
     def test_string(self):
+        src = '""'
+        col = compose_from_str(src)
+        exp = String((1, 0), "")
+
+        self.assertEqual(col, exp)
+
         src = '"hello world"'
         col = compose_from_str(src)
         exp = String((1, 0), "hello world")
@@ -202,6 +209,24 @@ class TestSimplify(TestCase):
         src = "-1.1+2j"
         col = simplify(src)
         self.assertEqual(col, complex("-1.1+2j"))
+
+
+    def test_string(self):
+        src = '""'
+        col = simplify(src)
+        self.assertEqual(col, "")
+
+        src = ' "" '
+        col = simplify(src)
+        self.assertEqual(col, "")
+
+        src = '"hello world"'
+        col = simplify(src)
+        self.assertEqual(col, "hello world")
+
+        src = ' "hello world" '
+        col = simplify(src)
+        self.assertEqual(col, "hello world")
 
 
     def test_dot(self):
