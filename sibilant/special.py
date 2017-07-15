@@ -14,6 +14,7 @@
 
 
 import dis
+import sys
 
 from enum import Enum
 from functools import wraps
@@ -22,7 +23,7 @@ from types import CodeType
 from . import constype, symbol, car, cdr, nil
 
 
-_PYVER = (3, 5)
+_PYVER = sys.version_info
 
 
 def memoized():
@@ -95,14 +96,25 @@ def _list_unique_append(l, v):
         return len(l)
 
 
+_define_sym = symbol("define")
+_defun_sym = symbol("defun")
+_defmacro_sym = symbol("defmacro")
 _lambda_sym = symbol("lambda")
+_progn_sym = symbol("progn")
+_if_sym = symbol("if")
+_else_sym = symbol("else")
 _quote_sym = symbol("quote")
 _unquote_sym = symbol("unquote")
 _quasiquote_sym = symbol("quasiquote")
 _splice_sym = symbol("splice")
+_let_sym = symbol("let")
 
 
 class CodeSpace(object):
+    """
+    Represents a lexical scope, expressions occurring within that
+    scope, and nested sub-scopes.
+    """
 
     def __init__(self, env, parent=None):
         self.env = env
@@ -132,11 +144,10 @@ class CodeSpace(object):
 
 
     def child(self):
+        """
+        Create a chile CodeSpace
+        """
         return CodeSpace(self.env, parent=self)
-
-
-    def is_closure(self):
-        return bool(self.free_vars)
 
 
     def declare_const(self, value):
@@ -170,7 +181,7 @@ class CodeSpace(object):
             # we need to figure out if access to this var will be via
             # a load_closure, or load_global call
 
-            if self.parent and self.parent._request_cell(name):
+            if self.parent and self.parent.request_cell(name):
                 # we asked our parent if we can get it as a closure,
                 # and they said yes
                 _list_unique_append(self.free_vars, name)
@@ -179,7 +190,7 @@ class CodeSpace(object):
                 _list_unique_append(self.names, name)
 
 
-    def _request_cell(self, name):
+    def request_cell(self, name):
         if name in self.global_vars:
             # no, we won't provide a cell for a global
             return False
@@ -196,7 +207,7 @@ class CodeSpace(object):
             # yup, we can provide that cell
             return True
 
-        elif self.parent and self.parent._request_cell(name):
+        elif self.parent and self.parent.request_cell(name):
             # we asked our parent and they had it, so now it's a cell
             # for them, and a free for us, and we can affirm that we
             # can provide it
@@ -214,18 +225,299 @@ class CodeSpace(object):
         self.names.append(name)
 
 
-    def max_stack(self):
-        return max_stack(self.pseudops)
+    def find_special(self, namesym):
+        if namesym is _quote_sym:
+            return self.special_quote
+
+        elif namesym is _quasiquote_sym:
+            return self.special_quasiquote
+
+        elif namesym is _let_sym:
+            return self.special_let
+
+        elif namesym is _lambda_sym:
+            return self.special_lambda
+
+        elif namesym is _progn_sym:
+            return self.special_progn
+
+        else:
+            name = str(namesym)
+            macro = None
+
+            if "__macros__" in self.env:
+                macro = self.env["__macros__"].get(name)
+
+            if not macro and "__builtins__" in self.env:
+                builtins = self.env["__builtins__"]
+                if "__macros__" in builtins:
+                    macro = builtins["__macros__"].get(name)
+
+            if macro:
+                return lambda cl: macro(*cl.unpack())
+
+        return None
+
+
+    def special_quote(self, body):
+        """
+        Special form for quote
+        """
+
+        if body is nil:
+            self.pseudop_var("nil")
+
+        elif isinstance(body, symbol):
+            self.pseudop_var("symbol")
+            self.pseudop_const(str(body))
+            self.pseudop(Pseudop.APPLY, 1)
+
+        elif isinstance(body, constype):
+            self.pseudop_var("cons")
+            for c in body.unpack():
+                self.special_quote(c)
+            self.pseudop(Pseudop.APPLY, body.count())
+
+        else:
+            self.pseudop_const(body)
+
+        # no additional transform needed
+        return None
+
+
+    def special_quasiquote(self, body):
+        """
+        Special form for quasiquote
+        """
+        return None
+
+
+    def special_apply(self, c):
+        for pos in c.unpack():
+            self.add_expression(pos)
+
+        self.pseudop(Pseudop.APPLY, c.count() - 1)
+
+        # no additional transform needed
+        return None
+
+
+    def special_progn(self, cl):
+        """
+        Special form for progn
+        """
+
+        if not cl:
+            # because all things are expressions, an empty progn still
+            # needs to have a return value. In this case, the return value
+            # will by the python None
+            return self.pseudop_const(None)
+
+        # interleave pops with expr, except for the last one
+        first = True
+        for c in cl.unpack():
+            if first:
+                first = False
+            else:
+                self.pseudop(Pseudop.POP)
+            self.add_expression(c)
+
+        # no additional transform needed
+        return None
+
+
+    def special_lambda(self, cl):
+        """
+        Special form for lambda
+        """
+
+        subc = self.child()
+        args, body = cl
+        for arg in args.unpack():
+            subc.declare_arg(arg)
+        subc.special_progn(body)
+        subc.pseudop_return()
+
+        code = subc.complete()
+        self.pseudop_lambda(code)
+
+        # no additional transform needed
+        return None
+
+
+    def special_let(self, cl):
+
+        subc = self.child()
+        bindings, body = cl
+
+        vals = []
+        for arg in bindings.unpack():
+            name, val = arg.unpack()
+            subc.declare_arg(name)
+            vals.append(val)
+        subc.special_progn(body)
+        subc.pseudop_return()
+
+        code = subc.complete()
+        self.pseudop_lambda(code)
+
+        for val in vals:
+            self.add_expression(val)
+
+        self.pseudop(Pseudop.APPLY, len(vals))
+
+        # no additional transform needed
+        return None
+
+
+    def pseudop(self, *op_args):
+        """
+        Pushes a pseudo op and arguments into the code
+        """
+        self.pseudops.append(op_args)
+
+
+    def pseudop_const(self, val):
+        """
+        Pushes a pseudo op to load a constant value
+        """
+        self.declare_const(val)
+        self.pseudop(Pseudop.CONST, val)
+
+
+    def pseudop_var(self, name):
+        """
+        Pushes a pseudo op to load a named value
+        """
+        self.request_var(name)
+        self.pseudop(Pseudop.GET_VAR, name)
+
+
+    def pseudop_lambda(self, code):
+        """
+        Pushes a pseudo op to load a lambda from code
+        """
+        self.declare_const(code)
+        self.declare_const(code.co_name)
+        self.pseudop(Pseudop.LAMBDA, code)
+
+
+    def pseudop_return(self):
+        """
+        Pushes a pseudo op to return the top of stack
+        """
+        self.pseudop(Pseudop.RETURN)
+
+
+    def pseudop_return_none(self):
+        """
+        Pushes a pseudo op to return None
+        """
+        self.pseudop_const(None)
+        self.pseudop(Pseudop.RETURN)
+
+
+    def add_expression(self, expr):
+        while True:
+            if expr is nil:
+                return
+
+            elif isinstance(expr, constype):
+                head, tail = expr
+
+                if isinstance(head, symbol):
+                    # see if this is a special, either a builtin one
+                    # or a defined macro.
+                    special = self.find_special(head)
+                    if special:
+                        expr = special(tail)
+                        if expr is None:
+                            return
+                        else:
+                            continue
+
+                # either not a symbol, or it was and the symbol wasn't
+                # a special.
+                return self.special_apply(expr)
+
+            elif isinstance(expr, symbol):
+                return self.pseudop_var(str(expr))
+
+            else:
+                # TODO there are some literal types that can't be used
+                # as constants, will need to fill those in here
+                return self.pseudop_const(expr)
+
+
+    def add_expression_with_pop(self, expr):
+        self.add_expression(expr)
+        self.pseudop(Pseudop.POP)
+
+
+    def add_expression_with_return(self, expr):
+        self.add_expression(expr)
+        self.pseudop(Pseudop.RETURN)
+
+
+    def complete(self):
+        """
+        Produces a python code object representing the state of this
+        CodeSpace
+        """
+
+        argcount = len(self.args)
+
+        # this is the number of fast variables, plus the variables
+        # converted to cells for child scope usage
+        nlocals = len(self.fast_vars) + len(self.cell_vars)
+
+        stacksize = max_stack(self.pseudops)
+
+        flags = 0x12  # NEWLOCALS, NESTED
+
+        code = b''.join([(bytes([o.value, *args])) for o, *args
+                         in self.gen_code()])
+
+        consts = tuple(self.consts)
+        names = tuple(self.names)
+        varnames = *self.fast_vars, *self.cell_vars
+        filename = "<sibilant>"
+        name = "<lambda>"
+
+        # TODO: create a line number table
+        firstlineno = 1
+        lnotab = b""
+
+        freevars = tuple(self.free_vars)
+        cellvars = tuple(self.cell_vars)
+
+        ret = CodeType(argcount, 0, nlocals, stacksize, flags, code,
+                       consts, names, varnames, filename, name,
+                       firstlineno, lnotab, freevars, cellvars)
+
+        # print("completed a CodeSpace", ret)
+        # dis.show_code(ret)
+        # print("Disassembly:")
+        # dis.dis(ret)
+        # print()
+
+        return ret
 
 
     def gen_code(self):
+        """
+        Given the pseudo operations added to this CodeSpace, the named
+        variables declared and requested, yield the CPython opcodes
+        and arguments to represent this code.
+        """
+
         # print("gen_code()")
         # for op, *args in self.pseudops:
         #     print(op, args)
 
         for op, *args in self.pseudops:
             if op is Pseudop.APPLY:
-                yield Opcode.CALL_FUNCTION, args[0] - 1, 0
+                yield Opcode.CALL_FUNCTION, args[0], 0
 
             elif op is Pseudop.CONST:
                 i = self.consts.index(args[0])
@@ -255,215 +547,57 @@ class CodeSpace(object):
                 yield Opcode.POP_TOP,
 
             elif op is Pseudop.LAMBDA:
-                c = args[0]
-                ci = self.consts.index(c)
-                ni = self.consts.index(c.co_name)
-                if c.co_freevars:
-                    # closure
-                    for f in c.co_freevars:
-                        if f in self.cell_vars:
-                            fi = self.cell_vars.index(f)
-                        elif f in self.free_vars:
-                            fi = self.free_vars.index(f) + len(self.cell_vars)
-                        else:
-                            assert(False)
-                        yield Opcode.LOAD_CLOSURE, fi, 0
-                    yield Opcode.BUILD_TUPLE, len(c.co_freevars), 0
-                    yield Opcode.LOAD_CONST, ci, 0
-                    yield Opcode.LOAD_CONST, ni, 0
-
-                    if _PYVER == (3, 6):
-                        yield Opcode.MAKE_FUNCTION, 0x08, 0
-                    elif (3, 3) <= _PYVER <= (3, 5):
-                        yield Opcode.MAKE_CLOSURE, 0x00, 0
-
-                else:
-                    # function
-                    yield Opcode.LOAD_CONST, ci, 0
-                    yield Opcode.LOAD_CONST, ni, 0
-                    yield Opcode.MAKE_FUNCTION, 0x00, 0
+                yield from self._gen_lambda(*args)
 
             elif op is Pseudop.RETURN:
                 yield Opcode.RETURN_VALUE,
 
-
-    def pseudop(self, *op_args):
-        self.pseudops.append(op_args)
-
-
-    def pseudop_const(self, val):
-        self.declare_const(val)
-        self.pseudop(Pseudop.CONST, val)
+            else:
+                assert(False)
 
 
-    def pseudop_var(self, name):
-        self.request_var(name)
-        self.pseudop(Pseudop.GET_VAR, name)
+    def _gen_lambda(self, code):
+        ci = self.consts.index(code)
+        ni = self.consts.index(code.co_name)
 
+        if code.co_freevars:
+            # code is a closure, so we'll need to find the matching
+            # free/cell vars and provide them.
 
-    def special_lookup(self, namesym):
-        if namesym is _quote_sym:
-            return self.pseudop_quote
-
-        elif namesym is _quasiquote_sym:
-            return self.pseudop_quasiquote
-
-        elif namesym is _lambda_sym:
-            return self.pseudop_lambda
-
-        else:
-            name = str(namesym)
-            macro = None
-
-            if "__macros__" in self.env:
-                macro = self.env["__macros__"].get(name)
-
-            if not macro and "__builtins__" in self.env:
-                builtins = self.env["__builtins__"]
-                if "__macros__" in builtins:
-                    macro = builtins["__macros__"].get(name)
-
-            if macro:
-                return lambda cl: macro(*cl.unpack())
-
-        return None
-
-
-    def pseudop_quote(self, body):
-        if body is nil:
-            self.pseudop_var("nil")
-
-        elif isinstance(body, symbol):
-            self.pseudop_var("symbol")
-            self.pseudop_const(str(body))
-            self.pseudop(Pseudop.APPLY, 2)
-
-        elif isinstance(body, constype):
-            self.pseudop_var("cons")
-            for c in body.unpack():
-                self.pseudop_quote(c)
-            self.pseudop(Pseudop.APPLY, body.count() + 1)
-
-        else:
-            self.pseudop_const(body)
-
-
-    def pseudop_quasiquote(self, body):
-        return None
-
-
-    def pseudop_expr(self, c):
-        if isinstance(c, constype):
-            s = car(c)
-            if isinstance(s, symbol):
-                special = self.special_lookup(s)
-                if special:
-                    transform = special(cdr(c))
-                    if transform is not None:
-                        self.pseudop_expr(transform)
+            for f in code.co_freevars:
+                if f in self.cell_vars:
+                    fi = self.cell_vars.index(f)
+                elif f in self.free_vars:
+                    fi = len(self.cell_vars)
+                    fi += self.free_vars.index(f)
                 else:
-                    self.pseudop_apply(c)
-            else:
-                self.pseudop_apply(c)
+                    assert(False)
+                yield Opcode.LOAD_CLOSURE, fi, 0
 
-        elif isinstance(c, symbol):
-            self.pseudop_var(str(c))
+            yield Opcode.BUILD_TUPLE, len(code.co_freevars), 0
+            yield Opcode.LOAD_CONST, ci, 0
+            yield Opcode.LOAD_CONST, ni, 0
+
+            if (3, 6) <= _PYVER:
+                yield Opcode.MAKE_FUNCTION, 0x08, 0
+            elif (3, 3) <= _PYVER < (3, 6):
+                yield Opcode.MAKE_CLOSURE, 0x00, 0
+            else:
+                #print("Unsupported:", _PYVER)
+                assert(False)
 
         else:
-            self.pseudop_const(c)
-
-
-    def pseudop_apply(self, c):
-        for pos in c.unpack():
-            self.pseudop_expr(pos)
-        self.pseudop(Pseudop.APPLY, c.count())
-
-
-    def pseudop_progn(self, cl):
-        if not cl:
-            # because all things are expressions, an empty progn still
-            # needs to have a return value. In this case, the return value
-            # will by the python None
-            return self.pseudop_const(None)
-
-        # interleave pops with expr, except for the last one
-        first = True
-        for c in cl.unpack():
-            if first:
-                first = False
-            else:
-                self.pseudop(Pseudop.POP)
-            self.pseudop_expr(c)
-
-
-    def pseudop_lambda(self, cl):
-
-        subc = self.child()
-        args, body = cl
-        for arg in args.unpack():
-            subc.declare_arg(arg)
-        subc.pseudop_progn(body)
-        subc.pseudop(Pseudop.RETURN)
-
-        code = subc.complete()
-        self.declare_const(code)
-        self.declare_const(code.co_name)
-        self.pseudop(Pseudop.LAMBDA, code)
-
-        # no additional transform needed
-        return None
-
-
-    def pseudop_return(self):
-        self.pseudop(Pseudop.RETURN)
-
-
-    def pseudop_return_none(self):
-        self.pseudop_const(None)
-        self.pseudop(Pseudop.RETURN)
-
-
-    def complete(self):
-        argcount = len(self.args)
-
-        # this is the number of fast variables, plus the variables
-        # converted to cells for child scope usage
-        nlocals = len(self.fast_vars) + len(self.cell_vars)
-
-        stacksize = self.max_stack()
-
-        flags = 0x12  # NEWLOCALS, NESTED
-
-        code = b''.join([(bytes([o.value, *args])) for o, *args
-                         in self.gen_code()])
-
-        consts = tuple(self.consts)
-        names = tuple(self.names)
-        varnames = *self.fast_vars, *self.cell_vars
-        filename = "<sibilant>"
-        name = "<lambda>"
-
-        # TODO: create a line number table
-        firstlineno = 1
-        lnotab = b""
-
-        freevars = tuple(self.free_vars)
-        cellvars = tuple(self.cell_vars)
-
-        ret = CodeType(argcount, 0, nlocals, stacksize, flags, code,
-                       consts, names, varnames, filename, name,
-                       firstlineno, lnotab, freevars, cellvars)
-
-        print("completed a CodeSpace", ret)
-        dis.show_code(ret)
-        print("Disassembly:")
-        dis.dis(ret)
-        print()
-
-        return ret
+            # not a closure, so just a pain ol' function
+            yield Opcode.LOAD_CONST, ci, 0
+            yield Opcode.LOAD_CONST, ni, 0
+            yield Opcode.MAKE_FUNCTION, 0x00, 0
 
 
 def max_stack(pseudops):
+    """
+    Calculates the maximum stack size from the pseudo operations
+    """
+
     maxc = 0
     stac = 0
 
@@ -479,7 +613,7 @@ def max_stack(pseudops):
         assert(stac >= 0)
 
     for op, *args in pseudops:
-        print(op, args, maxc, stac)
+        #print(op, args, maxc, stac)
 
         if op is Pseudop.APPLY:
             pop()
@@ -498,12 +632,12 @@ def max_stack(pseudops):
             pop()
 
         elif op is Pseudop.LAMBDA:
-            push()
             a = len(args[0].co_freevars)
             if a:
                 push(a)
                 pop(a)
-            pop()
+            push(2)
+            pop(2)
             push()
 
         elif op is Pseudop.RETURN:
@@ -514,6 +648,7 @@ def max_stack(pseudops):
 
         assert(stac <= 1)
         return maxc
+
 
 #
 # The end.
