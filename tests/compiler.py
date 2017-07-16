@@ -241,5 +241,65 @@ class TestCompiler(TestCase):
         self.assertEqual(getter(), 5)
 
 
+    def test_define(self):
+        src = """
+        (define tacos 100)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 100)
+        self.assertEqual(env["tacos"], 100)
+
+        stmt, env = compile_expr(src, tacos=5)
+        self.assertEqual(stmt(), 100)
+        self.assertEqual(env["tacos"], 100)
+
+
+    def test_defun(self):
+        src = """
+        (defun add_8 (x) (+ x 8))
+        """
+        stmt, env = compile_expr(src)
+        add_8 = stmt()
+        self.assertTrue(callable(add_8))
+        self.assertIs(add_8, env["add_8"])
+        self.assertEqual(add_8.__name__, "add_8")
+        self.assertEqual(add_8(1), 9)
+        self.assertEqual(add_8(2), 10)
+
+        stmt, env = compile_expr(src, add_8=None)
+        add_8 = stmt()
+        self.assertTrue(callable(add_8))
+        self.assertIs(add_8, env["add_8"])
+        self.assertEqual(add_8.__name__, "add_8")
+        self.assertEqual(add_8(1), 9)
+        self.assertEqual(add_8(2), 10)
+
+
+    def test_defmacro(self):
+        src = """
+        (defmacro swap_test (a b c)
+          (cons c b a '()))
+        """
+        stmt, env = compile_expr(src)
+        swap_test = stmt()
+        self.assertTrue(isinstance(swap_test, Macro))
+        self.assertIs(swap_test, env["swap_test"])
+        self.assertEqual(swap_test.__name__, "swap_test")
+
+        self.assertRaises(TypeError, swap_test, 1, 2, 3)
+
+        self.assertEqual(swap_test.__expand__(1, 2, 3),
+                         cons(3, 2, 1, nil))
+
+        src = """
+        (swap_test 'world 'hello cons)
+        """
+        # compiles to equivalent of (cons 'hello 'world)
+        stmt, env = compile_expr(src, swap_test=swap_test)
+        res = stmt()
+        self.assertEqual(res, cons(symbol("hello"), symbol("world")))
+
+
+
 #
 # The end.

@@ -25,7 +25,7 @@ from .ast import compose_from_str, compose_from_stream
 
 
 __all__ = (
-    "Opcode", "Pseudop",
+    "Opcode", "Pseudop", "Macro",
     "CodeSpace", "compile_from_str", "compile_from_stream",
     "compile_from_ast",
 )
@@ -126,9 +126,10 @@ class CodeSpace(object):
     scope, and nested sub-scopes.
     """
 
-    def __init__(self, env, parent=None):
+    def __init__(self, env, parent=None, name="<lambda>"):
         self.env = env
         self.parent = parent
+        self.name = name
 
         # vars which are only ours
         self.fast_vars = []
@@ -153,11 +154,11 @@ class CodeSpace(object):
         self.pseudops = []
 
 
-    def child(self):
+    def child(self, name=None):
         """
         Create a chile CodeSpace
         """
-        return CodeSpace(self.env, parent=self)
+        return CodeSpace(self.env, parent=self, name=name)
 
 
     def declare_const(self, value):
@@ -347,7 +348,7 @@ class CodeSpace(object):
         Special form for lambda
         """
 
-        subc = self.child()
+        subc = self.child(name="<lambda>")
         args, body = cl
         for arg in args.unpack():
             subc.declare_arg(arg)
@@ -363,7 +364,7 @@ class CodeSpace(object):
 
     def special_let(self, cl):
 
-        subc = self.child()
+        subc = self.child(name="<let>")
         bindings, body = cl
 
         vals = []
@@ -413,6 +414,51 @@ class CodeSpace(object):
             self.pseudop_define(str(binding))
         else:
             assert(False)
+
+
+    def special_defun(self, cl):
+        namesym, cl = cl
+        name = str(namesym)
+
+        subc = self.child(name=name)
+        args, body = cl
+        for arg in args.unpack():
+            subc.declare_arg(arg)
+        subc.special_progn(body)
+        subc.pseudop_return()
+
+        code = subc.complete()
+        self.pseudop_lambda(code)
+
+        self.pseudop(Pseudop.DUP)
+        self.pseudop_define(name)
+
+        # no additional transform needed
+        return None
+
+
+    def special_defmacro(self, cl):
+        namesym, cl = cl
+        name = str(namesym)
+
+        subc = self.child(name=name)
+        args, body = cl
+        for arg in args.unpack():
+            subc.declare_arg(arg)
+        subc.special_progn(body)
+        subc.pseudop_return()
+
+        code = subc.complete()
+
+        self.pseudop_get_var("macro")
+        self.pseudop_lambda(code)
+        self.pseudop(Pseudop.APPLY, 1)
+
+        self.pseudop(Pseudop.DUP)
+        self.pseudop_define(name)
+
+        # no additional transform needed
+        return None
 
 
     def pseudop(self, *op_args):
@@ -544,7 +590,7 @@ class CodeSpace(object):
         names = tuple(self.names)
         varnames = *self.fast_vars, *self.cell_vars
         filename = "<sibilant>"
-        name = "<lambda>"
+        name = "<anon>" if self.name is None else self.name
 
         # TODO: create a line number table
         firstlineno = 1
@@ -749,9 +795,13 @@ def max_stack(pseudops):
 class Macro(object):
     def __init__(self, fun):
         self.__expand__ = fun
+        self.__name__ = fun.__name__
 
     def __special__(self, cl):
         return self.__expand__(*cl.unpack())
+
+    def __call__(self, *args, **kwds):
+        raise TypeError("attempt to call macro as function", self.__name__)
 
 
 def find_macro(name, env):

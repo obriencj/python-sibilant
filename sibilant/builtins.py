@@ -24,6 +24,7 @@ license: LGPL v.3
 
 import operator
 import sibilant
+import sibilant.compiler
 
 from functools import reduce
 
@@ -97,17 +98,20 @@ _val(sibilant.niltype, "niltype")
 _val(sibilant.reftype, "reftype")
 _val(sibilant.attrtype, "attrtype")
 _val(sibilant.undefined, "undefined")
+_val(sibilant.compiler.Macro, "macro")
 
 _op((lambda o: o is nil), "nil?")
-_op((lambda o: instanceof(o, symbol)), "symbol?")
-_op((lambda o: instanceof(o, constype)), "list?")
+_op((lambda o: isinstance(o, symbol)), "symbol?")
+_op((lambda o: isinstance(o, constype)), "list?")
 _op((lambda o: callable(o)), "function?")
-_op((lambda o: callable(getattr(o, "__special__", False))), "special?")
+_op((lambda o: isinstance(o, macro)), "macro?")
 
-_op(print, "print")
-_op(format, "format")
-_op((lambda o, a, d=None: getattr(o, str(a), d)), "getattr")
-_op((lambda o, a: setattr(o, str(a))), "setattr")
+_op(print)
+_op(format)
+_op(isinstance)
+_op(callable)
+_op(getattr)
+_op(setattr)
 
 
 __all__ = tuple(__all__)
