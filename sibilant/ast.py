@@ -147,6 +147,17 @@ class Atom(Node):
 
 class Symbol(Atom):
 
+    def __new__(klass, position, token):
+        if token in ("#t", "True"):
+            klass = True_
+        elif token in ("#f", "False"):
+            klass = False_
+        elif token == "None":
+            klass = None_
+
+        return super().__new__(klass)
+
+
     def simplify(self, positions):
         return symbol(self.token)
 
@@ -199,7 +210,29 @@ class Complex(Number):
             return complex(self.token)
 
 
-class Nil(Literal):
+class LiteralSymbol(Literal, Symbol):
+    pass
+
+
+class True_(LiteralSymbol):
+
+    def simplify(self, positions):
+        return True
+
+
+class False_(LiteralSymbol):
+
+    def simplify(self, positions):
+        return False
+
+
+class None_(LiteralSymbol):
+
+    def simplify(self, positions):
+        return None
+
+
+class Nil(LiteralSymbol):
 
     def simplify(self, positions):
         return nil

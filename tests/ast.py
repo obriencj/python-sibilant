@@ -229,6 +229,28 @@ class TestSimplify(TestCase):
         self.assertEqual(col, "hello world")
 
 
+    def test_literal(self):
+        src = "None"
+        col = simplify(src)
+        self.assertEqual(col, None)
+
+        src = "#t"
+        col = simplify(src)
+        self.assertEqual(col, True)
+
+        src = "True"
+        col = simplify(src)
+        self.assertEqual(col, True)
+
+        src = "#f"
+        col = simplify(src)
+        self.assertEqual(col, False)
+
+        src = "False"
+        col = simplify(src)
+        self.assertEqual(col, False)
+
+
     def test_dot(self):
 
         src = "(1.4)"

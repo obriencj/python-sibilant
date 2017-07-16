@@ -46,14 +46,14 @@ def set_result(value):
 defaults = {"set-result": set_result}
 
 
-mod_source = """
+mod_source_1 = """
 (define tacos 5)
-(define beer 1)
+(define beer 3)
 
 (define make_adder
   (lambda (by) (lambda (y) (+ y by))))
 
-(let ((add-8 (make_adder 8)))
+(let ((add-8 (make_adder (+ beer tacos))))
   (set_result (add-8 100)))
 """
 
@@ -61,14 +61,18 @@ mod_source = """
 class ModuleTest(TestCase):
 
     def test_1(self):
+        # we'll pass setter in to the pre-defined globals
         getter, setter = getter_setter(None)
 
         defaults = {"set_result": setter}
-        test_module = module("test_module", mod_source, defaults=defaults)
+        test_module = module("test_module", mod_source_1, defaults=defaults)
 
+        # the last action of the module is to call set_result, and
+        # getter can show us what was passed there.
         self.assertEqual(getter(), 108)
+
         self.assertEqual(test_module.tacos, 5)
-        self.assertEqual(test_module.beer, 1)
+        self.assertEqual(test_module.beer, 3)
 
         add_9 = test_module.make_adder(9)
         self.assertEqual(add_9(0), 9)

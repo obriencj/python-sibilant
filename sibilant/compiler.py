@@ -698,9 +698,14 @@ def max_stack(pseudops):
     def pop(by=1):
         nonlocal stac
         stac -= by
+        # if stac < 0:
+        #     print("SHIT BROKE")
         assert(stac >= 0)
 
+    # print("max_stack()")
     for op, *args in pseudops:
+        # print(op, args, stac, maxc)
+
         if op is Pseudop.APPLY:
             pop(args[0])
 
