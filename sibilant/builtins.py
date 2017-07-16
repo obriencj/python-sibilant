@@ -42,7 +42,8 @@ def _reduce_op(opf, name=None):
 
     name = name if name else opf.__name__
 
-    fun.__name__ = name
+    fun.__name__ = opf.__name__
+    fun.__qualname__ = opf.__name__
     fun.__doc__ = opf.__doc__
     fun.__symbol__ = sibilant.symbol(name)
 

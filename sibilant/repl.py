@@ -21,7 +21,20 @@ license: LGPL v.3
 """
 
 
-def repl(stdin, stdout, stderr, glbls=None):
+import sys
+import sibilant.builtins
+
+from sibilant.ast import compose_all_from_str
+from sibilant.compiler import compile_from_ast
+
+
+def basic_env(**base):
+    env = {"__builtins__": sibilant.builtins}
+    env.update(base)
+    return env
+
+
+def repl(stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr, **glbls):
     """
     enter into a read-eval-print-loop, using stdin, stdout, and stderr
     for user I/O. optionally include a sibilant module to act as a
@@ -30,26 +43,35 @@ def repl(stdin, stdout, stderr, glbls=None):
     returns the resulting global name space when the repl completes.
     """
 
-    glbls = glbls or module("__repl__")
+    env = basic_env(stdin=stdin, stdout=stdout, stderr=stderr, **glbls)
 
-    while True:
+    # print(file=stdout)
+    print("sibilant > ", end="", file=stdout)
+    stdout.flush()
+
+    for line in stdin:
         try:
-            ast = read_ast(stdin, prompt="(repl) >")
-            expr = compile_ast(ast, glbls)
-            result = evaluate_expr(expr, glbls)
-            glbls['_'] = result
-            print_result(stdout, result)
+            for astree in compose_all_from_str(line):
+                code = compile_from_ast(astree, env)
+                result = eval(code, env)
 
-        except SibilantError as se:
-            print_error(stderr, se)
+                env['_'] = result
+                print(result, file=stdout)
 
-        except KeyboardInterrupt:
+        except KeyboardInterrupt as ki:
+            print(se, file=stderr)
+            stderr.flush()
             break
 
-        except StopRepl:
-            break
+        except Exception as se:
+            print(se, file=stderr)
+            stderr.flush()
 
-    return glbls
+        print("sibilant > ", end="", file=stdout)
+        stdout.flush()
+
+    print(file=stdout)
+    return env
 
 
 #
