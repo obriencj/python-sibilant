@@ -583,8 +583,23 @@ class CodeSpace(object):
 
         flags = 0x12  # NEWLOCALS, NESTED
 
-        code = b''.join([(bytes([o.value, *args])) for o, *args
-                         in self.gen_code()])
+
+        if (3, 6) <= version_info:
+            # filter so that all opcodes have exactly one argument
+            gen_code = (((opa[0], 0) if len(opa) < 2 else opa[:2])
+                        for opa in self.gen_code())
+            code = b''.join([(bytes([o.value, a])) for o, a
+                             in gen_code])
+
+        elif (3, 3) <= version_info < (3, 6):
+            # emitted code has the correct number of arguments
+            code = b''.join([(bytes([o.value, *args])) for o, *args
+                             in self.gen_code()])
+
+        else:
+            #print("Unsupported:", _PYVER)
+            assert(False)
+
 
         consts = tuple(self.consts)
         names = tuple(self.names)
@@ -603,11 +618,11 @@ class CodeSpace(object):
                        consts, names, varnames, filename, name,
                        firstlineno, lnotab, freevars, cellvars)
 
-        # print("completed a CodeSpace", ret)
-        # dis.show_code(ret)
-        # print("Disassembly:")
-        # dis.dis(ret)
-        # print()
+        #print("completed a CodeSpace", ret)
+        #dis.show_code(ret)
+        #print("Disassembly:")
+        #dis.dis(ret)
+        #print()
 
         return ret
 
@@ -713,9 +728,11 @@ class CodeSpace(object):
             yield Opcode.LOAD_CONST, ni, 0
 
             if (3, 6) <= version_info:
+                #print("Using MAKE_FUNCTION for 3.6")
                 yield Opcode.MAKE_FUNCTION, 0x08, 0
             elif (3, 3) <= version_info < (3, 6):
-                yield Opcode.MAKE_CLOSURE, 0x00, 0
+                #print("Using MAKE_CLOSURE for 3.3+")
+                yield Opcode.MAKE_CLOSURE, 0, 0
             else:
                 #print("Unsupported:", _PYVER)
                 assert(False)
@@ -724,7 +741,7 @@ class CodeSpace(object):
             # not a closure, so just a pain ol' function
             yield Opcode.LOAD_CONST, ci, 0
             yield Opcode.LOAD_CONST, ni, 0
-            yield Opcode.MAKE_FUNCTION, 0x00, 0
+            yield Opcode.MAKE_FUNCTION, 0, 0
 
 
 def max_stack(pseudops):
