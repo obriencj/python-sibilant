@@ -16,29 +16,29 @@
 import types
 import sibilant.builtins
 
-from sibilant.ast import compose_all_from_str, compose_all_from_stream
+from io import IOBase
+
+from sibilant.ast import Node, compose_all_from_str, compose_all_from_stream
 from sibilant.compiler import compile_from_ast
 
 
 __all__ = (
-    "module",
+    "create_module", "prep_module", "exec_module"
 )
 
 
-def module(name, thing, builtins=None, defaults=None):
-
-    if isinstance(thing, str):
-        thing = compose_all_from_str(thing)
-    elif isinstance(thing, IOBase):
-        thing = compose_all_from_stream(thing)
-    elif isinstance(thing, Node):
-        thing = [thing]
-    else:
-        raise TypeError("Expected thing type of str, IOBase,"
-                        " sibilant.ast.Node")
+def create_module(name, thing, builtins=None, defaults=None):
 
     mod = types.ModuleType(name)
-    glbls = mod.__dict__
+
+    prep_module(module, builtins=builtins, defaults=defaults)
+    exec_module(mod, thing)
+
+    return mod
+
+
+def prep_module(module, builtins=None, defaults=None):
+    glbls = module.__dict__
 
     if defaults:
         glbls.update(defaults)
@@ -47,11 +47,23 @@ def module(name, thing, builtins=None, defaults=None):
         builtins = sibilant.builtins
     glbls["__builtins__"] = builtins
 
+
+def exec_module(module, thing):
+
+    if isinstance(thing, str):
+        thing = tuple(compose_all_from_str(thing))
+    elif isinstance(thing, IOBase):
+        thing = tuple(compose_all_from_stream(thing))
+    elif isinstance(thing, Node):
+        thing = (thing,)
+    else:
+        raise TypeError("Expected thing type of str, IOBase,"
+                        " sibilant.ast.Node, not %r" % type(thing))
+
+    glbls = module.__dict__
     for astree in thing:
         code = compile_from_ast(astree, glbls)
         eval(code, glbls)
-
-    return mod
 
 
 #
