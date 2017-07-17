@@ -115,7 +115,7 @@ def __install():
         if not done:
             _path_hooks.append(_get_lspy_path_hook())
             sys.meta_path.append(SibilantPathFinder)
-            done = False
+            done = True
     return install
 
 __install = __install()
