@@ -24,7 +24,16 @@ Sibilant, Scheme for Python
 """
 
 
+from sys import exit, version_info
 from setuptools import setup
+
+
+if (3, 6) <= version_info <= (3, 7):
+    pass
+elif (3, 3) <= version_info <= (3, 6):
+    pass
+else:
+    exit("unsupported version: %r" % version_info)
 
 
 setup(name = "sibilant",
@@ -50,7 +59,7 @@ setup(name = "sibilant",
 
       provides = ["sibilant", ],
       requires = [],
-      platforms = ["python3 >= 3.6", ],
+      platforms = ["python3 >= 3.3", ],
 
       zip_safe = True,
 
