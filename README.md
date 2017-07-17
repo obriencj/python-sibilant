@@ -50,7 +50,7 @@ It's still a work-in-progress, but it's able to compile nested lambdas
 directly into python bytecode
 
 
-## Model
+## Parse and Compile Model
 
 It's currently convoluted. Some of this can be cut away in the future,
 but the result of all the half-hearted poking over all these years is
@@ -77,6 +77,18 @@ keep track of only what's important in each distinct operation. It
 also allows me to defer proper bytecode emission (and hence worrying
 about which minor version of CPython I'm running on). Not getting rid
 of that for now.
+
+
+## Importer
+
+Python 3 provides an extensible import system via `importlib`. When
+the sibilant.importer module is loaded, this system will be extended
+to support treating sibilant source files (files found in `sys.path`
+and ending in .lspy or .sibilant) as packages or modules.
+
+In other words, to enable loading of sibilant code at runtime, you
+just need to have `import sibilant.importer` at the beginning of your
+modules.
 
 
 ## Contact

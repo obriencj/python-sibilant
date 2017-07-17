@@ -48,7 +48,7 @@ def prep_module(module, builtins=None, defaults=None):
     glbls["__builtins__"] = builtins
 
 
-def exec_module(module, thing):
+def exec_module(module, thing, filename=None):
 
     if isinstance(thing, str):
         thing = tuple(compose_all_from_str(thing))
@@ -60,10 +60,19 @@ def exec_module(module, thing):
         raise TypeError("Expected thing type of str, IOBase,"
                         " sibilant.ast.Node, not %r" % type(thing))
 
+    consumed = []
     glbls = module.__dict__
+
     for astree in thing:
-        code = compile_from_ast(astree, glbls)
+        code = compile_from_ast(astree, glbls, filename=filename)
         eval(code, glbls)
+        consumed.append(code)
+
+    module.__code__ = merge_code(consumed)
+
+
+def py_compile_module(module, outfile):
+    _code_to_bytecode(module.__code__)
 
 
 #

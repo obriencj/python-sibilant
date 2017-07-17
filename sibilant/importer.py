@@ -22,9 +22,13 @@ license: LGPL v.3
 """
 
 
-import os, sys
+import sys
+
 from importlib.abc import FileLoader
 from importlib.machinery import FileFinder, PathFinder
+from os import getcwd
+from os.path import basename
+
 from sibilant.module import prep_module, exec_module
 
 
@@ -71,7 +75,7 @@ class SibilantPathFinder(PathFinder):
     def _path_importer_cache(cls, path):
         if path == '':
             try:
-                path = os.getcwd()
+                path = getcwd()
             except FileNotFoundError:
                 # Don't cache the failure as the cwd can easily change to
                 # a valid directory later on.
@@ -96,8 +100,12 @@ class SibilantSourceFileLoader(FileLoader):
 
 
     def exec_module(self, module):
+        name = module.__name__
+        source = self.get_source(name)
+        filename = basename(self.get_filename(name))
+
         prep_module(module)
-        exec_module(module, self.get_source(module.__name__))
+        exec_module(module, source, filename=filename)
 
 
 def _get_lspy_file_loader():
