@@ -31,7 +31,7 @@ def create_module(name, thing, builtins=None, defaults=None):
 
     mod = types.ModuleType(name)
 
-    prep_module(module, builtins=builtins, defaults=defaults)
+    prep_module(mod, builtins=builtins, defaults=defaults)
     exec_module(mod, thing)
 
     return mod
