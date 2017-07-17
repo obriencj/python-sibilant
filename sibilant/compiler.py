@@ -126,10 +126,11 @@ class CodeSpace(object):
     scope, and nested sub-scopes.
     """
 
-    def __init__(self, env, parent=None, name="<lambda>"):
+    def __init__(self, env, parent=None, name=None, filename=None):
         self.env = env
         self.parent = parent
         self.name = name
+        self.filename = filename
 
         # vars which are only ours
         self.fast_vars = []
@@ -158,7 +159,8 @@ class CodeSpace(object):
         """
         Create a chile CodeSpace
         """
-        return CodeSpace(self.env, parent=self, name=name)
+        return CodeSpace(self.env, parent=self, name=name,
+                         filename=self.filename)
 
 
     def declare_const(self, value):
@@ -604,7 +606,7 @@ class CodeSpace(object):
         consts = tuple(self.consts)
         names = tuple(self.names)
         varnames = *self.fast_vars, *self.cell_vars
-        filename = "<sibilant>"
+        filename = "<sibilant>" if self.filename is None else self.filename
         name = "<anon>" if self.name is None else self.name
 
         # TODO: create a line number table
@@ -838,19 +840,19 @@ def find_macro(name, env):
         return None
 
 
-def compile_from_ast(astree, env):
+def compile_from_ast(astree, env, filename=None):
     positions = {}
-    codespace = CodeSpace(env)
+    codespace = CodeSpace(env, filename=filename)
     codespace.add_expression_with_return(astree.simplify(positions))
     return codespace.complete()
 
 
-def compile_from_stream(stream, env):
+def compile_from_stream(stream, env, filename=None):
     astree = compose_from_stream(stream)
     return compile_from_ast(astree, env)
 
 
-def compile_from_str(src_str, env):
+def compile_from_str(src_str, env, filename=None):
     astree = compose_from_str(src_str)
     return compile_from_ast(astree, env)
 
