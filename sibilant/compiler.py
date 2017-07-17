@@ -523,9 +523,17 @@ class SpecialsCodeSpace(CodeSpace):
 
 
     def add_expression(self, expr):
+        """
+        Insert an expression into the code space. expr should be a cons
+        cell representing the expression. If the expression appears to
+        be a special form (either a macro defined in the CodeSpace's
+        env, or a pre-defined built-in special), it will be expanded
+        and compiled to pseudo ops.
+        """
+
         while True:
             if expr is nil:
-                return
+                return self.pseudop_const(nil)
 
             elif isinstance(expr, constype):
                 head, tail = expr
@@ -537,8 +545,16 @@ class SpecialsCodeSpace(CodeSpace):
                     if special:
                         expr = special(tail)
                         if expr is None:
+                            # the special form or macro has done all
+                            # the work already (injecting pseudo ops,
+                            # etc), and no further transformations on
+                            # the expression are needed.
                             return
+
                         else:
+                            # we've expanded a macro or special form,
+                            # so we need to start over on the
+                            # resulting transformed expression.
                             continue
 
                 # either not a symbol, or it was and the symbol wasn't
@@ -550,16 +566,27 @@ class SpecialsCodeSpace(CodeSpace):
 
             else:
                 # TODO there are some literal types that can't be used
-                # as constants, will need to fill those in here
+                # as constants, will need to fill those in here. For
+                # now we're just presuming it's going to be a
+                # constant, the end.
                 return self.pseudop_const(expr)
 
 
     def add_expression_with_pop(self, expr):
+        """
+        Insert an expression, then an op to pop its result off of the
+        stack
+        """
+
         self.add_expression(expr)
         self.pseudop_pop()
 
 
     def add_expression_with_return(self, expr):
+        """
+        Insert an expression, then an op to return its result from the
+        current call
+        """
         self.add_expression(expr)
         self.pseudop_return()
 
