@@ -56,7 +56,10 @@ def repl(stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr, **glbls):
                 result = eval(code, env)
 
                 env['_'] = result
-                print(result, file=stdout)
+                if result is None:
+                    print(file=stdout)
+                else:
+                    print(result, file=stdout)
 
         except KeyboardInterrupt as ki:
             print(se, file=stderr)

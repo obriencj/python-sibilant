@@ -246,11 +246,11 @@ class TestCompiler(TestCase):
         (define tacos 100)
         """
         stmt, env = compile_expr(src)
-        self.assertEqual(stmt(), 100)
+        self.assertEqual(stmt(), None)
         self.assertEqual(env["tacos"], 100)
 
         stmt, env = compile_expr(src, tacos=5)
-        self.assertEqual(stmt(), 100)
+        self.assertEqual(stmt(), None)
         self.assertEqual(env["tacos"], 100)
 
 
@@ -259,17 +259,19 @@ class TestCompiler(TestCase):
         (defun add_8 (x) (+ x 8))
         """
         stmt, env = compile_expr(src)
-        add_8 = stmt()
+        self.assertEqual(stmt(), None)
+
+        add_8 = env["add_8"]
         self.assertTrue(callable(add_8))
-        self.assertIs(add_8, env["add_8"])
         self.assertEqual(add_8.__name__, "add_8")
         self.assertEqual(add_8(1), 9)
         self.assertEqual(add_8(2), 10)
 
         stmt, env = compile_expr(src, add_8=None)
-        add_8 = stmt()
+        self.assertEqual(stmt(), None)
+
+        add_8 = env["add_8"]
         self.assertTrue(callable(add_8))
-        self.assertIs(add_8, env["add_8"])
         self.assertEqual(add_8.__name__, "add_8")
         self.assertEqual(add_8(1), 9)
         self.assertEqual(add_8(2), 10)
@@ -281,9 +283,10 @@ class TestCompiler(TestCase):
           (cons c b a '()))
         """
         stmt, env = compile_expr(src)
-        swap_test = stmt()
+        self.assertEqual(stmt(), None)
+
+        swap_test = env["swap_test"]
         self.assertTrue(isinstance(swap_test, Macro))
-        self.assertIs(swap_test, env["swap_test"])
         self.assertEqual(swap_test.__name__, "swap_test")
 
         self.assertRaises(TypeError, swap_test, 1, 2, 3)
@@ -296,9 +299,7 @@ class TestCompiler(TestCase):
         """
         # compiles to equivalent of (cons 'hello 'world)
         stmt, env = compile_expr(src, swap_test=swap_test)
-        res = stmt()
-        self.assertEqual(res, cons(symbol("hello"), symbol("world")))
-
+        self.assertEqual(stmt(), cons(symbol("hello"), symbol("world")))
 
 
 #

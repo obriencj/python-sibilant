@@ -410,12 +410,16 @@ class CodeSpace(object):
         binding, body = cl
 
         self.special_progn(body)
-        self.pseudop(Pseudop.DUP)
 
         if isinstance(binding, symbol):
             self.pseudop_define(str(binding))
         else:
             assert(False)
+
+        # define expression evaluates to None
+        self.pseudop_const(None)
+
+        return None
 
 
     def special_defun(self, cl):
@@ -431,9 +435,10 @@ class CodeSpace(object):
 
         code = subc.complete()
         self.pseudop_lambda(code)
-
-        self.pseudop(Pseudop.DUP)
         self.pseudop_define(name)
+
+        # defun expression evaluates to None
+        self.pseudop_const(None)
 
         # no additional transform needed
         return None
@@ -456,8 +461,10 @@ class CodeSpace(object):
         self.pseudop_lambda(code)
         self.pseudop(Pseudop.APPLY, 1)
 
-        self.pseudop(Pseudop.DUP)
         self.pseudop_define(name)
+
+        # defmacro expression evaluates to None
+        self.pseudop_const(None)
 
         # no additional transform needed
         return None
