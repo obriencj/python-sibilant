@@ -68,11 +68,13 @@ def exec_module(module, thing, filename=None):
         eval(code, glbls)
         consumed.append(code)
 
-    module.__code__ = merge_code(consumed)
+    # TODO
+    # module.__code__ = merge_code(consumed)
 
 
-def py_compile_module(module, outfile):
-    _code_to_bytecode(module.__code__)
+# TODO
+# def py_compile_module(module, outfile):
+#     _code_to_bytecode(module.__code__)
 
 
 #
