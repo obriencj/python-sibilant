@@ -25,9 +25,9 @@ from .ast import compose_from_str, compose_from_stream
 
 
 __all__ = (
-    "Opcode", "Pseudop", "Macro",
-    "CodeSpace", "compile_from_str", "compile_from_stream",
-    "compile_from_ast",
+    "Opcode", "Pseudop", "CodeSpace",
+    "Macro", "SpecialsCodeSpace",
+    "compile_from_str", "compile_from_stream", "compile_from_ast",
 )
 
 
@@ -103,23 +103,6 @@ def _list_unique_append(l, v):
         return len(l)
 
 
-# specials defined internal to the compiler have these symbols
-
-_define_sym = symbol("define")
-_defmacro_sym = symbol("defmacro")
-_defun_sym = symbol("defun")
-_else_sym = symbol("else")
-_if_sym = symbol("if")
-_lambda_sym = symbol("lambda")
-_let_sym = symbol("let")
-_progn_sym = symbol("progn")
-_quasiquote_sym = symbol("quasiquote")
-_quote_sym = symbol("quote")
-_setf_sym = symbol("set!")
-_splice_sym = symbol("splice")
-_unquote_sym = symbol("unquote")
-
-
 class CodeSpace(object):
     """
     Represents a lexical scope, expressions occurring within that
@@ -159,8 +142,8 @@ class CodeSpace(object):
         """
         Create a chile CodeSpace
         """
-        return CodeSpace(self.env, parent=self, name=name,
-                         filename=self.filename)
+        return type(self)(self.env, parent=self, name=name,
+                          filename=self.filename)
 
 
     def declare_const(self, value):
@@ -238,243 +221,15 @@ class CodeSpace(object):
         self.names.append(name)
 
 
-    def find_special(self, namesym):
-        if namesym is _quote_sym:
-            return self.special_quote
-
-        elif namesym is _quasiquote_sym:
-            return self.special_quasiquote
-
-        elif namesym is _let_sym:
-            return self.special_let
-
-        elif namesym is _lambda_sym:
-            return self.special_lambda
-
-        elif namesym is _progn_sym:
-            return self.special_progn
-
-        elif namesym is _define_sym:
-            return self.special_define
-
-        elif namesym is _defun_sym:
-            return self.special_defun
-
-        elif namesym is _defmacro_sym:
-            return self.special_defmacro
-
-        elif namesym is _setf_sym:
-            return self.special_setf
-
-        else:
-            macro = find_macro(str(namesym), self.env)
-            if macro:
-                return macro.__special__
-
-        return None
-
-
-    def special_quote(self, body):
-        """
-        Special form for quote
-        """
-
-        if body is nil:
-            self.pseudop_get_var("nil")
-
-        elif isinstance(body, symbol):
-            self.pseudop_get_var("symbol")
-            self.pseudop_const(str(body))
-            self.pseudop(Pseudop.APPLY, 1)
-
-        elif isinstance(body, constype):
-            self.pseudop_get_var("cons")
-            cl = body.count()
-            for c in body.unpack():
-                self.special_quote(c)
-            if body.is_proper():
-                cl += 1
-                self.pseudop_get_var("nil")
-            self.pseudop(Pseudop.APPLY, cl)
-
-        else:
-            self.pseudop_const(body)
-
-        # no additional transform needed
-        return None
-
-
-    def special_quasiquote(self, body):
-        """
-        Special form for quasiquote
-        """
-        return None
-
-
-    def special_apply(self, c):
-        for pos in c.unpack():
-            self.add_expression(pos)
-
-        self.pseudop(Pseudop.APPLY, c.count() - 1)
-
-        # no additional transform needed
-        return None
-
-
-    def special_progn(self, cl):
-        """
-        Special form for progn
-        """
-
-        if not cl:
-            # because all things are expressions, an empty progn still
-            # needs to have a return value. In this case, the return value
-            # will by the python None
-            return self.pseudop_const(None)
-
-        # interleave pops with expr, except for the last one
-        first = True
-        for c in cl.unpack():
-            if first:
-                first = False
-            else:
-                self.pseudop(Pseudop.POP)
-            self.add_expression(c)
-
-        # no additional transform needed
-        return None
-
-
-    def special_lambda(self, cl):
-        """
-        Special form for lambda
-        """
-
-        subc = self.child(name="<lambda>")
-        args, body = cl
-        for arg in args.unpack():
-            subc.declare_arg(arg)
-        subc.special_progn(body)
-        subc.pseudop_return()
-
-        code = subc.complete()
-        self.pseudop_lambda(code)
-
-        # no additional transform needed
-        return None
-
-
-    def special_let(self, cl):
-
-        subc = self.child(name="<let>")
-        bindings, body = cl
-
-        vals = []
-        for arg in bindings.unpack():
-            name, val = arg.unpack()
-            subc.declare_arg(name)
-            vals.append(val)
-        subc.special_progn(body)
-        subc.pseudop_return()
-
-        code = subc.complete()
-        self.pseudop_lambda(code)
-
-        for val in vals:
-            self.add_expression(val)
-
-        self.pseudop(Pseudop.APPLY, len(vals))
-
-        # no additional transform needed
-        return None
-
-
-    def special_setf(self, cl):
-
-        binding, body = cl
-
-        self.special_progn(body)
-        self.pseudop(Pseudop.DUP)
-
-        if isinstance(binding, symbol):
-            self.pseudop_set_var(str(binding))
-
-        elif isinstance(binding, constype):
-            pass
-
-        else:
-            assert(False)
-
-
-    def special_define(self, cl):
-        binding, body = cl
-
-        self.special_progn(body)
-
-        if isinstance(binding, symbol):
-            self.pseudop_define(str(binding))
-        else:
-            assert(False)
-
-        # define expression evaluates to None
-        self.pseudop_const(None)
-
-        return None
-
-
-    def special_defun(self, cl):
-        namesym, cl = cl
-        name = str(namesym)
-
-        subc = self.child(name=name)
-        args, body = cl
-        for arg in args.unpack():
-            subc.declare_arg(arg)
-        subc.special_progn(body)
-        subc.pseudop_return()
-
-        code = subc.complete()
-        self.pseudop_lambda(code)
-        self.pseudop_define(name)
-
-        # defun expression evaluates to None
-        self.pseudop_const(None)
-
-        # no additional transform needed
-        return None
-
-
-    def special_defmacro(self, cl):
-        namesym, cl = cl
-        name = str(namesym)
-
-        subc = self.child(name=name)
-        args, body = cl
-        for arg in args.unpack():
-            subc.declare_arg(arg)
-        subc.special_progn(body)
-        subc.pseudop_return()
-
-        code = subc.complete()
-
-        self.pseudop_get_var("macro")
-        self.pseudop_lambda(code)
-        self.pseudop(Pseudop.APPLY, 1)
-
-        self.pseudop_define(name)
-
-        # defmacro expression evaluates to None
-        self.pseudop_const(None)
-
-        # no additional transform needed
-        return None
-
-
     def pseudop(self, *op_args):
         """
         Pushes a pseudo op and arguments into the code
         """
         self.pseudops.append(op_args)
+
+
+    def pseudop_apply(self, argc):
+        self.pseudop(Pseudop.APPLY, argc)
 
 
     def pseudop_const(self, val):
@@ -510,6 +265,14 @@ class CodeSpace(object):
         self.pseudop(Pseudop.LAMBDA, code)
 
 
+    def pseudop_pop(self):
+        self.pseudop(Pseudop.POP)
+
+
+    def pseudop_dup(self):
+        self.pseudop(Pseudop.DUP)
+
+
     def pseudop_return(self):
         """
         Pushes a pseudo op to return the top of stack
@@ -532,48 +295,6 @@ class CodeSpace(object):
         _list_unique_append(self.global_vars, name)
         _list_unique_append(self.names, name)
         self.pseudop(Pseudop.DEFINE, name)
-
-
-    def add_expression(self, expr):
-        while True:
-            if expr is nil:
-                return
-
-            elif isinstance(expr, constype):
-                head, tail = expr
-
-                if isinstance(head, symbol):
-                    # see if this is a special, either a builtin one
-                    # or a defined macro.
-                    special = self.find_special(head)
-                    if special:
-                        expr = special(tail)
-                        if expr is None:
-                            return
-                        else:
-                            continue
-
-                # either not a symbol, or it was and the symbol wasn't
-                # a special.
-                return self.special_apply(expr)
-
-            elif isinstance(expr, symbol):
-                return self.pseudop_get_var(str(expr))
-
-            else:
-                # TODO there are some literal types that can't be used
-                # as constants, will need to fill those in here
-                return self.pseudop_const(expr)
-
-
-    def add_expression_with_pop(self, expr):
-        self.add_expression(expr)
-        self.pseudop(Pseudop.POP)
-
-
-    def add_expression_with_return(self, expr):
-        self.add_expression(expr)
-        self.pseudop(Pseudop.RET_VAL)
 
 
     def complete(self):
@@ -608,7 +329,6 @@ class CodeSpace(object):
         else:
             #print("Unsupported:", _PYVER)
             assert(False)
-
 
         consts = tuple(self.consts)
         names = tuple(self.names)
@@ -753,6 +473,304 @@ class CodeSpace(object):
             yield Opcode.MAKE_FUNCTION, 0, 0
 
 
+def _special():
+    _specials = {}
+
+    def special(namesym):
+        def deco(fun):
+            _specials[namesym] = fun.__name__
+            return fun
+        return deco
+
+    def find_special(self, namesym):
+        try:
+            # try and find a decorated special method first.
+            return getattr(self, _specials[namesym], None)
+
+        except KeyError:
+            # okay, let's look through the environment by name
+            name = str(namesym)
+            env = self.env
+            try:
+                # is it in globals?
+                found = env[name]
+            except KeyError:
+                try:
+                    # nope, how about in builtins?
+                    env = env["__builtins__"].__dict__
+                    found = env[name]
+                except KeyError:
+                    found = None
+
+            if found and isinstance(found, Macro):
+                # we found a Macro instance, return the relevant
+                # method
+                return found.__special__
+            else:
+                # what we found doesn't qualify, throw it away
+                return None
+
+    return special, find_special
+
+
+class SpecialsCodeSpace(CodeSpace):
+    """
+    Adds special forms to the basic functionality of CodeSpace
+    """
+
+    # decorator and lookup function for built-in special forms
+    special, find_special = _special()
+
+
+    def add_expression(self, expr):
+        while True:
+            if expr is nil:
+                return
+
+            elif isinstance(expr, constype):
+                head, tail = expr
+
+                if isinstance(head, symbol):
+                    # see if this is a special, either a builtin one
+                    # or a defined macro.
+                    special = self.find_special(head)
+                    if special:
+                        expr = special(tail)
+                        if expr is None:
+                            return
+                        else:
+                            continue
+
+                # either not a symbol, or it was and the symbol wasn't
+                # a special.
+                return self.special_apply(expr)
+
+            elif isinstance(expr, symbol):
+                return self.pseudop_get_var(str(expr))
+
+            else:
+                # TODO there are some literal types that can't be used
+                # as constants, will need to fill those in here
+                return self.pseudop_const(expr)
+
+
+    def add_expression_with_pop(self, expr):
+        self.add_expression(expr)
+        self.pseudop_pop()
+
+
+    def add_expression_with_return(self, expr):
+        self.add_expression(expr)
+        self.pseudop_return()
+
+
+    @special(symbol("quote"))
+    def special_quote(self, body):
+        """
+        Special form for quote
+        """
+
+        if body is nil:
+            self.pseudop_get_var("nil")
+
+        elif isinstance(body, symbol):
+            self.pseudop_get_var("symbol")
+            self.pseudop_const(str(body))
+            self.pseudop_apply(1)
+
+        elif isinstance(body, constype):
+            self.pseudop_get_var("cons")
+            cl = body.count()
+            for c in body.unpack():
+                self.special_quote(c)
+            if body.is_proper():
+                cl += 1
+                self.pseudop_get_var("nil")
+            self.pseudop_apply(cl)
+
+        else:
+            self.pseudop_const(body)
+
+        # no additional transform needed
+        return None
+
+
+    @special(symbol("quasiquote"))
+    def special_quasiquote(self, body):
+        """
+        Special form for quasiquote
+        """
+        return None
+
+
+    @special(symbol("apply"))
+    def special_apply(self, c):
+        for pos in c.unpack():
+            self.add_expression(pos)
+
+        self.pseudop_apply(c.count() - 1)
+
+        # no additional transform needed
+        return None
+
+
+    @special(symbol("progn"))
+    def special_progn(self, cl):
+        """
+        Special form for progn
+        """
+
+        if not cl:
+            # because all things are expressions, an empty progn still
+            # needs to have a return value. In this case, the return value
+            # will by the python None
+            return self.pseudop_const(None)
+
+        # interleave pops with expr, except for the last one
+        first = True
+        for c in cl.unpack():
+            if first:
+                first = False
+            else:
+                self.pseudop_pop()
+            self.add_expression(c)
+
+        # no additional transform needed
+        return None
+
+
+    @special(symbol("lambda"))
+    def special_lambda(self, cl):
+        """
+        Special form for lambda
+        """
+
+        subc = self.child(name="<lambda>")
+        args, body = cl
+        for arg in args.unpack():
+            subc.declare_arg(arg)
+        subc.special_progn(body)
+        subc.pseudop_return()
+
+        code = subc.complete()
+        self.pseudop_lambda(code)
+
+        # no additional transform needed
+        return None
+
+
+    @special(symbol("let"))
+    def special_let(self, cl):
+
+        subc = self.child(name="<let>")
+        bindings, body = cl
+
+        vals = []
+        for arg in bindings.unpack():
+            name, val = arg.unpack()
+            subc.declare_arg(name)
+            vals.append(val)
+        subc.special_progn(body)
+        subc.pseudop_return()
+
+        code = subc.complete()
+        self.pseudop_lambda(code)
+
+        for val in vals:
+            self.add_expression(val)
+
+        self.pseudop_apply(len(vals))
+
+        # no additional transform needed
+        return None
+
+
+    @special(symbol("set!"))
+    def special_setf(self, cl):
+
+        binding, body = cl
+
+        self.special_progn(body)
+        self.pseudop_dup()
+
+        if isinstance(binding, symbol):
+            self.pseudop_set_var(str(binding))
+
+        elif isinstance(binding, constype):
+            # TODO: implement
+            assert(False)
+
+        else:
+            assert(False)
+
+
+    @special(symbol("define"))
+    def special_define(self, cl):
+        binding, body = cl
+
+        self.special_progn(body)
+
+        if isinstance(binding, symbol):
+            self.pseudop_define(str(binding))
+        else:
+            assert(False)
+
+        # define expression evaluates to None
+        self.pseudop_const(None)
+
+        return None
+
+
+    @special(symbol("defun"))
+    def special_defun(self, cl):
+        namesym, cl = cl
+        name = str(namesym)
+
+        subc = self.child(name=name)
+        args, body = cl
+        for arg in args.unpack():
+            subc.declare_arg(arg)
+        subc.special_progn(body)
+        subc.pseudop_return()
+
+        code = subc.complete()
+        self.pseudop_lambda(code)
+        self.pseudop_define(name)
+
+        # defun expression evaluates to None
+        self.pseudop_const(None)
+
+        # no additional transform needed
+        return None
+
+
+    @special(symbol("defmacro"))
+    def special_defmacro(self, cl):
+        namesym, cl = cl
+        name = str(namesym)
+
+        subc = self.child(name=name)
+        args, body = cl
+        for arg in args.unpack():
+            subc.declare_arg(arg)
+        subc.special_progn(body)
+        subc.pseudop_return()
+
+        code = subc.complete()
+
+        self.pseudop_get_var("macro")
+        self.pseudop_lambda(code)
+        self.pseudop_apply(1)
+
+        self.pseudop_define(name)
+
+        # defmacro expression evaluates to None
+        self.pseudop_const(None)
+
+        # no additional transform needed
+        return None
+
+
 def max_stack(pseudops):
     """
     Calculates the maximum stack size from the pseudo operations
@@ -770,13 +788,14 @@ def max_stack(pseudops):
     def pop(by=1):
         nonlocal stac
         stac -= by
-        # if stac < 0:
-        #     print("SHIT BROKE")
+        if stac < 0:
+            print("SHIT BROKE")
+            print(pseudops)
         assert(stac >= 0)
 
-    # print("max_stack()")
+    #print("max_stack()")
     for op, *args in pseudops:
-        # print(op, args, stac, maxc)
+        #print(op, args, stac, maxc)
 
         if op is Pseudop.APPLY:
             pop(args[0])
@@ -831,25 +850,11 @@ class Macro(object):
 
 
 def find_macro(name, env):
-    val = None
-
-    if name in env:
-        val = env[name]
-
-    elif "__builtins__" in env:
-        env = env["__builtins__"].__dict__
-        if name in env:
-            val = env[name]
-
-    if val and isinstance(val, Macro):
-        return val
-    else:
-        return None
-
+    pass
 
 def compile_from_ast(astree, env, filename=None):
     positions = {}
-    codespace = CodeSpace(env, filename=filename)
+    codespace = SpecialsCodeSpace(env, filename=filename)
     codespace.add_expression_with_return(astree.simplify(positions))
     return codespace.complete()
 
