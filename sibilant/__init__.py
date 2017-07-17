@@ -607,56 +607,5 @@ class symbol(object):
         return self._name
 
 
-def cli(options, args):
-    """
-    Run as from the command line, with the given options argument and
-    additional positional args
-    """
-
-    if not args:
-        repl(options)
-    else:
-        filename, *args = args
-        with open(filename, "r") as fd:
-            sys.argv = args
-            load(fd, "__main__")()
-
-
-def cli_option_parser():
-    """
-    Create an `ArgumentParser` instance with the options requested by
-    the `cli` function
-    """
-
-    parser = ArgumentParser()
-    return parser
-
-
-def main(args=sys.argv):
-    """
-    Entry point for the REPL
-    """
-
-    parser = cli_option_parser()
-    options = parser.parse_args(args[1:])
-
-    # todo: arg checking, emit problems using `parser.error`
-
-    try:
-        cli(options, args)
-
-    except KeyboardInterrupt:
-        print(file=sys.stderr)
-        return 130
-
-    else:
-        print()
-        return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())
-
-
 #
 # The end.

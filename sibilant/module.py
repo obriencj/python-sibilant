@@ -27,12 +27,12 @@ __all__ = (
 )
 
 
-def create_module(name, thing, builtins=None, defaults=None):
+def create_module(name, thing, builtins=None, defaults=None, filename=None):
 
     mod = types.ModuleType(name)
 
     prep_module(mod, builtins=builtins, defaults=defaults)
-    exec_module(mod, thing)
+    exec_module(mod, thing, filename=filename)
 
     return mod
 

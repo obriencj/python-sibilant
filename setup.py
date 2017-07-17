@@ -45,7 +45,7 @@ setup(name = "sibilant",
 
       entry_points = {
           "console_scripts": [
-              'sibilant = sibilant:main',
+              'sibilant=sibilant.cli:main',
           ],
       },
 
