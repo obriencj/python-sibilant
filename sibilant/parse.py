@@ -132,7 +132,7 @@ def parse(stream):
 
 decimal_like = regex(r"-?(\d*\.?\d+|\d+\.?\d*)").match
 
-fraction_like = regex(r"\d*/\d*").match
+fraction_like = regex(r"\d+/\d+").match
 
 complex_like = regex(r"-?\d*\.?\d+\+\d*\.?\d*[ij]").match
 
