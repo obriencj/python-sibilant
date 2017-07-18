@@ -52,17 +52,13 @@ def _reduce_op(opf, name=None):
 
 
 def _op(opf, name=None, rename=False):
-    # def fun(*a):
-    #    return opf(*a)
-
     name = name if name else opf.__name__
-    # sym = sibilant.symbol(name)
 
     if rename:
         opf.__name__ = name
         opf.__qualname__ = "sibilant.builtins." + name
 
-    globals()[name] = opf  # fun
+    globals()[name] = opf
     __all__.append(name)
 
 
@@ -92,28 +88,20 @@ _op(sibilant.attr)
 _op(sibilant.deref)
 _op(sibilant.setref)
 
+_op(sibilant.is_pair, "pair?")
+_op(sibilant.is_list, "list?")
+
 _val(sibilant.nil, "nil")
+_op(sibilant.is_nil, "nil?")
+
 _val(sibilant.symbol, "symbol")
-_val(sibilant.constype, "constype")
-_val(sibilant.niltype, "niltype")
-_val(sibilant.reftype, "reftype")
-_val(sibilant.attrtype, "attrtype")
+_op(sibilant.is_symbol, "symbol?")
+
 _val(sibilant.undefined, "undefined")
+_op(sibilant.is_undefined, "undefined?")
+
 _val(sibilant.compiler.Macro, "macro")
-
-
-def _setup():
-    from sibilant import nil, symbol, constype
-    from sibilant.compiler import Macro as macro
-    _op((lambda o: o is nil), "nil?", rename=True)
-    _op((lambda o: isinstance(o, symbol)), "symbol?", rename=True)
-    _op((lambda o: isinstance(o, constype)), "list?", rename=True)
-    _op((lambda o: isinstance(o, macro)), "macro?", rename=True)
-
-
-_setup()
-
-_op((lambda o: callable(o)), "function?", rename=True)
+_op(sibilant.compiler.is_macro, "macro?")
 
 _op(print)
 _op(format)
@@ -121,6 +109,7 @@ _op(isinstance)
 _op(callable)
 _op(getattr)
 _op(setattr)
+_op(callable, "function?")
 
 
 __all__ = tuple(__all__)

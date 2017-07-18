@@ -6,7 +6,7 @@
 # N801 class names should use CapWords (you first)
 # N813 camelcase import as lowercase (I do what I want)
 
-ignore = E303,E731,N801,N813
+ignore = E303,N801,N813
 exclude = setup.py,build,dist,.git
 
 #

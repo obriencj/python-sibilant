@@ -20,7 +20,7 @@ from functools import wraps
 from sys import version_info
 from types import CodeType
 
-from . import constype, nil, symbol
+from . import is_cons, nil, symbol
 from .ast import (
     compose_from_str, compose_from_stream,
     compose_all_from_str, compose_all_from_stream,
@@ -507,7 +507,7 @@ def _special():
                 except KeyError:
                     found = None
 
-            if found and isinstance(found, Macro):
+            if found and is_macro(found):
                 # we found a Macro instance, return the relevant
                 # method
                 return found.__special__
@@ -540,10 +540,10 @@ class SpecialsCodeSpace(CodeSpace):
             if expr is nil:
                 return self.pseudop_const(nil)
 
-            elif isinstance(expr, constype):
+            elif is_pair(expr):
                 head, tail = expr
 
-                if isinstance(head, symbol):
+                if is_symbol(head):
                     # see if this is a special, either a builtin one
                     # or a defined macro.
                     special = self.find_special(head)
@@ -566,7 +566,7 @@ class SpecialsCodeSpace(CodeSpace):
                 # a special.
                 return self.special_apply(expr)
 
-            elif isinstance(expr, symbol):
+            elif is_symbol(expr):
                 return self.pseudop_get_var(str(expr))
 
             else:
@@ -605,12 +605,12 @@ class SpecialsCodeSpace(CodeSpace):
         if body is nil:
             self.pseudop_get_var("nil")
 
-        elif isinstance(body, symbol):
+        elif is_symbol(body):
             self.pseudop_get_var("symbol")
             self.pseudop_const(str(body))
             self.pseudop_apply(1)
 
-        elif isinstance(body, constype):
+        elif is_pair(body):
             self.pseudop_get_var("cons")
             cl = body.count()
             for c in body.unpack():
@@ -725,10 +725,10 @@ class SpecialsCodeSpace(CodeSpace):
         self.special_progn(body)
         self.pseudop_dup()
 
-        if isinstance(binding, symbol):
+        if is_symbol(binding):
             self.pseudop_set_var(str(binding))
 
-        elif isinstance(binding, constype):
+        elif is_pair(binding):
             # TODO: implement
             assert(False)
 
@@ -742,7 +742,7 @@ class SpecialsCodeSpace(CodeSpace):
 
         self.special_progn(body)
 
-        if isinstance(binding, symbol):
+        if is_symbol(binding):
             self.pseudop_define(str(binding))
         else:
             assert(False)
@@ -879,6 +879,10 @@ class Macro(object):
 
     def __call__(self, *args, **kwds):
         raise TypeError("attempt to call macro as function", self.__name__)
+
+
+def is_macro(value):
+    return isinstance(value, Macro)
 
 
 def compile_from_ast(astree, env, filename=None):

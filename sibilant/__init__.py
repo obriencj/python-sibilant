@@ -27,12 +27,14 @@ from itertools import islice
 
 __all__ = (
     "SibilantException", "NotYetImplemented",
-    "symbol",
-    "cons", "constype",
-    "nil", "niltype",
-    "car", "cdr",
+    "symbol", "is_symbol",
+    "cons", "car", "cdr", "nil",
+    "is_pair", "is_list", "is_nil",
     "ref", "attr", "deref", "setref",
-    "undefined", "undefinedtype",
+    "undefined",
+    "reapply", "repeat",
+    "first", "second", "third", "fourth",
+    "fifth", "last", "take",
 )
 
 
@@ -51,7 +53,7 @@ class NotYetImplemented(SibilantException):
     pass
 
 
-class undefinedtype(object):
+class UndefinedType(object):
     """
     an undefined value. singleton indicating a value has not been
     assigned to a ref yet.
@@ -77,10 +79,14 @@ class undefinedtype(object):
 
 
 # undefined singleton
-undefined = undefinedtype()
+undefined = UndefinedType()
 
 
-class reftype(object):
+def is_undefined(value):
+    return value is undefined
+
+
+class RefType(object):
     """
     mutable reference
     """
@@ -89,7 +95,7 @@ class reftype(object):
 
 
     def __init__(self, sym, value):
-        if type(sym) is not symbol:
+        if not is_symbol(sym):
             raise TypeError("sym must be a symbol")
 
         self.sym = sym
@@ -119,10 +125,10 @@ class reftype(object):
 
 
 def ref(sym, value=undefined):
-    return reftype(sym, value)
+    return RefType(sym, value)
 
 
-class attrtype(reftype):
+class AttrType(RefType):
     """
     computed attribute references
     """
@@ -145,7 +151,7 @@ class attrtype(reftype):
 
 
 def attr(sym, getter, setter=None):
-    return attrtype(sym, getter, setter)
+    return AttrType(sym, getter, setter)
 
 
 def deref(r):
@@ -156,7 +162,7 @@ def setref(r, value):
     return r._set_value(value)
 
 
-class constype(object):
+class Pair(object):
     """
     cons cell type.
 
@@ -206,7 +212,7 @@ class constype(object):
 
 
     def __eq__(self, other):
-        if type(other) is not constype:
+        if type(other) is not Pair:
             return False
 
         left = self
@@ -220,7 +226,7 @@ class constype(object):
         while left is not right:
             if (left is nil) or (right is nil):
                 return False
-            elif (type(left) is not constype):
+            elif (type(left) is not Pair):
                 return left == right
 
             a, left = left
@@ -251,7 +257,7 @@ class constype(object):
 
         rest = self
         while rest is not nil:
-            if type(rest) is constype:
+            if type(rest) is Pair:
                 if id(rest) in found:
                     # recursive
                     col.append(" ...")
@@ -280,7 +286,7 @@ class constype(object):
         index = 0
 
         rest = self
-        while type(rest) is constype:
+        while type(rest) is Pair:
             rid = id(rest)
             found_at = found.get(rid, None)
             if found_at is None:
@@ -323,7 +329,7 @@ class constype(object):
         """
 
         current = self
-        while isinstance(current, constype) and (current is not nil):
+        while isinstance(current, Pair) and (current is not nil):
             yield current._car
             current = current._cdr
         yield current
@@ -349,7 +355,7 @@ class constype(object):
         found = set()
         current = self
 
-        while (type(current) is constype):
+        while (type(current) is Pair):
             if id(current) in found:
                 return
 
@@ -368,7 +374,7 @@ class constype(object):
 
         found = set()
         current = self
-        while type(current) is constype:
+        while type(current) is Pair:
             if id(current) in found:
                 return True
             else:
@@ -385,7 +391,7 @@ class constype(object):
 
         found = set()
         current = self
-        while type(current) is constype:
+        while type(current) is Pair:
             if id(current) in found:
                 return True
             else:
@@ -395,7 +401,15 @@ class constype(object):
         return current is nil
 
 
-def cons(a, *b, recursive=False, ltype=constype):
+def is_pair(value):
+    return isinstance(value, Pair)
+
+
+def is_list(value):
+    return isinstance(value, Pair) and value.is_proper()
+
+
+def cons(a, *b, recursive=False, ltype=Pair):
     """
     Construct a singly-linked list from arguments. If final argument
     is not `nil`, the list will be considered improper. If recursive
@@ -414,7 +428,7 @@ def cons(a, *b, recursive=False, ltype=constype):
         return ltype(a, b)
 
 
-class niltype(constype):
+class Nil(Pair):
     """
     The canonical empty cons cell, nil.
     """
@@ -470,11 +484,11 @@ class niltype(constype):
 
 
     def __str__(self):
-        return "()"
+        return "nil"
 
 
     def __repr__(self):
-        return "niltype()"
+        return "nil"
 
 
     def is_recursive(self):
@@ -487,7 +501,11 @@ class niltype(constype):
 
 
 # This is intended as a singleton
-nil = niltype()
+nil = Nil()
+
+
+def is_nil():
+    return value is nil
 
 
 def car(c):
@@ -497,8 +515,8 @@ def car(c):
 
     if c is nil:
         raise TypeError("cannot get car of nil")
-    elif not isinstance(c, constype):
-        raise TypeError("expected constype instance")
+    elif not is_pair(c):
+        raise TypeError("expected PairType instance")
     else:
         return c._car
 
@@ -511,8 +529,8 @@ def cdr(c):
 
     if c is nil:
         raise TypeError("cannot get cdr of nil")
-    elif not isinstance(c, constype):
-        raise TypeError("expected constype instance")
+    elif not is_pair(c):
+        raise TypeError("expected PairType instance")
     else:
         return c._cdr
 
@@ -520,8 +538,8 @@ def cdr(c):
 def setcar(c, value):
     if c is nil:
         raise TypeError("cannod set car of nil")
-    elif not isinstance(c, constype):
-        raise TypeError("expected constype instance")
+    elif not is_pair(c):
+        raise TypeError("expected PairType instance")
     else:
         c._car = value
         return value
@@ -530,17 +548,28 @@ def setcar(c, value):
 def setcdr(c, value):
     if c is nil:
         raise TypeError("cannod set car of nil")
-    elif not isinstance(c, constype):
-        raise TypeError("expected constype instance")
+    elif not is_pair(c):
+        raise TypeError("expected PairType instance")
     else:
         c._cdr = value
         return value
 
 
-cadr = lambda c: car(cdr(c))
-caddr = lambda c: car(cdr(cdr(c)))
-cadddr = lambda c: car(cdr(cdr(cdr(c))))
-caddddr = lambda c: car(cdr(cdr(cdr(cdr(c)))))
+def repeat(value, count):
+    value = (value) * count
+    return cons(*value, nil)
+
+
+def reapply(fun, data, count):
+    while count > 0:
+        data = fun(data)
+    return data
+
+
+cadr = lambda c: car(cdr(c))  # noqa
+caddr = lambda c: car(reapply(cdr, c, 2))  # noqa
+cadddr = lambda c: car(reapply(cdr, c, 3))  # noqa
+caddddr = lambda c: car(repply(cdr, c, 4))  # noqa
 
 first = car
 second = cadr
@@ -555,13 +584,16 @@ def last(seq):
     sequence is empty
     """
 
+    if is_pair(seq):
+        seq = seq.items()
+
     val = undefined
     for val in iter(seq):
         pass
     return val
 
 
-class symbol(object):
+class Symbol(object):
     """
     symbol type.
 
@@ -605,6 +637,17 @@ class symbol(object):
 
     def __str__(self):
         return self._name
+
+
+def symbol(name):
+    if isinstance(name, Symbol):
+        return name
+    else:
+        return Symbol(name)
+
+
+def is_symbol(value):
+    return isinstance(value, Symbol)
 
 
 #
