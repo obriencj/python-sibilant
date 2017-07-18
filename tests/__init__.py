@@ -23,10 +23,14 @@ license: LGPL v.3
 
 from functools import partial
 from unittest import TestCase
-from sibilant import cons, nil, constype, niltype
-from sibilant import car, cdr, setcar, setcdr, last
-from sibilant import ref, attr, undefined, deref, setref
-from sibilant import symbol
+
+from sibilant import (
+    cons, nil, is_pair, is_list, is_nil,
+    car, cdr, setcar, setcdr, last,
+    ref, attr, undefined, deref, setref,
+    symbol, is_symbol,
+    Pair, Nil, Symbol,
+)
 
 
 class ConsTest(TestCase):
@@ -71,7 +75,7 @@ class ConsTest(TestCase):
         self.assertSequenceEqual(list(c.unpack()), [0, 1, 2])
         self.assertSequenceEqual(tuple(c.unpack()), (0, 1, 2))
         self.assertEqual(str(c), "(0 1 2)")
-        self.assertEqual(repr(c), "cons(0, 1, 2, niltype())")
+        self.assertEqual(repr(c), "cons(0, 1, 2, nil)")
 
         self.assertEqual(car(a), 2)
         self.assertEqual(cdr(a), nil)
@@ -101,18 +105,24 @@ class ConsTest(TestCase):
         self.assertEqual(str(z), "(1 . 2)")
         self.assertEqual(repr(z), "cons(1, 2)")
 
+        self.assertTrue(is_pair(z))
+        self.assertFalse(is_list(z))
+
 
     def test_nil(self):
         # singleton nil check
-        self.assertEqual(id(nil), id(niltype()))
-        self.assertEqual(id(niltype()), id(niltype()))
-        self.assertTrue(nil is niltype())
+        self.assertEqual(id(nil), id(Nil()))
+        self.assertEqual(id(Nil()), id(Nil()))
+        self.assertTrue(nil is Nil())
 
         # behavior
-        self.assertIsInstance(nil, constype)
+        self.assertIsInstance(nil, Pair)
+        self.assertTrue(is_pair(nil))
+        self.assertTrue(is_nil(nil))
+        self.assertTrue(is_list(nil))
         self.assertFalse(nil)
-        self.assertEqual(str(nil), "()")
-        self.assertEqual(repr(nil), "niltype()")
+        self.assertEqual(str(nil), "nil")
+        self.assertEqual(repr(nil), "nil")
 
         self.assertEqual(nil, nil)
         self.assertNotEqual(nil, cons(1, nil))
@@ -134,6 +144,9 @@ class ConsTest(TestCase):
         self.assertTrue(a.is_proper())
         self.assertTrue(a.is_recursive())
 
+        self.assertTrue(is_pair(a))
+        self.assertTrue(is_list(a))
+
         self.assertEqual(a.count(), 3)
 
         self.assertEqual(car(a), car(cdr(cdr(cdr(a)))))
@@ -141,8 +154,8 @@ class ConsTest(TestCase):
         self.assertEqual(str(a), "(1 2 3 ...)")
         self.assertEqual(repr(a), "cons(1, 2, 3, recursive=True)")
 
-        b = constype(0, a)
-        c = constype(0, a)
+        b = Pair(0, a)
+        c = Pair(0, a)
         self.assertEqual(b, c)
         self.assertNotEqual(a, b)
         self.assertNotEqual(a, c)
@@ -190,6 +203,9 @@ class SymbolTest(TestCase):
         x = symbol('x')
         y = symbol('x')
         z = symbol(x)
+
+        self.assertTrue(is_symbol(x))
+        self.assertIsInstance(x, Symbol)
 
         self.assertEqual(x, x)
         self.assertEqual(x, y)

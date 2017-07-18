@@ -30,7 +30,11 @@ from unittest import TestCase
 import sibilant.builtins
 
 from sibilant import car, cdr, cons, nil, symbol
-from sibilant.compiler import *
+
+from sibilant.compiler import (
+    macro, is_macro, Macro,
+    compile_from_str, compile_from_stream,
+)
 
 
 def basic_env(**base):
@@ -287,6 +291,7 @@ class TestCompiler(TestCase):
 
         swap_test = env["swap_test"]
         self.assertTrue(isinstance(swap_test, Macro))
+        self.assertTrue(is_macro(swap_test))
         self.assertEqual(swap_test.__name__, "swap_test")
 
         self.assertRaises(TypeError, swap_test, 1, 2, 3)

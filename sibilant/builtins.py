@@ -22,11 +22,10 @@ license: LGPL v.3
 """
 
 
-import operator
-import sibilant
-import sibilant.compiler
-
-from functools import reduce
+import sys as _sys
+import operator as _operator
+import sibilant as _sibilant
+import sibilant.compiler as _compiler
 
 
 __all__ = []
@@ -37,6 +36,8 @@ def _reduce_op(opf, name=None):
     # arguments can result in the normal call. Ops invoked with more
     # than two arguments can be wrapped in a reduce call.
 
+    from functools import reduce
+
     def fun(*a):
         return reduce(opf, a)
 
@@ -45,7 +46,7 @@ def _reduce_op(opf, name=None):
     fun.__name__ = opf.__name__
     fun.__qualname__ = opf.__name__
     fun.__doc__ = opf.__doc__
-    fun.__symbol__ = sibilant.symbol(name)
+    fun.__symbol__ = _sibilant.symbol(name)
 
     globals()[name] = fun
     __all__.append(name)
@@ -67,49 +68,51 @@ def _val(value, name):
     __all__.append(name)
 
 
-_reduce_op(operator.add, "+")
-_reduce_op(operator.sub, "-")
-_reduce_op(operator.mul, "*")
+_reduce_op(_operator.add, "+")
+_reduce_op(_operator.sub, "-")
+_reduce_op(_operator.mul, "*")
 
-_op(operator.pow, "**")
-_op(operator.truediv, "/")
-_op(operator.mod, "%")
-_op(operator.floordiv, "//")
-_op(operator.or_, "|")
-_op(operator.and_, "&")
-_op(operator.xor, "^")
-_op(operator.invert, "~")
+_op(_operator.pow, "**")
+_op(_operator.truediv, "/")
+_op(_operator.mod, "%")
+_op(_operator.floordiv, "//")
+_op(_operator.or_, "|")
+_op(_operator.and_, "&")
+_op(_operator.xor, "^")
+_op(_operator.invert, "~")
 
-_op(sibilant.cons)
-_op(sibilant.car)
-_op(sibilant.cdr)
-_op(sibilant.ref)
-_op(sibilant.attr)
-_op(sibilant.deref)
-_op(sibilant.setref)
+_op(_sibilant.cons)
+_op(_sibilant.car)
+_op(_sibilant.cdr)
+_op(_sibilant.ref)
+_op(_sibilant.attr)
+_op(_sibilant.deref)
+_op(_sibilant.setref)
 
-_op(sibilant.is_pair, "pair?")
-_op(sibilant.is_list, "list?")
+_op(_sibilant.is_pair, "pair?")
+_op(_sibilant.is_list, "list?")
 
-_val(sibilant.nil, "nil")
-_op(sibilant.is_nil, "nil?")
+_val(_sibilant.nil, "nil")
+_op(_sibilant.is_nil, "nil?")
 
-_val(sibilant.symbol, "symbol")
-_op(sibilant.is_symbol, "symbol?")
+_val(_sibilant.symbol, "symbol")
+_op(_sibilant.is_symbol, "symbol?")
 
-_val(sibilant.undefined, "undefined")
-_op(sibilant.is_undefined, "undefined?")
+_val(_sibilant.undefined, "undefined")
+_op(_sibilant.is_undefined, "undefined?")
 
-_val(sibilant.compiler.Macro, "macro")
-_op(sibilant.compiler.is_macro, "macro?")
+_val(_compiler.Macro, "macro")
+_op(_compiler.is_macro, "macro?")
 
-_op(print)
-_op(format)
-_op(isinstance)
 _op(callable)
-_op(getattr)
-_op(setattr)
 _op(callable, "function?")
+_op(format)
+_op(getattr)
+_op(isinstance)
+_op(open)
+_op(print)
+_op(setattr)
+_op(_sys.exit, "exit")
 
 
 __all__ = tuple(__all__)

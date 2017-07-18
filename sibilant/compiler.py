@@ -20,7 +20,7 @@ from functools import wraps
 from sys import version_info
 from types import CodeType
 
-from . import is_cons, nil, symbol
+from . import nil, symbol, is_pair, is_symbol
 from .ast import (
     compose_from_str, compose_from_stream,
     compose_all_from_str, compose_all_from_stream,
@@ -28,8 +28,9 @@ from .ast import (
 
 
 __all__ = (
-    "Opcode", "Pseudop", "CodeSpace",
-    "Macro", "SpecialsCodeSpace",
+    "Opcode", "Pseudop",
+    "CodeSpace", "SpecialsCodeSpace",
+    "macro", "is_macro",
     "compile_from_str", "compile_from_stream", "compile_from_ast",
 )
 
@@ -879,6 +880,13 @@ class Macro(object):
 
     def __call__(self, *args, **kwds):
         raise TypeError("attempt to call macro as function", self.__name__)
+
+
+def macro(fun):
+    if is_macro(fun):
+        return fun
+    else:
+        return Macro(fun)
 
 
 def is_macro(value):
