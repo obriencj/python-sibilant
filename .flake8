@@ -2,8 +2,10 @@
 
 # E251 complains about unexpected spaces around keyword/parameter equals
 # E303 complains about more than one blank lines between methods in a class
+# E731 do not assign to a lambda, use a def (bite me)
+# N801 class names should use CapWords (you first)
 
-ignore = E303
+ignore = E303,E731,N801
 exclude = setup.py,build,dist,.git
 
 #

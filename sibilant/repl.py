@@ -60,7 +60,7 @@ def repl(stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr, **glbls):
                     print(result, file=stdout)
 
         except KeyboardInterrupt as ki:
-            print(se, file=stderr)
+            print(ki, file=stderr)
             stderr.flush()
             break
 

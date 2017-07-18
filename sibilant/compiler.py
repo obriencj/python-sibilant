@@ -20,8 +20,11 @@ from functools import wraps
 from sys import version_info
 from types import CodeType
 
-from . import car, cdr, constype, nil, symbol
-from .ast import compose_from_str, compose_from_stream
+from . import constype, nil, symbol
+from .ast import (
+    compose_from_str, compose_from_stream,
+    compose_all_from_str, compose_all_from_stream,
+)
 
 
 __all__ = (
@@ -36,13 +39,16 @@ def memoized():
 
     def memoized(fun):
         memory = _unset
+
         @wraps(fun)
         def wrapper(*args, **kwds):
             nonlocal memory
             if memory is _unset:
                 memory = fun(*args, **kwds)
             return memory
+
         return wrapper
+
     return memoized
 
 
@@ -53,7 +59,7 @@ class Opcode(Enum):
 
     @memoized
     def hasconst(self):
-        return  self.value in dis.hasconst
+        return self.value in dis.hasconst
 
     @memoized
     def hasfree(self):
@@ -163,10 +169,10 @@ class CodeSpace(object):
 
     def request_var(self, name):
         name = str(name)
-        if ((name in self.fast_vars) or
-            (name in self.free_vars) or
-            (name in self.cell_vars) or
-            (name in self.global_vars)):
+        if (name in self.fast_vars) or \
+           (name in self.free_vars) or \
+           (name in self.cell_vars) or \
+           (name in self.global_vars):
 
             # either the name is already available in this scope as a
             # load_fast, or we've already figured out whether it needs
@@ -327,7 +333,7 @@ class CodeSpace(object):
                              in self.gen_code()])
 
         else:
-            #print("Unsupported:", _PYVER)
+            # print("Unsupported:", _PYVER)
             assert(False)
 
         consts = tuple(self.consts)
@@ -347,11 +353,11 @@ class CodeSpace(object):
                        consts, names, varnames, filename, name,
                        firstlineno, lnotab, freevars, cellvars)
 
-        #print("completed a CodeSpace", ret)
-        #dis.show_code(ret)
-        #print("Disassembly:")
-        #dis.dis(ret)
-        #print()
+        # print("completed a CodeSpace", ret)
+        # dis.show_code(ret)
+        # print("Disassembly:")
+        # dis.dis(ret)
+        # print()
 
         return ret
 
@@ -457,13 +463,13 @@ class CodeSpace(object):
             yield Opcode.LOAD_CONST, ni, 0
 
             if (3, 6) <= version_info:
-                #print("Using MAKE_FUNCTION for 3.6")
+                # print("Using MAKE_FUNCTION for 3.6")
                 yield Opcode.MAKE_FUNCTION, 0x08, 0
             elif (3, 3) <= version_info < (3, 6):
-                #print("Using MAKE_CLOSURE for 3.3+")
+                # print("Using MAKE_CLOSURE for 3.3+")
                 yield Opcode.MAKE_CLOSURE, 0, 0
             else:
-                #print("Unsupported:", _PYVER)
+                # print("Unsupported:", _PYVER)
                 assert(False)
 
         else:
@@ -820,9 +826,9 @@ def max_stack(pseudops):
             print(pseudops)
         assert(stac >= 0)
 
-    #print("max_stack()")
+    # print("max_stack()")
     for op, *args in pseudops:
-        #print(op, args, stac, maxc)
+        # print(op, args, stac, maxc)
 
         if op is Pseudop.APPLY:
             pop(args[0])
@@ -875,9 +881,6 @@ class Macro(object):
     def __call__(self, *args, **kwds):
         raise TypeError("attempt to call macro as function", self.__name__)
 
-
-def find_macro(name, env):
-    pass
 
 def compile_from_ast(astree, env, filename=None):
     positions = {}

@@ -28,7 +28,9 @@ from re import compile as regex
 from . import symbol
 
 
-__all__ = ( "Event", "parse", )
+__all__ = (
+    "Event", "parse",
+)
 
 
 class Event(Enum):

@@ -59,9 +59,6 @@ class SibilantPathFinder(PathFinder):
 
     @classmethod
     def _path_hooks(cls, path):
-        if _path_hooks is not None and not _path_hooks:
-            _warnings.warn('_path_hooks is empty', ImportWarning)
-
         for hook in _path_hooks:
             try:
                 return hook(path)
@@ -116,18 +113,21 @@ def _get_lspy_path_hook():
     return FileFinder.path_hook(_get_lspy_file_loader())
 
 
-def __install():
+def _install():
     done = False
+
     def install():
         nonlocal done
         if not done:
             _path_hooks.append(_get_lspy_path_hook())
             sys.meta_path.append(SibilantPathFinder)
             done = True
+
     return install
 
-__install = __install()
-__install()
+
+_install = _install()
+_install()
 
 
 #

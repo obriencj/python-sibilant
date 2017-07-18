@@ -37,13 +37,13 @@ def cli(options):
     """
 
     if not options.no_importer:
-        from . import importer
+        from . import importer  # noqa
 
     filename = options.filename
 
     if filename:
         with open(filename, "r") as fd:
-            module = create_module("__main__", fd, filename=filename)
+            create_module("__main__", fd, filename=filename)
 
     else:
         repl()

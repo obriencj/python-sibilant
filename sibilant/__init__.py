@@ -21,8 +21,6 @@ Sibilant, a Scheme for Python
 """
 
 
-import sys
-
 from functools import reduce
 
 
