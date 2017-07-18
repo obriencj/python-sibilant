@@ -27,7 +27,7 @@ from functools import partial
 from io import StringIO
 
 from . import cons, nil, symbol
-from . import SibilantException, NotYetImplemented
+from . import SibilantException
 from .parse import Event, parse
 
 
@@ -147,15 +147,15 @@ class Atom(Node):
 
 class Symbol(Atom):
 
-    def __new__(klass, position, token):
+    def __new__(cls, position, token):
         if token in ("#t", "True"):
-            klass = True_
+            cls = True_
         elif token in ("#f", "False"):
-            klass = False_
+            cls = False_
         elif token == "None":
-            klass = None_
+            cls = None_
 
-        return super().__new__(klass)
+        return super().__new__(cls)
 
 
     def simplify(self, positions):
@@ -168,18 +168,18 @@ class Literal(Atom):
 
 class Number(Literal):
 
-    def __new__(klass, position, token):
-        if klass is Number:
-            klass = Integer
+    def __new__(cls, position, token):
+        if cls is Number:
+            cls = Integer
 
             if token[-1] in "ij":
-                klass = Complex
+                cls = Complex
             elif "/" in token:
-                klass = Fraction
+                cls = Fraction
             elif "." in token:
-                klass = Decimal
+                cls = Decimal
 
-        return super().__new__(klass)
+        return super().__new__(cls)
 
 
 class Integer(Number):
@@ -205,7 +205,7 @@ class Complex(Number):
     def simplify(self, positions):
         t = self.token
         if t[-1] == "i":
-            return complex(self.token[:-1]+"j")
+            return complex(self.token[:-1] + "j")
         else:
             return complex(self.token)
 

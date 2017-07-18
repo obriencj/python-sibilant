@@ -37,6 +37,9 @@ def cli(options):
     """
 
     if not options.no_importer:
+        # this has the side-effect of augmenting the import system to
+        # search for sibilant source files in the sys path. If
+        # --no-importer was specified, then don't do that!
         from . import importer  # noqa
 
     filename = options.filename

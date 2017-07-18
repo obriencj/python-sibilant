@@ -319,7 +319,6 @@ class CodeSpace(object):
 
         flags = 0x12  # NEWLOCALS, NESTED
 
-
         if (3, 6) <= version_info:
             # filter so that all opcodes have exactly one argument
             gen_code = (((opa[0], 0) if len(opa) < 2 else opa[:2])

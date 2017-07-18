@@ -22,6 +22,7 @@ Sibilant, a Scheme for Python
 
 
 from functools import reduce
+from itertools import islice
 
 
 __all__ = (
@@ -59,11 +60,11 @@ class undefinedtype(object):
     __instance = None
 
 
-    def __new__(k):
-        inst = k.__instance
+    def __new__(cls):
+        inst = cls.__instance
         if inst is None:
-            inst = super().__new__(k)
-            k.__instance = inst
+            inst = super().__new__(cls)
+            cls.__instance = inst
         return inst
 
 
@@ -165,7 +166,7 @@ class constype(object):
     end of a list.
     """
 
-    __slots__ = ( "_car", "_cdr", )
+    __slots__ = ("_car", "_cdr", )
 
 
     def __init__(self, car, cdr):
@@ -423,12 +424,12 @@ class niltype(constype):
     __nil = None
 
 
-    def __new__(t):
+    def __new__(cls):
         # make nil a singleton
-        nil = t.__nil
+        nil = cls.__nil
         if nil is None:
-            nil = super().__new__(t)
-            t.__nil = nil
+            nil = super().__new__(cls)
+            cls.__nil = nil
         return nil
 
 
@@ -555,7 +556,8 @@ def last(seq):
     """
 
     val = undefined
-    for val in iter(seq): pass
+    for val in iter(seq):
+        pass
     return val
 
 
@@ -573,15 +575,15 @@ class symbol(object):
     __intern = {}
 
 
-    def __new__(t, name):
+    def __new__(cls, name):
         # applying str auto-interns
         name = str(name)
 
-        s = t.__intern.get(name)
+        s = cls.__intern.get(name)
         if s is None:
-            s = super().__new__(t)
+            s = super().__new__(cls)
             s._name = name
-            t.__intern[name] = s
+            cls.__intern[name] = s
         return s
 
 
