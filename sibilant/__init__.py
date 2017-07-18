@@ -504,7 +504,7 @@ class Nil(Pair):
 nil = Nil()
 
 
-def is_nil():
+def is_nil(value):
     return value is nil
 
 
