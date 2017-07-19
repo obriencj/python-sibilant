@@ -20,7 +20,7 @@ from functools import wraps
 from sys import version_info
 from types import CodeType
 
-from . import nil, symbol, is_pair, is_symbol
+from . import nil, symbol, is_pair, is_symbol, NotYetImplemented
 from .ast import (
     compose_from_str, compose_from_stream,
     compose_all_from_str, compose_all_from_stream,
@@ -28,11 +28,16 @@ from .ast import (
 
 
 __all__ = (
+    "UnsupportedVersion",
     "Opcode", "Pseudop",
     "CodeSpace", "SpecialsCodeSpace",
     "macro", "is_macro",
     "compile_from_str", "compile_from_stream", "compile_from_ast",
 )
+
+
+class UnsupportedVersion(NotYetImplemented):
+    pass
 
 
 def memoized():
@@ -320,21 +325,7 @@ class CodeSpace(object):
 
         flags = 0x12  # NEWLOCALS, NESTED
 
-        if (3, 6) <= version_info:
-            # filter so that all opcodes have exactly one argument
-            gen_code = (((opa[0], 0) if len(opa) < 2 else opa[:2])
-                        for opa in self.gen_code())
-            code = b''.join([(bytes([o.value, a])) for o, a
-                             in gen_code])
-
-        elif (3, 3) <= version_info < (3, 6):
-            # emitted code has the correct number of arguments
-            code = b''.join([(bytes([o.value, *args])) for o, *args
-                             in self.gen_code()])
-
-        else:
-            # print("Unsupported:", _PYVER)
-            assert(False)
+        code = self.code_bytes()
 
         consts = tuple(self.consts)
         names = tuple(self.names)
@@ -362,7 +353,68 @@ class CodeSpace(object):
         return ret
 
 
-    def gen_code(self):
+    def code_bytes(self):
+        offset = 0
+        coll = []
+
+        labels = {}
+
+        def add_label(name):
+            labels[name] = offset
+
+        jumps = []
+
+        def mark_jump(label_name):
+            jumps.append((len(coll), label_name))
+
+        if (3, 6) <= version_info:
+            for op, *args in self._gen_code(add_label):
+                if op.hasjabs():
+                    # deal with jumps, so we can set their argument
+                    # to an appropriate label offset later
+
+                    assert(args)
+                    mark_jump(offset, args[0])
+                    # we are being lazy here, and padding out our
+                    # jumps with an EXTENDED_ARG, in case we need more
+                    # than 8 bits of address once labels are applied.
+                    coll.append([Opcode.EXTENDED_ARG, 0])
+                    coll.append([op, 0])
+                    offset += 4
+
+                else:
+                    # filter so that all opcodes have exactly one
+                    # argument
+                    coll.append((op, args[0] if args else 0))
+                    offset += 2
+
+        elif (3, 3) <= version_info < (3, 6):
+            for op, *args in self._gen_code(add_label):
+                if op.hasjabs():
+                    # deal with jumps, so we can set their argument to
+                    # an appropriate label offset later
+
+                    assert(a)
+                    mark_jump(offset, a[0])
+                    coll.append([op, 0, 0])
+                    offset += 3
+
+                else:
+                    coll.append((op, *args))
+                    offset += (1 + len(args))
+
+        else:
+            raise UnsupportedVersion(version_info)
+
+        # Given our labels, modify jmp calls to point to the label
+        apply_jump_labels(coll, jumps, labels)
+
+        coll = ((c.value, *a) for c, *a in coll)
+        results = b''.join(bytes(c) for c in coll)
+        return results
+
+
+    def _gen_code(self, declare_label):
         """
         Given the pseudo operations added to this CodeSpace, the named
         variables declared and requested, yield the CPython opcodes
@@ -868,6 +920,29 @@ def max_stack(pseudops):
 
     assert(stac == 0)
     return maxc
+
+
+def apply_jump_labels(coll, jumps, labels):
+    if (3, 6) <= version_info:
+        for coll_offset, name in jumps:
+            target = labels[name]
+
+            coll_ext = coll[coll_offset]
+            coll_jmp = coll[coll_offset + 1]
+
+            coll_ext[1] = (target >> 8) & 0xff
+            coll_jmp[1] = target & 0xff
+
+    elif (3, 3) <= version_info < (3, 6):
+        for coll_offset, name in jumps:
+            target = labels[name]
+
+            coll_jmp = coll[coll_offset]
+            coll_jmp[1] = target & 0xff
+            coll_jmp[2] = (target >> 8) & 0xff
+
+    else:
+        raise UnsupportedVersion(version_info)
 
 
 class Macro(object):
