@@ -307,5 +307,71 @@ class TestCompiler(TestCase):
         self.assertEqual(stmt(), cons(symbol("hello"), symbol("world")))
 
 
+    def test_cond(self):
+        src = """
+        (cond)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, None)
+
+        src = """
+        (cond
+          (True 100))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, 100)
+
+        src = """
+        (cond
+          (else 100))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, 100)
+
+        src = """
+        (cond
+          (False 100)
+          (True 101)
+          (else 102))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, 101)
+
+        src = """
+        (cond
+          (False 100)
+          (False 101)
+          (else 102))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, 102)
+
+        src = """
+        (+ (cond
+             (False 100)
+             (nil 101)
+             (else 102)) 100)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, 202)
+
+        src = """
+        (cond
+          (False 100)
+          (False 101)
+          (else (cond (False 102)
+                      (else 103))))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, 103)
+
+
 #
 # The end.

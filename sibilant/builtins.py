@@ -38,8 +38,8 @@ def _reduce_op(opf, name=None):
 
     from functools import reduce
 
-    def fun(*a):
-        return reduce(opf, a)
+    def fun(*args):
+        return reduce(opf, args)
 
     name = name if name else opf.__name__
 
@@ -68,9 +68,29 @@ def _val(value, name):
     __all__.append(name)
 
 
+def _and(val1, *valn):
+    for val2 in valn:
+        val1 = val1 and val2
+        if not val1:
+            break
+    return val1
+
+
+def _or(val1, *valn):
+    for val2 in valn:
+        val1 = val1 or val2
+        if val1:
+            break
+    return val1
+
+
 _reduce_op(_operator.add, "+")
 _reduce_op(_operator.sub, "-")
 _reduce_op(_operator.mul, "*")
+
+_op(_and, "and", rename=True)
+_op(_or, "or", rename=True)
+_op((lambda val: not val), "not", rename=True)
 
 _op(_operator.pow, "**")
 _op(_operator.truediv, "/")

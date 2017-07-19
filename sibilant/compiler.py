@@ -16,7 +16,6 @@
 import dis
 
 from enum import Enum
-from functools import wraps
 from sys import version_info
 from types import CodeType
 
@@ -40,54 +39,26 @@ class UnsupportedVersion(NotYetImplemented):
     pass
 
 
-def memoized():
-    _unset = object()
-
-    def memoized(fun):
-        memory = _unset
-
-        @wraps(fun)
-        def wrapper(*args, **kwds):
-            nonlocal memory
-            if memory is _unset:
-                memory = fun(*args, **kwds)
-            return memory
-
-        return wrapper
-
-    return memoized
-
-
-memoized = memoized()
-
-
 class Opcode(Enum):
 
-    @memoized
     def hasconst(self):
         return self.value in dis.hasconst
 
-    @memoized
     def hasfree(self):
         return self.value in dis.hasfree
 
-    @memoized
     def hasjabs(self):
         return self.value in dis.hasjabs
 
-    @memoized
     def hasjrel(self):
         return self.value in dis.hasjrel
 
-    @memoized
     def haslocal(self):
         return self.value in dis.haslocal
 
-    @memoized
     def hasname(self):
         return self.value in dis.hasname
 
-    @memoized
     def hasnargs(self):
         return self.value in dis.hasnargs
 
@@ -104,7 +75,11 @@ class Pseudop(Enum):
     LAMBDA = 6
     RET_VAL = 7
     DEFINE = 8
-    DUP = 9
+    DUP = 9,
+    LABEL = 10
+    JUMP = 11
+    POP_JUMP_IF_TRUE = 12
+    POP_JUMP_IF_FALSE = 13
 
 
 def _list_unique_append(l, v):
@@ -148,6 +123,8 @@ class CodeSpace(object):
         self.consts = [None]
 
         self.pseudops = []
+
+        self.gen_label = label_generator()
 
 
     def child(self, name=None):
@@ -309,6 +286,22 @@ class CodeSpace(object):
         self.pseudop(Pseudop.DEFINE, name)
 
 
+    def pseudop_label(self, name):
+        self.pseudop(Pseudop.LABEL, name)
+
+
+    def pseudop_jump(self, label_name):
+        self.pseudop(Pseudop.JUMP, label_name)
+
+
+    def pseudop_pop_jump_if_true(self, label_name):
+        self.pseudop(Pseudop.POP_JUMP_IF_TRUE, label_name)
+
+
+    def pseudop_pop_jump_if_false(self, label_name):
+        self.pseudop(Pseudop.POP_JUMP_IF_FALSE, label_name)
+
+
     def complete(self):
         """
         Produces a python code object representing the state of this
@@ -374,7 +367,7 @@ class CodeSpace(object):
                     # to an appropriate label offset later
 
                     assert(args)
-                    mark_jump(offset, args[0])
+                    mark_jump(args[0])
                     # we are being lazy here, and padding out our
                     # jumps with an EXTENDED_ARG, in case we need more
                     # than 8 bits of address once labels are applied.
@@ -390,12 +383,13 @@ class CodeSpace(object):
 
         elif (3, 3) <= version_info < (3, 6):
             for op, *args in self._gen_code(add_label):
+
                 if op.hasjabs():
                     # deal with jumps, so we can set their argument to
                     # an appropriate label offset later
 
                     assert(args)
-                    mark_jump(offset, args[0])
+                    mark_jump(args[0])
                     coll.append([op, 0, 0])
                     offset += 3
 
@@ -406,12 +400,12 @@ class CodeSpace(object):
         else:
             raise UnsupportedVersion(version_info)
 
-        # Given our labels, modify jmp calls to point to the label
-        apply_jump_labels(coll, jumps, labels)
+        if jumps or labels:
+            # Given our labels, modify jmp calls to point to the label
+            apply_jump_labels(coll, jumps, labels)
 
         coll = ((c.value, *a) for c, *a in coll)
-        results = b''.join(bytes(c) for c in coll)
-        return results
+        return b''.join(bytes(c) for c in coll)
 
 
     def _gen_code(self, declare_label):
@@ -487,6 +481,18 @@ class CodeSpace(object):
 
             elif op is Pseudop.DUP:
                 yield Opcode.DUP_TOP,
+
+            elif op is Pseudop.LABEL:
+                declare_label(args[0])
+
+            elif op is Pseudop.JUMP:
+                yield Opcode.JUMP_ABSOLUTE, args[0], 0
+
+            elif op is Pseudop.POP_JUMP_IF_TRUE:
+                yield Opcode.POP_JUMP_IF_TRUE, args[0]
+
+            elif op is Pseudop.POP_JUMP_IF_FALSE:
+                yield Opcode.POP_JUMP_IF_FALSE, args[0]
 
             else:
                 assert(False)
@@ -856,6 +862,37 @@ class SpecialsCodeSpace(CodeSpace):
         return None
 
 
+    @special(symbol("cond"))
+    def special_cond(self, cl):
+
+        self.pseudop_label(self.gen_label())
+
+        done = self.gen_label()
+        label = None
+
+        for test, body in cl.unpack():
+            if label:
+                self.pseudop_label(label)
+
+            label = self.gen_label()
+
+            if test is symbol("else"):
+                self.special_progn(body)
+                self.pseudop_jump(done)
+
+            else:
+                self.add_expression(test)
+                self.pseudop_pop_jump_if_false(label)
+                self.special_progn(body)
+                self.pseudop_jump(done)
+
+        self.pseudop_const(None)
+
+        if label:
+            self.pseudop_label(label)
+        self.pseudop_label(done)
+
+
 def max_stack(pseudops):
     """
     Calculates the maximum stack size from the pseudo operations
@@ -863,6 +900,7 @@ def max_stack(pseudops):
 
     maxc = 0
     stac = 0
+    at_label = {}
 
     def push(by=1):
         nonlocal maxc, stac
@@ -915,14 +953,29 @@ def max_stack(pseudops):
         elif op is Pseudop.RET_VAL:
             pop()
 
+        elif op is Pseudop.JUMP:
+            at_label[args[0]] = stac
+
+        elif op is Pseudop.LABEL:
+            stac = at_label.get(args[0], stac)
+
+        elif op in (Pseudop.POP_JUMP_IF_TRUE,
+                    Pseudop.POP_JUMP_IF_FALSE):
+            pop()
+            at_label[args[0]] = stac
+
         else:
             assert(False)
 
+    if stac != 0:
+        print("BOOM!", stac)
+        print(pseudops)
     assert(stac == 0)
     return maxc
 
 
 def apply_jump_labels(coll, jumps, labels):
+
     if (3, 6) <= version_info:
         for coll_offset, name in jumps:
             target = labels[name]
@@ -938,11 +991,23 @@ def apply_jump_labels(coll, jumps, labels):
             target = labels[name]
 
             coll_jmp = coll[coll_offset]
+
             coll_jmp[1] = target & 0xff
             coll_jmp[2] = (target >> 8) & 0xff
 
     else:
         raise UnsupportedVersion(version_info)
+
+
+def label_generator(formatstr="label_%04i"):
+    counter = 0
+
+    def gen_label():
+        nonlocal counter
+        counter += 1
+        return formatstr % counter
+
+    return gen_label
 
 
 class Macro(object):
