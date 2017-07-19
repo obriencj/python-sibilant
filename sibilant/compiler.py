@@ -394,8 +394,8 @@ class CodeSpace(object):
                     # deal with jumps, so we can set their argument to
                     # an appropriate label offset later
 
-                    assert(a)
-                    mark_jump(offset, a[0])
+                    assert(args)
+                    mark_jump(offset, args[0])
                     coll.append([op, 0, 0])
                     offset += 3
 
