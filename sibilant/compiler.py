@@ -773,6 +773,8 @@ class SpecialsCodeSpace(CodeSpace):
         Special form for quasiquote
         """
 
+        # print(repr(body))
+
         if body is nil:
             self.pseudop_get_var("nil")
 
@@ -791,6 +793,8 @@ class SpecialsCodeSpace(CodeSpace):
             curr_tup = 0
 
             for c in body.unpack():
+                # print(" -- ", repr(c))
+
                 if c is nil:
                     coll_tup += 1
                     self.pseudop_get_var("nil")
@@ -802,13 +806,14 @@ class SpecialsCodeSpace(CodeSpace):
                     coll_tup += 1
 
                 elif is_pair(c):
-                    head, tail = body
+                    head, tail = c
                     if head is symbol("unquote"):
                         u_head, u_tail = tail
-                        if head is symbol("splice"):
-                            self.pseudop_build_tuple(coll_tup)
-                            coll_tup = 0
-                            curr_tup += 1
+                        if u_head is symbol("splice"):
+                            if coll_tup:
+                                self.pseudop_build_tuple(coll_tup)
+                                coll_tup = 0
+                                curr_tup += 1
                             self.pseudop_get_var("py-tuple")
                             self.add_expression(u_tail)
                             self.pseudop_call(1)
@@ -829,7 +834,7 @@ class SpecialsCodeSpace(CodeSpace):
                 coll_tup = 0
                 curr_tup += 1
 
-            self.pseudop_build_list_unpack(curr_tup)
+            self.pseudop_build_tuple_unpack(curr_tup)
             self.pseudop_call_varargs(0)
 
 
@@ -1137,6 +1142,11 @@ def max_stack(pseudops):
             # TODO: need to revamp CALL_VARARGS to act on an optional
             # kwargs as well
             pop()
+
+        elif op in (Pseudop.BUILD_TUPLE,
+                    Pseudop.BUILD_TUPLE_UNPACK):
+            pop(args[0])
+            push()
 
         else:
             assert(False)

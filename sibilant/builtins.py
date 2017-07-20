@@ -126,7 +126,7 @@ def _py_tuple():
     def _py_tuple(value):
         if sip(value):
             value = value.unpack()
-        return tuple(value.unpack())
+        return tuple(value)
 
     return _py_tuple
 
@@ -143,7 +143,7 @@ def _py_list():
     def _py_list(value):
         if sip(value):
             value = value.unpack()
-        return list(value.unpack())
+        return list(value)
 
     return _py_list
 
