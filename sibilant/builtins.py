@@ -103,18 +103,55 @@ _op(_operator.invert, "~")
 
 _op((lambda fun, args: fun(*args)), "apply", rename=True)
 
-_op((lambda *vals: _sibilant.nil if not vals else
-     _sibilant.cons(*vals, _sibilant.nil)),
-    "make-list", rename=True)
 
+def _make_list():
+    nil = _sibilant.nil
+    cons = _sibilant.cons
+
+    def _make_list(*vals):
+        if vals:
+            return cons(*vals, nil)
+        else:
+            return nil
+
+    return _make_list
+
+
+_op(_make_list(), "make-list", rename=True)
+
+
+def _py_tuple():
+    sip = _sibilant.is_pair
+
+    def _py_tuple(value):
+        if sip(value):
+            value = value.unpack()
+        return tuple(value.unpack())
+
+    return _py_tuple
+
+
+_op(_py_tuple(), "py-tuple", rename=True)
 _op((lambda *vals: vals), "make-py-tuple", rename=True)
-_op((lambda *vals: list(vals)), "make-py-list", rename=True)
-_op((lambda value: tuple(value)), "py-tuple", rename=True)
-_op((lambda value: list(value)), "py-list", rename=True)
-_op((lambda value: isinstance(value, list)),
-    "py-list?", rename=True)
 _op((lambda value: isinstance(value, tuple)),
     "py-tuple?", rename=True)
+
+
+def _py_list():
+    sip = _sibilant.is_pair
+
+    def _py_list(value):
+        if sip(value):
+            value = value.unpack()
+        return list(value.unpack())
+
+    return _py_list
+
+
+_op(_py_list(), "py-list", rename=True)
+_op((lambda *vals: list(vals)), "make-py-list", rename=True)
+_op((lambda value: isinstance(value, list)),
+    "py-list?", rename=True)
 
 _op(_sibilant.cons)
 _op(_sibilant.car)

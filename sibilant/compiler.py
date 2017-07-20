@@ -89,6 +89,8 @@ class Pseudop(Enum):
     POP_JUMP_IF_TRUE = 12
     POP_JUMP_IF_FALSE = 13
     CALL_VARARGS = 14
+    BUILD_TUPLE = 15
+    BUILD_TUPLE_UNPACK = 16
 
 
 def _list_unique_append(l, v):
@@ -350,6 +352,14 @@ class CodeSpace(object):
         self.pseudop(Pseudop.POP_JUMP_IF_FALSE, label_name)
 
 
+    def pseudop_build_tuple(self, count):
+        self.pseudop(Pseudop.BUILD_TUPLE, count)
+
+
+    def pseudop_build_tuple_unpack(self, count):
+        self.pseudop(Pseudop.BUILD_TUPLE_UNPACK, count)
+
+
     def complete(self):
         """
         Produces a python code object representing the state of this
@@ -557,6 +567,12 @@ class CodeSpace(object):
                 else:
                     raise UnsupportedVersion(version_info)
 
+            elif op is Pseudop.BUILD_TUPLE:
+                yield Opcode.BUILD_TUPLE, args[0], 0
+
+            elif op is Pseudop.BUILD_TUPLE_UNPACK:
+                yield Opcode.BUILD_TUPLE_UNPACK, args[0], 0
+
             else:
                 assert(False)
 
@@ -736,13 +752,12 @@ class SpecialsCodeSpace(CodeSpace):
             self.pseudop_call(1)
 
         elif is_pair(body):
-            self.pseudop_get_var("cons")
-            cl = body.count()
-            for c in body.unpack():
+            if is_list(body):
+                self.pseudop_get_var("make-list")
+            else:
+                self.pseudop_get_var("cons")
+            for cl, c in enumerate(body.unpack(), 1):
                 self.special_quote(c)
-            if body.is_proper():
-                cl += 1
-                self.pseudop_get_var("nil")
             self.pseudop_call(cl)
 
         else:
@@ -757,7 +772,65 @@ class SpecialsCodeSpace(CodeSpace):
         """
         Special form for quasiquote
         """
-        return None
+
+        if body is nil:
+            self.pseudop_get_var("nil")
+
+        elif is_symbol(body):
+            self.pseudop_get_var("symbol")
+            self.pseudop_const(str(body))
+            self.pseudop_call(1)
+
+        elif is_pair(body):
+            if is_list(body):
+                self.pseudop_get_var("make-list")
+            else:
+                self.pseudop_get_var("cons")
+
+            coll_tup = 0
+            curr_tup = 0
+
+            for c in body.unpack():
+                if c is nil:
+                    coll_tup += 1
+                    self.pseudop_get_var("nil")
+
+                elif is_symbol(c):
+                    self.pseudop_get_var("symbol")
+                    self.pseudop_const(str(c))
+                    self.pseudop_call(1)
+                    coll_tup += 1
+
+                elif is_pair(c):
+                    head, tail = body
+                    if head is symbol("unquote"):
+                        u_head, u_tail = tail
+                        if head is symbol("splice"):
+                            self.pseudop_build_tuple(coll_tup)
+                            coll_tup = 0
+                            curr_tup += 1
+                            self.pseudop_get_var("py-tuple")
+                            self.add_expression(u_tail)
+                            self.pseudop_call(1)
+                            curr_tup += 1
+                        else:
+                            self.add_expression(tail)
+                            coll_tup += 1
+                    else:
+                        self.special_quasiquote(c)
+                        coll_tup += 1
+
+                else:
+                    self.pseudop_const(c)
+                    coll_tup += 1
+
+            if coll_tup:
+                self.pseudop_build_tuple(coll_tup)
+                coll_tup = 0
+                curr_tup += 1
+
+            self.pseudop_build_list_unpack(curr_tup)
+            self.pseudop_call_varargs(0)
 
 
     @special(symbol("begin"))
