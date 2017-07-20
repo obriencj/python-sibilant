@@ -19,7 +19,11 @@ from enum import Enum
 from sys import version_info
 from types import CodeType
 
-from . import nil, symbol, is_pair, is_symbol, NotYetImplemented
+from . import (
+    nil, symbol, is_pair, is_list, is_symbol,
+    SibilantException, NotYetImplemented
+)
+
 from .ast import (
     compose_from_str, compose_from_stream,
     compose_all_from_str, compose_all_from_stream,
@@ -33,6 +37,10 @@ __all__ = (
     "macro", "is_macro",
     "compile_from_str", "compile_from_stream", "compile_from_ast",
 )
+
+
+class SyntaxError(SibilantException):
+    pass
 
 
 class UnsupportedVersion(NotYetImplemented):
@@ -67,7 +75,7 @@ Opcode = Opcode("Opcode", dis.opmap)
 
 
 class Pseudop(Enum):
-    APPLY = 1
+    CALL = 1
     CONST = 2
     GET_VAR = 3
     SET_VAR = 4
@@ -80,6 +88,7 @@ class Pseudop(Enum):
     JUMP = 11
     POP_JUMP_IF_TRUE = 12
     POP_JUMP_IF_FALSE = 13
+    CALL_VARARGS = 14
 
 
 def _list_unique_append(l, v):
@@ -90,13 +99,27 @@ def _list_unique_append(l, v):
         return len(l)
 
 
+class CodeFlag(Enum):
+    OPTIMIZED = 1
+    NEWLOCALS = 2
+    VARARGS = 4
+    VARKEYWORDS = 8
+    NESTED = 16
+    GENERATOR = 32
+    NOFREE = 64
+    COROUTINE = 128
+    ITERABLE_COROUTINE = 256
+
+
 class CodeSpace(object):
     """
     Represents a lexical scope, expressions occurring within that
     scope, and nested sub-scopes.
     """
 
-    def __init__(self, env, parent=None, name=None, filename=None):
+    def __init__(self, env, args=(), kwargs=None, varargs=False,
+                 parent=None, name=None, filename=None):
+
         self.env = env
         self.parent = parent
         self.name = name
@@ -117,7 +140,17 @@ class CodeSpace(object):
         self.global_vars = []
 
         self.args = []
+        for arg in args:
+            n = str(arg)
+            _list_unique_append(self.args, n)
+            _list_unique_append(self.fast_vars, n)
+
+        self.kwargs = kwargs
+
+        self.varargs = varargs
+
         self.names = []
+
 
         # first const is required -- it'll be None or a doc string
         self.consts = [None]
@@ -126,23 +159,24 @@ class CodeSpace(object):
 
         self.gen_label = label_generator()
 
+        if varargs:
+            self._prep_varargs()
 
-    def child(self, name=None):
+
+    def child(self, args=(), kwargs=None, varargs=False, name=None):
         """
         Create a chile CodeSpace
         """
-        return type(self)(self.env, parent=self, name=name,
-                          filename=self.filename)
+        cs = type(self)(self.env, args=args, kwargs=kwargs,
+                        varargs=varargs,
+                        parent=self, name=name,
+                        filename=self.filename)
+
+        return cs
 
 
     def declare_const(self, value):
         return _list_unique_append(self.consts, value)
-
-
-    def declare_arg(self, name):
-        name = str(name)
-        _list_unique_append(self.args, name)
-        _list_unique_append(self.fast_vars, name)
 
 
     def declare_var(self, name):
@@ -210,6 +244,16 @@ class CodeSpace(object):
         self.names.append(name)
 
 
+    def _prep_varargs(self):
+        # initial step which will convert the pythonic varargs tuple
+        # into a proper cons list
+
+        self.pseudop_get_var("make-list")
+        self.pseudop_get_var(self.args[-1])
+        self.pseudop_call_varargs(0)
+        self.pseudop_set_var(self.args[-1])
+
+
     def pseudop(self, *op_args):
         """
         Pushes a pseudo op and arguments into the code
@@ -217,8 +261,12 @@ class CodeSpace(object):
         self.pseudops.append(op_args)
 
 
-    def pseudop_apply(self, argc):
-        self.pseudop(Pseudop.APPLY, argc)
+    def pseudop_call(self, argc):
+        self.pseudop(Pseudop.CALL, argc)
+
+
+    def pseudop_call_varargs(self, argc):
+        self.pseudop(Pseudop.CALL_VARARGS, argc)
 
 
     def pseudop_const(self, val):
@@ -316,7 +364,13 @@ class CodeSpace(object):
 
         stacksize = max_stack(self.pseudops)
 
-        flags = 0x12  # NEWLOCALS, NESTED
+        flags = CodeFlag.NEWLOCALS.value | CodeFlag.NESTED.value
+        if self.varargs:
+            argcount -= 1
+            flags |= CodeFlag.VARARGS.value
+
+        if not self.free_vars:
+            flags |= CodeFlag.NOFREE.value
 
         code = self.code_bytes()
 
@@ -337,11 +391,12 @@ class CodeSpace(object):
                        consts, names, varnames, filename, name,
                        firstlineno, lnotab, freevars, cellvars)
 
-        # print("completed a CodeSpace", ret)
-        # dis.show_code(ret)
-        # print("Disassembly:")
-        # dis.dis(ret)
-        # print()
+        if False:
+            print("completed a CodeSpace", ret)
+            dis.show_code(ret)
+            print("Disassembly:")
+            dis.dis(ret)
+            print()
 
         return ret
 
@@ -420,7 +475,7 @@ class CodeSpace(object):
         #     print(op, args)
 
         for op, *args in self.pseudops:
-            if op is Pseudop.APPLY:
+            if op is Pseudop.CALL:
                 n = args[0]
                 yield Opcode.CALL_FUNCTION, n, 0
 
@@ -493,6 +548,14 @@ class CodeSpace(object):
 
             elif op is Pseudop.POP_JUMP_IF_FALSE:
                 yield Opcode.POP_JUMP_IF_FALSE, args[0]
+
+            elif op is Pseudop.CALL_VARARGS:
+                if (3, 6) <= version_info:
+                    yield Opcode.CALL_FUNCTION_EX, 0
+                elif (3, 3) <= version_info < (3, 6):
+                    yield Opcode.CALL_FUNCTION_VAR, args[0], 0
+                else:
+                    raise UnsupportedVersion(version_info)
 
             else:
                 assert(False)
@@ -622,8 +685,11 @@ class SpecialsCodeSpace(CodeSpace):
                             continue
 
                 # either not a symbol, or it was and the symbol wasn't
-                # a special.
-                return self.special_apply(expr)
+                # a special, so just make it into a function call
+                for pos in expr.unpack():
+                    self.add_expression(pos)
+                self.pseudop_call(expr.count() - 1)
+                return None
 
             elif is_symbol(expr):
                 return self.pseudop_get_var(str(expr))
@@ -667,7 +733,7 @@ class SpecialsCodeSpace(CodeSpace):
         elif is_symbol(body):
             self.pseudop_get_var("symbol")
             self.pseudop_const(str(body))
-            self.pseudop_apply(1)
+            self.pseudop_call(1)
 
         elif is_pair(body):
             self.pseudop_get_var("cons")
@@ -677,7 +743,7 @@ class SpecialsCodeSpace(CodeSpace):
             if body.is_proper():
                 cl += 1
                 self.pseudop_get_var("nil")
-            self.pseudop_apply(cl)
+            self.pseudop_call(cl)
 
         else:
             self.pseudop_const(body)
@@ -694,25 +760,14 @@ class SpecialsCodeSpace(CodeSpace):
         return None
 
 
-    @special(symbol("apply"))
-    def special_apply(self, c):
-        for pos in c.unpack():
-            self.add_expression(pos)
-
-        self.pseudop_apply(c.count() - 1)
-
-        # no additional transform needed
-        return None
-
-
-    @special(symbol("progn"))
-    def special_progn(self, cl):
+    @special(symbol("begin"))
+    def special_begin(self, cl):
         """
-        Special form for progn
+        Special form for begin
         """
 
         if not cl:
-            # because all things are expressions, an empty progn still
+            # because all things are expressions, an empty begin still
             # needs to have a return value. In this case, the return value
             # will by the python None
             return self.pseudop_const(None)
@@ -736,11 +791,25 @@ class SpecialsCodeSpace(CodeSpace):
         Special form for lambda
         """
 
-        subc = self.child(name="<lambda>")
         args, body = cl
-        for arg in args.unpack():
-            subc.declare_arg(arg)
-        subc.special_progn(body)
+
+        if is_symbol(args):
+            args = [str(args)]
+            varargs = True
+
+        elif is_pair(args):
+            varargs = not is_list(args)
+            args = map(str, args.unpack())
+
+        else:
+            raise SyntaxError("formals must be symbol or pair, not %r" %
+                              args)
+
+
+        subc = self.child(args=args, varargs=varargs,
+                          name="<lambda>")
+
+        subc.special_begin(body)
         subc.pseudop_return()
 
         code = subc.complete()
@@ -753,15 +822,18 @@ class SpecialsCodeSpace(CodeSpace):
     @special(symbol("let"))
     def special_let(self, cl):
 
-        subc = self.child(name="<let>")
         bindings, body = cl
 
+        args = []
         vals = []
         for arg in bindings.unpack():
             name, val = arg.unpack()
-            subc.declare_arg(name)
+            args.append(str(name))
             vals.append(val)
-        subc.special_progn(body)
+
+        subc = self.child(args=args, name="<let>")
+
+        subc.special_begin(body)
         subc.pseudop_return()
 
         code = subc.complete()
@@ -770,7 +842,7 @@ class SpecialsCodeSpace(CodeSpace):
         for val in vals:
             self.add_expression(val)
 
-        self.pseudop_apply(len(vals))
+        self.pseudop_call(len(vals))
 
         # no additional transform needed
         return None
@@ -781,7 +853,7 @@ class SpecialsCodeSpace(CodeSpace):
 
         binding, body = cl
 
-        self.special_progn(body)
+        self.special_begin(body)
         self.pseudop_dup()
 
         if is_symbol(binding):
@@ -799,7 +871,7 @@ class SpecialsCodeSpace(CodeSpace):
     def special_define(self, cl):
         binding, body = cl
 
-        self.special_progn(body)
+        self.special_begin(body)
 
         if is_symbol(binding):
             self.pseudop_define(str(binding))
@@ -817,11 +889,23 @@ class SpecialsCodeSpace(CodeSpace):
         namesym, cl = cl
         name = str(namesym)
 
-        subc = self.child(name=name)
         args, body = cl
-        for arg in args.unpack():
-            subc.declare_arg(arg)
-        subc.special_progn(body)
+
+        if is_symbol(args):
+            args = [str(args)]
+            varargs = True
+
+        elif is_pair(args):
+            varargs = not is_list(args)
+            args = map(str, args.unpack())
+
+        else:
+            raise SyntaxError("formals must be symbol or pair, not %r" %
+                              args)
+
+        subc = self.child(args=args, varargs=varargs, name=name)
+
+        subc.special_begin(body)
         subc.pseudop_return()
 
         code = subc.complete()
@@ -840,18 +924,30 @@ class SpecialsCodeSpace(CodeSpace):
         namesym, cl = cl
         name = str(namesym)
 
-        subc = self.child(name=name)
         args, body = cl
-        for arg in args.unpack():
-            subc.declare_arg(arg)
-        subc.special_progn(body)
+
+        if is_symbol(args):
+            args = [str(args)]
+            varargs = True
+
+        elif is_pair(args):
+            varargs = not is_list(args)
+            args = map(str, args.unpack())
+
+        else:
+            raise SyntaxError("formals must be symbol or pair, not %r" %
+                              args)
+
+        subc = self.child(args=args, varargs=varargs, name=name)
+
+        subc.special_begin(body)
         subc.pseudop_return()
 
         code = subc.complete()
 
         self.pseudop_get_var("macro")
         self.pseudop_lambda(code)
-        self.pseudop_apply(1)
+        self.pseudop_call(1)
 
         self.pseudop_define(name)
 
@@ -877,13 +973,13 @@ class SpecialsCodeSpace(CodeSpace):
             label = self.gen_label()
 
             if test is symbol("else"):
-                self.special_progn(body)
+                self.special_begin(body)
                 self.pseudop_jump(done)
 
             else:
                 self.add_expression(test)
                 self.pseudop_pop_jump_if_false(label)
-                self.special_progn(body)
+                self.special_begin(body)
                 self.pseudop_jump(done)
 
         self.pseudop_const(None)
@@ -911,16 +1007,16 @@ def max_stack(pseudops):
     def pop(by=1):
         nonlocal stac
         stac -= by
-        if stac < 0:
-            print("SHIT BROKE")
-            print(pseudops)
+        # if stac < 0:
+        # print("SHIT BROKE")
+        # print(pseudops)
         assert(stac >= 0)
 
     # print("max_stack()")
     for op, *args in pseudops:
         # print(op, args, stac, maxc)
 
-        if op is Pseudop.APPLY:
+        if op is Pseudop.CALL:
             pop(args[0])
 
         elif op is Pseudop.CONST:
@@ -964,12 +1060,17 @@ def max_stack(pseudops):
             pop()
             at_label[args[0]] = stac
 
+        elif op is Pseudop.CALL_VARARGS:
+            # TODO: need to revamp CALL_VARARGS to act on an optional
+            # kwargs as well
+            pop()
+
         else:
             assert(False)
 
-    if stac != 0:
-        print("BOOM!", stac)
-        print(pseudops)
+    # if stac != 0:
+    # print("BOOM!", stac)
+    # print(pseudops)
     assert(stac == 0)
     return maxc
 

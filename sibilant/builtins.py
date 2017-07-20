@@ -101,6 +101,21 @@ _op(_operator.and_, "&")
 _op(_operator.xor, "^")
 _op(_operator.invert, "~")
 
+_op((lambda fun, args: fun(*args)), "apply", rename=True)
+
+_op((lambda *vals: _sibilant.nil if not vals else
+     _sibilant.cons(*vals, _sibilant.nil)),
+    "make-list", rename=True)
+
+_op((lambda *vals: vals), "make-py-tuple", rename=True)
+_op((lambda *vals: list(vals)), "make-py-list", rename=True)
+_op((lambda value: tuple(value)), "py-tuple", rename=True)
+_op((lambda value: list(value)), "py-list", rename=True)
+_op((lambda value: isinstance(value, list)),
+    "py-list?", rename=True)
+_op((lambda value: isinstance(value, tuple)),
+    "py-tuple?", rename=True)
+
 _op(_sibilant.cons)
 _op(_sibilant.car)
 _op(_sibilant.cdr)

@@ -24,6 +24,8 @@ license: LGPL v.3
 import sys
 import sibilant.builtins
 
+from traceback import print_exc
+
 from sibilant.ast import compose_all_from_str
 from sibilant.compiler import compile_from_ast
 
@@ -65,7 +67,7 @@ def repl(stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr, **glbls):
             break
 
         except Exception as se:
-            print(se, file=stderr)
+            print_exc(file=stderr)
             stderr.flush()
 
         print("sibilant > ", end="", file=stdout)
