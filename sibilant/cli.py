@@ -45,7 +45,7 @@ def cli(options):
     filename = options.filename
 
     if filename:
-        with open(filename, "r") as fd:
+        with open(filename, "rt") as fd:
             create_module("__main__", fd, filename=filename)
 
     else:

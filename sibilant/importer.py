@@ -93,7 +93,11 @@ class SibilantSourceFileLoader(FileLoader):
 
 
     def get_source(self, fullname):
-        return self.get_data(self.get_filename(fullname)).decode("utf8")
+        # return self.get_data(self.get_filename(fullname)).decode("utf8")
+
+        with open(self.get_filename(fullname), "rt") as sf:
+            data = sf.read()
+        return data
 
 
     def exec_module(self, module):

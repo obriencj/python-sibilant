@@ -75,22 +75,23 @@ Opcode = Opcode("Opcode", dis.opmap)
 
 
 class Pseudop(Enum):
-    CALL = 1
-    CONST = 2
-    GET_VAR = 3
-    SET_VAR = 4
-    POP = 5
-    LAMBDA = 6
-    RET_VAL = 7
-    DEFINE = 8
-    DUP = 9,
-    LABEL = 10
+    POP = 1
+    DUP = 2
+    CALL = 3
+    CALL_VARARGS = 4
+    CONST = 5
+    GET_VAR = 6
+    SET_VAR = 7
+    LAMBDA = 8
+    RET_VAL = 9
+    DEFINE = 10
     JUMP = 11
     POP_JUMP_IF_TRUE = 12
     POP_JUMP_IF_FALSE = 13
-    CALL_VARARGS = 14
-    BUILD_TUPLE = 15
-    BUILD_TUPLE_UNPACK = 16
+    BUILD_TUPLE = 14
+    BUILD_TUPLE_UNPACK = 15
+    POSITION = 100
+    LABEL = 101
 
 
 def _list_unique_append(l, v):
@@ -120,12 +121,16 @@ class CodeSpace(object):
     """
 
     def __init__(self, env, args=(), kwargs=None, varargs=False,
-                 parent=None, name=None, filename=None):
+                 parent=None, name=None,
+                 filename=None, positions=None, declared_at=None):
 
         self.env = env
         self.parent = parent
         self.name = name
+
         self.filename = filename
+        self.positions = {} if positions is None else positions
+        self.declared_at = declared_at
 
         # vars which are only ours
         self.fast_vars = []
@@ -153,7 +158,6 @@ class CodeSpace(object):
 
         self.names = []
 
-
         # first const is required -- it'll be None or a doc string
         self.consts = [None]
 
@@ -165,14 +169,22 @@ class CodeSpace(object):
             self._prep_varargs()
 
 
-    def child(self, args=(), kwargs=None, varargs=False, name=None):
+    def child(self, args=(), kwargs=None, varargs=False,
+              name=None, declared_at=None):
         """
         Create a chile CodeSpace
         """
-        cs = type(self)(self.env, args=args, kwargs=kwargs,
+
+        if declared_at is None:
+            declared_at = self.declared_at
+
+        cs = type(self)(self.env, parent=self,
+                        args=args, kwargs=kwargs,
                         varargs=varargs,
-                        parent=self, name=name,
-                        filename=self.filename)
+                        name=name,
+                        filename=self.filename,
+                        positions=self.positions,
+                        declared_at=declared_at)
 
         return cs
 
@@ -250,6 +262,9 @@ class CodeSpace(object):
         # initial step which will convert the pythonic varargs tuple
         # into a proper cons list
 
+        if self.declared_at:
+            self.pseudop_position(*self.declared_at)
+
         self.pseudop_get_var("make-list")
         self.pseudop_get_var(self.args[-1])
         self.pseudop_call_varargs(0)
@@ -261,6 +276,17 @@ class CodeSpace(object):
         Pushes a pseudo op and arguments into the code
         """
         self.pseudops.append(op_args)
+
+
+    def pseudop_position(self, line, column):
+        self.pseudop(Pseudop.POSITION, line, column)
+
+
+    def pseudop_position_of(self, cl):
+        try:
+            self.pseudop(Pseudop.POSITION, *self.positions[id(cl)])
+        except KeyError:
+            pass
 
 
     def pseudop_call(self, argc):
@@ -382,7 +408,11 @@ class CodeSpace(object):
         if not self.free_vars:
             flags |= CodeFlag.NOFREE.value
 
-        code = self.code_bytes()
+        lnt = []
+        code = self.code_bytes(lnt)
+
+        # print("in complete, lnt is:", lnt)
+        # print("self.positions is:", self.positions)
 
         consts = tuple(self.consts)
         names = tuple(self.names)
@@ -390,9 +420,10 @@ class CodeSpace(object):
         filename = "<sibilant>" if self.filename is None else self.filename
         name = "<anon>" if self.name is None else self.name
 
-        # TODO: create a line number table
-        firstlineno = 1
-        lnotab = b""
+        firstlineno = self.declared_at[0] if self.declared_at else None
+        firstlineno, lnotab = lnt_compile(lnt, firstline=firstlineno)
+
+        # print("lnotab is:", repr(lnotab))
 
         freevars = tuple(self.free_vars)
         cellvars = tuple(self.cell_vars)
@@ -411,7 +442,7 @@ class CodeSpace(object):
         return ret
 
 
-    def code_bytes(self):
+    def code_bytes(self, lnt):
         offset = 0
         coll = []
 
@@ -425,8 +456,11 @@ class CodeSpace(object):
         def mark_jump(label_name):
             jumps.append((len(coll), label_name))
 
+        def set_position(line, col):
+            lnt.append((offset, line, col))
+
         if (3, 6) <= version_info:
-            for op, *args in self._gen_code(add_label):
+            for op, *args in self._gen_code(add_label, set_position):
                 if op.hasjabs():
                     # deal with jumps, so we can set their argument
                     # to an appropriate label offset later
@@ -447,7 +481,7 @@ class CodeSpace(object):
                     offset += 2
 
         elif (3, 3) <= version_info < (3, 6):
-            for op, *args in self._gen_code(add_label):
+            for op, *args in self._gen_code(add_label, set_position):
 
                 if op.hasjabs():
                     # deal with jumps, so we can set their argument to
@@ -473,7 +507,7 @@ class CodeSpace(object):
         return b''.join(bytes(c) for c in coll)
 
 
-    def _gen_code(self, declare_label):
+    def _gen_code(self, declare_label, declare_position):
         """
         Given the pseudo operations added to this CodeSpace, the named
         variables declared and requested, yield the CPython opcodes
@@ -485,7 +519,10 @@ class CodeSpace(object):
         #     print(op, args)
 
         for op, *args in self.pseudops:
-            if op is Pseudop.CALL:
+            if op is Pseudop.POSITION:
+                declare_position(*args)
+
+            elif op is Pseudop.CALL:
                 n = args[0]
                 yield Opcode.CALL_FUNCTION, n, 0
 
@@ -679,6 +716,7 @@ class SpecialsCodeSpace(CodeSpace):
                 return self.pseudop_const(nil)
 
             elif is_pair(expr):
+                orig = expr
                 head, tail = expr
 
                 if is_symbol(head):
@@ -702,8 +740,10 @@ class SpecialsCodeSpace(CodeSpace):
 
                 # either not a symbol, or it was and the symbol wasn't
                 # a special, so just make it into a function call
-                for pos in expr.unpack():
-                    self.add_expression(pos)
+                for cl in expr.unpack():
+                    self.add_expression(cl)
+
+                self.pseudop_position_of(orig)
                 self.pseudop_call(expr.count() - 1)
                 return None
 
@@ -850,6 +890,8 @@ class SpecialsCodeSpace(CodeSpace):
             # will by the python None
             return self.pseudop_const(None)
 
+        self.pseudop_position_of(cl)
+
         # interleave pops with expr, except for the last one
         first = True
         for c in cl.unpack():
@@ -883,9 +925,13 @@ class SpecialsCodeSpace(CodeSpace):
             raise SyntaxError("formals must be symbol or pair, not %r" %
                               args)
 
+        try:
+            declared_at = self.positions[id(cl)]
+        except KeyError:
+            declared_at = None
 
         subc = self.child(args=args, varargs=varargs,
-                          name="<lambda>")
+                          name="<lambda>", declared_at=declared_at)
 
         subc.special_begin(body)
         subc.pseudop_return()
@@ -909,7 +955,13 @@ class SpecialsCodeSpace(CodeSpace):
             args.append(str(name))
             vals.append(val)
 
-        subc = self.child(args=args, name="<let>")
+        try:
+            declared_at = self.positions[id(cl)]
+        except KeyError:
+            declared_at = None
+
+        subc = self.child(args=args, name="<let>",
+                          declared_at=declared_at)
 
         subc.special_begin(body)
         subc.pseudop_return()
@@ -981,7 +1033,13 @@ class SpecialsCodeSpace(CodeSpace):
             raise SyntaxError("formals must be symbol or pair, not %r" %
                               args)
 
-        subc = self.child(args=args, varargs=varargs, name=name)
+        try:
+            declared_at = self.positions[id(cl)]
+        except KeyError:
+            declared_at = None
+
+        subc = self.child(args=args, varargs=varargs, name=name,
+                          declared_at=declared_at)
 
         subc.special_begin(body)
         subc.pseudop_return()
@@ -1016,7 +1074,13 @@ class SpecialsCodeSpace(CodeSpace):
             raise SyntaxError("formals must be symbol or pair, not %r" %
                               args)
 
-        subc = self.child(args=args, varargs=varargs, name=name)
+        try:
+            declared_at = self.positions[id(cl)]
+        except KeyError:
+            declared_at = None
+
+        subc = self.child(args=args, varargs=varargs, name=name,
+                          declared_at=declared_at)
 
         subc.special_begin(body)
         subc.pseudop_return()
@@ -1094,7 +1158,10 @@ def max_stack(pseudops):
     for op, *args in pseudops:
         # print(op, args, stac, maxc)
 
-        if op is Pseudop.CALL:
+        if op is Pseudop.POSITION:
+            pass
+
+        elif op is Pseudop.CALL:
             pop(args[0])
 
         elif op is Pseudop.CONST:
@@ -1183,6 +1250,52 @@ def apply_jump_labels(coll, jumps, labels):
         raise UnsupportedVersion(version_info)
 
 
+def lnt_compile(lnt, firstline=None):
+    if not lnt:
+        return (1 if firstline is None else firstline), b''
+
+    firstline = lnt[0][1] if firstline is None else firstline
+    gathered = []
+
+    prev_offset = 0
+    prev_line = lnt[0][1]
+
+    for offset, line, _col in lnt:
+        if gathered and line == prev_line:
+            continue
+
+        d_offset = (offset - prev_offset)
+        d_line = (line - prev_line)
+
+        d_offset &= 0xff
+
+        if d_line < 0:
+            if (3, 6) <= version_info:
+                # in version 3.6 and beyond, negative line numbers
+                # work fine, so a CALL_FUNCTION can correctly state
+                # that it happens at line it started on, rather than
+                # on the line it closes at
+                pass
+            else:
+                # before version 3.6, negative relative line numbers
+                # weren't possible. Thus the line of a CALL_FUNCTION
+                # is the line it closes on, rather than the line it
+                # begins on. So we'll skip this lnt entry.
+                continue
+
+        if d_line < -128 or d_line > 127:
+            dd_line = (dd_line >> 8) & 0xff
+            gathered.append(bytes([d_offset, dd_line]))
+
+        d_line &= 0xff
+        gathered.append(bytes([d_offset, d_line]))
+
+        prev_offset = offset
+        prev_line = line
+
+    return firstline, b''.join(gathered)
+
+
 def label_generator(formatstr="label_%04i"):
     counter = 0
 
@@ -1219,8 +1332,14 @@ def is_macro(value):
 
 def compile_from_ast(astree, env, filename=None):
     positions = {}
-    codespace = SpecialsCodeSpace(env, filename=filename)
-    codespace.add_expression_with_return(astree.simplify(positions))
+
+    cl = astree.simplify(positions)
+
+    codespace = SpecialsCodeSpace(env, filename=filename,
+                                  positions=positions)
+
+    codespace.add_expression_with_return(cl)
+
     return codespace.complete()
 
 

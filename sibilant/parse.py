@@ -54,8 +54,16 @@ def parse(stream):
     col_number), *event_data)`
     """
 
-    lin = 1
-    col = -1
+    t = stream.tell()
+    if stream.read(2) == "#!":
+        stream.readline()
+        lin = 2
+        col = -1
+
+    else:
+        stream.seek(t)
+        lin = 1
+        col = -1
 
     for c in stream_chars(stream):
         col += 1
