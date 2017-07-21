@@ -31,6 +31,10 @@ from os.path import basename
 from sibilant.module import prep_module, exec_module
 
 
+# we're going to pre-import this
+import sibilant.builtins  # noqa
+
+
 # once installed, changing this does nothing.
 _SOURCE_SUFFIXES = (".lspy", ".sibilant")
 
