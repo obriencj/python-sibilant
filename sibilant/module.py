@@ -17,6 +17,7 @@ import sys
 import types
 
 from io import IOBase
+from os.path import split
 
 from sibilant.ast import Node, compose_all_from_str, compose_all_from_stream
 from sibilant.compiler import compile_from_ast
@@ -30,21 +31,25 @@ __all__ = (
 def create_module(name, thing, builtins=None, defaults=None, filename=None):
     mod = types.ModuleType(name)
 
-    prep_module(mod, builtins=builtins, defaults=defaults)
+    prep_module(mod, builtins=builtins, defaults=defaults, filename=filename)
     exec_module(mod, thing, filename=filename)
 
     return mod
 
 
-def prep_module(module, builtins=None, defaults=None):
+def prep_module(module, builtins=None, defaults=None, filename=None):
     glbls = module.__dict__
+
+    if filename:
+        module.__file__ = filename
+        module.__path__ = split(filename)
 
     if defaults:
         glbls.update(defaults)
 
     if builtins is None:
-        import sibilant._builtins
-        builtins = sibilant._builtins
+        import sibilant.builtins
+        builtins = sibilant.builtins
 
     glbls["__builtins__"] = builtins
 
@@ -68,9 +73,6 @@ def exec_module(module, thing, filename=None):
         code = compile_from_ast(astree, glbls, filename=filename)
         eval(code, glbls)
         consumed.append(code)
-
-    # TODO
-    # module.__code__ = merge_code(consumed)
 
 
 # TODO

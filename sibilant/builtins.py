@@ -43,9 +43,13 @@ def setup():
                                      filename=filename)
 
         sys.modules["sibilant._builtins"] = builtins
+        sys.modules["sibilant"]._builtins = builtins
 
-    globals().update(bootstrap.__dict__)
-    globals().update(builtins.__dict__)
+    glbls = globals()
+    for module in (bootstrap, builtins):
+        for key, val in module.__dict__.items():
+            if not key.startswith("__"):
+                glbls[key] = val
 
 
 setup()
