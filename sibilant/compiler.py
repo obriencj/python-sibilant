@@ -986,7 +986,6 @@ class SpecialsCodeSpace(CodeSpace):
         binding, body = cl
 
         self.special_begin(body)
-        self.pseudop_dup()
 
         if is_symbol(binding):
             self.pseudop_set_var(str(binding))
@@ -997,6 +996,12 @@ class SpecialsCodeSpace(CodeSpace):
 
         else:
             assert(False)
+
+        # make set! calls evaluate to None
+        self.pseudop_const(None)
+
+        # no additional transform needed
+        return None
 
 
     @special(symbol("define"))
