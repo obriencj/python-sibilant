@@ -1,0 +1,20 @@
+
+
+(defmacro if (condition true_body . &false_body)
+  (make-list 'cond
+	     (make-list condition true_body)
+	     (make-list 'else
+			(cond (&false_body (car &false_body))
+			      (else 'False)))))
+
+
+(defmacro when (condition . &body)
+  (make-list 'cond
+	     (make-list condition (cons 'begin &body))
+	     (make-list 'else 'False)))
+
+
+(defmacro unless (condition . &body)
+  (make-list 'cond
+	     (make-list condition 'False)
+	     (make-list 'else (cons 'begin &body))))
