@@ -23,6 +23,7 @@ license: LGPL v.3
 
 
 import sys as _sys
+import fractions as _fractions
 import operator as _operator
 import sibilant as _sibilant
 import sibilant.compiler as _compiler
@@ -184,6 +185,13 @@ _op(isinstance)
 _op(open)
 _op(print)
 _op(setattr)
+_op(str)
+_op(repr)
+_op(type)
+_op(int)
+_op(float)
+_op(complex)
+_op(_fractions.Fraction, "fraction")
 _op(_sys.exit, "exit")
 
 
