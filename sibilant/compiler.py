@@ -711,6 +711,8 @@ class SpecialsCodeSpace(CodeSpace):
         and compiled to pseudo ops.
         """
 
+        self.pseudop_position_of(expr)
+
         while True:
             if expr is nil:
                 return self.pseudop_const(nil)
@@ -926,7 +928,7 @@ class SpecialsCodeSpace(CodeSpace):
                               args)
 
         try:
-            declared_at = self.positions[id(cl)]
+            declared_at = self.positions[id(body)]
         except KeyError:
             declared_at = None
 
@@ -956,7 +958,7 @@ class SpecialsCodeSpace(CodeSpace):
             vals.append(val)
 
         try:
-            declared_at = self.positions[id(cl)]
+            declared_at = self.positions[id(body)]
         except KeyError:
             declared_at = None
 
@@ -1030,7 +1032,7 @@ class SpecialsCodeSpace(CodeSpace):
             args = map(str, args.unpack())
 
         else:
-            raise SyntaxError("formals must be symbol or pair, not %r" %
+            raise SyntaxErgror("formals must be symbol or pair, not %r" %
                               args)
 
         try:
@@ -1251,14 +1253,20 @@ def apply_jump_labels(coll, jumps, labels):
 
 
 def lnt_compile(lnt, firstline=None):
+    # print("lnt_compile")
+    # print( "lnt:", lnt)
+    # print( "firstline:", firstline)
+
     if not lnt:
         return (1 if firstline is None else firstline), b''
 
     firstline = lnt[0][1] if firstline is None else firstline
     gathered = []
 
+    # print( "firstline:", firstline)
+
     prev_offset = 0
-    prev_line = lnt[0][1]
+    prev_line = firstline
 
     for offset, line, _col in lnt:
         if gathered and line == prev_line:
@@ -1293,7 +1301,9 @@ def lnt_compile(lnt, firstline=None):
         prev_offset = offset
         prev_line = line
 
-    return firstline, b''.join(gathered)
+    res = firstline, b''.join(gathered)
+    # print("result:", res)
+    return res
 
 
 def label_generator(formatstr="label_%04i"):
