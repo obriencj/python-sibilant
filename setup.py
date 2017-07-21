@@ -40,6 +40,9 @@ setup(name = "sibilant",
       version = "0.9.0",
 
       packages = ["sibilant", ],
+      package_data = {
+          "sibilant": ["*.lspy"],
+      },
 
       test_suite = "tests",
 

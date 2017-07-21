@@ -1032,7 +1032,7 @@ class SpecialsCodeSpace(CodeSpace):
             args = map(str, args.unpack())
 
         else:
-            raise SyntaxErgror("formals must be symbol or pair, not %r" %
+            raise SyntaxError("formals must be symbol or pair, not %r" %
                               args)
 
         try:
@@ -1292,7 +1292,7 @@ def lnt_compile(lnt, firstline=None):
                 continue
 
         if d_line < -128 or d_line > 127:
-            dd_line = (dd_line >> 8) & 0xff
+            dd_line = (d_line >> 8) & 0xff
             gathered.append(bytes([d_offset, dd_line]))
 
         d_line &= 0xff

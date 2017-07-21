@@ -13,7 +13,6 @@
 # <http://www.gnu.org/licenses/>.
 
 
-import sys
 import types
 
 from io import IOBase
