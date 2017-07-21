@@ -14,8 +14,13 @@
 
 
 """
-builtin definitions for sibilant. These are made available in the
-scope of all loaded modules.
+Pythonic builtin definitions for sibilant.
+
+These are used to bootstrap an importer that can load the
+_builtins.lspy.
+
+This module and _builtins are then merged together to create the real
+builtins module
 
 author: Christopher O'Brien  <obriencj@gmail.com>
 license: LGPL v.3

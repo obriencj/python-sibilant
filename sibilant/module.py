@@ -13,8 +13,8 @@
 # <http://www.gnu.org/licenses/>.
 
 
+import sys
 import types
-import sibilant.builtins
 
 from io import IOBase
 
@@ -28,7 +28,6 @@ __all__ = (
 
 
 def create_module(name, thing, builtins=None, defaults=None, filename=None):
-
     mod = types.ModuleType(name)
 
     prep_module(mod, builtins=builtins, defaults=defaults)
@@ -44,7 +43,9 @@ def prep_module(module, builtins=None, defaults=None):
         glbls.update(defaults)
 
     if builtins is None:
-        builtins = sibilant.builtins
+        import sibilant._builtins
+        builtins = sibilant._builtins
+
     glbls["__builtins__"] = builtins
 
 
