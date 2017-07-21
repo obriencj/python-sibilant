@@ -48,10 +48,14 @@ def setup():
     sys.modules["sibilant"]._builtins = builtins
 
     glbls = globals()
+    _all = set()
     for module in (bootstrap, builtins):
         for key, val in module.__dict__.items():
             if not key.startswith("__"):
                 glbls[key] = val
+                _all.add(key)
+
+    module.__all__ = tuple(_all)
 
 
 setup()

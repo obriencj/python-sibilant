@@ -49,7 +49,7 @@ def cli(options):
             create_module("__main__", fd, filename=filename)
 
     else:
-        repl()
+        repl(__name__="__main__", __file__=None)
 
 
 def cli_option_parser(args):
