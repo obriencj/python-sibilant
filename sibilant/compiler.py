@@ -745,11 +745,7 @@ class SpecialsCodeSpace(CodeSpace):
                     # or a defined macro.
                     special = self.find_special(head)
                     if special:
-                        print("found special for", head)
                         special = special.__special__
-                        print(special)
-                        print(orig)
-                        print(tail)
                         expr = special(self.env, tail)
                         if expr is None:
                             # the special form or macro has done all
@@ -762,7 +758,6 @@ class SpecialsCodeSpace(CodeSpace):
                             # we've expanded a macro or special form,
                             # so we need to start over on the
                             # resulting transformed expression.
-                            print("transformed to", expr)
                             continue
 
                 # either not a symbol, or it was and the symbol wasn't
@@ -1382,7 +1377,6 @@ def label_generator(formatstr="label_%04i"):
 
 class Special(object):
     def __init__(self, fun, name=None):
-        print("created Special for ", fun, "named", name)
         self.__special__ = fun
         self.__name__ = name or fun.__name__
 
