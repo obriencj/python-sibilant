@@ -15,7 +15,9 @@
 
 import dis
 
+from contextlib import contextmanager
 from enum import Enum
+from functools import wraps
 from sys import version_info
 from types import CodeType
 
@@ -114,17 +116,18 @@ class CodeFlag(Enum):
     ITERABLE_COROUTINE = 256
 
 
+
 class CodeSpace(object):
     """
     Represents a lexical scope, expressions occurring within that
     scope, and nested sub-scopes.
     """
 
-    def __init__(self, env, args=(), kwargs=None, varargs=False,
+    def __init__(self, args=(), kwargs=None, varargs=False,
                  parent=None, name=None,
                  filename=None, positions=None, declared_at=None):
 
-        self.env = env
+        self.env = None
         self.parent = parent
         self.name = name
 
@@ -169,16 +172,44 @@ class CodeSpace(object):
             self._prep_varargs()
 
 
+    def require_active(self):
+        if self.env is None:
+            raise Exception("compiler code space is not active")
+
+
+    @contextmanager
+    def activate(self, env):
+
+        self.env = env
+
+        old = env.get("__compiler__", None)
+        env["__compiler__"] = self
+
+        try:
+            yield self
+
+        except Exception:
+            raise
+
+        finally:
+            if old is None:
+                del env["__compiler__"]
+            else:
+                env["__compiler__"] = old
+
+            self.env = None
+
+
     def child(self, args=(), kwargs=None, varargs=False,
               name=None, declared_at=None):
         """
-        Create a chile CodeSpace
+        Returns a context for a child codespace.
         """
 
         if declared_at is None:
             declared_at = self.declared_at
 
-        cs = type(self)(self.env, parent=self,
+        cs = type(self)(parent=self,
                         args=args, kwargs=kwargs,
                         varargs=varargs,
                         name=name,
@@ -187,6 +218,12 @@ class CodeSpace(object):
                         declared_at=declared_at)
 
         return cs
+
+
+    def child_context(self, **kwargs):
+        self.require_active()
+        cs = self.child(**kwargs)
+        return cs.activate(self.env)
 
 
     def declare_const(self, value):
@@ -391,6 +428,8 @@ class CodeSpace(object):
         Produces a python code object representing the state of this
         CodeSpace
         """
+
+        self.require_active()
 
         argcount = len(self.args)
 
@@ -615,6 +654,10 @@ class CodeSpace(object):
 
 
     def _gen_lambda(self, code):
+        """
+        Helper to _gen_code that handles just lambda definitions
+        """
+
         ci = self.consts.index(code)
         ni = self.consts.index(code.co_name)
 
@@ -657,40 +700,14 @@ def _special():
     _specials = {}
 
     def special(namesym):
+
         def deco(fun):
-            _specials[namesym] = fun.__name__
+            _specials[namesym] = fun
             return fun
+
         return deco
 
-    def find_special(self, namesym):
-        try:
-            # try and find a decorated special method first.
-            return getattr(self, _specials[namesym], None)
-
-        except KeyError:
-            # okay, let's look through the environment by name
-            name = str(namesym)
-            env = self.env
-            try:
-                # is it in globals?
-                found = env[name]
-            except KeyError:
-                try:
-                    # nope, how about in builtins?
-                    env = env["__builtins__"].__dict__
-                    found = env[name]
-                except KeyError:
-                    found = None
-
-            if found and is_macro(found):
-                # we found a Macro instance, return the relevant
-                # method
-                return found.__special__
-            else:
-                # what we found doesn't qualify, throw it away
-                return None
-
-    return special, find_special
+    return special, _specials.items
 
 
 class SpecialsCodeSpace(CodeSpace):
@@ -699,7 +716,7 @@ class SpecialsCodeSpace(CodeSpace):
     """
 
     # decorator and lookup function for built-in special forms
-    special, find_special = _special()
+    special, all_specials = _special()
 
 
     def add_expression(self, expr):
@@ -710,6 +727,8 @@ class SpecialsCodeSpace(CodeSpace):
         env, or a pre-defined built-in special), it will be expanded
         and compiled to pseudo ops.
         """
+
+        self.require_active()
 
         self.pseudop_position_of(expr)
 
@@ -726,7 +745,12 @@ class SpecialsCodeSpace(CodeSpace):
                     # or a defined macro.
                     special = self.find_special(head)
                     if special:
-                        expr = special(tail)
+                        print("found special for", head)
+                        special = special.__special__
+                        print(special)
+                        print(orig)
+                        print(tail)
+                        expr = special(self.env, tail)
                         if expr is None:
                             # the special form or macro has done all
                             # the work already (injecting pseudo ops,
@@ -738,6 +762,7 @@ class SpecialsCodeSpace(CodeSpace):
                             # we've expanded a macro or special form,
                             # so we need to start over on the
                             # resulting transformed expression.
+                            print("transformed to", expr)
                             continue
 
                 # either not a symbol, or it was and the symbol wasn't
@@ -932,13 +957,15 @@ class SpecialsCodeSpace(CodeSpace):
         except KeyError:
             declared_at = None
 
-        subc = self.child(args=args, varargs=varargs,
-                          name="<lambda>", declared_at=declared_at)
+        kid = self.child_context(args=args, varargs=varargs,
+                                 name="<lambda>",
+                                 declared_at=declared_at)
 
-        subc.special_begin(body)
-        subc.pseudop_return()
+        with kid as subc:
+            subc.special_begin(body)
+            subc.pseudop_return()
+            code = subc.complete()
 
-        code = subc.complete()
         self.pseudop_lambda(code)
 
         # no additional transform needed
@@ -962,13 +989,14 @@ class SpecialsCodeSpace(CodeSpace):
         except KeyError:
             declared_at = None
 
-        subc = self.child(args=args, name="<let>",
-                          declared_at=declared_at)
+        kid = self.child_context(args=args, name="<let>",
+                                 declared_at=declared_at)
 
-        subc.special_begin(body)
-        subc.pseudop_return()
+        with kid as subc:
+            subc.special_begin(body)
+            subc.pseudop_return()
+            code = subc.complete()
 
-        code = subc.complete()
         self.pseudop_lambda(code)
 
         for val in vals:
@@ -1045,13 +1073,15 @@ class SpecialsCodeSpace(CodeSpace):
         except KeyError:
             declared_at = None
 
-        subc = self.child(args=args, varargs=varargs, name=name,
-                          declared_at=declared_at)
+        kid = self.child_context(args=args, varargs=varargs,
+                                 name=name,
+                                 declared_at=declared_at)
 
-        subc.special_begin(body)
-        subc.pseudop_return()
+        with kid as subc:
+            subc.special_begin(body)
+            subc.pseudop_return()
+            code = subc.complete()
 
-        code = subc.complete()
         self.pseudop_lambda(code)
         self.pseudop_define(name)
 
@@ -1086,13 +1116,14 @@ class SpecialsCodeSpace(CodeSpace):
         except KeyError:
             declared_at = None
 
-        subc = self.child(args=args, varargs=varargs, name=name,
-                          declared_at=declared_at)
+        kid = self.child_context(args=args, varargs=varargs,
+                                 name=name,
+                                 declared_at=declared_at)
 
-        subc.special_begin(body)
-        subc.pseudop_return()
-
-        code = subc.complete()
+        with kid as subc:
+            subc.special_begin(body)
+            subc.pseudop_return()
+            code = subc.complete()
 
         self.pseudop_get_var("macro")
         self.pseudop_lambda(code)
@@ -1136,6 +1167,33 @@ class SpecialsCodeSpace(CodeSpace):
         if label:
             self.pseudop_label(label)
         self.pseudop_label(done)
+
+
+    def find_special(self, namesym):
+        self.require_active()
+
+        # okay, let's look through the environment by name
+        name = str(namesym)
+        env = self.env
+
+        try:
+            # is it in globals?
+            found = env[name]
+        except KeyError:
+            try:
+                # nope, how about in builtins?
+                env = env["__builtins__"].__dict__
+                found = env[name]
+            except KeyError:
+                found = None
+
+        if found and is_special(found):
+            # we found a Macro instance, return the relevant
+            # method
+            return found
+        else:
+            # what we found doesn't qualify, throw it away
+            return None
 
 
 def max_stack(pseudops):
@@ -1322,16 +1380,37 @@ def label_generator(formatstr="label_%04i"):
     return gen_label
 
 
-class Macro(object):
-    def __init__(self, fun):
-        self.__expand__ = fun
-        self.__name__ = fun.__name__
-
-    def __special__(self, cl):
-        return self.__expand__(*cl.unpack())
+class Special(object):
+    def __init__(self, fun, name=None):
+        print("created Special for ", fun, "named", name)
+        self.__special__ = fun
+        self.__name__ = name or fun.__name__
 
     def __call__(self, *args, **kwds):
-        raise TypeError("attempt to call macro as function", self.__name__)
+        t = type(self)
+        n = self.__name__
+        msg = "Attempt to call %s %s as runtime function." % (t, n)
+        raise TypeError(msg)
+
+
+def special(fun):
+    if is_special(fun):
+        return fun
+    else:
+        return Special(fun)
+
+
+def is_special(value):
+    return isinstance(value, Special)
+
+
+class Macro(Special):
+    def __init__(self, fun, name=None):
+        self.__expand__ = fun
+        self.__name__ = name or fun.__name__
+
+    def __special__(self, _env, cl):
+        return self.__expand__(*cl.unpack())
 
 
 def macro(fun):
@@ -1345,17 +1424,35 @@ def is_macro(value):
     return isinstance(value, Macro)
 
 
+def builtin_specials():
+    def gen_wrapper(meth):
+        @wraps(meth)
+        def invoke_special(env, cl):
+            compiler = env.get("__compiler__", None)
+            if not compiler:
+                raise Exception("special invoked without active compiler")
+            return meth(compiler, cl)
+
+        return invoke_special
+
+    for sym, meth in SpecialsCodeSpace.all_specials():
+        yield str(sym), Special(gen_wrapper(meth), name=sym)
+
+
 def compile_from_ast(astree, env, filename=None):
     positions = {}
 
     cl = astree.simplify(positions)
 
-    codespace = SpecialsCodeSpace(env, filename=filename,
+    codespace = SpecialsCodeSpace(filename=filename,
                                   positions=positions)
 
-    codespace.add_expression_with_return(cl)
+    with codespace.activate(env):
+        assert(env.get("__compiler__") == codespace)
+        codespace.add_expression_with_return(cl)
+        code = codespace.complete()
 
-    return codespace.complete()
+    return code
 
 
 def compile_from_stream(stream, env, filename=None):

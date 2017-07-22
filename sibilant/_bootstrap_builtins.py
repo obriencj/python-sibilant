@@ -179,8 +179,20 @@ _op(_sibilant.is_symbol, "symbol?")
 _val(_sibilant.undefined, "undefined")
 _op(_sibilant.is_undefined, "undefined?")
 
+_val(_compiler.Special, "special")
+_op(_compiler.is_special, "special?")
+
 _val(_compiler.Macro, "macro")
 _op(_compiler.is_macro, "macro?")
+
+
+def _specials():
+    for name, special in _compiler.builtin_specials():
+        globals()[name] = special
+        __all__.append(name)
+
+_specials()
+
 
 _op(callable)
 _op(callable, "function?")
