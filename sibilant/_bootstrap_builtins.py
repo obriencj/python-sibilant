@@ -29,6 +29,7 @@ license: LGPL v.3
 
 import sys as _sys
 import fractions as _fractions
+import importlib as _importlib
 import operator as _operator
 import sibilant as _sibilant
 import sibilant.compiler as _compiler
@@ -211,6 +212,7 @@ _op(complex)
 _op(_fractions.Fraction, "fraction")
 _op(_sys.exit, "exit")
 
+_op(_importlib.import_module, "import")
 
 __all__ = tuple(__all__)
 

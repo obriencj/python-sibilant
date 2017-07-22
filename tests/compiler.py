@@ -296,7 +296,7 @@ class TestCompiler(TestCase):
 
         self.assertRaises(TypeError, swap_test, 1, 2, 3)
 
-        self.assertEqual(swap_test.__expand__(1, 2, 3),
+        self.assertEqual(swap_test.expand(1, 2, 3),
                          cons(3, 2, 1, nil))
 
         src = """
@@ -371,6 +371,50 @@ class TestCompiler(TestCase):
         stmt, env = compile_expr(src)
         res = stmt()
         self.assertEqual(res, 103)
+
+
+    def test_quasiquote(self):
+        src = """
+        `(1 2 3 ,4 ,5)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, cons(1, 2, 3, 4, 5, nil))
+
+        src = """
+        `(1 2 3 ,A ,B Z)
+        """
+        stmt, env = compile_expr(src, A=4, B=5)
+        res = stmt()
+        self.assertEqual(res, cons(1, 2, 3, 4, 5, symbol("Z"), nil))
+
+        src = """
+        `(1 2 ,@A ,B)
+        """
+        stmt, env = compile_expr(src, A=cons(3, 4, nil), B=5)
+        res = stmt()
+        self.assertEqual(res, cons(1, 2, 3, 4, 5, nil))
+
+        src = """
+        `(1 2 ,@A)
+        """
+        stmt, env = compile_expr(src, A=range(3,6))
+        res = stmt()
+        self.assertEqual(res, cons(1, 2, 3, 4, 5, nil))
+
+        src = """
+        `(1 2 ,@(range 3 6))
+        """
+        stmt, env = compile_expr(src, range=range)
+        res = stmt()
+        self.assertEqual(res, cons(1, 2, 3, 4, 5, nil))
+
+        src = """
+        `(1 2 ,(foo 3 6))
+        """
+        stmt, env = compile_expr(src, foo=lambda a,b: list(range(a,b)))
+        res = stmt()
+        self.assertEqual(res, cons(1, 2, [3, 4, 5], nil))
 
 
 #

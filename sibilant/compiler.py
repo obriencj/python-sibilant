@@ -96,14 +96,6 @@ class Pseudop(Enum):
     LABEL = 101
 
 
-def _list_unique_append(l, v):
-    if v in l:
-        return l.index(v)
-    else:
-        l.append(v)
-        return len(l)
-
-
 class CodeFlag(Enum):
     OPTIMIZED = 1
     NEWLOCALS = 2
@@ -114,7 +106,6 @@ class CodeFlag(Enum):
     NOFREE = 64
     COROUTINE = 128
     ITERABLE_COROUTINE = 256
-
 
 
 class CodeSpace(object):
@@ -745,8 +736,7 @@ class SpecialsCodeSpace(CodeSpace):
                     # or a defined macro.
                     special = self.find_special(head)
                     if special:
-                        special = special.__special__
-                        expr = special(self.env, tail)
+                        expr = special.special(self.env, tail)
                         if expr is None:
                             # the special form or macro has done all
                             # the work already (injecting pseudo ops,
@@ -855,8 +845,6 @@ class SpecialsCodeSpace(CodeSpace):
             curr_tup = 0
 
             for c in body.unpack():
-                # print(" -- ", repr(c))
-
                 if c is nil:
                     coll_tup += 1
                     self.pseudop_get_var("nil")
@@ -870,16 +858,20 @@ class SpecialsCodeSpace(CodeSpace):
                 elif is_pair(c):
                     head, tail = c
                     if head is symbol("unquote"):
-                        u_head, u_tail = tail
-                        if u_head is symbol("splice"):
-                            if coll_tup:
-                                self.pseudop_build_tuple(coll_tup)
-                                coll_tup = 0
+                        if is_pair(tail):
+                            u_head, u_tail = tail
+                            if u_head is symbol("splice"):
+                                if coll_tup:
+                                    self.pseudop_build_tuple(coll_tup)
+                                    coll_tup = 0
+                                    curr_tup += 1
+                                self.pseudop_get_var("py-tuple")
+                                self.add_expression(u_tail)
+                                self.pseudop_call(1)
                                 curr_tup += 1
-                            self.pseudop_get_var("py-tuple")
-                            self.add_expression(u_tail)
-                            self.pseudop_call(1)
-                            curr_tup += 1
+                            else:
+                                self.add_expression(tail)
+                                coll_tup += 1
                         else:
                             self.add_expression(tail)
                             coll_tup += 1
@@ -1191,6 +1183,14 @@ class SpecialsCodeSpace(CodeSpace):
             return None
 
 
+def _list_unique_append(l, v):
+    if v in l:
+        return l.index(v)
+    else:
+        l.append(v)
+        return len(l)
+
+
 def max_stack(pseudops):
     """
     Calculates the maximum stack size from the pseudo operations
@@ -1377,7 +1377,7 @@ def label_generator(formatstr="label_%04i"):
 
 class Special(object):
     def __init__(self, fun, name=None):
-        self.__special__ = fun
+        self.special = fun
         self.__name__ = name or fun.__name__
 
     def __call__(self, *args, **kwds):
@@ -1400,11 +1400,11 @@ def is_special(value):
 
 class Macro(Special):
     def __init__(self, fun, name=None):
-        self.__expand__ = fun
+        self.expand = fun
         self.__name__ = name or fun.__name__
 
-    def __special__(self, _env, cl):
-        return self.__expand__(*cl.unpack())
+    def special(self, _env, cl):
+        return self.expand(*cl.unpack())
 
 
 def macro(fun):

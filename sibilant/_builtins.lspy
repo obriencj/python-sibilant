@@ -1,20 +1,65 @@
+;; This library is free software; you can redistribute it and/or modify
+;; it under the terms of the GNU Lesser General Public License as
+;; published by the Free Software Foundation; either version 3 of the
+;; License, or (at your option) any later version.
+;;
+;; This library is distributed in the hope that it will be useful, but
+;; WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;; Lesser General Public License for more details.
+;;
+;; You should have received a copy of the GNU Lesser General Public
+;; License along with this library; if not, see
+;; <http://www.gnu.org/licenses/>.
+
+;; author: Christopher O'Brien  <obriencj@gmail.com>
+;; license: LGPL v.3
+
 
 
 (defmacro if (condition true_body . &false_body)
-  (make-list 'cond
-	     (make-list condition true_body)
-	     (make-list 'else
-			(cond (&false_body (car &false_body))
-			      (else 'False)))))
+  `(cond (,condition ,true_body)
+	 (else ,(cond (&false_body (car &false_body))
+		      (else 'False)))))
+
+;;  (make-list 'cond
+;;	     (make-list condition true_body)
+;;	     (make-list 'else
+;;			(cond (&false_body (car &false_body))
+;;			      (else 'False)))))
 
 
 (defmacro when (condition . &body)
-  (make-list 'cond
-	     (make-list condition (cons 'begin &body))
-	     (make-list 'else 'False)))
+  `(cond (,condition (begin ,&body))
+	 (else 'False)))
+
+;;  (make-list 'cond
+;;	     (make-list condition (cons 'begin &body))
+;;	     (make-list 'else 'False)))
 
 
 (defmacro unless (condition . &body)
-  (make-list 'cond
-	     (make-list condition 'False)
-	     (make-list 'else (cons 'begin &body))))
+  `(cond (,condition 'False)
+	 (else (begin ,&body))))
+
+;;  (make-list 'cond
+;;	     (make-list condition 'False)
+;;	     (make-list 'else (cons 'begin &body))))
+
+
+(defmacro def-import (name . &as_name)
+  (set! &as_name
+	(if (nil? &as_name) name (car &as_name)))
+
+  `(define ,&as_name (import ,(str name))))
+
+
+(defmacro def-import-from (modulename name . &as_name)
+  (set! &as_name
+	(if (nil? &as_name) name (car &as_name)))
+
+  `(define ,&as_name (import-from ,(str modulename) ,(str name))))
+
+
+;;
+;; The end.

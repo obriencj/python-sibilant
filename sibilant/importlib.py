@@ -137,13 +137,5 @@ def _install():
 install, is_installed = _install()
 
 
-def import_module(self, name, path=None, target=None):
-    if is_installed():
-        return __import__(name, path, target)
-
-    spec = SibilantPathFinder.find_spec(name, path=path, target=target)
-    return spec
-
-
 #
 # The end.
