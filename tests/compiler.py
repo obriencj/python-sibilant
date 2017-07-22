@@ -241,7 +241,7 @@ class TestCompiler(TestCase):
         self.assertTrue(callable(setter))
 
         self.assertEqual(getter(), 0)
-        self.assertEqual(setter(5), 5)
+        self.assertEqual(setter(5), None)
         self.assertEqual(getter(), 5)
 
 
