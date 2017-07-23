@@ -417,5 +417,37 @@ class TestCompiler(TestCase):
         self.assertEqual(res, cons(1, 2, [3, 4, 5], nil))
 
 
+    def test_while(self):
+
+        src = """
+        (while False (trigger))
+        """
+        trigger = partial(self.assertFalse, True, "trigger was called")
+        stmt, env = compile_expr(src, trigger=trigger)
+        res = stmt()
+        self.assertEqual(res, None)
+
+        src = """
+        (while True (raise exc))
+        """
+        exc = Exception("I meant to do this")
+        stmt, env = compile_expr(src, exc=exc)
+        self.assertRaises(Exception, stmt)
+
+        src = """
+        (while X
+          (set! X (- X 1))
+          (accumulate X))
+        """
+        data = []
+        def accu(v):
+            data.append(v)
+            return data
+        stmt, env = compile_expr(src, X=5, accumulate=accu)
+        res = stmt()
+        self.assertIs(res, data)
+        self.assertEqual(data, [4, 3, 2, 1, 0])
+
+
 #
 # The end.
