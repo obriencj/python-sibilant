@@ -33,6 +33,34 @@
 	 (else (begin ,&body))))
 
 
+(defmacro incr (dest . by)
+  (cond
+   ((nil? by)
+    (set-var by 1))
+
+   ((nil? (cdr by))
+    (set-var by (car by)))
+
+   (else
+    (raise (Exception "too many argument to incr"))))
+
+  `(set! ,dest (+ ,dest ,by)))
+
+
+(defmacro decr (dest . by)
+  (cond
+   ((nil? by)
+    (set-var by 1))
+
+   ((nil? (cdr by))
+    (set-var by (car by)))
+
+   (else
+    (raise (Exception "too many argument to decr"))))
+
+  `(set! ,dest (- ,dest ,by)))
+
+
 (defmacro def-import (name . &as_name)
   (set! &as_name
 	(if (nil? &as_name) name (car &as_name)))
