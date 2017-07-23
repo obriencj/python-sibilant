@@ -22,29 +22,15 @@
 	 (else ,(cond (&false_body (car &false_body))
 		      (else 'False)))))
 
-;;  (make-list 'cond
-;;	     (make-list condition true_body)
-;;	     (make-list 'else
-;;			(cond (&false_body (car &false_body))
-;;			      (else 'False)))))
-
 
 (defmacro when (condition . &body)
   `(cond (,condition (begin ,&body))
 	 (else 'False)))
 
-;;  (make-list 'cond
-;;	     (make-list condition (cons 'begin &body))
-;;	     (make-list 'else 'False)))
-
 
 (defmacro unless (condition . &body)
   `(cond (,condition 'False)
 	 (else (begin ,&body))))
-
-;;  (make-list 'cond
-;;	     (make-list condition 'False)
-;;	     (make-list 'else (cons 'begin &body))))
 
 
 (defmacro def-import (name . &as_name)
@@ -59,6 +45,32 @@
 	(if (nil? &as_name) name (car &as_name)))
 
   `(define ,&as_name (import-from ,(str modulename) ,(str name))))
+
+
+(defmacro set! (target value)
+  (cond
+   ((symbol? target) `(set-var ,target ,value))
+
+   ((and (proper? target) (== 2 (count target)))
+    (let ((trigger (car target)) (dest (cdr target)))
+      `(begin
+	,(cond ((eq 'car trigger) `(set-car ,@dest ,value))
+	       ((eq 'cdr trigger) `(set-cdr ,@dest ,value))
+	       ((eq 'item trigger) `(set-item ,@dest ,value)))
+	None)))
+
+   (else
+    (raise (Exception (% "invalid set! target %s" trigger))))))
+
+
+(defun help-macroexpand-1 (the-macro argbody)
+  (if (macro? the-macro)
+      (apply (getattr the-macro "expand") argbody)
+    (raise (Exception (% "not a macro")))))
+
+
+(defmacro macroexpand-1 (expr)
+  `(help-macroexpand-1 ,(car expr) (quote ,@(cdr expr))))
 
 
 ;;

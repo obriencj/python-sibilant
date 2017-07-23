@@ -22,8 +22,8 @@ from sys import version_info
 from types import CodeType
 
 from . import (
-    nil, symbol, is_pair, is_list, is_symbol,
-    SibilantException, NotYetImplemented
+    nil, symbol, is_pair, is_proper, is_symbol,
+    SibilantException,
 )
 
 from .ast import (
@@ -45,7 +45,7 @@ class SyntaxError(SibilantException):
     pass
 
 
-class UnsupportedVersion(NotYetImplemented):
+class UnsupportedVersion(SibilantException):
     pass
 
 
@@ -193,8 +193,9 @@ class CodeSpace(object):
 
     def child(self, args=(), kwargs=None, varargs=False,
               name=None, declared_at=None):
+
         """
-        Returns a context for a child codespace.
+        Returns a child codespace
         """
 
         if declared_at is None:
@@ -212,6 +213,10 @@ class CodeSpace(object):
 
 
     def child_context(self, **kwargs):
+        """
+        Returns a context for a child codespace
+        """
+
         self.require_active()
         cs = self.child(**kwargs)
         return cs.activate(self.env)
@@ -293,7 +298,7 @@ class CodeSpace(object):
         if self.declared_at:
             self.pseudop_position(*self.declared_at)
 
-        self.pseudop_get_var("make-list")
+        self.pseudop_get_var("make-proper")
         self.pseudop_get_var(self.args[-1])
         self.pseudop_call_varargs(0)
         self.pseudop_set_var(self.args[-1])
@@ -804,8 +809,8 @@ class SpecialsCodeSpace(CodeSpace):
             self.pseudop_call(1)
 
         elif is_pair(body):
-            if is_list(body):
-                self.pseudop_get_var("make-list")
+            if is_proper(body):
+                self.pseudop_get_var("make-proper")
             else:
                 self.pseudop_get_var("cons")
             for cl, c in enumerate(body.unpack(), 1):
@@ -836,8 +841,8 @@ class SpecialsCodeSpace(CodeSpace):
             self.pseudop_call(1)
 
         elif is_pair(body):
-            if is_list(body):
-                self.pseudop_get_var("make-list")
+            if is_proper(body):
+                self.pseudop_get_var("make-proper")
             else:
                 self.pseudop_get_var("cons")
 
@@ -865,7 +870,7 @@ class SpecialsCodeSpace(CodeSpace):
                                     self.pseudop_build_tuple(coll_tup)
                                     coll_tup = 0
                                     curr_tup += 1
-                                self.pseudop_get_var("py-tuple")
+                                self.pseudop_get_var("to-tuple")
                                 self.add_expression(u_tail)
                                 self.pseudop_call(1)
                                 curr_tup += 1
@@ -932,7 +937,7 @@ class SpecialsCodeSpace(CodeSpace):
             varargs = True
 
         elif is_pair(args):
-            varargs = not is_list(args)
+            varargs = not is_proper(args)
             args = map(str, args.unpack())
 
         else:
@@ -995,7 +1000,7 @@ class SpecialsCodeSpace(CodeSpace):
         return None
 
 
-    @special(symbol("set!"))
+    @special(symbol("set-var"))
     def special_setf(self, cl):
 
         binding, body = cl
@@ -1048,7 +1053,7 @@ class SpecialsCodeSpace(CodeSpace):
             varargs = True
 
         elif is_pair(args):
-            varargs = not is_list(args)
+            varargs = not is_proper(args)
             args = map(str, args.unpack())
 
         else:
@@ -1091,7 +1096,7 @@ class SpecialsCodeSpace(CodeSpace):
             varargs = True
 
         elif is_pair(args):
-            varargs = not is_list(args)
+            varargs = not is_proper(args)
             args = map(str, args.unpack())
 
         else:

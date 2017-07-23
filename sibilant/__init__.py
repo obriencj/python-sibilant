@@ -28,13 +28,18 @@ from itertools import islice
 __all__ = (
     "SibilantException", "NotYetImplemented",
     "symbol", "is_symbol",
+
     "cons", "car", "cdr", "nil",
-    "is_pair", "is_list", "is_nil",
+    "setcar", "setcdr",
+    "is_nil", "is_pair", "is_proper",
+    "make-proper", "unpack",
+
     "ref", "attr", "deref", "setref",
-    "undefined",
+    "undefined", "is_undefined",
+
     "reapply", "repeat",
     "first", "second", "third", "fourth",
-    "fifth", "last", "take",
+    "fifth", "last",
 )
 
 
@@ -405,8 +410,22 @@ def is_pair(value):
     return isinstance(value, Pair)
 
 
-def is_list(value):
+def is_proper(value):
     return isinstance(value, Pair) and value.is_proper()
+
+
+def make_proper(*values):
+    if values:
+        return cons(*values, nil)
+    else:
+        return nil
+
+
+def unpack(pair):
+    try:
+        yield from pair.unpack()
+    except AttributeError:
+        return iter(pair)
 
 
 def cons(a, *b, recursive=False, ltype=Pair):

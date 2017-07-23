@@ -29,7 +29,7 @@ license: LGPL v.3
 
 import sys as _sys
 import fractions as _fractions
-import importlib as _importlib
+import functools as _functools
 import operator as _operator
 import sibilant as _sibilant
 import sibilant.compiler as _compiler
@@ -43,7 +43,7 @@ def _reduce_op(opf, name=None):
     # arguments can result in the normal call. Ops invoked with more
     # than two arguments can be wrapped in a reduce call.
 
-    from functools import reduce
+    reduce = _functools.reduce
 
     def fun(*args):
         return reduce(opf, args)
@@ -91,9 +91,14 @@ def _or(val1, *valn):
     return val1
 
 
-_reduce_op(_operator.add, "+")
-_reduce_op(_operator.sub, "-")
-_reduce_op(_operator.mul, "*")
+# === standard operators ===
+
+_op(_operator.add, "+")
+_op(_operator.sub, "-")
+_op(_operator.mul, "*")
+
+_op(_operator.pos, "pos")
+_op(_operator.neg, "neg")
 
 _op(_and, "and", rename=True)
 _op(_or, "or", rename=True)
@@ -108,77 +113,58 @@ _op(_operator.and_, "&")
 _op(_operator.xor, "^")
 _op(_operator.invert, "~")
 
-_op((lambda fun, args: fun(*args)), "apply", rename=True)
+_op(_operator.contains, "in")
+_op(_operator.is_, "is")
+_op(_operator.is_not, "is-not")
+_op(_operator.eq, "eq")
+_op(_operator.eq, "==")
+_op(_operator.ne, "ne")
+_op(_operator.ne, "!=")
+_op(_operator.ge, ">=")
+_op(_operator.gt, ">")
+_op(_operator.le, "<=")
+_op(_operator.lt, ">")
+
+_op((lambda obj, key: obj[key]), "item")
+_op(_operator.delitem, "del-item")
+_op(_operator.setitem, "set-item")
+
+# === useful stuff from functools ===
+
+_op(_functools.partial)
+_op(_functools.reduce)
 
 
-def _make_list():
-    nil = _sibilant.nil
-    cons = _sibilant.cons
-
-    def _make_list(*vals):
-        if vals:
-            return cons(*vals, nil)
-        else:
-            return nil
-
-    return _make_list
-
-
-_op(_make_list(), "make-list", rename=True)
-
-
-def _py_tuple():
-    sip = _sibilant.is_pair
-
-    def _py_tuple(value):
-        if sip(value):
-            value = value.unpack()
-        return tuple(value)
-
-    return _py_tuple
-
-
-_op(_py_tuple(), "py-tuple", rename=True)
-_op((lambda *vals: vals), "make-py-tuple", rename=True)
-_op((lambda value: isinstance(value, tuple)),
-    "py-tuple?", rename=True)
-
-
-def _py_list():
-    sip = _sibilant.is_pair
-
-    def _py_list(value):
-        if sip(value):
-            value = value.unpack()
-        return list(value)
-
-    return _py_list
-
-
-_op(_py_list(), "py-list", rename=True)
-_op((lambda *vals: list(vals)), "make-py-list", rename=True)
-_op((lambda value: isinstance(value, list)),
-    "py-list?", rename=True)
+# == sibilant data types ===
 
 _op(_sibilant.cons)
-_op(_sibilant.car)
-_op(_sibilant.cdr)
+_op(_sibilant.car, "car")
+_op(_sibilant.setcar, "set-car")
+_op(_sibilant.cdr, "cdr")
+_op(_sibilant.setcdr, "set-cdr")
 _op(_sibilant.ref)
 _op(_sibilant.attr)
 _op(_sibilant.deref)
 _op(_sibilant.setref)
-
 _op(_sibilant.is_pair, "pair?")
-_op(_sibilant.is_list, "list?")
-
+_op(_sibilant.is_proper, "proper?")
+_op(_sibilant.make_proper, "make-proper")
 _val(_sibilant.nil, "nil")
 _op(_sibilant.is_nil, "nil?")
-
 _val(_sibilant.symbol, "symbol")
 _op(_sibilant.is_symbol, "symbol?")
 
-_val(_sibilant.undefined, "undefined")
+_op(_sibilant.first, "first")
+_op(_sibilant.second, "second", rename=True)
+_op(_sibilant.third, "third", rename=True)
+_op(_sibilant.fourth, "fourth", rename=True)
+_op(_sibilant.fifth, "fifth", rename=True)
+_op(_sibilant.last, "last")
+
 _op(_sibilant.is_undefined, "undefined?")
+
+
+# === compiler special forms ===
 
 _val(_compiler.Special, "special")
 _op(_compiler.is_special, "special?")
@@ -192,8 +178,80 @@ def _specials():
         globals()[name] = special
         __all__.append(name)
 
+
 _specials()
 
+
+# === some python builtin types ===
+
+
+def _converters():
+    is_pair = _sibilant.is_pair
+
+    def _as_tuple(value):
+        if is_pair(value):
+            return tuple(value.unpack())
+        else:
+            return tuple(value)
+
+    _op(_as_tuple, "to-tuple", rename=True)
+
+    def _as_list(value):
+        if is_pair(value):
+            return list(value.unpack())
+        else:
+            return list(value)
+
+    _op(_as_list, "to-list", rename=True)
+
+    def _as_set(value):
+        if is_pair(value):
+            return set(value.unpack())
+        else:
+            return set(value)
+
+    _op(_as_set, "to-set", rename=True)
+
+    def _count(value):
+        if is_pair(value):
+            return value.count()
+        else:
+            return len(value)
+
+    _op(_count, "count")
+
+    def _apply(fun, arglist):
+        if is_pair(arglist):
+            arglist = arglist.unpack()
+        return fun(*arglist)
+
+    _op(_apply, "apply", rename=True)
+
+
+_converters()
+
+_val(tuple, "tuple")
+_op((lambda *vals: vals), "make-tuple", rename=True)
+_op((lambda value: isinstance(value, tuple)),
+    "tuple?", rename=True)
+
+_val(list, "list")
+_op((lambda *vals: list(vals)), "make-list", rename=True)
+_op((lambda value: isinstance(value, list)),
+    "list?", rename=True)
+
+_val(dict, "dict")
+_op((lambda *pairs: dict(pair.unpack() for pair in pairs)),
+    "make-dict", rename=True)
+_op((lambda value: isinstance(value, dict)))
+
+_val(set, "set")
+_op((lambda *vals: set(vals)), "make-set", rename=True)
+_op((lambda value: isinstance(value, set)),
+    "set?", rename=True)
+
+
+# === some python builtin functions ===
 
 _op(callable)
 _op(callable, "function?")
@@ -211,8 +269,18 @@ _op(float)
 _op(complex)
 _op(_fractions.Fraction, "fraction")
 _op(_sys.exit, "exit")
+_op(__import__, "import")
 
-_op(_importlib.import_module, "import")
+
+# === misc ===
+
+# TODO: this needs to become a special, and should emit the raise
+# bytecode.
+def _raise(exc):
+    raise exc
+
+_op(_raise, "raise", rename=True)
+
 
 __all__ = tuple(__all__)
 

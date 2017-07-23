@@ -25,7 +25,7 @@ from functools import partial
 from unittest import TestCase
 
 from sibilant import (
-    cons, nil, is_pair, is_list, is_nil,
+    cons, nil, is_pair, is_proper, is_nil,
     car, cdr, setcar, setcdr, last,
     ref, attr, undefined, deref, setref,
     symbol, is_symbol,
@@ -106,7 +106,7 @@ class ConsTest(TestCase):
         self.assertEqual(repr(z), "cons(1, 2)")
 
         self.assertTrue(is_pair(z))
-        self.assertFalse(is_list(z))
+        self.assertFalse(is_proper(z))
 
 
     def test_nil(self):
@@ -119,7 +119,7 @@ class ConsTest(TestCase):
         self.assertIsInstance(nil, Pair)
         self.assertTrue(is_pair(nil))
         self.assertTrue(is_nil(nil))
-        self.assertTrue(is_list(nil))
+        self.assertTrue(is_proper(nil))
         self.assertFalse(nil)
         self.assertEqual(str(nil), "nil")
         self.assertEqual(repr(nil), "nil")
@@ -145,7 +145,7 @@ class ConsTest(TestCase):
         self.assertTrue(a.is_recursive())
 
         self.assertTrue(is_pair(a))
-        self.assertTrue(is_list(a))
+        self.assertTrue(is_proper(a))
 
         self.assertEqual(a.count(), 3)
 
