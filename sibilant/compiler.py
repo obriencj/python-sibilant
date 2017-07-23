@@ -1000,6 +1000,29 @@ class SpecialsCodeSpace(CodeSpace):
         return None
 
 
+    @special(symbol("while"))
+    def special_while(self, cl):
+
+        test, body = cl
+        top = self.gen_label()
+        done = self.gen_label()
+
+        self.pseudop_const(None)
+        self.pseudop_label(top)
+
+        self.add_expression(test)
+        self.pseudop_pop_jump_if_false(done)
+
+        self.pseudop_pop()
+        self.special_begin(body)
+        self.pseudop_jump(top)
+
+        self.pseudop_label(done)
+
+        # no additional transform needed
+        return None
+
+
     @special(symbol("set-var"))
     def special_setf(self, cl):
 
