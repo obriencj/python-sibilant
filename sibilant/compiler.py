@@ -92,6 +92,12 @@ class Pseudop(Enum):
     POP_JUMP_IF_FALSE = 13
     BUILD_TUPLE = 14
     BUILD_TUPLE_UNPACK = 15
+    SETUP_LOOP = 16
+    SETUP_EXCEPT = 17
+    SETUP_FINALLY = 18
+    POP_BLOCK = 19
+    POP_EXCEPT = 20
+    EXCEPTION_MATCH = 21
     POSITION = 100
     LABEL = 101
 
@@ -419,6 +425,30 @@ class CodeSpace(object):
         self.pseudop(Pseudop.BUILD_TUPLE_UNPACK, count)
 
 
+    def pseudop_setup_loop(self, done_label):
+        self.pseudop(Pseudop.SETUP_LOOP, done_label)
+
+
+    def pseudop_setup_except(self, try_label):
+        self.pseudop(Pseudop.SETUP_EXCEPT, try_label)
+
+
+    def pseudop_setup_finally(self, final_label):
+        self.pseudop(Pseudop.SETUP_FINALLY, final_label)
+
+
+    def pseudop_pop_block(self):
+        self.pseudop(Pseudop.POP_BLOCK)
+
+
+    def pseudop_pop_except(self):
+        self.pseudop(Pseudop.POP_BLOCK)
+
+
+    def pseudop_exception_match(self):
+        self.pseudop(Pseudop.EXCEPTION_MATCH)
+
+
     def complete(self):
         """
         Produces a python code object representing the state of this
@@ -486,10 +516,15 @@ class CodeSpace(object):
         def add_label(name):
             labels[name] = offset
 
-        jumps = []
+        jabs = []
 
-        def mark_jump(label_name):
-            jumps.append((len(coll), label_name))
+        def mark_jabs(label_name):
+            jabs.append((len(coll), label_name))
+
+        jrel = []
+
+        def mark_jrel(label_name):
+            jrel.append((len(coll), label_name, offset))
 
         def set_position(line, col):
             lnt.append((offset, line, col))
@@ -501,10 +536,19 @@ class CodeSpace(object):
                     # to an appropriate label offset later
 
                     assert(args)
-                    mark_jump(args[0])
+                    mark_jabs(args[0])
                     # we are being lazy here, and padding out our
                     # jumps with an EXTENDED_ARG, in case we need more
                     # than 8 bits of address once labels are applied.
+                    coll.append([Opcode.EXTENDED_ARG, 0])
+                    coll.append([op, 0])
+                    offset += 4
+
+                elif op.hasjrel():
+                    # relative jump!
+
+                    assert(args)
+                    mark_jrel(args[0])
                     coll.append([Opcode.EXTENDED_ARG, 0])
                     coll.append([op, 0])
                     offset += 4
@@ -523,7 +567,15 @@ class CodeSpace(object):
                     # an appropriate label offset later
 
                     assert(args)
-                    mark_jump(args[0])
+                    mark_jabs(args[0])
+                    coll.append([op, 0, 0])
+                    offset += 3
+
+                elif op.hasjrel():
+                    # relative jump!
+
+                    assert(args)
+                    mark_jrel(args[0])
                     coll.append([op, 0, 0])
                     offset += 3
 
@@ -534,9 +586,9 @@ class CodeSpace(object):
         else:
             raise UnsupportedVersion(version_info)
 
-        if jumps or labels:
+        if jabs or jrel or labels:
             # Given our labels, modify jmp calls to point to the label
-            apply_jump_labels(coll, jumps, labels)
+            apply_jump_labels(coll, jabs, jrel, labels)
 
         coll = ((c.value, *a) for c, *a in coll)
         return b''.join(bytes(c) for c in coll)
@@ -644,6 +696,21 @@ class CodeSpace(object):
 
             elif op is Pseudop.BUILD_TUPLE_UNPACK:
                 yield Opcode.BUILD_TUPLE_UNPACK, args[0], 0
+
+            elif op is Pseudop.SETUP_EXCEPT:
+                yield Opcode.SETUP_EXCEPT, args[0], 0
+
+            elif op is Pseudop.SETUP_FINALLY:
+                yield Opcode.SETUP_FINALLY, args[0], 0
+
+            elif op is Pseudop.POP_BLOCK:
+                yield Opcode.POP_BLOCK,
+
+            elif op is Pseudop.POP_EXCEPT:
+                yield Opcode.POP_EXCEPT,
+
+            elif of is Pseudop.EXCEPTION_MATCH:
+                yield Opcode.COMPARE_OP, 10, 0
 
             else:
                 assert(False)
@@ -1023,6 +1090,129 @@ class SpecialsCodeSpace(CodeSpace):
         return None
 
 
+    #@special(symbol("while"))
+    def special_new_while(self, cl):
+
+        test, body = cl
+        looptop = self.gen_label()
+        loopbottom = self.gen_label()
+        eoloop = self.gen_label()
+
+        self.pseudop_const(None)
+        self.pseudop_setup_loop(eoloop)
+        self.pseudop_label(looptop)
+        self.add_expression(test)
+        self.pseudop_pop_jump_if_false(loopbottom)
+
+        # try
+        # except continue
+        # except break
+
+        self.pseudop_jump(looptop)
+        self.pseudop_label(loopbottom)
+        self.pseudop_pop_block()
+        self.pseudop_label(eoloop)
+
+        # no additional transform needed
+        return None
+
+
+    @special(symbol("try"))
+    def special_try(self, cl):
+        expr, catches = cl
+
+        # TODO: identify if there is a finally in all this
+        # TODO: identify if there is an else in all this
+        has_finally = False
+        has_else = False
+
+        label_end = self.gen_label()
+        label_next = self.gen_label()
+
+        self.pseudop_setup_except(tryblock)
+        self.add_expression(expr)
+        self.pseudop_pop_block()
+
+        if has_else:
+            self.pseudop_jump(label_else)
+
+        # TOS is our exception
+        cleanup = False
+        for ca in catches.unpack():
+            if cleanup:
+                self.pseudop_pop()
+                cleanup = False
+
+            ex, act  = ca
+
+            self.pseudop_label(label_next)
+            nextlabel = self.gen_label()
+
+            if is_pair(ex):
+                if not is_proper(ex):
+                    raise SyntaxError()
+                cleanup = True
+                self.pseudop_dup()
+
+                match, (key, rest) = ex
+                if rest:
+                    # leftover arguments
+                    raise SyntaxError()
+
+                declared_at = self.positions[id(ex)]
+                kid = self.child(args=[key], name="<catch>",
+                                 declared_at=declared_at)
+
+                with kid.activate() as subc:
+                    subc.special_begin(act)
+                    subc.special_return()
+                    code = subc.complete()
+
+                self.pseudop_position_of(ex)
+                self.add_expression(match)
+                self.pseudop_exception_match()
+                self.pseudop_pop_jump_if_false(label_next)
+                self.pseudop_lambda(code)
+                self.pseudop_call(1)
+
+            else:
+                self.add_expression(ex)
+                self.pseudop_exception_match()
+                self.pseudop_pop_jump_if_false(label_next)
+                self.special_begin(act)
+
+            self.pseudop_pop_except()
+            self.pseudop_jump(label_end)
+
+        # catch-all for no match
+        #self.pseudop_label(nextlabel)
+        #if cleanup:
+        #    self.pseudop_pop()
+        #self.pseudop_raise(0)
+        #self.pseudop_pop_except()
+        #self.pseudop_jump()
+
+        if has_else:
+            self.pseudop_label(label_else)
+            # there will be a leftover value from the attempted try
+            # expr. The else indicates we want to discard that value
+            # for whatever this block expands to.
+            self.pseudop_pop()
+            self.special_begin(act_else)
+            self.pseudop_pop_block()
+
+        if has_finally:
+            self.pseudop_label(label_finally)
+            # the finally value always wins
+            self.pseudop_pop()
+            self.special_begin(act_finally)
+            self.pseudop_end_finally()
+
+        self.pseudop_label(label_end)
+
+        return None
+
+
     @special(symbol("set-var"))
     def special_setf(self, cl):
 
@@ -1303,6 +1493,17 @@ def max_stack(pseudops):
             pop(args[0])
             push()
 
+        elif op in (Pseudop.SETUP_EXCEPT,
+                    Pseudop.SETUP_FINALLY,
+                    Pseudop.POP_BLOCK,
+                    Pseudop.POP_EXCEPT):
+            pass
+
+        elif op is Pseudop.EXCEPTION_MATCH:
+            # pop()
+            # push()
+            pass
+
         else:
             assert(False)
 
@@ -1313,10 +1514,10 @@ def max_stack(pseudops):
     return maxc
 
 
-def apply_jump_labels(coll, jumps, labels):
+def apply_jump_labels(coll, jabs, jrel, labels):
 
     if (3, 6) <= version_info:
-        for coll_offset, name in jumps:
+        for coll_offset, name in jabs:
             target = labels[name]
 
             coll_ext = coll[coll_offset]
@@ -1325,9 +1526,28 @@ def apply_jump_labels(coll, jumps, labels):
             coll_ext[1] = (target >> 8) & 0xff
             coll_jmp[1] = target & 0xff
 
-    elif (3, 3) <= version_info < (3, 6):
-        for coll_offset, name in jumps:
+        for coll_offset, name, off in jrel:
             target = labels[name]
+            target -= (off + 2)
+
+            coll_ext = coll[coll_offset]
+            coll_jmp = coll[coll_offset + 1]
+
+            coll_ext[1] = (target >> 8) & 0xff
+            coll_jmp[1] = target & 0xff
+
+    elif (3, 3) <= version_info < (3, 6):
+        for coll_offset, name in jabs:
+            target = labels[name]
+
+            coll_jmp = coll[coll_offset]
+
+            coll_jmp[1] = target & 0xff
+            coll_jmp[2] = (target >> 8) & 0xff
+
+        for coll_offset, name, off in jrel:
+            target = labels[name]
+            target -= (off + 3)
 
             coll_jmp = coll[coll_offset]
 
@@ -1424,6 +1644,39 @@ def special(fun):
 
 def is_special(value):
     return isinstance(value, Special)
+
+
+@contextmanager
+def temporary_specials(env, **kwds):
+    specs = dict((key, TemporarySpecial(value, name=key))
+                 for key, value in kwds.items())
+
+    unset = object()
+    try:
+        old = dict((key, env.get(key, unset)) for key in specs.keys())
+        env.update(specs)
+        yield
+
+    except Exception:
+        raise
+
+    finally:
+        for value in specs.values():
+            value.expire()
+
+        for key, value in old.items():
+            if value is unset:
+                del env[key]
+            else:
+                env[key] = value
+
+
+class TemporarySpecial(Special):
+    def expire(self):
+        self.special = self.__dead__
+
+    def __dead__(self):
+        raise Exception("temporary special invoked outside of its limits")
 
 
 class Macro(Special):

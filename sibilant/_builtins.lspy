@@ -101,5 +101,10 @@
   `(help-macroexpand-1 ,(car expr) (quote ,@(cdr expr))))
 
 
+(defun gensignal ()
+  (SibilantSignal))
+
+
+
 ;;
 ;; The end.
