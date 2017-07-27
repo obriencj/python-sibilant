@@ -1243,6 +1243,9 @@ class SpecialsCodeSpace(CodeSpace):
     def special_raise(self, cl):
 
         c = cl.count()
+        if c > 3:
+            raise SyntaxError("too many arguments to raise", cl)
+
         for rx in cl.unpack():
             self.add_expression(rx)
 
@@ -1354,6 +1357,7 @@ class SpecialsCodeSpace(CodeSpace):
 
             self.pseudop_return()
             self.pseudop_pop_except()
+            self.pseudop_pop_block()
             self.pseudop_jump_forward(label_end)
 
         self.pseudop_label(label_next)
@@ -1370,7 +1374,6 @@ class SpecialsCodeSpace(CodeSpace):
 
         if has_finally:
             self.pseudop_label(label_end)
-            self.pseudop_pop_block()
             self.pseudop_const(None)
             self.pseudop_faux_push(-1)
             self.pseudop_label(label_finally)
