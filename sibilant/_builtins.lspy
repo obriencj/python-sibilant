@@ -62,17 +62,17 @@
 
 
 (defmacro def-import (name . &as_name)
-  (set! &as_name
+  (set-var &as_name
 	(if (nil? &as_name) name (car &as_name)))
 
   `(define ,&as_name (import ,(str name))))
 
 
-(defmacro def-import-from (modulename name . &as_name)
-  (set! &as_name
-	(if (nil? &as_name) name (car &as_name)))
-
-  `(define ,&as_name (import-from ,(str modulename) ,(str name))))
+;;(defmacro def-import-from (modulename name . &as_name)
+;;  (set-var &as_name
+;;	(if (nil? &as_name) name (car &as_name)))
+;;
+;;  `(define ,&as_name (import-from ,(str modulename) ,(str name))))
 
 
 (defmacro set! (target value)
@@ -99,11 +99,6 @@
 
 (defmacro macroexpand-1 (expr)
   `(help-macroexpand-1 ,(car expr) (quote ,@(cdr expr))))
-
-
-(defun gensignal ()
-  (SibilantSignal))
-
 
 
 ;;

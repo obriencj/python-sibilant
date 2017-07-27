@@ -760,10 +760,10 @@ class CodeSpace(object):
                 yield Opcode.RAISE_VARARGS, args[0], 0
 
             elif op is Pseudop.ROT_TWO:
-                yield Opcode.ROT_TWO, 0, 0
+                yield Opcode.ROT_TWO,
 
             elif op is Pseudop.ROT_THREE:
-                yield Opcode.ROT_THREE, 0, 0
+                yield Opcode.ROT_THREE,
 
             else:
                 assert(False)
@@ -1172,7 +1172,11 @@ class SpecialsCodeSpace(CodeSpace):
 
     @special(symbol("try"))
     def special_try(self, cl):
-        declared_at = self.positions[id(cl)]
+        try:
+            declared_at = self.positions[id(cl)]
+        except KeyError:
+            declared_at = None
+
         kid = self.child_context(name="<try>", declared_at=declared_at)
         with kid as subc:
             subc._helper_special_try(cl)
@@ -1262,13 +1266,17 @@ class SpecialsCodeSpace(CodeSpace):
                     # leftover arguments
                     raise SyntaxError()
 
-                declared_at = self.positions[id(ex)]
-                kid = self.child(args=[key], name="<catch>",
-                                 declared_at=declared_at)
+                try:
+                    declared_at = self.positions[id(ex)]
+                except KeyError:
+                    declared_at = None
 
-                with kid.activate() as subc:
+                kid = self.child_context(args=[key], name="<catch>",
+                                         declared_at=declared_at)
+
+                with kid as subc:
                     subc.special_begin(act)
-                    subc.special_return()
+                    subc.pseudop_return()
                     code = subc.complete()
 
                 self.pseudop_position_of(ex)
@@ -1276,8 +1284,8 @@ class SpecialsCodeSpace(CodeSpace):
                 self.add_expression(match)
                 self.pseudop_exception_match()
                 self.pseudop_pop_jump_if_false(label_next)
-                self.pseudop_rot_three()
                 self.pseudop_pop()
+                self.pseudop_rot_two()
                 self.pseudop_pop()
                 self.pseudop_lambda(code)
                 self.pseudop_rot_two()
