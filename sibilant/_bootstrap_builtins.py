@@ -272,15 +272,12 @@ _op(_sys.exit, "exit")
 _op(__import__, "import")
 
 
-# === misc ===
+_val(BaseException, "BaseException")
+_val(Exception, "Exception")
+_val(KeyboardInterrupt, "KeyboardInterrupt")
 
-# TODO: this needs to become a special, and should emit the raise
-# bytecode.
-def _raise(exc):
-    raise exc
 
-_op(_raise, "raise", rename=True)
-
+# === Export 'em and lock it down ===
 
 __all__ = tuple(__all__)
 

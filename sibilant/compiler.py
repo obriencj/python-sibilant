@@ -17,7 +17,8 @@ import dis
 
 from contextlib import contextmanager
 from enum import Enum
-from functools import wraps
+from functools import partial, wraps
+from itertools import count
 from sys import version_info
 from types import CodeType
 
@@ -76,30 +77,39 @@ class Opcode(Enum):
 Opcode = Opcode("Opcode", dis.opmap)
 
 
+_auto = partial(next, count())
+
+
 class Pseudop(Enum):
-    POP = 1
-    DUP = 2
-    CALL = 3
-    CALL_VARARGS = 4
-    CONST = 5
-    GET_VAR = 6
-    SET_VAR = 7
-    LAMBDA = 8
-    RET_VAL = 9
-    DEFINE = 10
-    JUMP = 11
-    POP_JUMP_IF_TRUE = 12
-    POP_JUMP_IF_FALSE = 13
-    BUILD_TUPLE = 14
-    BUILD_TUPLE_UNPACK = 15
-    SETUP_LOOP = 16
-    SETUP_EXCEPT = 17
-    SETUP_FINALLY = 18
-    POP_BLOCK = 19
-    POP_EXCEPT = 20
-    EXCEPTION_MATCH = 21
-    POSITION = 100
-    LABEL = 101
+    POP = _auto()
+    DUP = _auto()
+    ROT_TWO = _auto()
+    ROT_THREE = _auto()
+    RAISE = _auto()
+    CALL = _auto()
+    CALL_VARARGS = _auto()
+    CONST = _auto()
+    GET_VAR = _auto()
+    SET_VAR = _auto()
+    LAMBDA = _auto()
+    RET_VAL = _auto()
+    DEFINE = _auto()
+    JUMP = _auto()
+    JUMP_FORWARD = _auto()
+    POP_JUMP_IF_TRUE = _auto()
+    POP_JUMP_IF_FALSE = _auto()
+    BUILD_TUPLE = _auto()
+    BUILD_TUPLE_UNPACK = _auto()
+    SETUP_LOOP = _auto()
+    SETUP_EXCEPT = _auto()
+    SETUP_FINALLY = _auto()
+    POP_BLOCK = _auto()
+    POP_EXCEPT = _auto()
+    EXCEPTION_MATCH = _auto()
+    END_FINALLY = _auto()
+    POSITION = _auto()
+    LABEL = _auto()
+    FAUX_PUSH = _auto()
 
 
 class CodeFlag(Enum):
@@ -317,6 +327,18 @@ class CodeSpace(object):
         self.pseudops.append(op_args)
 
 
+    def pseudop_rot_two(self):
+        self.pseudop(Pseudop.ROT_TWO)
+
+
+    def pseudop_rot_three(self):
+        self.pseudop(Pseudop.ROT_THREE)
+
+
+    def pseudop_faux_push(self, count=1):
+        self.pseudop(Pseudop.FAUX_PUSH, count)
+
+
     def pseudop_position(self, line, column):
         self.pseudop(Pseudop.POSITION, line, column)
 
@@ -409,6 +431,10 @@ class CodeSpace(object):
         self.pseudop(Pseudop.JUMP, label_name)
 
 
+    def pseudop_jump_forward(self, label_name):
+        self.pseudop(Pseudop.JUMP_FORWARD, label_name)
+
+
     def pseudop_pop_jump_if_true(self, label_name):
         self.pseudop(Pseudop.POP_JUMP_IF_TRUE, label_name)
 
@@ -442,11 +468,20 @@ class CodeSpace(object):
 
 
     def pseudop_pop_except(self):
-        self.pseudop(Pseudop.POP_BLOCK)
+        self.pseudop(Pseudop.POP_EXCEPT)
+
+
+    def pseudop_end_finally(self):
+        self.pseudop(Pseudop.END_FINALLY)
 
 
     def pseudop_exception_match(self):
         self.pseudop(Pseudop.EXCEPTION_MATCH)
+
+
+    def pseudop_raise(self, count):
+        self.pseudop(Pseudop.RAISE, count)
+        self.pseudop(Pseudop.FAUX_PUSH, 1)
 
 
     def complete(self):
@@ -674,8 +709,14 @@ class CodeSpace(object):
             elif op is Pseudop.LABEL:
                 declare_label(args[0])
 
+            elif op is Pseudop.FAUX_PUSH:
+                pass
+
             elif op is Pseudop.JUMP:
                 yield Opcode.JUMP_ABSOLUTE, args[0], 0
+
+            elif op is Pseudop.JUMP_FORWARD:
+                yield Opcode.JUMP_FORWARD, args[0], 0
 
             elif op is Pseudop.POP_JUMP_IF_TRUE:
                 yield Opcode.POP_JUMP_IF_TRUE, args[0]
@@ -709,8 +750,20 @@ class CodeSpace(object):
             elif op is Pseudop.POP_EXCEPT:
                 yield Opcode.POP_EXCEPT,
 
-            elif of is Pseudop.EXCEPTION_MATCH:
+            elif op is Pseudop.END_FINALLY:
+                yield Opcode.END_FINALLY,
+
+            elif op is Pseudop.EXCEPTION_MATCH:
                 yield Opcode.COMPARE_OP, 10, 0
+
+            elif op is Pseudop.RAISE:
+                yield Opcode.RAISE_VARARGS, args[0], 0
+
+            elif op is Pseudop.ROT_TWO:
+                yield Opcode.ROT_TWO, 0, 0
+
+            elif op is Pseudop.ROT_THREE:
+                yield Opcode.ROT_THREE, 0, 0
 
             else:
                 assert(False)
@@ -1090,7 +1143,7 @@ class SpecialsCodeSpace(CodeSpace):
         return None
 
 
-    #@special(symbol("while"))
+    # @special(symbol("while"))
     def special_new_while(self, cl):
 
         test, body = cl
@@ -1119,40 +1172,90 @@ class SpecialsCodeSpace(CodeSpace):
 
     @special(symbol("try"))
     def special_try(self, cl):
+        declared_at = self.positions[id(cl)]
+        kid = self.child_context(name="<try>", declared_at=declared_at)
+        with kid as subc:
+            subc._helper_special_try(cl)
+            code = subc.complete()
+
+        self.pseudop_lambda(code)
+        self.pseudop_call(0)
+
+        return None
+
+
+    @special(symbol("raise"))
+    def special_raise(self, cl):
+
+        c = cl.count()
+        for rx in cl.unpack():
+            self.add_expression(rx)
+
+        self.pseudop_position_of(cl)
+        self.pseudop_raise(c)
+
+        return None
+
+
+    def _helper_special_try(self, cl):
         expr, catches = cl
 
-        # TODO: identify if there is a finally in all this
-        # TODO: identify if there is an else in all this
         has_finally = False
         has_else = False
+
+        sym_finally = symbol("finally")
+        sym_else = symbol("else")
+
+        for ex, act in catches.unpack():
+            if ex is sym_finally:
+                has_finally = True
+                act_finally = act
+                label_finally = self.gen_label()
+            elif ex is sym_else:
+                has_else = True
+                act_else = act
+                label_else = self.gen_label()
 
         label_end = self.gen_label()
         label_next = self.gen_label()
 
-        self.pseudop_setup_except(tryblock)
+        if has_finally:
+            self.pseudop_setup_finally(label_finally)
+
+        self.pseudop_setup_except(label_next)
         self.add_expression(expr)
+        if has_else:
+            self.pseudop_pop()
+        else:
+            self.pseudop_return()
         self.pseudop_pop_block()
 
         if has_else:
-            self.pseudop_jump(label_else)
+            self.pseudop_jump_forward(label_else)
 
-        # TOS is our exception
+        # each attempt to match exception should have us at the
+        # TOS,TOS-1,TOS-2 setup
+        self.pseudop_faux_push(3)
+
+        # TOS is our exception, TOS-1 is type, TOS-2 is backtrace
         cleanup = False
         for ca in catches.unpack():
+            ex, act = ca
+
+            if ex in (sym_finally, sym_else):
+                continue
+
+            self.pseudop_label(label_next)
+            label_next = self.gen_label()
+
             if cleanup:
                 self.pseudop_pop()
                 cleanup = False
-
-            ex, act  = ca
-
-            self.pseudop_label(label_next)
-            nextlabel = self.gen_label()
 
             if is_pair(ex):
                 if not is_proper(ex):
                     raise SyntaxError()
                 cleanup = True
-                self.pseudop_dup()
 
                 match, (key, rest) = ex
                 if rest:
@@ -1169,46 +1272,57 @@ class SpecialsCodeSpace(CodeSpace):
                     code = subc.complete()
 
                 self.pseudop_position_of(ex)
+                self.pseudop_dup()
                 self.add_expression(match)
                 self.pseudop_exception_match()
                 self.pseudop_pop_jump_if_false(label_next)
+                self.pseudop_rot_three()
+                self.pseudop_pop()
+                self.pseudop_pop()
                 self.pseudop_lambda(code)
+                self.pseudop_rot_two()
                 self.pseudop_call(1)
 
             else:
+                self.pseudop_dup()
                 self.add_expression(ex)
                 self.pseudop_exception_match()
                 self.pseudop_pop_jump_if_false(label_next)
+                self.pseudop_pop()
+                self.pseudop_pop()
+                self.pseudop_pop()
                 self.special_begin(act)
 
+            self.pseudop_return()
             self.pseudop_pop_except()
-            self.pseudop_jump(label_end)
+            self.pseudop_jump_forward(label_end)
 
-        # catch-all for no match
-        #self.pseudop_label(nextlabel)
-        #if cleanup:
-        #    self.pseudop_pop()
-        #self.pseudop_raise(0)
-        #self.pseudop_pop_except()
-        #self.pseudop_jump()
+        self.pseudop_label(label_next)
+        self.pseudop_faux_push(-3)
+        self.pseudop_end_finally()
 
         if has_else:
             self.pseudop_label(label_else)
             # there will be a leftover value from the attempted try
             # expr. The else indicates we want to discard that value
             # for whatever this block expands to.
-            self.pseudop_pop()
             self.special_begin(act_else)
-            self.pseudop_pop_block()
+            self.pseudop_return()
 
         if has_finally:
+            self.pseudop_label(label_end)
+            self.pseudop_pop_block()
+            self.pseudop_const(None)
+            self.pseudop_faux_push(-1)
             self.pseudop_label(label_finally)
-            # the finally value always wins
-            self.pseudop_pop()
             self.special_begin(act_finally)
+            self.pseudop_return()
             self.pseudop_end_finally()
 
-        self.pseudop_label(label_end)
+        else:
+            self.pseudop_label(label_end)
+            self.pseudop_const(None)
+            self.pseudop_return()
 
         return None
 
@@ -1472,7 +1586,8 @@ def max_stack(pseudops):
         elif op is Pseudop.RET_VAL:
             pop()
 
-        elif op is Pseudop.JUMP:
+        elif op in (Pseudop.JUMP,
+                    Pseudop.JUMP_FORWARD):
             at_label[args[0]] = stac
 
         elif op is Pseudop.LABEL:
@@ -1496,20 +1611,32 @@ def max_stack(pseudops):
         elif op in (Pseudop.SETUP_EXCEPT,
                     Pseudop.SETUP_FINALLY,
                     Pseudop.POP_BLOCK,
-                    Pseudop.POP_EXCEPT):
+                    Pseudop.POP_EXCEPT,
+                    Pseudop.END_FINALLY):
             pass
 
         elif op is Pseudop.EXCEPTION_MATCH:
-            # pop()
-            # push()
+            pop(2)
+            push()
+            pass
+
+        elif op is Pseudop.RAISE:
+            pop(args[0])
+
+        elif op is Pseudop.FAUX_PUSH:
+            push(args[0])
+
+        elif op in (Pseudop.ROT_THREE,
+                    Pseudop.ROT_TWO):
             pass
 
         else:
             assert(False)
 
     # if stac != 0:
-    # print("BOOM!", stac)
-    # print(pseudops)
+    #     print("BOOM!", stac)
+    #     print(pseudops)
+
     assert(stac == 0)
     return maxc
 

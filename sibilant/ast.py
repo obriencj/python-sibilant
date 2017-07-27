@@ -154,6 +154,8 @@ class Symbol(Atom):
             cls = False_
         elif token == "None":
             cls = None_
+        elif token == "...":
+            cls = Ellipsis_
 
         return super().__new__(cls)
 
@@ -230,6 +232,12 @@ class None_(LiteralSymbol):
 
     def simplify(self, positions):
         return None
+
+
+class Ellipsis_(LiteralSymbol):
+
+    def simplify(self, positions):
+        return ...
 
 
 class Nil(LiteralSymbol):
