@@ -1179,17 +1179,16 @@ class SpecialsCodeSpace(CodeSpace):
         top = self.gen_label()
         done = self.gen_label()
 
-        self.pseudop_const(None)
         self.pseudop_label(top)
-
         self.add_expression(test)
-        self.pseudop_pop_jump_if_false(done)
 
-        self.pseudop_pop()
+        self.pseudop_pop_jump_if_false(done)
         self.special_begin(body)
+        self.pseudop_pop()
         self.pseudop_jump(top)
 
         self.pseudop_label(done)
+        self.pseudop_const(None)
 
         # no additional transform needed
         return None

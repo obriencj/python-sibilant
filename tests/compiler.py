@@ -49,6 +49,26 @@ def compile_expr(src_str, **base):
     return partial(eval, code, env), env
 
 
+def make_accumulator():
+    accu = list()
+
+    def accumulate(x):
+        accu.append(x)
+        return x
+
+    return accu, accumulate
+
+
+def make_raise_accumulator(excclass=Exception):
+    accu = list()
+
+    def accumulate(x):
+        accu.append(x)
+        raise excclass(x)
+
+    return accu, accumulate
+
+
 class TestCompiler(TestCase):
 
     def test_global_symbol(self):
@@ -121,28 +141,8 @@ class TestCompiler(TestCase):
         self.assertEqual(stmt(), "hello world")
 
 
-    def test_quote_symbol(self):
-        src = "'tacos"
-        stmt, env = compile_expr(src, tacos=5)
-        self.assertEqual(stmt(), symbol("tacos"))
-
-
     def test_cons(self):
         src = "(cons 1 2 3 nil)"
-        stmt, env = compile_expr(src)
-        self.assertEqual(stmt(), cons(1, 2, 3, nil))
-
-
-    def test_quote_list(self):
-        src = "'()"
-        stmt, env = compile_expr(src)
-        self.assertEqual(stmt(), nil)
-
-        src = "'(())"
-        stmt, env = compile_expr(src)
-        self.assertEqual(stmt(), cons(nil, nil))
-
-        src = "'(1 2 3)"
         stmt, env = compile_expr(src)
         self.assertEqual(stmt(), cons(1, 2, 3, nil))
 
@@ -167,6 +167,73 @@ class TestCompiler(TestCase):
         src = "'(1. . .4)"
         stmt, env = compile_expr(src)
         self.assertEqual(stmt(), cons(1.0, 0.4))
+
+
+    def test_quote_symbol(self):
+        src = "'tacos"
+        stmt, env = compile_expr(src, tacos=5)
+        self.assertEqual(stmt(), symbol("tacos"))
+
+
+    def test_quote_list(self):
+        src = "'()"
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), nil)
+
+        src = "'(())"
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), cons(nil, nil))
+
+        src = "'(1 2 3)"
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), cons(1, 2, 3, nil))
+
+
+    def test_quasiquote(self):
+        src = """
+        `(1 2 3 ,4 ,5)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, cons(1, 2, 3, 4, 5, nil))
+
+        src = """
+        `(1 2 3 ,A ,B Z)
+        """
+        stmt, env = compile_expr(src, A=4, B=5)
+        res = stmt()
+        self.assertEqual(res, cons(1, 2, 3, 4, 5, symbol("Z"), nil))
+
+        src = """
+        `(1 2 ,@A ,B)
+        """
+        stmt, env = compile_expr(src, A=cons(3, 4, nil), B=5)
+        res = stmt()
+        self.assertEqual(res, cons(1, 2, 3, 4, 5, nil))
+
+        src = """
+        `(1 2 ,@A)
+        """
+        stmt, env = compile_expr(src, A=range(3,6))
+        res = stmt()
+        self.assertEqual(res, cons(1, 2, 3, 4, 5, nil))
+
+        src = """
+        `(1 2 ,@(range 3 6))
+        """
+        stmt, env = compile_expr(src, range=range)
+        res = stmt()
+        self.assertEqual(res, cons(1, 2, 3, 4, 5, nil))
+
+        src = """
+        `(1 2 ,(foo 3 6))
+        """
+        stmt, env = compile_expr(src, foo=lambda a,b: list(range(a,b)))
+        res = stmt()
+        self.assertEqual(res, cons(1, 2, [3, 4, 5], nil))
+
+
+class CompilerSpecials(TestCase):
 
 
     def test_lambda(self):
@@ -373,48 +440,7 @@ class TestCompiler(TestCase):
         self.assertEqual(res, 103)
 
 
-    def test_quasiquote(self):
-        src = """
-        `(1 2 3 ,4 ,5)
-        """
-        stmt, env = compile_expr(src)
-        res = stmt()
-        self.assertEqual(res, cons(1, 2, 3, 4, 5, nil))
-
-        src = """
-        `(1 2 3 ,A ,B Z)
-        """
-        stmt, env = compile_expr(src, A=4, B=5)
-        res = stmt()
-        self.assertEqual(res, cons(1, 2, 3, 4, 5, symbol("Z"), nil))
-
-        src = """
-        `(1 2 ,@A ,B)
-        """
-        stmt, env = compile_expr(src, A=cons(3, 4, nil), B=5)
-        res = stmt()
-        self.assertEqual(res, cons(1, 2, 3, 4, 5, nil))
-
-        src = """
-        `(1 2 ,@A)
-        """
-        stmt, env = compile_expr(src, A=range(3,6))
-        res = stmt()
-        self.assertEqual(res, cons(1, 2, 3, 4, 5, nil))
-
-        src = """
-        `(1 2 ,@(range 3 6))
-        """
-        stmt, env = compile_expr(src, range=range)
-        res = stmt()
-        self.assertEqual(res, cons(1, 2, 3, 4, 5, nil))
-
-        src = """
-        `(1 2 ,(foo 3 6))
-        """
-        stmt, env = compile_expr(src, foo=lambda a,b: list(range(a,b)))
-        res = stmt()
-        self.assertEqual(res, cons(1, 2, [3, 4, 5], nil))
+class SpecialWhile(TestCase):
 
 
     def test_while(self):
@@ -428,25 +454,172 @@ class TestCompiler(TestCase):
         self.assertEqual(res, None)
 
         src = """
+        (while X
+          (set! X (- X 1))
+          (accumulate X))
+        """
+        data, accu = make_accumulator()
+        stmt, env = compile_expr(src, X=5, accumulate=accu)
+        res = stmt()
+        self.assertEqual(res, None)
+        self.assertEqual(data, [4, 3, 2, 1, 0])
+
+
+    def test_while_raise(self):
+        src = """
         (while True (raise exc))
         """
         exc = Exception("I meant to do this")
         stmt, env = compile_expr(src, exc=exc)
         self.assertRaises(Exception, stmt)
 
+
+class SpecialTry(TestCase):
+
+
+    def test_try_noexc(self):
+
+        accu, good_guy = make_accumulator()
+
         src = """
-        (while X
-          (set! X (- X 1))
-          (accumulate X))
+        (try
+          (good_guy 567))
         """
-        data = []
-        def accu(v):
-            data.append(v)
-            return data
-        stmt, env = compile_expr(src, X=5, accumulate=accu)
+        stmt, env = compile_expr(src, good_guy=good_guy)
         res = stmt()
-        self.assertIs(res, data)
-        self.assertEqual(data, [4, 3, 2, 1, 0])
+        self.assertEqual(res, 567)
+        self.assertEqual(accu, [567])
+
+
+    def test_try_noexc_else(self):
+
+        accu, good_guy = make_accumulator()
+
+        src = """
+        (try
+          (good_guy 567)
+          (else (good_guy 888)))
+        """
+        stmt, env = compile_expr(src, good_guy=good_guy)
+        res = stmt()
+        self.assertEqual(res, 888)
+        self.assertEqual(accu, [567, 888])
+
+
+    def test_try_noexc_finally(self):
+
+        accu, good_guy = make_accumulator()
+
+        src = """
+        (try
+          (good_guy 567)
+          (finally (good_guy 999)))
+        """
+        stmt, env = compile_expr(src, good_guy=good_guy)
+        res = stmt()
+        self.assertEqual(res, 999)
+        self.assertEqual(accu, [567, 999])
+
+
+    def test_try_noexc_else_finally(self):
+
+        accu, good_guy = make_accumulator()
+
+        src = """
+        (try
+          (good_guy 567)
+          (else (good_guy 888))
+          (finally (good_guy 999)))
+        """
+        stmt, env = compile_expr(src, good_guy=good_guy)
+        res = stmt()
+        self.assertEqual(res, 999)
+        self.assertEqual(accu, [567, 888, 999])
+
+
+    def test_try_nocatch(self):
+
+        accu, bad_guy = make_raise_accumulator()
+
+        src = """
+        (try
+          (bad_guy 567))
+        """
+        stmt, env = compile_expr(src, bad_guy=bad_guy)
+        self.assertRaises(Exception, stmt)
+        self.assertEqual(accu, [567])
+
+
+    def test_try_exc(self):
+
+        accu1, bad_guy = make_raise_accumulator()
+        accu2, good_guy = make_accumulator()
+
+        src = """
+        (try
+          (bad_guy 567)
+          (Exception (good_guy -111)))
+        """
+        stmt, env = compile_expr(src, **locals())
+        res = stmt()
+        self.assertEqual(res, -111)
+        self.assertEqual(accu1, [567])
+        self.assertEqual(accu2, [-111])
+
+
+    def test_try_exc_else(self):
+
+        accu1, bad_guy = make_raise_accumulator()
+        accu2, good_guy = make_accumulator()
+
+        src = """
+        (try
+          (bad_guy 567)
+          (Exception (good_guy -111))
+          (else (good_guy 987)))
+        """
+        stmt, env = compile_expr(src, **locals())
+        res = stmt()
+        self.assertEqual(res, -111)
+        self.assertEqual(accu1, [567])
+        self.assertEqual(accu2, [-111])
+
+
+    def test_try_exc_finally(self):
+
+        accu1, bad_guy = make_raise_accumulator()
+        accu2, good_guy = make_accumulator()
+
+        src = """
+        (try
+          (bad_guy 567)
+          (Exception (good_guy -111))
+          (finally (good_guy 789)))
+        """
+        stmt, env = compile_expr(src, **locals())
+        res = stmt()
+        self.assertEqual(res, 789)
+        self.assertEqual(accu1, [567])
+        self.assertEqual(accu2, [-111, 789])
+
+
+    def test_try_exc_else_finally(self):
+
+        accu1, bad_guy = make_raise_accumulator()
+        accu2, good_guy = make_accumulator()
+
+        src = """
+        (try
+          (bad_guy 567)
+          (Exception (good_guy -111))
+          (else (good_guy 456))
+          (finally (good_guy 789)))
+        """
+        stmt, env = compile_expr(src, **locals())
+        res = stmt()
+        self.assertEqual(res, 789)
+        self.assertEqual(accu1, [567])
+        self.assertEqual(accu2, [-111, 789])
 
 
 #
