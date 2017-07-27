@@ -1290,30 +1290,33 @@ class SpecialsCodeSpace(CodeSpace):
 
         if has_else:
             self.pseudop_jump_forward(label_else)
+        else:
+            self.pseudop_jump_forward(label_end)
 
         # each attempt to match exception should have us at the
         # TOS,TOS-1,TOS-2 setup
         self.pseudop_faux_push(3)
 
         # TOS is our exception, TOS-1 is type, TOS-2 is backtrace
-        cleanup = False
+        # cleanup = False
         for ca in catches.unpack():
             ex, act = ca
 
             if ex in (sym_finally, sym_else):
                 continue
 
+            self.pseudop_position_of(ca)
             self.pseudop_label(label_next)
             label_next = self.gen_label()
 
-            if cleanup:
-                self.pseudop_pop()
-                cleanup = False
+            # if cleanup:
+            #    self.pseudop_pop()
+            #    cleanup = False
 
             if is_pair(ex):
                 if not is_proper(ex):
                     raise SyntaxError()
-                cleanup = True
+                #cleanup = True
 
                 match, (key, rest) = ex
                 if rest:
@@ -1333,7 +1336,6 @@ class SpecialsCodeSpace(CodeSpace):
                     subc.pseudop_return()
                     code = subc.complete()
 
-                self.pseudop_position_of(ex)
                 self.pseudop_dup()
                 self.add_expression(match)
                 self.pseudop_exception_match()
@@ -1357,7 +1359,6 @@ class SpecialsCodeSpace(CodeSpace):
 
             self.pseudop_return()
             self.pseudop_pop_except()
-            self.pseudop_pop_block()
             self.pseudop_jump_forward(label_end)
 
         self.pseudop_label(label_next)
@@ -1374,6 +1375,7 @@ class SpecialsCodeSpace(CodeSpace):
 
         if has_finally:
             self.pseudop_label(label_end)
+            self.pseudop_pop_block()
             self.pseudop_const(None)
             self.pseudop_faux_push(-1)
             self.pseudop_label(label_finally)
