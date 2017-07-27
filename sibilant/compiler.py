@@ -85,6 +85,8 @@ class Pseudop(Enum):
     DUP = _auto()
     ROT_TWO = _auto()
     ROT_THREE = _auto()
+    GET_ATTR = _auto()
+    SET_ATTR = _auto()
     RAISE = _auto()
     CALL = _auto()
     CALL_VARARGS = _auto()
@@ -304,7 +306,7 @@ class CodeSpace(object):
 
     def request_name(self, name):
         name = str(name)
-        self.names.append(name)
+        _list_unique_append(self.names, name)
 
 
     def _prep_varargs(self):
@@ -325,6 +327,16 @@ class CodeSpace(object):
         Pushes a pseudo op and arguments into the code
         """
         self.pseudops.append(op_args)
+
+
+    def pseudop_getattr(self, name):
+        self.request_name(name)
+        self.pseudop(Pseudop.GET_ATTR, name)
+
+
+    def pseudop_setattr(self, name):
+        self.request_name(name)
+        self.pseudop(Pseudop.SET_ATTR, name)
 
 
     def pseudop_rot_two(self):
@@ -686,6 +698,16 @@ class CodeSpace(object):
                 else:
                     assert(False)
 
+            elif op is Pseudop.GET_ATTR:
+                n = args[0]
+                i = self.names.index(n)
+                yield Opcode.LOAD_ATTR, i
+
+            elif op is Pseudop.SET_ATTR:
+                n = args[0]
+                i = self.names.index(n)
+                yield Opcode.STORE_ATTR, i
+
             elif op is Pseudop.DEFINE:
                 n = args[0]
                 if n in self.global_vars:
@@ -883,6 +905,36 @@ class SpecialsCodeSpace(CodeSpace):
                 self.pseudop_position_of(orig)
                 self.pseudop_call(expr.count() - 1)
                 return None
+
+            # elif is_pair(expr):
+            #     # improper list means method call
+
+            #     obj, rest = expr
+            #     if is_pair(rest):
+            #         member, args = rest
+            #     else:
+            #         member = rest
+            #         args = nil
+
+            #     if is_symbol(member):
+            #         self.add_expression(obj)
+
+            #         self.pseudop_position_of(rest)
+            #         self.pseudop_getattr(str(member))
+
+            #         for ex in args.unpack():
+            #             self.add_expression(ex)
+
+            #         self.pseudop_position_of(expr)
+            #         self.pseudop_call(args.count())
+
+            #         return None
+
+            #     else:
+            #         expr = cons(cons(symbol("getattr"), obj,
+            #                          cons(symbol("str"), member, nil), nil),
+            #                     *expr.unpack(), nil)
+            #         continue
 
             elif is_symbol(expr):
                 return self.pseudop_get_var(str(expr))
@@ -1570,11 +1622,18 @@ def max_stack(pseudops):
         elif op is Pseudop.GET_VAR:
             push()
 
-        elif op is Pseudop.DUP:
-            push()
-
         elif op is Pseudop.SET_VAR:
             pop()
+
+        elif op is Pseudop.GET_ATTR:
+            pop()
+            push()
+
+        elif op is Pseudop.SET_ATTR:
+            pop(2)
+
+        elif op is Pseudop.DUP:
+            push()
 
         elif op is Pseudop.DEFINE:
             pop()
@@ -1626,7 +1685,6 @@ def max_stack(pseudops):
         elif op is Pseudop.EXCEPTION_MATCH:
             pop(2)
             push()
-            pass
 
         elif op is Pseudop.RAISE:
             pop(args[0])
