@@ -1298,7 +1298,6 @@ class SpecialsCodeSpace(CodeSpace):
         self.pseudop_faux_push(3)
 
         # TOS is our exception, TOS-1 is type, TOS-2 is backtrace
-        # cleanup = False
         for ca in catches.unpack():
             ex, act = ca
 
@@ -1309,14 +1308,9 @@ class SpecialsCodeSpace(CodeSpace):
             self.pseudop_label(label_next)
             label_next = self.gen_label()
 
-            # if cleanup:
-            #    self.pseudop_pop()
-            #    cleanup = False
-
             if is_pair(ex):
                 if not is_proper(ex):
                     raise SyntaxError()
-                #cleanup = True
 
                 match, (key, rest) = ex
                 if rest:
