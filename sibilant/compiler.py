@@ -1264,7 +1264,9 @@ class SpecialsCodeSpace(CodeSpace):
         sym_finally = symbol("finally")
         sym_else = symbol("else")
 
-        for ex, act in catches.unpack():
+        normal_catches = []
+        for ca in catches.unpack():
+            ex, act = ca
             if ex is sym_finally:
                 has_finally = True
                 act_finally = act
@@ -1273,6 +1275,8 @@ class SpecialsCodeSpace(CodeSpace):
                 has_else = True
                 act_else = act
                 label_else = self.gen_label()
+            else:
+                normal_catches.append(ca)
 
         label_end = self.gen_label()
         label_next = self.gen_label()
@@ -1280,84 +1284,89 @@ class SpecialsCodeSpace(CodeSpace):
         if has_finally:
             self.pseudop_setup_finally(label_finally)
 
-        self.pseudop_setup_except(label_next)
+        if normal_catches:
+            self.pseudop_setup_except(label_next)
+
+        # the thing we're actually wrapping in a try
         self.add_expression(expr)
+
         if has_else:
+            # we don't give a crap about this value, the else will
+            # win.
             self.pseudop_pop()
         else:
+            # that's that, return this value. If there's a finally the
+            # python runtime will jump us there.
             self.pseudop_return()
-        self.pseudop_pop_block()
 
         if has_else:
+            if normal_catches:
+                self.pseudop_pop_block()
             self.pseudop_jump_forward(label_else)
-        else:
-            self.pseudop_jump_forward(label_end)
 
-        # each attempt to match exception should have us at the
-        # TOS,TOS-1,TOS-2 setup
-        self.pseudop_faux_push(3)
+        if normal_catches:
+            # each attempt to match exception should have us at the
+            # TOS,TOS-1,TOS-2 setup
+            self.pseudop_faux_push(3)
 
-        # TOS is our exception, TOS-1 is type, TOS-2 is backtrace
-        for ca in catches.unpack():
-            ex, act = ca
+            # TOS is our exception, TOS-1 is type, TOS-2 is backtrace
+            for ca in normal_catches:
+                ex, act = ca
 
-            if ex in (sym_finally, sym_else):
-                continue
+                self.pseudop_position_of(ca)
+                self.pseudop_label(label_next)
+                label_next = self.gen_label()
 
-            self.pseudop_position_of(ca)
+                if is_pair(ex):
+                    if not is_proper(ex):
+                        raise SyntaxError()
+
+                    match, (key, rest) = ex
+                    if rest:
+                        # leftover arguments
+                        raise SyntaxError()
+
+                    try:
+                        declared_at = self.positions[id(ex)]
+                    except KeyError:
+                        declared_at = None
+
+                    kid = self.child_context(args=[key], name="<catch>",
+                                             declared_at=declared_at)
+
+                    with kid as subc:
+                        subc.special_begin(act)
+                        subc.pseudop_return()
+                        code = subc.complete()
+
+                    self.pseudop_dup()
+                    self.add_expression(match)
+                    self.pseudop_exception_match()
+                    self.pseudop_pop_jump_if_false(label_next)
+                    self.pseudop_pop()
+                    self.pseudop_rot_two()
+                    self.pseudop_pop()
+                    self.pseudop_lambda(code)
+                    self.pseudop_rot_two()
+                    self.pseudop_call(1)
+
+                else:
+                    self.pseudop_dup()
+                    self.add_expression(ex)
+                    self.pseudop_exception_match()
+                    self.pseudop_pop_jump_if_false(label_next)
+                    self.pseudop_pop()
+                    self.pseudop_pop()
+                    self.pseudop_pop()
+                    self.special_begin(act)
+
+                self.pseudop_return()
+                self.pseudop_pop_except()
+                self.pseudop_jump_forward(label_end)
+
             self.pseudop_label(label_next)
-            label_next = self.gen_label()
-
-            if is_pair(ex):
-                if not is_proper(ex):
-                    raise SyntaxError()
-
-                match, (key, rest) = ex
-                if rest:
-                    # leftover arguments
-                    raise SyntaxError()
-
-                try:
-                    declared_at = self.positions[id(ex)]
-                except KeyError:
-                    declared_at = None
-
-                kid = self.child_context(args=[key], name="<catch>",
-                                         declared_at=declared_at)
-
-                with kid as subc:
-                    subc.special_begin(act)
-                    subc.pseudop_return()
-                    code = subc.complete()
-
-                self.pseudop_dup()
-                self.add_expression(match)
-                self.pseudop_exception_match()
-                self.pseudop_pop_jump_if_false(label_next)
-                self.pseudop_pop()
-                self.pseudop_rot_two()
-                self.pseudop_pop()
-                self.pseudop_lambda(code)
-                self.pseudop_rot_two()
-                self.pseudop_call(1)
-
-            else:
-                self.pseudop_dup()
-                self.add_expression(ex)
-                self.pseudop_exception_match()
-                self.pseudop_pop_jump_if_false(label_next)
-                self.pseudop_pop()
-                self.pseudop_pop()
-                self.pseudop_pop()
-                self.special_begin(act)
-
-            self.pseudop_return()
-            self.pseudop_pop_except()
-            self.pseudop_jump_forward(label_end)
-
-        self.pseudop_label(label_next)
-        self.pseudop_faux_push(-3)
-        self.pseudop_end_finally()
+            self.pseudop_faux_push(-3)
+            self.pseudop_end_finally()
 
         if has_else:
             self.pseudop_label(label_else)

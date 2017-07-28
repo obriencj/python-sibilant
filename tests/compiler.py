@@ -537,7 +537,7 @@ class SpecialTry(TestCase):
         self.assertEqual(accu, [567, 888, 999])
 
 
-    def _test_try_nocatch(self):
+    def test_try_nocatch(self):
 
         accu, bad_guy = make_raise_accumulator()
 
