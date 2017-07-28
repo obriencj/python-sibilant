@@ -77,7 +77,11 @@
 
 (defmacro set! (target value)
   (cond
-   ((symbol? target) `(set-var ,target ,value))
+   ((symbol? target)
+    (if (in (str target) ".")
+	(let ((spltrgt (target.rsplit "." 1)))
+	  `(setf ,(item spltrgt 0) ,(item spltrgt 1) ,value))
+	`(set-var ,target ,value)))
 
    ((and (proper? target) (== 2 (count target)))
     (let ((trigger (car target)) (dest (cdr target)))
