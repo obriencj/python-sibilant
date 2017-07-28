@@ -658,6 +658,14 @@ class Symbol(object):
         return self._name
 
 
+    def split(self, sep=None, maxsplit=-1):
+        return [symbol(s) for s in self._name.split(sep, maxsplit)]
+
+
+    def rsplit(self, sep=None, maxsplit=-1):
+        return [symbol(s) for s in self._name.rsplit(sep, maxsplit)]
+
+
 def symbol(name):
     if isinstance(name, Symbol):
         return name

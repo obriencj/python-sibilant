@@ -24,6 +24,7 @@ from types import CodeType
 
 from . import (
     nil, symbol, is_pair, is_proper, is_symbol,
+    cons, is_nil,
     SibilantException,
 )
 
@@ -85,14 +86,14 @@ class Pseudop(Enum):
     DUP = _auto()
     ROT_TWO = _auto()
     ROT_THREE = _auto()
-    GET_ATTR = _auto()
-    SET_ATTR = _auto()
     RAISE = _auto()
     CALL = _auto()
     CALL_VARARGS = _auto()
     CONST = _auto()
     GET_VAR = _auto()
     SET_VAR = _auto()
+    GET_ATTR = _auto()
+    SET_ATTR = _auto()
     LAMBDA = _auto()
     RET_VAL = _auto()
     DEFINE = _auto()
@@ -701,12 +702,12 @@ class CodeSpace(object):
             elif op is Pseudop.GET_ATTR:
                 n = args[0]
                 i = self.names.index(n)
-                yield Opcode.LOAD_ATTR, i
+                yield Opcode.LOAD_ATTR, i, 0
 
             elif op is Pseudop.SET_ATTR:
                 n = args[0]
                 i = self.names.index(n)
-                yield Opcode.STORE_ATTR, i
+                yield Opcode.STORE_ATTR, i, 0
 
             elif op is Pseudop.DEFINE:
                 n = args[0]
@@ -937,7 +938,12 @@ class SpecialsCodeSpace(CodeSpace):
             #         continue
 
             elif is_symbol(expr):
-                return self.pseudop_get_var(str(expr))
+                ex = expr.rsplit(".", 1)
+                if len(ex) == 1:
+                    return self.pseudop_get_var(str(expr))
+                else:
+                    expr = cons(symbol("getf"), *ex, nil)
+                    continue
 
             else:
                 # TODO there are some literal types that can't be used
@@ -964,6 +970,46 @@ class SpecialsCodeSpace(CodeSpace):
         """
         self.add_expression(expr)
         self.pseudop_return()
+
+
+    @special(symbol("getf"))
+    def special_getf(self, source):
+        try:
+            called_by, (obj, (member, rest)) = source
+        except ValueError:
+            raise SyntaxError("too few arguments to getf", source)
+
+        if not is_nil(rest):
+            raise SyntaxError("too many arguments to getf", source)
+
+        self.pseudop_position_of(source)
+        self.add_expression(obj)
+        self.pseudop_getattr(str(member))
+
+        # no further transformations
+        return None
+
+
+    @special(symbol("setf"))
+    def special_setf(self, source):
+        try:
+            called_by, (obj, (member, (value, rest))) = source
+        except ValueError:
+            raise SyntaxError("too few arguments to setf", source)
+
+        if not is_nil(rest):
+            raise SyntaxError("too many arguments to setf", source)
+
+        self.add_expression(obj)
+        self.add_expression(value)
+        self.pseudop_rot_two()
+        self.pseudop_setattr(str(member))
+
+        # make setf calls evaluate to None
+        self.pseudop_const(None)
+
+        # no further transformations
+        return None
 
 
     @special(symbol("quote"))
@@ -1458,7 +1504,7 @@ class SpecialsCodeSpace(CodeSpace):
 
 
     @special(symbol("set-var"))
-    def special_setf(self, source):
+    def special_set_var(self, source):
 
         called_by, (binding, body) = source
 
@@ -1474,7 +1520,7 @@ class SpecialsCodeSpace(CodeSpace):
         else:
             assert(False)
 
-        # make set! calls evaluate to None
+        # make set-var calls evaluate to None
         self.pseudop_const(None)
 
         # no additional transform needed
@@ -1638,7 +1684,9 @@ class SpecialsCodeSpace(CodeSpace):
                 # nope, how about in builtins?
                 env = env["__builtins__"].__dict__
                 found = env[name]
+
             except KeyError:
+                # nope
                 found = None
 
         if found and is_special(found):
