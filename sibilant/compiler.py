@@ -352,6 +352,10 @@ class CodeSpace(object):
         self.pseudop(Pseudop.FAUX_PUSH, count)
 
 
+    def pseudop_faux_pop(self, count=1):
+        self.pseudop(Pseudop.FAUX_PUSH, -count)
+
+
     def pseudop_position(self, line, column):
         self.pseudop(Pseudop.POSITION, line, column)
 
@@ -1470,7 +1474,7 @@ class SpecialsCodeSpace(CodeSpace):
             # after all the attempts at trying to match the exception,
             # we land here.
             self.pseudop_label(label_next)
-            self.pseudop_faux_push(-3)
+            self.pseudop_faux_pop(3)
             self.pseudop_end_finally()
 
         if has_else:
@@ -1486,7 +1490,7 @@ class SpecialsCodeSpace(CodeSpace):
             # first we have to cleanup, popping the finally block
             self.pseudop_pop_block()
             self.pseudop_const(None)
-            self.pseudop_faux_push(-1)
+            self.pseudop_faux_pop(1)
 
             # here's the actual handling of the finally event
             self.pseudop_label(label_finally)
