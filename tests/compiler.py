@@ -37,6 +37,10 @@ from sibilant.compiler import (
 )
 
 
+class Object(object):
+    pass
+
+
 def basic_env(**base):
     env = {"__builtins__": sibilant.builtins}
     env.update(base)
@@ -231,6 +235,52 @@ class TestCompiler(TestCase):
         stmt, env = compile_expr(src, foo=lambda a,b: list(range(a,b)))
         res = stmt()
         self.assertEqual(res, cons(1, 2, [3, 4, 5], nil))
+
+
+    def test_getf(self):
+
+        o = Object()
+        o.foo = Object()
+        o.foo.bar = Object()
+        o.foo.bar.baz = 111
+
+        src = """
+        o.foo.bar.baz
+        """
+        stmt, env = compile_expr(src, o=o)
+        res = stmt()
+        self.assertEqual(res, 111)
+
+        src = """
+        (getf o.foo.bar baz)
+        """
+        stmt, env = compile_expr(src, o=o)
+        res = stmt()
+        self.assertEqual(res, 111)
+
+
+    def test_getf(self):
+
+        o = Object()
+        o.foo = Object()
+        o.foo.bar = Object()
+        o.foo.bar.baz = 111
+
+        src = """
+        (setf o.foo.bar baz 999)
+        """
+        stmt, env = compile_expr(src, o=o)
+        res = stmt()
+        self.assertEqual(res, None)
+        self.assertEqual(o.foo.bar.baz, 999)
+
+        src = """
+        (setf (getf o.foo bar) baz 888)
+        """
+        stmt, env = compile_expr(src, o=o)
+        res = stmt()
+        self.assertEqual(res, None)
+        self.assertEqual(o.foo.bar.baz, 888)
 
 
 class CompilerSpecials(TestCase):
