@@ -97,7 +97,7 @@
 
 (defun help-macroexpand-1 (the-macro argbody)
   (if (macro? the-macro)
-      (apply (getattr the-macro "expand") argbody)
+      (apply the-macro.expand argbody)
     (raise (Exception (% "not a macro")))))
 
 
