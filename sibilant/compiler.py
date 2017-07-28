@@ -883,7 +883,7 @@ class SpecialsCodeSpace(CodeSpace):
                     # or a defined macro.
                     special = self.find_special(head)
                     if special:
-                        expr = special.special(self.env, tail)
+                        expr = special.special(self.env, expr)
                         if expr is None:
                             # the special form or macro has done all
                             # the work already (injecting pseudo ops,
@@ -967,11 +967,21 @@ class SpecialsCodeSpace(CodeSpace):
 
 
     @special(symbol("quote"))
-    def special_quote(self, body):
+    def special_quote(self, source):
         """
         Special form for quote
         """
 
+        called_by, body = source
+
+        self.pseudop_position_of(source)
+        self.helper_quote(body)
+
+        # no additional transform needed
+        return None
+
+
+    def helper_quote(self, body):
         if body is nil:
             self.pseudop_get_var("nil")
 
@@ -986,24 +996,28 @@ class SpecialsCodeSpace(CodeSpace):
             else:
                 self.pseudop_get_var("cons")
             for cl, c in enumerate(body.unpack(), 1):
-                self.special_quote(c)
+                self.helper_quote(c)
             self.pseudop_call(cl)
 
         else:
             self.pseudop_const(body)
 
-        # no additional transform needed
-        return None
-
 
     @special(symbol("quasiquote"))
-    def special_quasiquote(self, body):
+    def special_quasiquote(self, source):
         """
         Special form for quasiquote
         """
 
-        # print(repr(body))
+        called_by, body = source
 
+        self.pseudop_position_of(source)
+        self.helper_quasiquote(body)
+
+        return None
+
+
+    def helper_quasiquote(self, body):
         if body is nil:
             self.pseudop_get_var("nil")
 
@@ -1053,7 +1067,7 @@ class SpecialsCodeSpace(CodeSpace):
                             self.add_expression(tail)
                             coll_tup += 1
                     else:
-                        self.special_quasiquote(c)
+                        self.helper_quasiquote(c)
                         coll_tup += 1
 
                 else:
@@ -1070,39 +1084,44 @@ class SpecialsCodeSpace(CodeSpace):
 
 
     @special(symbol("begin"))
-    def special_begin(self, cl):
+    def special_begin(self, source):
         """
         Special form for begin
         """
 
-        if not cl:
-            # because all things are expressions, an empty begin still
-            # needs to have a return value. In this case, the return value
-            # will by the python None
-            return self.pseudop_const(None)
+        called_by, body = source
 
-        self.pseudop_position_of(cl)
-
-        # interleave pops with expr, except for the last one
-        first = True
-        for c in cl.unpack():
-            if first:
-                first = False
-            else:
-                self.pseudop_pop()
-            self.add_expression(c)
+        self.pseudop_position_of(source)
+        self.helper_begin(body)
 
         # no additional transform needed
         return None
 
 
+    def helper_begin(self, body):
+        if not body:
+            # because all things are expressions, an empty begin still
+            # needs to have a return value. In this case, the return value
+            # will by the python None
+            return self.pseudop_const(None)
+
+        # interleave pops with expr, except for the last one
+        first = True
+        for expr in body.unpack():
+            if first:
+                first = False
+            else:
+                self.pseudop_pop()
+            self.add_expression(expr)
+
+
     @special(symbol("lambda"))
-    def special_lambda(self, cl):
+    def special_lambda(self, source):
         """
         Special form for lambda
         """
 
-        args, body = cl
+        called_by, (args, body) = source
 
         if is_symbol(args):
             args = [str(args)]
@@ -1117,7 +1136,7 @@ class SpecialsCodeSpace(CodeSpace):
                               args)
 
         try:
-            declared_at = self.positions[id(body)]
+            declared_at = self.positions[id(source)]
         except KeyError:
             declared_at = None
 
@@ -1126,7 +1145,7 @@ class SpecialsCodeSpace(CodeSpace):
                                  declared_at=declared_at)
 
         with kid as subc:
-            subc.special_begin(body)
+            subc.helper_begin(body)
             subc.pseudop_return()
             code = subc.complete()
 
@@ -1137,9 +1156,9 @@ class SpecialsCodeSpace(CodeSpace):
 
 
     @special(symbol("let"))
-    def special_let(self, cl):
+    def special_let(self, source):
 
-        bindings, body = cl
+        called_by, (bindings, body) = source
 
         args = []
         vals = []
@@ -1149,7 +1168,7 @@ class SpecialsCodeSpace(CodeSpace):
             vals.append(val)
 
         try:
-            declared_at = self.positions[id(body)]
+            declared_at = self.positions[id(source)]
         except KeyError:
             declared_at = None
 
@@ -1157,7 +1176,7 @@ class SpecialsCodeSpace(CodeSpace):
                                  declared_at=declared_at)
 
         with kid as subc:
-            subc.special_begin(body)
+            subc.helper_begin(body)
             subc.pseudop_return()
             code = subc.complete()
 
@@ -1173,9 +1192,10 @@ class SpecialsCodeSpace(CodeSpace):
 
 
     @special(symbol("while"))
-    def special_while(self, cl):
+    def special_while(self, source):
 
-        test, body = cl
+        called_by, (test, body) = source
+
         top = self.gen_label()
         done = self.gen_label()
 
@@ -1183,7 +1203,7 @@ class SpecialsCodeSpace(CodeSpace):
         self.add_expression(test)
 
         self.pseudop_pop_jump_if_false(done)
-        self.special_begin(body)
+        self.helper_begin(body)
         self.pseudop_pop()
         self.pseudop_jump(top)
 
@@ -1195,9 +1215,10 @@ class SpecialsCodeSpace(CodeSpace):
 
 
     # @special(symbol("while"))
-    def special_new_while(self, cl):
+    def special_new_while(self, source):
 
-        test, body = cl
+        called_by, (test, body) = source
+
         looptop = self.gen_label()
         loopbottom = self.gen_label()
         eoloop = self.gen_label()
@@ -1221,26 +1242,10 @@ class SpecialsCodeSpace(CodeSpace):
         return None
 
 
-    @special(symbol("try"))
-    def special_try(self, cl):
-        try:
-            declared_at = self.positions[id(cl)]
-        except KeyError:
-            declared_at = None
-
-        kid = self.child_context(name="<try>", declared_at=declared_at)
-        with kid as subc:
-            subc._helper_special_try(cl)
-            code = subc.complete()
-
-        self.pseudop_lambda(code)
-        self.pseudop_call(0)
-
-        return None
-
-
     @special(symbol("raise"))
-    def special_raise(self, cl):
+    def special_raise(self, source):
+
+        called_by, cl = source
 
         c = cl.count()
         if c > 3:
@@ -1249,14 +1254,34 @@ class SpecialsCodeSpace(CodeSpace):
         for rx in cl.unpack():
             self.add_expression(rx)
 
-        self.pseudop_position_of(cl)
+        self.pseudop_position_of(source)
         self.pseudop_raise(c)
 
         return None
 
 
-    def _helper_special_try(self, cl):
-        expr, catches = cl
+    @special(symbol("try"))
+    def special_try(self, source):
+
+        try:
+            declared_at = self.positions[id(source)]
+        except KeyError:
+            declared_at = None
+
+        kid = self.child_context(name="<try>", declared_at=declared_at)
+        with kid as subc:
+            subc._helper_special_try(source)
+            code = subc.complete()
+
+        self.pseudop_lambda(code)
+        self.pseudop_call(0)
+
+        return None
+
+
+    def _helper_special_try(self, source):
+
+        called_by, (expr, catches) = source
 
         sym_finally = symbol("finally")
         sym_else = symbol("else")
@@ -1362,7 +1387,7 @@ class SpecialsCodeSpace(CodeSpace):
                                              declared_at=declared_at)
 
                     with kid as subc:
-                        subc.special_begin(act)
+                        subc.helper_begin(act)
                         subc.pseudop_return()
                         code = subc.complete()
 
@@ -1387,7 +1412,7 @@ class SpecialsCodeSpace(CodeSpace):
                     self.pseudop_pop()
                     self.pseudop_pop()
                     self.pseudop_pop()
-                    self.special_begin(act)
+                    self.helper_begin(act)
 
                 # we've handled the exception, there's nothing left on
                 # the stack at this point but the result of the
@@ -1406,7 +1431,7 @@ class SpecialsCodeSpace(CodeSpace):
             # okay, we've arrived at the else handler, run it, and
             # return that value.
             self.pseudop_label(label_else)
-            self.special_begin(act_else)
+            self.helper_begin(act_else)
             self.pseudop_return()
 
         self.pseudop_label(label_end)
@@ -1419,7 +1444,7 @@ class SpecialsCodeSpace(CodeSpace):
 
             # here's the actual handling of the finally event
             self.pseudop_label(label_finally)
-            self.special_begin(act_finally)
+            self.helper_begin(act_finally)
             self.pseudop_return()
             self.pseudop_end_finally()
 
@@ -1433,11 +1458,11 @@ class SpecialsCodeSpace(CodeSpace):
 
 
     @special(symbol("set-var"))
-    def special_setf(self, cl):
+    def special_setf(self, source):
 
-        binding, body = cl
+        called_by, (binding, body) = source
 
-        self.special_begin(body)
+        self.helper_begin(body)
 
         if is_symbol(binding):
             self.pseudop_set_var(str(binding))
@@ -1457,10 +1482,11 @@ class SpecialsCodeSpace(CodeSpace):
 
 
     @special(symbol("define"))
-    def special_define(self, cl):
-        binding, body = cl
+    def special_define(self, source):
 
-        self.special_begin(body)
+        called_by, (binding, body) = source
+
+        self.helper_begin(body)
 
         if is_symbol(binding):
             self.pseudop_define(str(binding))
@@ -1474,8 +1500,9 @@ class SpecialsCodeSpace(CodeSpace):
 
 
     @special(symbol("defun"))
-    def special_defun(self, cl):
-        namesym, cl = cl
+    def special_defun(self, source):
+
+        called_by, (namesym, cl) = source
         name = str(namesym)
 
         args, body = cl
@@ -1493,7 +1520,7 @@ class SpecialsCodeSpace(CodeSpace):
                               args)
 
         try:
-            declared_at = self.positions[id(cl)]
+            declared_at = self.positions[id(source)]
         except KeyError:
             declared_at = None
 
@@ -1502,7 +1529,7 @@ class SpecialsCodeSpace(CodeSpace):
                                  declared_at=declared_at)
 
         with kid as subc:
-            subc.special_begin(body)
+            subc.helper_begin(body)
             subc.pseudop_return()
             code = subc.complete()
 
@@ -1517,8 +1544,9 @@ class SpecialsCodeSpace(CodeSpace):
 
 
     @special(symbol("defmacro"))
-    def special_defmacro(self, cl):
-        namesym, cl = cl
+    def special_defmacro(self, source):
+
+        called_by, (namesym, cl) = source
         name = str(namesym)
 
         args, body = cl
@@ -1536,7 +1564,7 @@ class SpecialsCodeSpace(CodeSpace):
                               args)
 
         try:
-            declared_at = self.positions[id(cl)]
+            declared_at = self.positions[id(source)]
         except KeyError:
             declared_at = None
 
@@ -1545,7 +1573,7 @@ class SpecialsCodeSpace(CodeSpace):
                                  declared_at=declared_at)
 
         with kid as subc:
-            subc.special_begin(body)
+            subc.helper_begin(body)
             subc.pseudop_return()
             code = subc.complete()
 
@@ -1563,7 +1591,9 @@ class SpecialsCodeSpace(CodeSpace):
 
 
     @special(symbol("cond"))
-    def special_cond(self, cl):
+    def special_cond(self, source):
+
+        called_by, cl = source
 
         self.pseudop_label(self.gen_label())
 
@@ -1577,13 +1607,13 @@ class SpecialsCodeSpace(CodeSpace):
             label = self.gen_label()
 
             if test is symbol("else"):
-                self.special_begin(body)
+                self.helper_begin(body)
                 self.pseudop_jump(done)
 
             else:
                 self.add_expression(test)
                 self.pseudop_pop_jump_if_false(label)
-                self.special_begin(body)
+                self.helper_begin(body)
                 self.pseudop_jump(done)
 
         self.pseudop_const(None)
@@ -1922,7 +1952,8 @@ class Macro(Special):
         self.expand = fun
         self.__name__ = name or fun.__name__
 
-    def special(self, _env, cl):
+    def special(self, _env, source):
+        called_by, cl = source
         return self.expand(*cl.unpack())
 
 
