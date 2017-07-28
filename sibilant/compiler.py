@@ -1258,55 +1258,77 @@ class SpecialsCodeSpace(CodeSpace):
     def _helper_special_try(self, cl):
         expr, catches = cl
 
-        has_finally = False
-        has_else = False
-
         sym_finally = symbol("finally")
         sym_else = symbol("else")
 
+        has_finally = False
+        has_else = False
+
         normal_catches = []
+
+        # first, filter our catches down into normal exception
+        # matches, finally, and else
         for ca in catches.unpack():
             ex, act = ca
+
+            if not act:
+                raise SyntaxError("clause with no body in try", ca)
+
             if ex is sym_finally:
+                if has_finally:
+                    raise SyntaxError("duplicate finally clause in try", ca)
                 has_finally = True
                 act_finally = act
                 label_finally = self.gen_label()
+
             elif ex is sym_else:
+                if has_else:
+                    raise SyntaxError("duplicate else clause in try", ca)
                 has_else = True
                 act_else = act
                 label_else = self.gen_label()
+
             else:
+                # this is a normal catch, where ex is a thing to
+                # match, and act is the body to execute if it matches.
                 normal_catches.append(ca)
 
         label_end = self.gen_label()
         label_next = self.gen_label()
 
         if has_finally:
+            # setup that finally block if we need one
             self.pseudop_setup_finally(label_finally)
 
         if normal_catches:
+            # we don't setup an actual try block if there's no
+            # catching going on, it breaky things.
             self.pseudop_setup_except(label_next)
 
-        # the thing we're actually wrapping in a try
+        # Here's the expression we're actually wrapping in a try
         self.add_expression(expr)
 
         if has_else:
-            # we don't give a crap about this value, the else will
-            # win.
+            # the result of the expression is thrown away if we have
+            # an else clause
             self.pseudop_pop()
-        else:
-            # that's that, return this value. If there's a finally the
-            # python runtime will jump us there.
-            self.pseudop_return()
 
-        if has_else:
             if normal_catches:
+                # if there were no normal_catches found, there's no
+                # block to pop
                 self.pseudop_pop_block()
+
+            # and we'll need to jump ahead to the else code.
             self.pseudop_jump_forward(label_else)
 
+        else:
+            # but if there isn't an else clause, then the result of
+            # the expression is the real deal
+            self.pseudop_return()
+
         if normal_catches:
-            # each attempt to match exception should have us at the
-            # TOS,TOS-1,TOS-2 setup
+            # each attempt to match the exception should have us at
+            # the TOS,TOS-1,TOS-2 setup
             self.pseudop_faux_push(3)
 
             # TOS is our exception, TOS-1 is type, TOS-2 is backtrace
@@ -1318,6 +1340,11 @@ class SpecialsCodeSpace(CodeSpace):
                 label_next = self.gen_label()
 
                 if is_pair(ex):
+                    # The exception is intended to be bound to a local
+                    # variable. To achieve that, we're going to set up
+                    # a lambda with that single binding, and stuff out
+                    # handler code inside of it.
+
                     if not is_proper(ex):
                         raise SyntaxError()
 
@@ -1351,6 +1378,8 @@ class SpecialsCodeSpace(CodeSpace):
                     self.pseudop_call(1)
 
                 else:
+                    # an exception match without a binding
+
                     self.pseudop_dup()
                     self.add_expression(ex)
                     self.pseudop_exception_match()
@@ -1360,37 +1389,46 @@ class SpecialsCodeSpace(CodeSpace):
                     self.pseudop_pop()
                     self.special_begin(act)
 
+                # we've handled the exception, there's nothing left on
+                # the stack at this point but the result of the
+                # handler.
                 self.pseudop_return()
                 self.pseudop_pop_except()
                 self.pseudop_jump_forward(label_end)
 
+            # after all the attempts at trying to match the exception,
+            # we land here.
             self.pseudop_label(label_next)
             self.pseudop_faux_push(-3)
             self.pseudop_end_finally()
 
         if has_else:
+            # okay, we've arrived at the else handler, run it, and
+            # return that value.
             self.pseudop_label(label_else)
-            # there will be a leftover value from the attempted try
-            # expr. The else indicates we want to discard that value
-            # for whatever this block expands to.
             self.special_begin(act_else)
             self.pseudop_return()
 
+        self.pseudop_label(label_end)
+
         if has_finally:
-            self.pseudop_label(label_end)
+            # first we have to cleanup, popping the finally block
             self.pseudop_pop_block()
             self.pseudop_const(None)
             self.pseudop_faux_push(-1)
+
+            # here's the actual handling of the finally event
             self.pseudop_label(label_finally)
             self.special_begin(act_finally)
             self.pseudop_return()
             self.pseudop_end_finally()
 
         else:
-            self.pseudop_label(label_end)
+            # guess we're all done, actually.
             self.pseudop_const(None)
             self.pseudop_return()
 
+        # no further transformations needed on the passed source code.
         return None
 
 
