@@ -129,6 +129,7 @@ _op((lambda obj, key: obj[key]), "item")
 _op(_operator.delitem, "del-item")
 _op(_operator.setitem, "set-item")
 
+
 # === useful stuff from functools ===
 
 _op(_functools.partial)
