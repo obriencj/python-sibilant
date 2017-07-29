@@ -283,6 +283,94 @@ class TestCompiler(TestCase):
         self.assertEqual(o.foo.bar.baz, 888)
 
 
+class CompilerClosures(TestCase):
+
+    def test_4(self):
+        src = """
+        (lambda (a b)
+          (set-var a (lambda (x) (+ a x)) 9)
+          (cons a b))
+        """
+        stmt, env = compile_expr(src)
+        fun = stmt()
+        res = fun(100, 200)
+        self.assertTrue(res, cons(109, 200))
+
+        src = """
+        (lambda (a b)
+          (set-var b (lambda (x) (+ b x)) 9)
+          (cons a b))
+        """
+        stmt, env = compile_expr(src)
+        fun = stmt()
+        res = fun(100, 200)
+        self.assertTrue(res, cons(100, 209))
+
+        src = """
+        (lambda (a b)
+          (set-var a (lambda (x) (+ b x)) 9)
+          (cons a b))
+        """
+        stmt, env = compile_expr(src)
+        fun = stmt()
+        res = fun(100, 200)
+        self.assertTrue(res, cons(209, 200))
+
+        src = """
+        (lambda (a b)
+          (set-var b (lambda (x) (+ a x)) 9)
+          (cons a b))
+        """
+        stmt, env = compile_expr(src)
+        fun = stmt()
+        res = fun(100, 200)
+        self.assertTrue(res, cons(100, 109))
+
+
+    def test_3(self):
+        src = """
+        (lambda (a b)
+          (lambda (x) (+ a x)))
+        """
+        stmt, env = compile_expr(src)
+        fun = stmt()
+        funx = fun(1, 9)
+        self.assertTrue(funx(2), 3)
+
+        src = """
+        (lambda (a b)
+          (lambda (x) (+ b x)))
+        """
+        stmt, env = compile_expr(src)
+        fun = stmt()
+        funx = fun(1, 9)
+        self.assertTrue(funx(2), 11)
+
+
+    def test_2(self):
+        src = """
+        (lambda (a b)
+          (lambda (x)
+           (lambda () (cons (+ a x) b))))
+        """
+        stmt, env = compile_expr(src)
+        fun = stmt()
+        funx = fun(1, 9)
+        funy = funx(2)
+        self.assertTrue(funy(), cons(3, 9))
+
+
+    def test_1(self):
+        src = """
+        (lambda (a b)
+          (lambda (x) (cons (+ a x) b)))
+        """
+        stmt, env = compile_expr(src)
+        fun = stmt()
+        funx = fun(1, 9)
+        self.assertTrue(funx(2), cons(3, 9))
+
+
 class CompilerSpecials(TestCase):
 
 
