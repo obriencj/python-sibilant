@@ -83,7 +83,7 @@
 	  `(setf ,(item spltrgt 0) ,(item spltrgt 1) ,value))
 	`(set-var ,target ,value)))
 
-   ((and (proper? target) (== 2 (count target)))
+   ((and (proper? target))
     (let ((trigger (car target)) (dest (cdr target)))
       `(begin
 	,(cond ((eq 'car trigger) `(set-car ,@dest ,value))
@@ -92,7 +92,7 @@
 	None)))
 
    (else
-    (raise (Exception (% "invalid set! target %s" trigger))))))
+    (raise (Exception (% "invalid set! target %s" target))))))
 
 
 (defun help-macroexpand-1 (the-macro argbody)
