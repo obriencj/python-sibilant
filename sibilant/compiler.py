@@ -1468,8 +1468,12 @@ class SpecialsCodeSpace(CodeSpace):
                 # the stack at this point but the result of the
                 # handler.
                 self.pseudop_return()
-                self.pseudop_pop_except()
-                self.pseudop_jump_forward(label_end)
+
+                if (3, 6) <= version_info:
+                    pass
+                elif (3, 3) <= version_info < (3, 6):
+                    self.pseudop_pop_except()
+                    self.pseudop_jump_forward(label_end)
 
             # after all the attempts at trying to match the exception,
             # we land here.
@@ -1496,7 +1500,11 @@ class SpecialsCodeSpace(CodeSpace):
             self.pseudop_label(label_finally)
             self.helper_begin(act_finally)
             self.pseudop_return()
-            self.pseudop_end_finally()
+
+            if (3, 6) <= version_info:
+                pass
+            elif (3, 3) <= version_info < (3, 6):
+                self.pseudop_end_finally()
 
         else:
             # guess we're all done, actually.
@@ -1848,7 +1856,7 @@ def apply_jump_labels(coll, jabs, jrel, labels):
 
         for coll_offset, name, off in jrel:
             target = labels[name]
-            target -= (off + 2)
+            target -= (off + 4)
 
             coll_ext = coll[coll_offset]
             coll_jmp = coll[coll_offset + 1]

@@ -34,6 +34,8 @@ from sibilant.compiler import (
     compile_from_str, compile_from_stream,
 )
 
+import dis
+
 
 class Object(object):
     pass
@@ -580,6 +582,7 @@ class SpecialTry(TestCase):
           (finally (good_guy 999)))
         """
         stmt, env = compile_expr(src, good_guy=good_guy)
+        dis.dis(stmt)
         res = stmt()
         self.assertEqual(res, 999)
         self.assertEqual(accu, [567, 888, 999])
