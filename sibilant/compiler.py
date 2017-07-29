@@ -198,9 +198,6 @@ class CodeSpace(object):
         try:
             yield self
 
-        except Exception:
-            raise
-
         finally:
             if old is None:
                 del env["__compiler__"]
@@ -1510,8 +1507,7 @@ class SpecialsCodeSpace(CodeSpace):
 
         else:
             # guess we're all done, actually.
-            self.pseudop_const(None)
-            self.pseudop_return()
+            self.pseudop_return_none()
 
         # no further transformations needed on the passed source code.
         return None

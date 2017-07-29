@@ -199,5 +199,18 @@ class TestParse(TestCase):
         self.assertEqual(col, exp)
 
 
+    def test_exec_header(self):
+        src = "#! /usr/bin/env sibilant\n" \
+              "(testing . 123)"
+
+        col = collect_emissions(src)
+        exp = [(Event.OPEN, (2, 0)),
+               (Event.SYMBOL, (2, 1), "testing"),
+               (Event.DOT, (2, 9)),
+               (Event.NUMBER, (2, 11), "123"),
+               (Event.CLOSE, (2, 14))]
+        self.assertEqual(col, exp)
+
+
 #
 # The end.
