@@ -1155,6 +1155,8 @@ class SpecialsCodeSpace(CodeSpace):
             # will by the python None
             return self.pseudop_const(None)
 
+        self.pseudop_position_of(body)
+
         # interleave pops with expr, except for the last one
         first = True
         for expr in body.unpack():
