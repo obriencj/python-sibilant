@@ -61,14 +61,14 @@
   `(set! ,dest (- ,dest ,by)))
 
 
-(defmacro def-import (name . &as_name)
+(defmacro defimport (name . &as_name)
   (set-var &as_name
 	(if (nil? &as_name) name (car &as_name)))
 
   `(define ,&as_name (import ,(str name))))
 
 
-;;(defmacro def-import-from (modulename name . &as_name)
+;;(defmacro defimport-from (modulename name . &as_name)
 ;;  (set-var &as_name
 ;;	(if (nil? &as_name) name (car &as_name)))
 ;;
@@ -93,6 +93,31 @@
 
    (else
     (raise (Exception (% "invalid set! target %s" target))))))
+
+
+(defmacro method (name params . &body)
+  `(let ((*method* (lambda ,params ,@&body))
+	 (*name* ,(str name)))
+     (setf *method* __name__ *name*)
+     (set-item *members* *name* *method*)))
+
+
+(defmacro class (name bases . &body)
+  `(let ((*name* ,(str name))
+	 (*flds* None)
+	 (*body* (lambda (*members*)
+		   (begin ,@&body)
+		   *members*)))
+
+     (set-var *flds* (*body* (dict)))
+     (set-item *flds* "__doc__" *body*.__doc__)
+     (type *name*
+	   (make-tuple ,@bases)
+	   *flds*)))
+
+
+(defmacro defclass (name bases . &body)
+  `(define ,name (class ,name ,bases ,@&body)))
 
 
 (defun help-macroexpand-1 (the-macro argbody)
