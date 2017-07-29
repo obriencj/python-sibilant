@@ -36,11 +36,14 @@ def cli(options):
     additional positional args
     """
 
-    if not options.no_importer:
+    if options.importer:
         # this has the side-effect of augmenting the import system to
         # search for sibilant source files in the sys path. If
         # --no-importer was specified, then don't do that!
-        from . import importer  # noqa
+        import sibilant.importer  # noqa
+
+    if options.tweakpath:
+        sys.path.insert(0, ".")
 
     filename = options.filename
 
@@ -62,8 +65,13 @@ def cli_option_parser(args):
 
     parser.add_argument("filename", nargs="?", default=None)
 
-    parser.add_argument("--no-importer", action="store_true", default=False,
+    parser.add_argument("--no-importer", dest="importer",
+                        action="store_false", default=True,
                         help="Do not enable the sibilany importer extension")
+
+    parser.add_argument("--no-tweak-path", dest="tweakpath",
+                        action="store_false", default=True,
+                        help="Do not add the current directory to sys.path")
 
     return parser
 
