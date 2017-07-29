@@ -21,16 +21,133 @@ license: LGPL v.3
 """
 
 
+from functools import partial
 from unittest import TestCase
 
 import sibilant.builtins
+
+from sibilant import car, cdr, cons, nil, symbol
+
+from sibilant.compiler import compile_from_str
+
+
+class Object(object):
+    pass
+
+
+def basic_env(**base):
+    env = {"__builtins__": sibilant.builtins}
+    env.update(base)
+    return env
+
+
+def compile_expr(src_str, **base):
+    env = basic_env(**base)
+    code = compile_from_str(src_str, env)
+    return partial(eval, code, env), env
 
 
 class BuiltinsTest(TestCase):
 
     def test_setbang(self):
+        src = """
+        (begin
+          (set! o 101)
+          o)
+        """
+        stmt, env = compile_expr(src, o=100)
+        res = stmt()
+        self.assertEqual(res, 101)
 
+        src = """
+        (begin
+          (set! o tacos)
+          o)
+        """
+        stmt, env = compile_expr(src, o=100, tacos=888)
+        res = stmt()
+        self.assertEqual(res, 888)
+
+        src = """
+        (let ((x o))
+            (set! x tacos)
+            x)
+        """
+        stmt, env = compile_expr(src, o=100, tacos=777)
+        res = stmt()
+        self.assertEqual(res, 777)
+
+        src = """
+        (begin
+          (set! o (i tacos))
+          o)
+        """
+        stmt, env = compile_expr(src, o=100, tacos=888, i=lambda x:x)
+        res = stmt()
+        self.assertEqual(res, 888)
+
+        src = """
+        (let ((x o))
+          (set! x (i tacos))
+          x)
+        """
+        stmt, env = compile_expr(src, o=100, tacos=777, i=lambda x:x)
+        res = stmt()
+        self.assertEqual(res, 777)
+
+        src = """
+        (begin
+          (set! (car o) 9)
+          o)
+        """
+        stmt, env = compile_expr(src, o=cons(1, 2))
+        res = stmt()
+        self.assertEqual(res, cons(9, 2))
+
+        src = """
+        (begin
+          (set! (cdr o) 9)
+          o)
+        """
+        stmt, env = compile_expr(src, o=cons(1, 2))
+        res = stmt()
+        self.assertEqual(res, cons(1, 9))
+
+        src = """
+        (begin
+          (set! (item o 1) 9)
+          o)
+        """
+        stmt, env = compile_expr(src, o=[1, 2, 3])
+        res = stmt()
+        self.assertEqual(res, [1, 9, 3])
+
+        o = Object()
+        src = """
+        (begin
+          (set! o.bar tacos)
+          o)
+        """
+        stmt, env = compile_expr(src, o=o, tacos=9)
+        res = stmt()
+        self.assertEqual(res.bar, 9)
+
+        o = Object()
+        o.foo = Object()
+        o.foo.bar = Object()
+        src = """
+        (begin
+          (set! o.foo.bar.z tacos)
+          o)
+        """
+        stmt, env = compile_expr(src, o=o, tacos=9)
+        res = stmt()
+        self.assertEqual(res.foo.bar.z, 9)
+
+
+    def test_macroexpand_1(self):
         pass
+
 
 
 #

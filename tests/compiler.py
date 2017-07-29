@@ -21,8 +21,6 @@ license: LGPL v.3
 """
 
 
-import dis
-
 from fractions import Fraction as fraction
 from functools import partial
 from unittest import TestCase
