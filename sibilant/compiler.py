@@ -171,7 +171,8 @@ class CodeSpace(object):
 
         self.names = []
 
-        # first const is required -- it'll be None or a doc string
+        # first const is required -- it'll be None or a doc string and
+        # then None
         self.consts = [None]
 
         self.pseudops = []
@@ -180,6 +181,19 @@ class CodeSpace(object):
 
         if varargs:
             self._prep_varargs()
+
+
+    def set_doc(self, docstr):
+        consts = self.consts
+
+        if docstr is None and self.consts[0] is not None:
+            self.consts.pop(0)
+
+        elif isinstance(docstr, str):
+            if consts[0] is None:
+                self.consts.insert(0, docstr)
+            elif isinstance(consts[0], str):
+                self.consts[0] = docstr
 
 
     def require_active(self):
@@ -277,16 +291,18 @@ class CodeSpace(object):
             # no, we won't provide a cell for a global
             return False
 
+        elif ((name in self.cell_vars) or
+              (name in self.free_vars)):
+            # yup, we can provide that cell. It's either already a
+            # cell we created to give away, or a cell we ourselves
+            # already inherited.
+            return True
+
         elif name in self.fast_vars:
             # we need to convert this fast var into a cell var for our
             # child namespace to use
-            self.fast_vars.remove(name)
+            # self.fast_vars.remove(name)
             _list_unique_append(self.cell_vars, name)
-            return True
-
-        elif ((name in self.free_vars) or
-              (name in self.cell_vars)):
-            # yup, we can provide that cell
             return True
 
         elif self.parent and self.parent.request_cell(name):
@@ -525,12 +541,16 @@ class CodeSpace(object):
         lnt = []
         code = self.code_bytes(lnt)
 
-        # print("in complete, lnt is:", lnt)
-        # print("self.positions is:", self.positions)
-
         consts = tuple(self.consts)
+
         names = tuple(self.names)
-        varnames = *self.fast_vars, *self.cell_vars
+
+        varnames = list(self.fast_vars)
+        for v in self.cell_vars:
+            _list_unique_append(varnames, v)
+        varnames = tuple(varnames)
+        # varnames = *self.fast_vars, *self.cell_vars
+
         filename = "<sibilant>" if self.filename is None else self.filename
         name = "<anon>" if self.name is None else self.name
 
@@ -668,15 +688,15 @@ class CodeSpace(object):
 
             elif op is Pseudop.GET_VAR:
                 n = args[0]
-                if n in self.fast_vars:
-                    i = self.fast_vars.index(n)
-                    yield Opcode.LOAD_FAST, i, 0
-                elif n in self.cell_vars:
+                if n in self.cell_vars:
                     i = self.cell_vars.index(n)
                     yield Opcode.LOAD_DEREF, i, 0
                 elif n in self.free_vars:
                     i = self.free_vars.index(n) + len(self.cell_vars)
                     yield Opcode.LOAD_DEREF, i, 0
+                elif n in self.fast_vars:
+                    i = self.fast_vars.index(n)
+                    yield Opcode.LOAD_FAST, i, 0
                 elif n in self.global_vars:
                     i = self.names.index(n)
                     yield Opcode.LOAD_GLOBAL, i, 0
@@ -685,15 +705,15 @@ class CodeSpace(object):
 
             elif op is Pseudop.SET_VAR:
                 n = args[0]
-                if n in self.fast_vars:
-                    i = self.fast_vars.index(n)
-                    yield Opcode.STORE_FAST, i, 0
-                elif n in self.cell_vars:
+                if n in self.cell_vars:
                     i = self.cell_vars.index(n)
                     yield Opcode.STORE_DEREF, i, 0
                 elif n in self.free_vars:
                     i = self.free_vars.index(n) + len(self.cell_vars)
                     yield Opcode.STORE_DEREF, i, 0
+                elif n in self.fast_vars:
+                    i = self.fast_vars.index(n)
+                    yield Opcode.STORE_FAST, i, 0
                 elif n in self.global_vars:
                     i = self.names.index(n)
                     yield Opcode.STORE_GLOBAL, i, 0
@@ -971,6 +991,18 @@ class SpecialsCodeSpace(CodeSpace):
         """
         self.add_expression(expr)
         self.pseudop_return()
+
+
+    @special("doc")
+    def special_doc(self, source):
+        called_by, rest = source
+
+        self.set_doc(" ".join(d.strip() for d in map(str, rest.unpack())))
+
+        # doc special expression evaluates to None
+        self.pseudop_const(None)
+
+        return None
 
 
     @special(symbol("getf"))
