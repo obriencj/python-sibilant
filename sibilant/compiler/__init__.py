@@ -20,6 +20,7 @@ from contextlib import contextmanager
 from enum import Enum
 from functools import partial, wraps
 from itertools import count
+from platform import python_implementation
 from sys import version_info
 from types import CodeType
 
@@ -36,9 +37,10 @@ from ..ast import (
 
 
 __all__ = (
-    "UnsupportedVersion",
+    "SyntaxError", "UnsupportedVersion",
     "Opcode", "Pseudop",
-    "CodeSpace", "SpecialsCodeSpace", "VersionSpecialsCodeSpace",
+    "CodeSpace", "SpecialsCodeSpace",
+    "code_space_for_version",
     "macro", "is_macro",
     "compile_from_str", "compile_from_stream", "compile_from_ast",
 )
@@ -596,17 +598,23 @@ def _special():
     return special, _specials.items
 
 
-def VersionSpecialsCodeSpace(**kwds):
-    if (3, 6) <= version_info:
-        from .cpython36 import CPython36
-        return CPython36(**kwds)
+def code_space_for_version(ver=version_info,
+                           impl=python_implementation()):
+    """
+    Returns the relevant SpecialsCodeSpace subclass to emit bytecode
+    for the relevant version of Python
+    """
 
-    elif (3, 3) <= version_info <= (3, 6):
-        from .cpython33 import CPython33
-        return CPython33(**kwds)
+    if impl == 'CPython':
+        if (3, 6) <= ver:
+            from .cpython36 import CPython36
+            return CPython36
 
-    else:
-        raise UnsupportedVersion(version_info)
+        elif (3, 3) <= ver <= (3, 6):
+            from .cpython33 import CPython33
+            return CPython33
+
+    return None
 
 
 class SpecialsCodeSpace(CodeSpace):
@@ -1774,8 +1782,11 @@ def compile_from_ast(astree, env, filename=None):
 
     cl = astree.simplify(positions)
 
-    codespace = VersionSpecialsCodeSpace(filename=filename,
-                                         positions=positions)
+    factory = code_space_for_version(version_info)
+    if not factory:
+        raise UnsupportedVersion(version_info)
+
+    codespace = factory(filename=filename, positions=positions)
 
     with codespace.activate(env):
         assert(env.get("__compiler__") == codespace)
