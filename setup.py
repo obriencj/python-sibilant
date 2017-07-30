@@ -30,7 +30,7 @@ from setuptools import setup
 
 if (3, 6) <= version_info <= (3, 7):
     pass
-elif (3, 3) <= version_info <= (3, 6):
+elif (3, 5) <= version_info <= (3, 6):
     pass
 else:
     exit("unsupported version: %r" % version_info)
@@ -62,13 +62,16 @@ setup(name = "sibilant",
 
       provides = ["sibilant", ],
       requires = [],
-      platforms = ["python3 >= 3.3", ],
+      platforms = ["python3 >= 3.5", ],
 
       zip_safe = True,
 
       classifiers = [
           "Intended Audience :: Developers",
-          "Programming Language :: Python :: 3",
+          "Programming Language :: Python :: 3 :: Only",
+          "Programming Language :: Python :: 3.5",
+          "Programming Language :: Python :: 3.6",
+          "Programming Language :: Python :: Implementation :: CPython",
           "Topic :: Software Development", ],
 )
 
