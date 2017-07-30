@@ -31,22 +31,23 @@ from .. import (
 )
 
 from ..ast import (
+    SibilantSyntaxError,
     compose_from_str, compose_from_stream,
     compose_all_from_str, compose_all_from_stream,
 )
 
 
 __all__ = (
-    "SyntaxError", "UnsupportedVersion",
+    "SpecialSyntaxError", "UnsupportedVersion",
     "Opcode", "Pseudop",
-    "CodeSpace", "SpecialsCodeSpace",
+    "CodeSpace", "SpecialCodeSpace",
     "code_space_for_version",
     "macro", "is_macro",
     "compile_from_str", "compile_from_stream", "compile_from_ast",
 )
 
 
-class SyntaxError(SibilantException):
+class SpecialSyntaxError(SibilantSyntaxError):
     pass
 
 
@@ -339,6 +340,13 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop_set_var(self.args[-1])
 
 
+    def position_of(self, source):
+        try:
+            return self.positions[id(source)]
+        except KeyError:
+            return None
+
+
     def pseudop(self, *op_args):
         """
         Pushes a pseudo op and arguments into the code
@@ -601,23 +609,23 @@ def _special():
 def code_space_for_version(ver=version_info,
                            impl=python_implementation()):
     """
-    Returns the relevant SpecialsCodeSpace subclass to emit bytecode
+    Returns the relevant SpecialCodeSpace subclass to emit bytecode
     for the relevant version of Python
     """
 
     if impl == 'CPython':
-        if (3, 6) <= ver:
+        if (3, 6) <= ver <= (3, 7):
             from .cpython36 import CPython36
             return CPython36
 
-        elif (3, 3) <= ver <= (3, 6):
-            from .cpython33 import CPython33
-            return CPython33
+        elif (3, 5) <= ver <= (3, 6):
+            from .cpython35 import CPython35
+            return CPython35
 
     return None
 
 
-class SpecialsCodeSpace(CodeSpace):
+class SpecialCodeSpace(CodeSpace):
     """
     Adds special forms to the basic functionality of CodeSpace
     """
@@ -740,6 +748,10 @@ class SpecialsCodeSpace(CodeSpace):
         self.pseudop_return()
 
 
+    def error(self, message, source):
+        return SpecialSyntaxError(message, self.position_of(source))
+
+
     @special("doc")
     def special_doc(self, source):
         called_by, rest = source
@@ -757,10 +769,10 @@ class SpecialsCodeSpace(CodeSpace):
         try:
             called_by, (obj, (member, rest)) = source
         except ValueError:
-            raise SyntaxError("too few arguments to getf", source)
+            raise self.error("too few arguments to getf", source)
 
         if not is_nil(rest):
-            raise SyntaxError("too many arguments to getf", source)
+            raise self.error("too many arguments to getf", source)
 
         self.pseudop_position_of(source)
         self.add_expression(obj)
@@ -775,10 +787,10 @@ class SpecialsCodeSpace(CodeSpace):
         try:
             called_by, (obj, (member, (value, rest))) = source
         except ValueError:
-            raise SyntaxError("too few arguments to setf", source)
+            raise self.error("too few arguments to setf", source)
 
         if not is_nil(rest):
-            raise SyntaxError("too many arguments to setf", source)
+            raise self.error("too many arguments to setf", source)
 
         self.add_expression(obj)
         self.add_expression(value)
@@ -952,25 +964,25 @@ class SpecialsCodeSpace(CodeSpace):
         called_by, (args, body) = source
 
         if is_symbol(args):
-            args = [str(args)]
+            pyargs = [str(args)]
             varargs = True
 
         elif is_pair(args):
             varargs = not is_proper(args)
-            args = map(str, args.unpack())
+            pyargs = []
+            for arg in args.unpack():
+                if not is_symbol(arg):
+                    raise self.error("formals must be symbols", cdr(source))
+                else:
+                    pyargs.append(str(arg))
 
         else:
-            raise SyntaxError("formals must be symbol or pair, not %r" %
-                              args)
+            msg = "formals must be symbol or pair, not %r" % type(args)
+            raise self.error(msg, cdr(source))
 
-        try:
-            declared_at = self.positions[id(source)]
-        except KeyError:
-            declared_at = None
-
-        kid = self.child_context(args=args, varargs=varargs,
+        kid = self.child_context(args=pyargs, varargs=varargs,
                                  name="<lambda>",
-                                 declared_at=declared_at)
+                                 declared_at=self.position_of(source))
 
         with kid as subc:
             subc.helper_begin(body)
@@ -995,13 +1007,8 @@ class SpecialsCodeSpace(CodeSpace):
             args.append(str(name))
             vals.append(val)
 
-        try:
-            declared_at = self.positions[id(source)]
-        except KeyError:
-            declared_at = None
-
         kid = self.child_context(args=args, name="<let>",
-                                 declared_at=declared_at)
+                                 declared_at=self.position_of(source))
 
         with kid as subc:
             subc.helper_begin(body)
@@ -1077,7 +1084,8 @@ class SpecialsCodeSpace(CodeSpace):
 
         c = cl.count()
         if c > 3:
-            raise SyntaxError("too many arguments to raise", cl)
+            msg = "too many arguments to raise %r" % cl
+            raise self.error(msg, source)
 
         for rx in cl.unpack():
             self.add_expression(rx)
@@ -1091,12 +1099,9 @@ class SpecialsCodeSpace(CodeSpace):
     @special(symbol("try"))
     def special_try(self, source):
 
-        try:
-            declared_at = self.positions[id(source)]
-        except KeyError:
-            declared_at = None
+        kid = self.child_context(name="<try>",
+                                 declared_at=self.position_of(source))
 
-        kid = self.child_context(name="<try>", declared_at=declared_at)
         with kid as subc:
             subc._helper_special_try(source)
             code = subc.complete()
@@ -1125,18 +1130,19 @@ class SpecialsCodeSpace(CodeSpace):
             ex, act = ca
 
             if not act:
-                raise SyntaxError("clause with no body in try", ca)
+                raise self.error("clause with no body in try", ca)
 
             if ex is sym_finally:
                 if has_finally:
-                    raise SyntaxError("duplicate finally clause in try", ca)
+                    raise self.error("duplicate finally clause in try", ca)
+
                 has_finally = True
                 act_finally = act
                 label_finally = self.gen_label()
 
             elif ex is sym_else:
                 if has_else:
-                    raise SyntaxError("duplicate else clause in try", ca)
+                    raise self.error("duplicate else clause in try", ca)
                 has_else = True
                 act_else = act
                 label_else = self.gen_label()
@@ -1199,20 +1205,15 @@ class SpecialsCodeSpace(CodeSpace):
                     # handler code inside of it.
 
                     if not is_proper(ex):
-                        raise SyntaxError()
+                        raise self.error("non-proper biding in try", ex)
 
                     match, (key, rest) = ex
                     if rest:
                         # leftover arguments
-                        raise SyntaxError()
-
-                    try:
-                        declared_at = self.positions[id(ex)]
-                    except KeyError:
-                        declared_at = None
+                        raise self.error("too many bindings", ex)
 
                     kid = self.child_context(args=[key], name="<catch>",
-                                             declared_at=declared_at)
+                                             declared_at=self.position_of(ex))
 
                     with kid as subc:
                         subc.helper_begin(act)
@@ -1249,7 +1250,7 @@ class SpecialsCodeSpace(CodeSpace):
 
                 if (3, 6) <= version_info:
                     pass
-                elif (3, 3) <= version_info < (3, 6):
+                elif (3, 5) <= version_info < (3, 6):
                     self.pseudop_pop_except()
                     self.pseudop_jump_forward(label_end)
 
@@ -1281,7 +1282,7 @@ class SpecialsCodeSpace(CodeSpace):
 
             if (3, 6) <= version_info:
                 pass
-            elif (3, 3) <= version_info < (3, 6):
+            elif (3, 5) <= version_info < (3, 6):
                 self.pseudop_end_finally()
 
         else:
@@ -1297,19 +1298,21 @@ class SpecialsCodeSpace(CodeSpace):
 
         called_by, (binding, body) = source
 
-        self.helper_begin(body)
+        if not is_symbol(binding):
+            raise self.error("assignment must be by symbolic name",
+                             cdr(source))
 
-        if is_symbol(binding):
-            self.pseudop_set_var(str(binding))
+        value, rest = body
+        if not is_nil(rest):
+            raise self.error("extra values in assignment", rest)
 
-        elif is_pair(binding):
-            # TODO: implement
-            assert(False)
+        if not is_pair(value):
+            self.pseudop_position_of(body)
 
-        else:
-            assert(False)
+        self.add_expression(value)
+        self.pseudop_set_var(str(binding))
 
-        # make set-var calls evaluate to None
+        # set-var calls should evaluate to None
         self.pseudop_const(None)
 
         # no additional transform needed
@@ -1351,17 +1354,12 @@ class SpecialsCodeSpace(CodeSpace):
             args = map(str, args.unpack())
 
         else:
-            raise SyntaxError("formals must be symbol or pair, not %r" %
-                              args)
-
-        try:
-            declared_at = self.positions[id(source)]
-        except KeyError:
-            declared_at = None
+            msg = "formals must be symbol or pair, not %r" % type(args)
+            raise self.error(msg, cl)
 
         kid = self.child_context(args=args, varargs=varargs,
                                  name=name,
-                                 declared_at=declared_at)
+                                 declared_at=self.position_of(source))
 
         with kid as subc:
             subc.helper_begin(body)
@@ -1395,17 +1393,12 @@ class SpecialsCodeSpace(CodeSpace):
             args = map(str, args.unpack())
 
         else:
-            raise SyntaxError("formals must be symbol or pair, not %r" %
-                              args)
-
-        try:
-            declared_at = self.positions[id(source)]
-        except KeyError:
-            declared_at = None
+            msg = "formals must be symbol or pair, not %r" % type(args)
+            raise self.error(msg, cl)
 
         kid = self.child_context(args=args, varargs=varargs,
                                  name=name,
-                                 declared_at=declared_at)
+                                 declared_at=self.position_of(source))
 
         with kid as subc:
             subc.helper_begin(body)
@@ -1773,7 +1766,7 @@ def builtin_specials():
 
         return invoke_special
 
-    for sym, meth in SpecialsCodeSpace.all_specials():
+    for sym, meth in SpecialCodeSpace.all_specials():
         yield str(sym), Special(gen_wrapper(meth), name=sym)
 
 
