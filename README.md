@@ -1,5 +1,6 @@
-
 # Overview of python-sibilant
+
+[![Build Status](https://travis-ci.org/obriencj/python-sibilant.svg?branch=master)](https://travis-ci.org/obriencj/python-sibilant)
 
 Sibilant is a dialect of LISP which compiles to [Python] bytecode.
 
@@ -50,7 +51,98 @@ It's still a work-in-progress, but it's able to compile nested lambdas
 directly into python bytecode
 
 
-## Parse and Compile Model
+## Python Version Support
+
+CPython 3.5 and 3.6 are currently supported. Sibilant outputs python
+bytecode directly, and creates code, function, and module instances
+from there. The Python 3 line has changed its bytecode quite a bit
+between these two minor versions. It's possible that earlier versions
+of Python 3 could also be supported, but there are some syntax
+features that the sibilant implementation uses which would need to be
+changed (such as import of a tuple names, etc).
+
+
+## References
+
+I rely heavily on the auto-generated documentation for the `dis`
+module.
+
+* [Module `dis` in Python 3.6](https://docs.python.org/3.6/library/dis.html)
+* [Module `dis` in Python 3.5](https://docs.python.org/3.5/library/dis.html)
+
+
+## Features
+
+Sibilant is slowly growing as more special forms and macros are
+added. Below are a few of the key features
+
+
+### Importer
+
+Python 3 provides an extensible import system via `importlib`. When
+the `sibilant.importer` module is loaded, this system will be extended
+to support treating sibilant source files (files found in `sys.path`
+and ending in `.lspy` or `.sibilant`) as packages or modules.
+
+In other words, to enable loading of sibilant code at runtime, you
+just need to have `import sibilant.importer` at the beginning of your
+modules.
+
+From within a sibilant module the `import` function allows fetching a
+module from the importere. `defimport` and `defimport-from` will bind
+modules or their contents to the global namespace.
+
+
+### Line Numbers
+
+A big advantage of sibilant over an interpreted lisp using a lambda
+emitter in Python is that the bytecode sibilant emits can have a
+line-number-table associated with it. This means that exceptions or
+tracebacks will interleave between python source code and sibilant
+source code, and correctly show the line that the raise came from.
+
+
+### defmacro
+
+A special form and macro system is implemented already. Macros are the
+simple, low-level variety, transforming the `cons` list from the
+parsed source code and emitting a new list representing the expanded
+form. An implementation of `macroexpand-1` is included for macro
+debugging purposes.
+
+
+### try/except/else/finally as an Expression
+
+The `try` special form can be used as an expression, evaluating to the
+block that runs last.
+
+
+### Future Feature: Generators
+
+Sibilant doesn't currently offer a way to create generators. It is
+definitely on the horizon. There's a few complicated features that
+need work ahead of time, such as a loop construct that will correctly
+function with nested scopes but which can be optimized when used
+inside of a single scope.
+
+
+### Future Feature: List Comprehensions
+
+Definitely need a special form for emitting a list comprehension
+and/or a generator expression.
+
+
+### Future Feature: Compile to file
+
+Right now sibilant compiles to bytecode in-memory, and creates
+function instances from there. I'd like to be able to use the importer
+and/or compileall system to convery sibilant sources directly into
+.pyc files. These would of course still have a hard dependency on
+sibilant, in the most minimal case if only for the `Symbol` and `Pair`
+datatypes and associated functions.
+
+
+### Future Feature: Refactor Parse and Compile Model
 
 It's currently convoluted. Some of this can be cut away in the future,
 but the result of all the half-hearted poking over all these years is
@@ -79,21 +171,18 @@ about which minor version of CPython I'm running on). Not getting rid
 of that for now.
 
 
-## Importer
+### Future Feature: Rewrite Sibilant in Sibilant
 
-Python 3 provides an extensible import system via `importlib`. When
-the sibilant.importer module is loaded, this system will be extended
-to support treating sibilant source files (files found in `sys.path`
-and ending in .lspy or .sibilant) as packages or modules.
-
-In other words, to enable loading of sibilant code at runtime, you
-just need to have `import sibilant.importer` at the beginning of your
-modules.
+I'd like to get to the point where I can rewrite the compiler
+subpackage in sibilant itself. Then compile the new compiler in the
+old compiler, and finally re-compile the new compiler using itself.
 
 
 ## Contact
 
 author: Christopher O'Brien  <obriencj@gmail.com>
+
+original git repository: <https://github.com/obriencj/python-sibilant>
 
 
 ## License
