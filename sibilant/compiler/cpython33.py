@@ -14,12 +14,15 @@
 
 
 from . import (
-    SpecialsCodeSpace, Pseudop, Opcode,
+    SpecialCodeSpace, Pseudop, Opcode,
 )
 
 
-class CPython33(SpecialsCodeSpace):
-
+class CPython35(SpecialCodeSpace):
+    """
+    SpecialCodeSpace emitting bytecode compatible with CPython version
+    3.5
+    """
 
     def code_bytes(self, lnt):
         offset = 0
@@ -50,7 +53,7 @@ class CPython33(SpecialsCodeSpace):
                 # deal with jumps, so we can set their argument to
                 # an appropriate label offset later
 
-                assert(args)
+                assert args, "hasjabs without target label"
                 mark_jabs(args[0])
                 coll.append([op, 0, 0])
                 offset += 3
@@ -58,7 +61,7 @@ class CPython33(SpecialsCodeSpace):
             elif op.hasjrel():
                 # relative jump!
 
-                assert(args)
+                assert args, "hasjrel without target label"
                 mark_jrel(args[0])
                 coll.append([op, 0, 0])
                 offset += 3
@@ -109,7 +112,7 @@ class CPython33(SpecialsCodeSpace):
                     i = self.names.index(n)
                     yield Opcode.LOAD_GLOBAL, i, 0
                 else:
-                    assert(False)
+                    assert False, "missing var %r" % n
 
             elif op is Pseudop.SET_VAR:
                 n = args[0]
@@ -126,7 +129,7 @@ class CPython33(SpecialsCodeSpace):
                     i = self.names.index(n)
                     yield Opcode.STORE_GLOBAL, i, 0
                 else:
-                    assert(False)
+                    assert False, "missing var %r" % n
 
             elif op is Pseudop.GET_ATTR:
                 n = args[0]
@@ -144,7 +147,7 @@ class CPython33(SpecialsCodeSpace):
                     i = self.names.index(n)
                     yield Opcode.STORE_GLOBAL, i, 0
                 else:
-                    assert(False)
+                    assert False, "missing global name %r" % n
 
             elif op is Pseudop.POP:
                 yield Opcode.POP_TOP,
@@ -213,7 +216,7 @@ class CPython33(SpecialsCodeSpace):
                 yield Opcode.ROT_THREE,
 
             else:
-                raise SyntaxError("Unknown Pseudop", op)
+                assert False, "Unknown Pseudop %r" % op
 
 
     def helper_gen_lambda(self, code):
@@ -235,7 +238,8 @@ class CPython33(SpecialsCodeSpace):
                     fi = len(self.cell_vars)
                     fi += self.free_vars.index(f)
                 else:
-                    assert(False)
+                    assert False, "missing local var %r" % f
+
                 yield Opcode.LOAD_CLOSURE, fi, 0
 
             yield Opcode.BUILD_TUPLE, len(code.co_freevars), 0
@@ -248,7 +252,6 @@ class CPython33(SpecialsCodeSpace):
             yield Opcode.LOAD_CONST, ci, 0
             yield Opcode.LOAD_CONST, ni, 0
             yield Opcode.MAKE_FUNCTION, 0, 0
-
 
 
 def apply_jump_labels(coll, jabs, jrel, labels):
