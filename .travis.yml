@@ -1,6 +1,12 @@
+
 language: python
+
 python:
-  - "3.6"
-  - "3.5"
-  - "3.4"
   - "3.3"
+  - "3.4"
+  - "3.5"
+  - "3.6"
+
+script: python setup.py test flake8
+
+# The end.
