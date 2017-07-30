@@ -183,7 +183,7 @@ def read_until(stream, testf):
 
 
 def parse_token(stream):
-    return read_until(stream, lambda c: c.isspace() or c in "()")
+    return read_until(stream, "\t\n\r ()".__contains__)
 
 
 def parse_comment(stream):

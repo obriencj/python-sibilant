@@ -14,12 +14,15 @@
 
 
 from . import (
-    SpecialsCodeSpace, Pseudop, Opcode,
+    SpecialCodeSpace, Pseudop, Opcode,
 )
 
 
-class CPython36(SpecialsCodeSpace):
-
+class CPython36(SpecialCodeSpace):
+    """
+    SpecialCodeSpace emitting bytecode compatible with CPython version
+    3.6
+    """
 
     def code_bytes(self, lnt):
         offset = 0
@@ -112,7 +115,7 @@ class CPython36(SpecialsCodeSpace):
                     i = self.names.index(n)
                     yield Opcode.LOAD_GLOBAL, i
                 else:
-                    assert(False)
+                    assert False, "missing var %r" % n
 
             elif op is Pseudop.SET_VAR:
                 n = args[0]
@@ -129,7 +132,7 @@ class CPython36(SpecialsCodeSpace):
                     i = self.names.index(n)
                     yield Opcode.STORE_GLOBAL, i
                 else:
-                    assert(False)
+                    assert False, "missing var %r" % n
 
             elif op is Pseudop.GET_ATTR:
                 n = args[0]
@@ -147,7 +150,7 @@ class CPython36(SpecialsCodeSpace):
                     i = self.names.index(n)
                     yield Opcode.STORE_GLOBAL, i
                 else:
-                    raise SyntaxError("Undeclared global name", n)
+                    assert False, "missing global name %r" % n
 
             elif op is Pseudop.POP:
                 yield Opcode.POP_TOP, 0
@@ -216,7 +219,7 @@ class CPython36(SpecialsCodeSpace):
                 yield Opcode.ROT_THREE, 0
 
             else:
-                raise SyntaxError("Unknown Pseudop", op)
+                assert False, "Unknown Pseudop %r" % op
 
 
     def helper_gen_lambda(self, code):
@@ -238,7 +241,7 @@ class CPython36(SpecialsCodeSpace):
                     fi = len(self.cell_vars)
                     fi += self.free_vars.index(f)
                 else:
-                    assert(False)
+                    assert False, "missing local var %r" % f
                 yield Opcode.LOAD_CLOSURE, fi
 
             yield Opcode.BUILD_TUPLE, len(code.co_freevars)

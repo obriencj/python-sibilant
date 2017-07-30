@@ -26,7 +26,7 @@ from types import CodeType
 
 from .. import (
     nil, symbol, is_pair, is_proper, is_symbol,
-    cons, is_nil,
+    cons, cdr, is_nil,
     SibilantException,
 )
 

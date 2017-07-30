@@ -288,7 +288,7 @@ class CompilerClosures(TestCase):
     def test_4(self):
         src = """
         (lambda (a b)
-          (set-var a (lambda (x) (+ a x)) 9)
+          (set-var a ((lambda (x) (+ a x)) 9))
           (cons a b))
         """
         stmt, env = compile_expr(src)
@@ -298,7 +298,7 @@ class CompilerClosures(TestCase):
 
         src = """
         (lambda (a b)
-          (set-var b (lambda (x) (+ b x)) 9)
+          (set-var b ((lambda (x) (+ b x)) 9))
           (cons a b))
         """
         stmt, env = compile_expr(src)
@@ -308,7 +308,7 @@ class CompilerClosures(TestCase):
 
         src = """
         (lambda (a b)
-          (set-var a (lambda (x) (+ b x)) 9)
+          (set-var a ((lambda (x) (+ b x)) 9))
           (cons a b))
         """
         stmt, env = compile_expr(src)
@@ -318,7 +318,7 @@ class CompilerClosures(TestCase):
 
         src = """
         (lambda (a b)
-          (set-var b (lambda (x) (+ a x)) 9)
+          (set-var b ((lambda (x) (+ a x)) 9))
           (cons a b))
         """
         stmt, env = compile_expr(src)

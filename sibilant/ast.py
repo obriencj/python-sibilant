@@ -32,7 +32,7 @@ from .parse import Event, parse
 
 
 __all__ = (
-    "SyntaxError",
+    "SibilantSyntaxError",
     "Node", "List", "Atom", "Symbol",
     "Literal", "Number", "Integer", "Decimal",
     "Fraction", "Complex", "Nil", "String",
@@ -42,11 +42,19 @@ __all__ = (
 )
 
 
-class SyntaxError(SibilantException):
+class SibilantSyntaxError(SyntaxError, SibilantException):
     """
     An error while parsing sibilant code
     """
-    pass
+
+    def __init__(self, message, position):
+        super().__init__(message)
+        self.position = position
+
+
+    def __str__(self):
+        se = super().__str__()
+        return se + " at position: " + self.position
 
 
 class Node(object):
@@ -310,29 +318,27 @@ klass_events = {
 }
 
 
-def create_node(position, event, *args):
-    klass = klass_events.get(event)
-    return klass(position, *args) if klass else None
-
-
 def compose(parser_gen):
     """
     Composes a single element or statement from the event stream
     `parser_gen`
     """
 
+    _SSE = SibilantSyntaxError
+
     stack = list()
     node = None
 
     for event, position, *data in parser_gen:
-        node = create_node(position, event, *data)
+        klass = klass_events.get(event)
+        node = klass(position, *data) if klass else None
 
         if event == Event.NEWLINE:
             # let the parser count lines for us
             continue
 
         elif event == Event.COMMENT:
-            # don't bother representing comments in the AST
+            # don't bother representing comments in the AST for now
             continue
 
         elif event == Event.OPEN:
@@ -341,25 +347,28 @@ def compose(parser_gen):
 
         elif event == Event.DOT:
             if not stack:
-                raise SyntaxError(". without list", position)
+                raise _SSE(". without list", position)
             else:
                 stack[-1].proper = False
                 continue
 
         elif event == Event.CLOSE:
-            node = stack.pop()
+            try:
+                node = stack.pop()
+            except IndexError:
+                raise _SSE("unexpected closing parenthesis", position)
 
         elif event in (Event.QUOTE, Event.QUASI,
                        Event.UNQUOTE, Event.SPLICE):
 
             marked = compose(parser_gen)
             if marked is None:
-                raise SyntaxError("unterminated mark", position)
+                raise _SSE("unterminated mark", position)
             node.expression = marked
 
-        elif event in (Event.SYMBOL, Event.NUMBER,
-                       Event.STRING):
-            pass
+        # elif event in (Event.SYMBOL, Event.NUMBER,
+        #                Event.STRING):
+        #     pass
 
         # finished lists, literals should reach here
         assert(node is not None)
@@ -369,7 +378,7 @@ def compose(parser_gen):
             break
 
     if stack:
-        raise SyntaxError("unterminated list", position)
+        raise _SSE("unterminated list", position)
 
     return node
 
