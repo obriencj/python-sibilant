@@ -58,10 +58,10 @@ setup(name = "sibilant",
       url = "https://github.com/obriencj/python-sibilant",
       license = "GNU Lesser General Public License",
 
-      description = "Scheme modules for Python",
+      description = "LISP dialect for Python",
 
       provides = ["sibilant", ],
-      requires = [],
+      requires = ["appdirs", ],
       platforms = ["python3 >= 3.5", ],
 
       zip_safe = True,

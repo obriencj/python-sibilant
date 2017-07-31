@@ -23,11 +23,17 @@ Sibilant, a Scheme for Python
 
 import sys
 
+from appdirs import AppDirs
 from argparse import ArgumentParser
-from os.path import basename
+from os.path import basename, join
 
 from .repl import repl
 from .module import create_module
+
+
+_APPDIR = AppDirs("sibilant")
+
+DEFAULT_HISTFILE = join(_APPDIR.user_config_dir, "history")
 
 
 def cli(options):
@@ -49,7 +55,12 @@ def cli(options):
 
     if filename:
         with open(filename, "rt") as fd:
-            create_module("__main__", fd, filename=filename)
+            mod = create_module("__main__", fd, filename=filename)
+
+        if options.interactive:
+            # probably not the best way to implement this, but it'll
+            # do for now, eh?
+            repl(**mod.__dict__)
 
     else:
         repl(__name__="__main__", __file__=None)
@@ -72,6 +83,15 @@ def cli_option_parser(args):
     parser.add_argument("--no-tweak-path", dest="tweakpath",
                         action="store_false", default=True,
                         help="Do not add the current directory to sys.path")
+
+    parser.add_argument("--histfile", dest="histfile",
+                        action="store", default=DEFAULT_HISTFILE,
+                        help="REPL history file")
+
+    parser.add_argument("-i", "--interactive", dest="interactive",
+                        action="store_true", default=False,
+                        help="Enter interactive mode after executing the"
+                        " given script")
 
     return parser
 
