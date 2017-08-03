@@ -27,7 +27,7 @@ from appdirs import AppDirs
 from argparse import ArgumentParser
 from os.path import basename, join
 
-from .repl import repl
+from .repl import basic_env, repl
 from .module import create_module
 
 
@@ -60,10 +60,10 @@ def cli(options):
         if options.interactive:
             # probably not the best way to implement this, but it'll
             # do for now, eh?
-            repl(**mod.__dict__)
+            repl(env=mod.__dict__)
 
     else:
-        repl(__name__="__main__", __file__=None)
+        repl(env=basic_env(__name__="__main__", __file__=None))
 
 
 def cli_option_parser(args):

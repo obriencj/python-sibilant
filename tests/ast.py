@@ -24,7 +24,7 @@ license: LGPL v.3
 from fractions import Fraction as fraction
 from unittest import TestCase
 
-from sibilant import cons, nil
+from sibilant import cons, nil, symbol
 from sibilant.ast import *
 
 
@@ -51,12 +51,6 @@ class TestCompose(TestCase):
 
         self.assertEqual(col, exp)
 
-        src = "1/2"
-        col = compose_from_str(src)
-        exp = Fraction((1, 0), "1/2")
-
-        self.assertEqual(col, exp)
-
         src = "1.5"
         col = compose_from_str(src)
         exp = Decimal((1, 0), "1.5")
@@ -66,6 +60,14 @@ class TestCompose(TestCase):
         src = "8+1j"
         col = compose_from_str(src)
         exp = Complex((1, 0), "8+1j")
+
+        self.assertEqual(col, exp)
+
+
+    def test_fraction(self):
+        src = "1/2"
+        col = compose_from_str(src)
+        exp = Fraction((1, 0), "1/2")
 
         self.assertEqual(col, exp)
 
@@ -166,14 +168,6 @@ class TestSimplify(TestCase):
         col = simplify(src)
         self.assertEqual(col, -123)
 
-        src = "1/2"
-        col = simplify(src)
-        self.assertEqual(col, fraction(1, 2))
-
-        src = "-1/2"
-        col = simplify(src)
-        self.assertEqual(col, fraction(-1, 2))
-
         src = "1.5"
         col = simplify(src)
         self.assertEqual(col, 1.5)
@@ -209,6 +203,16 @@ class TestSimplify(TestCase):
         src = "-1.1+2j"
         col = simplify(src)
         self.assertEqual(col, complex("-1.1+2j"))
+
+
+    def test_fraction(self):
+        src = "1/2"
+        col = simplify(src)
+        self.assertEqual(col, cons(symbol("fraction"), "1/2", nil))
+
+        src = "-1/2"
+        col = simplify(src)
+        self.assertEqual(col, cons(symbol("fraction"), "-1/2", nil))
 
 
     def test_string(self):
@@ -249,6 +253,10 @@ class TestSimplify(TestCase):
         src = "False"
         col = simplify(src)
         self.assertEqual(col, False)
+
+        src = "..."
+        col = simplify(src)
+        self.assertEqual(col, ...)
 
 
     def test_dot(self):

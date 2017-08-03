@@ -48,6 +48,10 @@ class Event(Enum):
     NEWLINE = symbol("NEWLINE")
 
 
+async def async_parse(stream):
+    pass
+
+
 def parse(stream):
     """
     generator emitting tuples in the form `(event, (line_number,

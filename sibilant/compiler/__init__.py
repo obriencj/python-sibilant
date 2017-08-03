@@ -131,6 +131,18 @@ class CodeFlag(Enum):
     ITERABLE_COROUTINE = 256
 
 
+# these types alone are valid constant value types when marshalling a
+# code object. Outside of marshalling, Python doesn't seem to care
+# what you put in the consts tuple of a code object.
+_CONST_TYPES = (
+    CodeType,
+    str, bytes,
+    tuple, list, dict, set,
+    bool, int, float, complex,
+    type(None), type(...),
+)
+
+
 class CodeSpace(metaclass=ABCMeta):
     """
     Represents a lexical scope, expressions occurring within that
@@ -257,6 +269,7 @@ class CodeSpace(metaclass=ABCMeta):
 
 
     def declare_const(self, value):
+        assert (type(value) in _CONST_TYPES), "invalid const type %r" % value
         return _list_unique_append(self.consts, value)
 
 

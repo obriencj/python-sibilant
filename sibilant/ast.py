@@ -22,7 +22,6 @@ license: LGPL v.3
 
 
 from abc import ABCMeta, abstractmethod
-from fractions import Fraction as fraction
 from functools import partial
 from io import StringIO
 
@@ -204,10 +203,13 @@ class Decimal(Number):
         return float(self.token)
 
 
+_fractionsym = symbol("fraction")
+
+
 class Fraction(Number):
 
     def simplify(self, positions):
-        return fraction(self.token)
+        return cons(_fractionsym, self.token, nil)
 
 
 class Complex(Number):
@@ -248,10 +250,13 @@ class Ellipsis_(LiteralSymbol):
         return ...
 
 
+_nilsym = symbol("nil")
+
+
 class Nil(LiteralSymbol):
 
     def simplify(self, positions):
-        return nil
+        return _nilsym
 
 
 class String(Literal):
@@ -371,7 +376,7 @@ def compose(parser_gen):
         #     pass
 
         # finished lists, literals should reach here
-        assert(node is not None)
+        assert (node is not None), "expected a Node"
         if stack:
             stack[-1].members.append(node)
         else:

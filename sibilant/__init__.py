@@ -32,7 +32,7 @@ __all__ = (
     "cons", "car", "cdr", "nil",
     "setcar", "setcdr",
     "is_nil", "is_pair", "is_proper",
-    "make-proper", "unpack",
+    "make_proper", "unpack",
 
     "ref", "attr", "deref", "setref",
     "undefined", "is_undefined",

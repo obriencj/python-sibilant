@@ -31,12 +31,12 @@ from sibilant.compiler import compile_from_ast
 
 
 def basic_env(**base):
-    env = {"__builtins__": sibilant.builtins}
-    env.update(base)
-    return env
+    base["__builtins__"] = sibilant.builtins
+    return base
 
 
-def repl(stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr, **glbls):
+def repl(stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr,
+         env=None):
     """
     enter into a read-eval-print-loop, using stdin, stdout, and stderr
     for user I/O. optionally include a sibilant module to act as a
@@ -45,7 +45,8 @@ def repl(stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr, **glbls):
     returns the resulting global name space when the repl completes.
     """
 
-    env = basic_env(stdin=stdin, stdout=stdout, stderr=stderr, **glbls)
+    if env is None:
+        env = basic_env(stdin=stdin, stdout=stdout, stderr=stderr)
 
     # print(file=stdout)
     print("sibilant > ", end="", file=stdout)
