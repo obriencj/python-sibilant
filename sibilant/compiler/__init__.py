@@ -912,7 +912,7 @@ class SpecialCodeSpace(CodeSpace):
                     else:
                         self.pseudop_get_var("make-proper")
                         self.helper_symbol(head)
-                        self.helper_quasiquote(marked, level - 1)
+                        self.helper_quasiquote(tail, level - 1)
                         self.pseudop_call(2)
                         return
 

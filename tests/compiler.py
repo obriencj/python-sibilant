@@ -298,6 +298,32 @@ class TestCompiler(TestCase):
                    nil)
         self.assertEqual(res, exp)
 
+        src = """
+        ``,(+ 1 2)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        exp = cons(symbol("quasiquote"),
+                   cons(symbol("unquote"),
+                        cons(symbol("+"),
+                             1, 2,
+                             nil),
+                        nil),
+                   nil)
+        self.assertEqual(res, exp)
+
+        src = """
+        ``,,(+ 1 2)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        exp = cons(symbol("quasiquote"),
+                   cons(symbol("unquote"),
+                        3,
+                        nil),
+                   nil)
+        self.assertEqual(res, exp)
+
 
     def test_getf(self):
 
