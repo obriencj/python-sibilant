@@ -143,6 +143,29 @@ _CONST_TYPES = (
 )
 
 
+_symbol_nil = symbol("nil")
+_symbol_doc = symbol("doc")
+_symbol_getf = symbol("getf")
+_symbol_setf = symbol("setf")
+_symbol_set_var = symbol("set-var")
+_symbol_define = symbol("define")
+_symbol_defun = symbol("defun")
+_symbol_defmacro = symbol("defmacro")
+_symbol_quote = symbol("quote")
+_symbol_quasiquote = symbol("quasiquote")
+_symbol_unquote = symbol("unquote")
+_symbol_splice = symbol("splice")
+_symbol_begin = symbol("begin")
+_symbol_cond = symbol("cond")
+_symbol_lambda = symbol("lambda")
+_symbol_let = symbol("let")
+_symbol_while = symbol("while")
+_symbol_raise = symbol("raise")
+_symbol_try = symbol("try")
+_symbol_else = symbol("else")
+_symbol_finally = symbol("finally")
+
+
 class CodeSpace(metaclass=ABCMeta):
     """
     Represents a lexical scope, expressions occurring within that
@@ -367,12 +390,6 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudops.append(op_args)
 
 
-    def pseudop_symbol(self, sym):
-        self.pseudop_get_var("symbol")
-        self.pseudop_const(str(sym))
-        self.pseudop_call(1)
-
-
     def pseudop_getattr(self, name):
         self.request_name(name)
         self.pseudop(Pseudop.GET_ATTR, name)
@@ -544,6 +561,15 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop(Pseudop.FAUX_PUSH, 1)
 
 
+    def helper_symbol(self, sym):
+        """
+        Pushes a the pseudo ops necessary to put a symbol on the stack
+        """
+        self.pseudop_get_var("symbol")
+        self.pseudop_const(str(sym))
+        self.pseudop_call(1)
+
+
     def complete(self):
         """
         Produces a python code object representing the state of this
@@ -667,7 +693,7 @@ class SpecialCodeSpace(CodeSpace):
         self.pseudop_position_of(expr)
 
         while True:
-            if expr is nil or expr is symbol("nil"):
+            if expr is nil or expr is _symbol_nil:
                 return self.pseudop_get_var("nil")
 
             elif is_pair(expr):
@@ -702,42 +728,12 @@ class SpecialCodeSpace(CodeSpace):
                 self.pseudop_call(expr.count() - 1)
                 return None
 
-            # elif is_pair(expr):
-            #     # improper list means method call
-
-            #     obj, rest = expr
-            #     if is_pair(rest):
-            #         member, args = rest
-            #     else:
-            #         member = rest
-            #         args = nil
-
-            #     if is_symbol(member):
-            #         self.add_expression(obj)
-
-            #         self.pseudop_position_of(rest)
-            #         self.pseudop_getattr(str(member))
-
-            #         for ex in args.unpack():
-            #             self.add_expression(ex)
-
-            #         self.pseudop_position_of(expr)
-            #         self.pseudop_call(args.count())
-
-            #         return None
-
-            #     else:
-            #         expr = cons(cons(symbol("getattr"), obj,
-            #                          cons(symbol("str"), member, nil), nil),
-            #                     *expr.unpack(), nil)
-            #         continue
-
             elif is_symbol(expr):
                 ex = expr.rsplit(".", 1)
                 if len(ex) == 1:
                     return self.pseudop_get_var(str(expr))
                 else:
-                    expr = cons(symbol("getf"), *ex, nil)
+                    expr = cons(_symbol_getf, *ex, nil)
                     continue
 
             else:
@@ -771,7 +767,7 @@ class SpecialCodeSpace(CodeSpace):
         return SpecialSyntaxError(message, self.position_of(source))
 
 
-    @special("doc")
+    @special(_symbol_doc)
     def special_doc(self, source):
         called_by, rest = source
 
@@ -783,7 +779,7 @@ class SpecialCodeSpace(CodeSpace):
         return None
 
 
-    @special(symbol("getf"))
+    @special(_symbol_getf)
     def special_getf(self, source):
         try:
             called_by, (obj, (member, rest)) = source
@@ -801,7 +797,7 @@ class SpecialCodeSpace(CodeSpace):
         return None
 
 
-    @special(symbol("setf"))
+    @special(_symbol_setf)
     def special_setf(self, source):
         try:
             called_by, (obj, (member, (value, rest))) = source
@@ -823,13 +819,18 @@ class SpecialCodeSpace(CodeSpace):
         return None
 
 
-    @special(symbol("quote"))
+    @special(_symbol_quote)
     def special_quote(self, source):
         """
         Special form for quote
         """
 
-        called_by, (body, _rest) = source
+        called_by, body = source
+
+        if not body:
+            self.err("Too fuew arguments to quote", source)
+
+        body, _rest = body
 
         if _rest:
             self.err("Too many arguments to quote", source)
@@ -846,9 +847,7 @@ class SpecialCodeSpace(CodeSpace):
             self.pseudop_get_var("nil")
 
         elif is_symbol(body):
-            self.pseudop_get_var("symbol")
-            self.pseudop_const(str(body))
-            self.pseudop_call(1)
+            self.helper_symbol(body)
 
         elif is_pair(body):
             if is_proper(body):
@@ -863,17 +862,17 @@ class SpecialCodeSpace(CodeSpace):
             self.pseudop_const(body)
 
 
-    @special(symbol("unquote"))
+    @special(_symbol_unquote)
     def special_unquote(self, source):
         raise self.error("unquote outside of quasiquote", source)
 
 
-    @special(symbol("splice"))
+    @special(_symbol_splice)
     def special_splice(self, source):
         raise self.error("splice outside of quasiquote", source)
 
 
-    @special(symbol("quasiquote"))
+    @special(_symbol_quasiquote)
     def special_quasiquote(self, source):
         """
         Special form for quasiquote
@@ -894,33 +893,33 @@ class SpecialCodeSpace(CodeSpace):
         # print("helper_quasiquote level:", level)
         # print("marked:", marked)
 
-        if marked is nil or marked is symbol("nil"):
+        if marked is nil or marked is _symbol_nil:
             self.pseudop_get_var("nil")
             return
 
         elif is_symbol(marked):
-            self.pseudop_symbol(marked)
+            self.helper_symbol(marked)
             return
 
         elif is_pair(marked):
             if is_proper(marked):
                 head, tail = marked
 
-                if head is symbol("unquote"):
+                if head is _symbol_unquote:
                     tail, _rest = tail
                     if level == 0:
                         return self.add_expression(tail)
                     else:
                         self.pseudop_get_var("make-proper")
-                        self.pseudop_symbol(head)
+                        self.helper_symbol(head)
                         self.helper_quasiquote(marked, level - 1)
                         self.pseudop_call(2)
                         return
 
-                elif head is symbol("quasiquote"):
+                elif head is _symbol_quasiquote:
                     tail, _rest = tail
                     self.pseudop_get_var("make-proper")
-                    self.pseudop_symbol(head)
+                    self.helper_symbol(head)
                     self.helper_quasiquote(tail, level + 1)
                     self.pseudop_call(2)
                     return
@@ -933,15 +932,13 @@ class SpecialCodeSpace(CodeSpace):
             curr_tup = 0  # the size of the current tuple
 
             for expr in marked.unpack():
-                if expr is nil or expr is symbol("nil"):
+                if expr is nil or expr is _symbol_nil:
                     curr_tup += 1
                     self.pseudop_get_var("nil")
                     continue
 
                 elif is_symbol(expr):
-                    self.pseudop_get_var("symbol")
-                    self.pseudop_const(str(expr))
-                    self.pseudop_call(1)
+                    self.helper_symbol(expr)
                     curr_tup += 1
                     continue
 
@@ -949,16 +946,16 @@ class SpecialCodeSpace(CodeSpace):
                     if is_proper(expr):
                         head, tail = expr
 
-                        if head is symbol("quasiquote"):
+                        if head is _symbol_quasiquote:
                             tail, _rest = tail
                             self.pseudop_get_var("make-proper")
-                            self.pseudop_symbol(head)
+                            self.helper_symbol(head)
                             self.helper_quasiquote(tail, level + 1)
                             self.pseudop_call(2)
                             curr_tup += 1
                             continue
 
-                        elif head is symbol("unquote"):
+                        elif head is _symbol_unquote:
                             u_expr, tail = tail
 
                             # print("unquote level:", level)
@@ -968,7 +965,7 @@ class SpecialCodeSpace(CodeSpace):
                                 # then we actually need to unquote
                                 if is_proper(u_expr):
                                     ue_head, ue_tail = u_expr
-                                    if ue_head is symbol("splice"):
+                                    if ue_head is _symbol_splice:
                                         u_expr, _rest = ue_tail
                                         if curr_tup:
                                             self.pseudop_build_tuple(curr_tup)
@@ -988,7 +985,7 @@ class SpecialCodeSpace(CodeSpace):
                             else:
                                 # not level 0, recurse with one less level
                                 self.pseudop_get_var("make-proper")
-                                self.pseudop_symbol(head)
+                                self.helper_symbol(head)
                                 self.helper_quasiquote(u_expr, level - 1)
                                 self.pseudop_call(2)
                                 curr_tup += 1
@@ -1022,7 +1019,7 @@ class SpecialCodeSpace(CodeSpace):
             self.pseudop_const(marked)
 
 
-    @special(symbol("begin"))
+    @special(_symbol_begin)
     def special_begin(self, source):
         """
         Special form for begin
@@ -1056,7 +1053,7 @@ class SpecialCodeSpace(CodeSpace):
             self.add_expression(expr)
 
 
-    @special(symbol("lambda"))
+    @special(_symbol_lambda)
     def special_lambda(self, source):
         """
         Special form for lambda
@@ -1096,7 +1093,7 @@ class SpecialCodeSpace(CodeSpace):
         return None
 
 
-    @special(symbol("let"))
+    @special(_symbol_let)
     def special_let(self, source):
 
         called_by, (bindings, body) = source
@@ -1127,7 +1124,7 @@ class SpecialCodeSpace(CodeSpace):
         return None
 
 
-    @special(symbol("while"))
+    @special(_symbol_while)
     def special_while(self, source):
 
         called_by, (test, body) = source
@@ -1178,7 +1175,7 @@ class SpecialCodeSpace(CodeSpace):
         return None
 
 
-    @special(symbol("raise"))
+    @special(_symbol_raise)
     def special_raise(self, source):
 
         called_by, cl = source
@@ -1197,7 +1194,7 @@ class SpecialCodeSpace(CodeSpace):
         return None
 
 
-    @special(symbol("try"))
+    @special(_symbol_try)
     def special_try(self, source):
 
         kid = self.child_context(name="<try>",
@@ -1217,9 +1214,6 @@ class SpecialCodeSpace(CodeSpace):
 
         called_by, (expr, catches) = source
 
-        sym_finally = symbol("finally")
-        sym_else = symbol("else")
-
         has_finally = False
         has_else = False
 
@@ -1233,7 +1227,7 @@ class SpecialCodeSpace(CodeSpace):
             if not act:
                 raise self.error("clause with no body in try", ca)
 
-            if ex is sym_finally:
+            if ex is _symbol_finally:
                 if has_finally:
                     raise self.error("duplicate finally clause in try", ca)
 
@@ -1241,7 +1235,7 @@ class SpecialCodeSpace(CodeSpace):
                 act_finally = act
                 label_finally = self.gen_label()
 
-            elif ex is sym_else:
+            elif ex is _symbol_else:
                 if has_else:
                     raise self.error("duplicate else clause in try", ca)
                 has_else = True
@@ -1394,7 +1388,7 @@ class SpecialCodeSpace(CodeSpace):
         return None
 
 
-    @special(symbol("set-var"))
+    @special(_symbol_set_var)
     def special_set_var(self, source):
 
         called_by, (binding, body) = source
@@ -1420,7 +1414,7 @@ class SpecialCodeSpace(CodeSpace):
         return None
 
 
-    @special(symbol("define"))
+    @special(_symbol_define)
     def special_define(self, source):
 
         called_by, (binding, body) = source
@@ -1438,7 +1432,7 @@ class SpecialCodeSpace(CodeSpace):
         return None
 
 
-    @special(symbol("defun"))
+    @special(_symbol_defun)
     def special_defun(self, source):
 
         called_by, (namesym, cl) = source
@@ -1477,7 +1471,7 @@ class SpecialCodeSpace(CodeSpace):
         return None
 
 
-    @special(symbol("defmacro"))
+    @special(_symbol_defmacro)
     def special_defmacro(self, source):
 
         called_by, (namesym, cl) = source
@@ -1519,7 +1513,7 @@ class SpecialCodeSpace(CodeSpace):
         return None
 
 
-    @special(symbol("cond"))
+    @special(_symbol_cond)
     def special_cond(self, source):
 
         called_by, cl = source
@@ -1535,7 +1529,7 @@ class SpecialCodeSpace(CodeSpace):
 
             label = self.gen_label()
 
-            if test is symbol("else"):
+            if test is _symbol_else:
                 self.helper_begin(body)
                 self.pseudop_jump(done)
 
