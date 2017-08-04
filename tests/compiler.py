@@ -265,6 +265,16 @@ class TestCompiler(TestCase):
         self.assertEqual(res, cons(1, 2, [3, 4, 5], nil))
 
         src = """
+        `(,@foo)
+        """
+        stmt, env = compile_expr(src, foo=cons(1, 2, 3, nil))
+        res = stmt()
+        self.assertEqual(res, cons(1, 2, 3, nil))
+
+
+    def test_nested_quasiquote(self):
+
+        src = """
         `(1 2 `(foo ,(+ 1 2)))
         """
         stmt, env = compile_expr(src)
@@ -320,6 +330,22 @@ class TestCompiler(TestCase):
         exp = cons(symbol("quasiquote"),
                    cons(symbol("unquote"),
                         3,
+                        nil),
+                   nil)
+        self.assertEqual(res, exp)
+
+        src = """
+        `(1 `(bar ,@,foo))
+        """
+        stmt, env = compile_expr(src, foo=cons(1, 2, 3, nil))
+        res = stmt()
+        exp = cons(1,
+                   cons(symbol("quasiquote"),
+                        cons(symbol("bar"),
+                             cons(symbol("unquote-splicing"),
+                                  cons(1, 2, 3, nil),
+                                  nil),
+                             nil),
                         nil),
                    nil)
         self.assertEqual(res, exp)

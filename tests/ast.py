@@ -288,5 +288,19 @@ class TestSimplify(TestCase):
         self.assertEqual(src, str(val))
 
 
+    def test_unquote_splice(self):
+        src = "`(1 2 ,@(3 4))"
+        col = simplify(src)
+        val = cons(symbol("quasiquote"),
+                   cons(1, 2,
+                        cons(symbol("unquote-splicing"),
+                             cons(3, 4,
+                                  nil),
+                             nil),
+                        nil),
+                   nil)
+        self.assertEqual(col, val)
+
+
 #
 # The end.

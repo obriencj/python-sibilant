@@ -48,7 +48,9 @@ __all__ = (
 
 
 class SpecialSyntaxError(SibilantSyntaxError):
-    pass
+    def __init__(self, message, location):
+        self.message = message
+        self.lineno, self.offset = location
 
 
 class UnsupportedVersion(SibilantException):
@@ -154,7 +156,7 @@ _symbol_defmacro = symbol("defmacro")
 _symbol_quote = symbol("quote")
 _symbol_quasiquote = symbol("quasiquote")
 _symbol_unquote = symbol("unquote")
-_symbol_splice = symbol("splice")
+_symbol_splice = symbol("unquote-splicing")
 _symbol_begin = symbol("begin")
 _symbol_cond = symbol("cond")
 _symbol_lambda = symbol("lambda")
@@ -916,6 +918,22 @@ class SpecialCodeSpace(CodeSpace):
                         self.pseudop_call(2)
                         return
 
+                elif head is _symbol_splice:
+                    tail, _rest = tail
+                    if level == 0:
+                        self.pseudop_get_var("make-proper")
+                        self.pseudop_get_var("to-tuple")
+                        self.add_expression(tail)
+                        self.pseudop_call(1)
+                        self.pseudop_call_varargs(0)
+                        return
+                    else:
+                        self.pseudop_get_var("make-proper")
+                        self.helper_symbol(head)
+                        self.helper_quasiquote(tail, level - 1)
+                        self.pseudop_call(2)
+                        return
+
                 elif head is _symbol_quasiquote:
                     tail, _rest = tail
                     self.pseudop_get_var("make-proper")
@@ -962,21 +980,6 @@ class SpecialCodeSpace(CodeSpace):
                             # print("expr:", u_expr)
 
                             if level == 0:
-                                # then we actually need to unquote
-                                if is_proper(u_expr):
-                                    ue_head, ue_tail = u_expr
-                                    if ue_head is _symbol_splice:
-                                        u_expr, _rest = ue_tail
-                                        if curr_tup:
-                                            self.pseudop_build_tuple(curr_tup)
-                                            curr_tup = 0
-                                            coll_tup += 1
-                                        self.pseudop_get_var("to-tuple")
-                                        self.add_expression(u_expr)
-                                        self.pseudop_call(1)
-                                        coll_tup += 1
-                                        continue
-
                                 # either not proper or not splice
                                 self.add_expression(u_expr)
                                 curr_tup += 1
@@ -984,6 +987,29 @@ class SpecialCodeSpace(CodeSpace):
 
                             else:
                                 # not level 0, recurse with one less level
+                                self.pseudop_get_var("make-proper")
+                                self.helper_symbol(head)
+                                self.helper_quasiquote(u_expr, level - 1)
+                                self.pseudop_call(2)
+                                curr_tup += 1
+                                continue
+
+                        elif head is _symbol_splice:
+                            u_expr, tail = tail
+
+                            if level == 0:
+                                if curr_tup:
+                                    self.pseudop_build_tuple(curr_tup)
+                                    curr_tup = 0
+                                    coll_tup += 1
+
+                                self.pseudop_get_var("to-tuple")
+                                self.add_expression(u_expr)
+                                self.pseudop_call(1)
+                                coll_tup += 1
+                                continue
+
+                            else:
                                 self.pseudop_get_var("make-proper")
                                 self.helper_symbol(head)
                                 self.helper_quasiquote(u_expr, level - 1)

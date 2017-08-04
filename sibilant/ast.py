@@ -305,10 +305,16 @@ class Unquote(Marked):
 
     _q = symbol("unquote")
 
+    def simplify(self, positions):
+        if isinstance(self.expression, Splice):
+            return self.expression.simplify(positions)
+        else:
+            return super().simplify(positions)
+
 
 class Splice(Marked):
 
-    _q = symbol("splice")
+    _q = symbol("unquote-splicing")
 
 
 klass_events = {
