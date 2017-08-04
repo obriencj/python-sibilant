@@ -286,7 +286,7 @@ class Marked(Node):
 
 
     def simplify(self, positions):
-        s = cons(self._q, self.expression.simplify(positions))
+        s = cons(self._q, self.expression.simplify(positions), nil)
         positions[id(s)] = self.position
         return s
 

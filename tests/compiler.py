@@ -27,7 +27,7 @@ from unittest import TestCase
 
 import sibilant.builtins
 
-from sibilant import car, cdr, cons, nil, symbol
+from sibilant import car, cdr, cons, nil, symbol, make_proper
 
 from sibilant.compiler import (
     macro, is_macro, Macro,
@@ -195,6 +195,34 @@ class TestCompiler(TestCase):
 
     def test_quasiquote(self):
         src = """
+        `1
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, 1)
+
+        src = """
+        `,1
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, 1)
+
+        src = """
+        `tacos
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, symbol("tacos"))
+
+        src = """
+        `()
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, nil)
+
+        src = """
         `(1 2 3 ,4 ,5)
         """
         stmt, env = compile_expr(src)
@@ -235,6 +263,40 @@ class TestCompiler(TestCase):
         stmt, env = compile_expr(src, foo=lambda a,b: list(range(a,b)))
         res = stmt()
         self.assertEqual(res, cons(1, 2, [3, 4, 5], nil))
+
+        src = """
+        `(1 2 `(foo ,(+ 1 2)))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        exp = cons(1, 2,
+                   cons(symbol("quasiquote"),
+                        cons(symbol("foo"),
+                             cons(symbol("unquote"),
+                                  cons(symbol("+"),
+                                       1, 2,
+                                       nil),
+                                  nil),
+                             nil),
+                        nil),
+                   nil)
+        self.assertEqual(res, exp)
+
+        src = """
+        `(1 2 `(foo ,,(+ 1 2)))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        exp = cons(1, 2,
+                   cons(symbol("quasiquote"),
+                        cons(symbol("foo"),
+                             cons(symbol("unquote"),
+                                  3,
+                                  nil),
+                             nil),
+                        nil),
+                   nil)
+        self.assertEqual(res, exp)
 
 
     def test_getf(self):

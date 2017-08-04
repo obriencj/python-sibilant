@@ -39,7 +39,11 @@ else:
 setup(name = "sibilant",
       version = "0.9.0",
 
-      packages = ["sibilant", ],
+      packages = [
+          "sibilant",
+          "sibilant.compiler",
+      ],
+
       package_data = {
           "sibilant": ["*.lspy"],
       },

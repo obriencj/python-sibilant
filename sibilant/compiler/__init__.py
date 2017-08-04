@@ -367,6 +367,12 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudops.append(op_args)
 
 
+    def pseudop_symbol(self, sym):
+        self.pseudop_get_var("symbol")
+        self.pseudop_const(str(sym))
+        self.pseudop_call(1)
+
+
     def pseudop_getattr(self, name):
         self.request_name(name)
         self.pseudop(Pseudop.GET_ATTR, name)
@@ -661,8 +667,8 @@ class SpecialCodeSpace(CodeSpace):
         self.pseudop_position_of(expr)
 
         while True:
-            if expr is nil:
-                return self.pseudop_const(nil)
+            if expr is nil or expr is symbol("nil"):
+                return self.pseudop_get_var("nil")
 
             elif is_pair(expr):
                 orig = expr
@@ -823,7 +829,10 @@ class SpecialCodeSpace(CodeSpace):
         Special form for quote
         """
 
-        called_by, body = source
+        called_by, (body, _rest) = source
+
+        if _rest:
+            self.err("Too many arguments to quote", source)
 
         self.pseudop_position_of(source)
         self.helper_quote(body)
@@ -854,13 +863,26 @@ class SpecialCodeSpace(CodeSpace):
             self.pseudop_const(body)
 
 
+    @special(symbol("unquote"))
+    def special_unquote(self, source):
+        raise self.error("unquote outside of quasiquote", source)
+
+
+    @special(symbol("splice"))
+    def special_splice(self, source):
+        raise self.error("splice outside of quasiquote", source)
+
+
     @special(symbol("quasiquote"))
     def special_quasiquote(self, source):
         """
         Special form for quasiquote
         """
 
-        called_by, body = source
+        called_by, (body, rest) = source
+
+        if rest:
+            raise self.error("Too many arguments to quasiquote", source)
 
         self.pseudop_position_of(source)
         self.helper_quasiquote(body)
@@ -868,70 +890,136 @@ class SpecialCodeSpace(CodeSpace):
         return None
 
 
-    def helper_quasiquote(self, body):
-        if body is nil:
+    def helper_quasiquote(self, marked, level=0):
+        # print("helper_quasiquote level:", level)
+        # print("marked:", marked)
+
+        if marked is nil or marked is symbol("nil"):
             self.pseudop_get_var("nil")
+            return
 
-        elif is_symbol(body):
-            self.pseudop_get_var("symbol")
-            self.pseudop_const(str(body))
-            self.pseudop_call(1)
+        elif is_symbol(marked):
+            self.pseudop_symbol(marked)
+            return
 
-        elif is_pair(body):
-            if is_proper(body):
+        elif is_pair(marked):
+            if is_proper(marked):
+                head, tail = marked
+
+                if head is symbol("unquote"):
+                    tail, _rest = tail
+                    if level == 0:
+                        return self.add_expression(tail)
+                    else:
+                        self.pseudop_get_var("make-proper")
+                        self.pseudop_symbol(head)
+                        self.helper_quasiquote(marked, level - 1)
+                        self.pseudop_call(2)
+                        return
+
+                elif head is symbol("quasiquote"):
+                    tail, _rest = tail
+                    self.pseudop_get_var("make-proper")
+                    self.pseudop_symbol(head)
+                    self.helper_quasiquote(tail, level + 1)
+                    self.pseudop_call(2)
+                    return
+
                 self.pseudop_get_var("make-proper")
             else:
                 self.pseudop_get_var("cons")
 
-            coll_tup = 0
-            curr_tup = 0
+            coll_tup = 0  # the count of collected tuples
+            curr_tup = 0  # the size of the current tuple
 
-            for c in body.unpack():
-                if c is nil:
-                    coll_tup += 1
+            for expr in marked.unpack():
+                if expr is nil or expr is symbol("nil"):
+                    curr_tup += 1
                     self.pseudop_get_var("nil")
+                    continue
 
-                elif is_symbol(c):
+                elif is_symbol(expr):
                     self.pseudop_get_var("symbol")
-                    self.pseudop_const(str(c))
+                    self.pseudop_const(str(expr))
                     self.pseudop_call(1)
-                    coll_tup += 1
+                    curr_tup += 1
+                    continue
 
-                elif is_pair(c):
-                    head, tail = c
-                    if head is symbol("unquote"):
-                        if is_pair(tail):
-                            u_head, u_tail = tail
-                            if u_head is symbol("splice"):
-                                if coll_tup:
-                                    self.pseudop_build_tuple(coll_tup)
-                                    coll_tup = 0
-                                    curr_tup += 1
-                                self.pseudop_get_var("to-tuple")
-                                self.add_expression(u_tail)
-                                self.pseudop_call(1)
+                elif is_pair(expr):
+                    if is_proper(expr):
+                        head, tail = expr
+
+                        if head is symbol("quasiquote"):
+                            tail, _rest = tail
+                            self.pseudop_get_var("make-proper")
+                            self.pseudop_symbol(head)
+                            self.helper_quasiquote(tail, level + 1)
+                            self.pseudop_call(2)
+                            curr_tup += 1
+                            continue
+
+                        elif head is symbol("unquote"):
+                            u_expr, tail = tail
+
+                            # print("unquote level:", level)
+                            # print("expr:", u_expr)
+
+                            if level == 0:
+                                # then we actually need to unquote
+                                if is_proper(u_expr):
+                                    ue_head, ue_tail = u_expr
+                                    if ue_head is symbol("splice"):
+                                        u_expr, _rest = ue_tail
+                                        if curr_tup:
+                                            self.pseudop_build_tuple(curr_tup)
+                                            curr_tup = 0
+                                            coll_tup += 1
+                                        self.pseudop_get_var("to-tuple")
+                                        self.add_expression(u_expr)
+                                        self.pseudop_call(1)
+                                        coll_tup += 1
+                                        continue
+
+                                # either not proper or not splice
+                                self.add_expression(u_expr)
                                 curr_tup += 1
+                                continue
+
                             else:
-                                self.add_expression(tail)
-                                coll_tup += 1
-                        else:
-                            self.add_expression(tail)
-                            coll_tup += 1
-                    else:
-                        self.helper_quasiquote(c)
-                        coll_tup += 1
+                                # not level 0, recurse with one less level
+                                self.pseudop_get_var("make-proper")
+                                self.pseudop_symbol(head)
+                                self.helper_quasiquote(u_expr, level - 1)
+                                self.pseudop_call(2)
+                                curr_tup += 1
+                                continue
+
+                    # a pair, but not an unquote
+                    self.helper_quasiquote(expr, level)
+                    curr_tup += 1
+                    continue
 
                 else:
-                    self.pseudop_const(c)
-                    coll_tup += 1
+                    # not a nil, symbol, or pair, so evaluates to its
+                    # own self as a constant
+                    self.pseudop_const(expr)
+                    curr_tup += 1
+                    continue
 
-            if coll_tup:
-                self.pseudop_build_tuple(coll_tup)
-                coll_tup = 0
-                curr_tup += 1
+            # after iterating through the expressions of marked.unpack
+            # we can check if we've accumulated anything.
+            if curr_tup:
+                self.pseudop_build_tuple(curr_tup)
+                curr_tup = 0
+                coll_tup += 1
 
-            self.pseudop_build_tuple_unpack(curr_tup)
+            assert coll_tup, "no members accumulated"
+            self.pseudop_build_tuple_unpack(coll_tup)
             self.pseudop_call_varargs(0)
+
+        else:
+            # some... other thing.
+            self.pseudop_const(marked)
 
 
     @special(symbol("begin"))
