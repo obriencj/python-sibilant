@@ -131,6 +131,23 @@ class CPython35(SpecialCodeSpace):
                 else:
                     assert False, "missing var %r" % n
 
+            elif op is Pseudop.DELETE_VAR:
+                n = args[0]
+                if n in self.cell_vars:
+                    i = self.cell_vars.index(n)
+                    yield Opcode.DELETE_DEREF, i, 0
+                elif n in self.free_vars:
+                    i = self.free_vars.index(n) + len(self.cell_vars)
+                    yield Opcode.DELETE_DEREF, i, 0
+                elif n in self.fast_vars:
+                    i = self.fast_vars.index(n)
+                    yield Opcode.DELETE_FAST, i, 0
+                elif n in self.global_vars:
+                    i = self.names.index(n)
+                    yield Opcode.DELETE_GLOBAL, i, 0
+                else:
+                    assert False, "missing var %r" % n
+
             elif op is Pseudop.GET_ATTR:
                 n = args[0]
                 i = self.names.index(n)
@@ -164,7 +181,8 @@ class CPython35(SpecialCodeSpace):
             elif op is Pseudop.LABEL:
                 declare_label(args[0])
 
-            elif op is Pseudop.FAUX_PUSH:
+            elif op in (Pseudop.FAUX_PUSH,
+                        Pseudop.DEBUG_STACK):
                 pass
 
             elif op is Pseudop.JUMP:

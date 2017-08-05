@@ -99,6 +99,7 @@ class Pseudop(Enum):
     CONST = _auto()
     GET_VAR = _auto()
     SET_VAR = _auto()
+    DELETE_VAR = _auto()
     GET_ATTR = _auto()
     SET_ATTR = _auto()
     LAMBDA = _auto()
@@ -120,6 +121,7 @@ class Pseudop(Enum):
     POSITION = _auto()
     LABEL = _auto()
     FAUX_PUSH = _auto()
+    DEBUG_STACK = _auto()
 
 
 class CodeFlag(Enum):
@@ -393,6 +395,11 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudops.append(op_args)
 
 
+    def pseudop_debug(self, *op_args):
+        if False:
+            self.pseudop(Pseudop.DEBUG_STACK, *op_args)
+
+
     def pseudop_getattr(self, name):
         self.request_name(name)
         self.pseudop(Pseudop.GET_ATTR, name)
@@ -460,6 +467,10 @@ class CodeSpace(metaclass=ABCMeta):
         """
         self.request_var(name)
         self.pseudop(Pseudop.SET_VAR, name)
+
+
+    def pseudop_del_var(self, name):
+        self.pseudop(Pseudop.DELETE_VAR, name)
 
 
     def pseudop_lambda(self, code):
@@ -1249,6 +1260,8 @@ class SpecialCodeSpace(CodeSpace):
 
         normal_catches = []
 
+        self.pseudop_debug("top of _helper_special_try")
+
         # first, filter our catches down into normal exception
         # matches, finally, and else
         for ca in catches.unpack():
@@ -1309,7 +1322,10 @@ class SpecialCodeSpace(CodeSpace):
             # but if there isn't an else clause, then the result of
             # the expression is the real deal
             self.pseudop_return()
-            self.pseudop_pop_block()
+
+            if normal_catches:
+                self.pseudop_pop_block()
+
             self.pseudop_jump_forward(label_end)
 
         if normal_catches:
@@ -1317,13 +1333,15 @@ class SpecialCodeSpace(CodeSpace):
             # the TOS,TOS-1,TOS-2 setup
             self.pseudop_faux_push(3)
 
-            # TOS is our exception, TOS-1 is type, TOS-2 is backtrace
+            # TOS exception type, TOS-1 exception, TOS-2 backtrace
             for ca in normal_catches:
                 ex, act = ca
 
                 self.pseudop_position_of(ca)
                 self.pseudop_label(label_next)
                 label_next = self.gen_label()
+
+                self.pseudop_debug("start of handler for", ex)
 
                 if is_pair(ex):
                     # The exception is intended to be bound to a local
@@ -1339,24 +1357,39 @@ class SpecialCodeSpace(CodeSpace):
                         # leftover arguments
                         raise self.error("too many bindings", ex)
 
-                    kid = self.child_context(args=[key], name="<catch>",
-                                             declared_at=self.position_of(ex))
+                    self.declare_var(key)
 
-                    with kid as subc:
-                        subc.helper_begin(act)
-                        subc.pseudop_return()
-                        code = subc.complete()
+                    cleanup = self.gen_label()
 
                     self.pseudop_dup()
                     self.add_expression(match)
                     self.pseudop_exception_match()
                     self.pseudop_pop_jump_if_false(label_next)
                     self.pseudop_pop()
-                    self.pseudop_rot_two()
+                    self.pseudop_set_var(str(key))
                     self.pseudop_pop()
-                    self.pseudop_lambda(code)
-                    self.pseudop_rot_two()
-                    self.pseudop_call(1)
+
+                    self.pseudop_setup_finally(cleanup)
+                    self.pseudop_debug("before body of handler for", ex)
+                    self.helper_begin(act)
+                    self.pseudop_return()
+                    self.pseudop_pop_block()
+                    self.pseudop_debug("end of handler for", ex)
+
+                    if (3, 6) <= version_info:
+                        pass
+
+                    elif (3, 5) <= version_info < (3, 6):
+                        self.pseudop_pop_except()
+                        self.pseudop_const(None)
+                        self.pseudop_faux_pop(1)
+
+                    self.pseudop_label(cleanup)
+                    self.pseudop_const(None)
+                    self.pseudop_set_var(str(key))
+                    self.pseudop_del_var(str(key))
+                    self.pseudop_end_finally()
+                    self.pseudop_jump_forward(label_end)
 
                 else:
                     # an exception match without a binding
@@ -1368,18 +1401,20 @@ class SpecialCodeSpace(CodeSpace):
                     self.pseudop_pop()
                     self.pseudop_pop()
                     self.pseudop_pop()
+
+                    self.pseudop_debug("before body of handler for", ex)
                     self.helper_begin(act)
+                    self.pseudop_return()
+                    self.pseudop_debug("end of handler for", ex)
 
-                # we've handled the exception, there's nothing left on
-                # the stack at this point but the result of the
-                # handler.
-                self.pseudop_return()
+                    if (3, 6) <= version_info:
+                        pass
 
-                if (3, 6) <= version_info:
-                    pass
-                elif (3, 5) <= version_info < (3, 6):
-                    self.pseudop_pop_except()
-                    self.pseudop_jump_forward(label_end)
+                    elif (3, 5) <= version_info < (3, 6):
+                        self.pseudop_pop_except()
+                        self.pseudop_const(None)
+                        self.pseudop_faux_pop(1)
+                        self.pseudop_jump_forward(label_end)
 
             # after all the attempts at trying to match the exception,
             # we land here.
@@ -1397,7 +1432,8 @@ class SpecialCodeSpace(CodeSpace):
         self.pseudop_label(label_end)
 
         if has_finally:
-            # first we have to cleanup, popping the finally block
+            # first we have to cleanup, popping the finally block,
+            # which will trigger the jump to the label_finally
             self.pseudop_pop_block()
             self.pseudop_const(None)
             self.pseudop_faux_pop(1)
@@ -1644,6 +1680,9 @@ def max_stack(pseudops):
         if op is Pseudop.POSITION:
             pass
 
+        elif op is Pseudop.DEBUG_STACK:
+            print(" ".join(map(str, args)), "max:", maxc, "current:", stac)
+
         elif op is Pseudop.CALL:
             pop(args[0])
 
@@ -1655,6 +1694,9 @@ def max_stack(pseudops):
 
         elif op is Pseudop.SET_VAR:
             pop()
+
+        elif op is Pseudop.DELETE_VAR:
+            pass
 
         elif op is Pseudop.GET_ATTR:
             pop()
@@ -1728,13 +1770,9 @@ def max_stack(pseudops):
             pass
 
         else:
-            assert(False)
+            assert False, "unknown pseudop %r" % op
 
-    # if stac != 0:
-    #     print("BOOM!", stac)
-    #     print(pseudops)
-
-    assert(stac == 0)
+    assert (stac == 0), "%i left-over stack items" % stac
     return maxc
 
 
