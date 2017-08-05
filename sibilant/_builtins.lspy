@@ -127,7 +127,7 @@
 
 
 (defmacro macroexpand-1 (expr)
-  `(help-macroexpand-1 ,(car expr) (quote ,@(cdr expr))))
+  `(help-macroexpand-1 ,(car expr) (quote ,(cdr expr))))
 
 
 ;;

@@ -94,7 +94,7 @@ class CPython35(SpecialCodeSpace):
                 yield Opcode.CALL_FUNCTION, n, 0
 
             elif op is Pseudop.CONST:
-                i = self.consts.index(*args)
+                i = self.consts.index(args[0])
                 yield Opcode.LOAD_CONST, i, 0
 
             elif op is Pseudop.GET_VAR:

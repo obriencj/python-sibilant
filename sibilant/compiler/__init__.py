@@ -50,7 +50,8 @@ __all__ = (
 class SpecialSyntaxError(SibilantSyntaxError):
     def __init__(self, message, location):
         self.message = message
-        self.lineno, self.offset = location
+        if location:
+            self.lineno, self.offset = location
 
 
 class UnsupportedVersion(SibilantException):
@@ -830,12 +831,12 @@ class SpecialCodeSpace(CodeSpace):
         called_by, body = source
 
         if not body:
-            self.err("Too fuew arguments to quote", source)
+            self.error("Too fuew arguments to quote %s" % source, source)
 
         body, _rest = body
 
         if _rest:
-            self.err("Too many arguments to quote", source)
+            self.error("Too many arguments to quote %s" % source, source)
 
         self.pseudop_position_of(source)
         self.helper_quote(body)
@@ -1053,7 +1054,6 @@ class SpecialCodeSpace(CodeSpace):
 
         called_by, body = source
 
-        self.pseudop_position_of(source)
         self.helper_begin(body)
 
         # no additional transform needed
@@ -1158,16 +1158,20 @@ class SpecialCodeSpace(CodeSpace):
         top = self.gen_label()
         done = self.gen_label()
 
-        self.pseudop_label(top)
-        self.add_expression(test)
-
-        self.pseudop_pop_jump_if_false(done)
-        self.helper_begin(body)
-        self.pseudop_pop()
-        self.pseudop_jump(top)
-
-        self.pseudop_label(done)
+        # pre-populate our return value
         self.pseudop_const(None)
+
+        self.pseudop_label(top)
+
+        self.add_expression(test)
+        self.pseudop_pop_jump_if_false(done)
+
+        # throw away previous value in favor of evaluating the body
+        self.pseudop_pop()
+        self.helper_begin(body)
+
+        self.pseudop_jump(top)
+        self.pseudop_label(done)
 
         # no additional transform needed
         return None
@@ -1305,6 +1309,8 @@ class SpecialCodeSpace(CodeSpace):
             # but if there isn't an else clause, then the result of
             # the expression is the real deal
             self.pseudop_return()
+            self.pseudop_pop_block()
+            self.pseudop_jump_forward(label_end)
 
         if normal_catches:
             # each attempt to match the exception should have us at
@@ -1547,17 +1553,16 @@ class SpecialCodeSpace(CodeSpace):
         self.pseudop_label(self.gen_label())
 
         done = self.gen_label()
-        label = None
+        label = self.gen_label()
 
         for test, body in cl.unpack():
-            if label:
-                self.pseudop_label(label)
-
+            self.pseudop_label(label)
             label = self.gen_label()
 
             if test is _symbol_else:
                 self.helper_begin(body)
                 self.pseudop_jump(done)
+                break
 
             else:
                 self.add_expression(test)
@@ -1565,10 +1570,9 @@ class SpecialCodeSpace(CodeSpace):
                 self.helper_begin(body)
                 self.pseudop_jump(done)
 
+        self.pseudop_label(label)
         self.pseudop_const(None)
 
-        if label:
-            self.pseudop_label(label)
         self.pseudop_label(done)
 
 
@@ -1628,9 +1632,9 @@ def max_stack(pseudops):
     def pop(by=1):
         nonlocal stac
         stac -= by
-        # if stac < 0:
-        # print("SHIT BROKE")
-        # print(pseudops)
+        if stac < 0:
+            print("SHIT BROKE")
+            print(pseudops)
         assert(stac >= 0)
 
     # print("max_stack()")

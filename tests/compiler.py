@@ -711,10 +711,10 @@ class SpecialWhile(TestCase):
           (accumulate X))
         """
         data, accu = make_accumulator()
-        stmt, env = compile_expr(src, X=5, accumulate=accu)
+        stmt, env = compile_expr(src, X=50, accumulate=accu)
         res = stmt()
-        self.assertEqual(res, None)
-        self.assertEqual(data, [4, 3, 2, 1, 0])
+        self.assertEqual(res, 0)
+        self.assertEqual(data, list(range(49, -1, -1)))
 
 
     def test_while_raise(self):
