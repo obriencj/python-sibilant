@@ -20,17 +20,17 @@
 (defmacro if (condition true_body . &false_body)
   `(cond (,condition ,true_body)
 	 (else ,(cond (&false_body (car &false_body))
-		      (else 'False)))))
+		      (else False)))))
 
 
 (defmacro when (condition . &body)
-  `(cond (,condition (begin ,&body))
-	 (else 'False)))
+  `(cond (,condition (begin ,@&body))
+	 (else False)))
 
 
 (defmacro unless (condition . &body)
   `(cond (,condition 'False)
-	 (else (begin ,&body))))
+	 (else (begin ,@&body))))
 
 
 (defmacro incr (dest . by)
