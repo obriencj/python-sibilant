@@ -55,6 +55,8 @@ mod_source_1 = """
 
 (let ((add-8 (make_adder (+ beer tacos))))
   (set_result (add-8 100)))
+
+;; (raise tacos)
 """
 
 
