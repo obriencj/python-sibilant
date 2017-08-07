@@ -24,13 +24,13 @@
 
 
 (defmacro when (condition . &body)
-  `(cond (,condition (begin ,@&body))
+  `(cond (,condition ,@&body)
 	 (else False)))
 
 
 (defmacro unless (condition . &body)
   `(cond (,condition 'False)
-	 (else (begin ,@&body))))
+	 (else ,@&body)))
 
 
 (defmacro incr (dest . by)
@@ -61,18 +61,50 @@
   `(set! ,dest (- ,dest ,by)))
 
 
-(defmacro defimport (name . &as_name)
+(defmacro defimport (modulename . &as_name)
+  (doc "Import a module and bind it to the global scope")
+
+  (unless (symbol? modulename)
+    (raise (Exception (% "defimport module name must be a symbol, not %r"
+			 modulename))))
+
+  (unless (or (nil? &as_name) (== 1 (&as_name.count)))
+    (raise (Exception ("unexpected additional arguments to defimport"))))
+
   (set-var &as_name
-	(if (nil? &as_name) name (car &as_name)))
+	   (if (nil? &as_name) (item (modulename.split "." 1) 0)
+	     (car &as_name)))
 
-  `(define ,&as_name (import ,(str name))))
+  `(define ,&as_name (import ,(str modulename) (globals))))
 
 
-;;(defmacro defimport-from (modulename name . &as_name)
-;;  (set-var &as_name
-;;	(if (nil? &as_name) name (car &as_name)))
-;;
-;;  `(define ,&as_name (import-from ,(str modulename) ,(str name))))
+(defmacro defimportfrom (modulename . &bindings)
+  (doc "Import definitions from a module and bind them to the"
+       "global scope")
+
+  (unless (symbol? modulename)
+    (raise (Exception (% "defimportfrom module name must be a symbol, not %r"
+			 modulename))))
+
+  (let ((coll (list))
+	(current None)
+	(member None)
+	(byname None))
+
+    (while &bindings
+      (set-var current (car &bindings))
+
+      (set-var member (if (pair? current) (first current) current))
+      (set-var byname (if (pair? current) (second current) member))
+
+      (coll.append
+       `(define ,byname (getf (import ,(str modulename) (globals) None
+				      (make-list ,(str member)))
+			      ,member)))
+
+      (set-var &bindings (cdr &bindings)))
+
+    `(begin ,@coll)))
 
 
 (defmacro set! (target value)
