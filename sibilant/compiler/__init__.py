@@ -596,17 +596,21 @@ class CodeSpace(metaclass=ABCMeta):
 
         # this is the number of fast variables, plus the variables
         # converted to cells for child scope usage
-        nlocals = len(self.fast_vars) + len(self.cell_vars)
+        # nlocals = len(self.fast_vars) + len(self.cell_vars)
 
         stacksize = max_stack(self.pseudops)
 
-        flags = CodeFlag.NEWLOCALS.value | CodeFlag.NESTED.value
+        flags = CodeFlag.OPTIMIZED.value | CodeFlag.NEWLOCALS.value
+
         if self.varargs:
             argcount -= 1
             flags |= CodeFlag.VARARGS.value
 
-        if not self.free_vars:
+        if not (self.free_vars or self.cell_vars):
             flags |= CodeFlag.NOFREE.value
+
+        if self.parent:
+            flags |= CodeFlag.NESTED.value
 
         lnt = []
         code = self.code_bytes(lnt)
@@ -619,6 +623,8 @@ class CodeSpace(metaclass=ABCMeta):
         for v in self.cell_vars:
             _list_unique_append(varnames, v)
         varnames = tuple(varnames)
+
+        nlocals = len(varnames)
         # varnames = *self.fast_vars, *self.cell_vars
 
         filename = "<sibilant>" if self.filename is None else self.filename
@@ -1671,7 +1677,7 @@ def max_stack(pseudops):
         if stac < 0:
             print("SHIT BROKE")
             print(pseudops)
-        assert(stac >= 0)
+        assert (stac >= 0), "max_stack counter underrun"
 
     # print("max_stack()")
     for op, *args in pseudops:
