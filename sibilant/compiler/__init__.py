@@ -1273,6 +1273,8 @@ class SpecialCodeSpace(CodeSpace):
 
         called_by, (expr, catches) = source
 
+        the_end = self.gen_label()
+
         has_finally = False
         has_else = False
 
@@ -1308,167 +1310,178 @@ class SpecialCodeSpace(CodeSpace):
                 # match, and act is the body to execute if it matches.
                 normal_catches.append(ca)
 
-        label_end = self.gen_label()
         label_next = self.gen_label()
 
         if has_finally:
             # setup that finally block if we need one
             self.pseudop_setup_finally(label_finally)
 
-        if normal_catches:
-            # we don't setup an actual try block if there's no
-            # catching going on, it breaky things.
-            self.pseudop_setup_except(label_next)
-
-        # Here's the expression we're actually wrapping in a try
+        # here's our actual try block
+        self.pseudop_setup_except(label_next)
         self.add_expression(expr)
+        self.pseudop_debug("after try expression")
 
         if has_else:
             # the result of the expression is thrown away if we have
-            # an else clause
+            # an else clause. This should be redundant, due to the
+            # following pop_block, but let's be tidy
             self.pseudop_pop()
-
-            if normal_catches:
-                # if there were no normal_catches found, there's no
-                # block to pop
-                self.pseudop_pop_block()
-
-            # and we'll need to jump ahead to the else code.
+            self.pseudop_pop_block()
             self.pseudop_jump_forward(label_else)
 
         else:
             # but if there isn't an else clause, then the result of
-            # the expression is the real deal
+            # the expression is the real deal. If there was a finally,
+            # that will be jumped to.
             self.pseudop_return()
+            self.pseudop_pop_block()
+            self.pseudop_jump_forward(the_end)
 
-            if normal_catches:
-                self.pseudop_pop_block()
+        self.pseudop_debug("before handlers")
 
-            self.pseudop_jump_forward(label_end)
+        # TOS exception type, TOS-1 exception, TOS-2 backtrace
+        for ca in normal_catches:
+            ex, act = ca
 
-        if normal_catches:
             # each attempt to match the exception should have us at
             # the TOS,TOS-1,TOS-2 setup
-            self.pseudop_faux_push(3)
+            # PLUS the 3 from an exception block
+            self.pseudop_faux_push(7)
 
-            # TOS exception type, TOS-1 exception, TOS-2 backtrace
-            for ca in normal_catches:
-                ex, act = ca
-
-                self.pseudop_position_of(ca)
-                self.pseudop_label(label_next)
-                label_next = self.gen_label()
-
-                self.pseudop_debug("start of handler for", ex)
-
-                if is_pair(ex):
-                    # The exception is intended to be bound to a local
-                    # variable. To achieve that, we're going to set up
-                    # a lambda with that single binding, and stuff out
-                    # handler code inside of it.
-
-                    if not is_proper(ex):
-                        raise self.error("non-proper biding in try", ex)
-
-                    match, (key, rest) = ex
-                    if rest:
-                        # leftover arguments
-                        raise self.error("too many bindings", ex)
-
-                    self.declare_var(key)
-
-                    cleanup = self.gen_label()
-
-                    self.pseudop_dup()
-                    self.add_expression(match)
-                    self.pseudop_exception_match()
-                    self.pseudop_pop_jump_if_false(label_next)
-                    self.pseudop_pop()
-                    self.pseudop_set_var(str(key))
-                    self.pseudop_pop()
-
-                    self.pseudop_setup_finally(cleanup)
-                    self.pseudop_debug("before body of handler for", ex)
-                    self.helper_begin(act)
-                    self.pseudop_return()
-                    self.pseudop_pop_block()
-                    self.pseudop_debug("end of handler for", ex)
-
-                    if (3, 6) <= version_info:
-                        pass
-
-                    elif (3, 5) <= version_info < (3, 6):
-                        self.pseudop_pop_except()
-                        self.pseudop_const(None)
-                        self.pseudop_faux_pop(1)
-
-                    self.pseudop_label(cleanup)
-                    self.pseudop_const(None)
-                    self.pseudop_set_var(str(key))
-                    self.pseudop_del_var(str(key))
-                    self.pseudop_end_finally()
-                    self.pseudop_jump_forward(label_end)
-
-                else:
-                    # an exception match without a binding
-
-                    self.pseudop_dup()
-                    self.add_expression(ex)
-                    self.pseudop_exception_match()
-                    self.pseudop_pop_jump_if_false(label_next)
-                    self.pseudop_pop()
-                    self.pseudop_pop()
-                    self.pseudop_pop()
-
-                    self.pseudop_debug("before body of handler for", ex)
-                    self.helper_begin(act)
-                    self.pseudop_return()
-                    self.pseudop_debug("end of handler for", ex)
-
-                    if (3, 6) <= version_info:
-                        pass
-
-                    elif (3, 5) <= version_info < (3, 6):
-                        self.pseudop_pop_except()
-                        self.pseudop_const(None)
-                        self.pseudop_faux_pop(1)
-                        self.pseudop_jump_forward(label_end)
-
-            # after all the attempts at trying to match the exception,
-            # we land here.
+            self.pseudop_position_of(ca)
             self.pseudop_label(label_next)
-            self.pseudop_faux_pop(3)
-            self.pseudop_end_finally()
+
+            label_next = self.gen_label()
+
+            self.pseudop_debug("beginning of declared handler")
+
+            if is_pair(ex):
+                # The exception is intended to be bound to a local
+                # variable. To achieve that, we're going to set up
+                # a lambda with that single binding, and stuff out
+                # handler code inside of it.
+
+                if not is_proper(ex):
+                    raise self.error("non-proper biding in try", ex)
+
+                match, (key, rest) = ex
+                if rest:
+                    # leftover arguments
+                    raise self.error("too many bindings", ex)
+
+                key = str(key)
+                self.declare_var(key)
+
+                cleanup = self.gen_label()
+
+                # check if we match. If not, jump to the next catch
+                # attempt
+                self.pseudop_dup()
+                self.add_expression(match)
+                self.pseudop_exception_match()
+                self.pseudop_pop_jump_if_false(label_next)
+
+                # okay, we've matched, so we need to bind the
+                # exception instance to the key and clear the
+                # other exception members off of the stack
+                self.pseudop_pop()         # pops the dup'd exc type
+                self.pseudop_set_var(key)  # binds the exc instance
+                self.pseudop_pop()         # pops the traceback
+
+                # wrap our handler code in a finally block, so
+                # that we can delete the key from the local
+                # namespace afterwards
+                self.pseudop_setup_finally(cleanup)
+
+                # handle the exception, return the result
+                self.helper_begin(act)
+                self.pseudop_return()
+                self.pseudop_faux_pop(3)  # trigger the finally
+
+                # the return triggers the finally block to jump to
+                # here. This ensures a value in the key and then
+                # deletes it. Necessary just in case the handler
+                # code also deleted the key (don't want to try
+                # deleting it twice)
+                self.pseudop_label(cleanup)
+                self.pseudop_faux_push()  # the finally pushes a return
+                self.pseudop_const(None)
+                self.pseudop_set_var(key)
+                self.pseudop_del_var(key)
+
+                # end_finally pops our cleanup block and
+                # finishes returning
+                self.pseudop_end_finally()
+                self.pseudop_return_none()
+
+            else:
+                # this is an exception match without a binding
+                self.pseudop_dup()
+                self.add_expression(ex)
+                self.pseudop_exception_match()
+                self.pseudop_pop_jump_if_false(label_next)
+
+                # Now let's throw all that stuff away.
+                self.pseudop_pop()
+                self.pseudop_pop()
+                self.pseudop_pop()
+
+                self.helper_begin(act)
+                self.pseudop_return()
+
+            # yay we handled it!
+            self.pseudop_pop_except()
+            self.pseudop_debug("handled declared exception")
+            self.pseudop_jump_forward(the_end)
+
+        # after all the attempts at trying to match the exception, we
+        # land here. This is the catch-all fallback, that will
+        # re-raise the exception.
+        self.pseudop_label(label_next)
+        self.pseudop_faux_push(4)
+        self.pseudop_debug("restored stack in fall-through")
+        self.pseudop_faux_pop(3)
+        self.pseudop_end_finally()
+        self.pseudop_debug("fall-through exception")
 
         if has_else:
-            # okay, we've arrived at the else handler, run it, and
-            # return that value.
+            # okay, we've arrived at the else handler. Let's run it,
+            # and return that value.
             self.pseudop_label(label_else)
+            self.pseudop_debug("start of else handler")
             self.helper_begin(act_else)
-            self.pseudop_return()
 
-        self.pseudop_label(label_end)
+            # if there is a finally registered, this will trigger it
+            # to run (and possibly overwrite the return value)
+            self.pseudop_return()
+            self.pseudop_debug("end of else handler")
 
         if has_finally:
-            # first we have to cleanup, popping the finally block,
-            # which will trigger the jump to the label_finally
+            # here's the actual handling of the finally event. This
+            # will get jumped to from the returns above, if the
+            # finally block was registered.
+            self.pseudop_label(the_end)
             self.pseudop_pop_block()
-            self.pseudop_const(None)
-            self.pseudop_faux_pop(1)
 
-            # here's the actual handling of the finally event
+            self.pseudop_const(None)
+            self.pseudop_faux_pop()
+
+            # run the handler and overwrite the return value with its
+            # result
             self.pseudop_label(label_finally)
+            self.pseudop_faux_push(1)  # implicit from the finally block
             self.helper_begin(act_finally)
             self.pseudop_return()
 
-            if (3, 6) <= version_info:
-                pass
-            elif (3, 5) <= version_info < (3, 6):
-                self.pseudop_end_finally()
+            # and close off the finally block
+            self.pseudop_debug("closing off finally")
+            self.pseudop_end_finally()
 
         else:
-            # guess we're all done, actually.
+            self.pseudop_label(the_end)
             self.pseudop_return_none()
+
+        self.pseudop_debug("at the end")
 
         # no further transformations needed on the passed source code.
         return None
@@ -1624,10 +1637,14 @@ class SpecialCodeSpace(CodeSpace):
                 self.helper_begin(body)
                 self.pseudop_jump(done)
 
-        self.pseudop_label(label)
-        self.pseudop_const(None)
+        else:
+            # there was no else statement, so add a catch-all
+            self.pseudop_label(label)
+            self.pseudop_const(None)
 
         self.pseudop_label(done)
+
+        return None
 
 
     def find_special(self, namesym):
@@ -1794,11 +1811,16 @@ def max_stack(pseudops):
             push()
 
         elif op in (Pseudop.SETUP_EXCEPT,
-                    Pseudop.SETUP_FINALLY,
-                    Pseudop.POP_BLOCK,
-                    Pseudop.POP_EXCEPT,
-                    Pseudop.END_FINALLY):
-            pass
+                    Pseudop.SETUP_FINALLY):
+            push(4)
+
+        elif op in (Pseudop.POP_BLOCK,
+                    Pseudop.POP_EXCEPT):
+
+            pop(4)
+
+        elif op is Pseudop.END_FINALLY:
+            pop(1)
 
         elif op is Pseudop.EXCEPTION_MATCH:
             pop(2)
