@@ -575,6 +575,15 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop(Pseudop.FAUX_PUSH, 1)
 
 
+    # def helper_debug(self, text):
+    #     # injects a print
+    #     if False:
+    #         self.pseudop_get_var("print")
+    #         self.pseudop_const(text)
+    #         self.pseudop_call(1)
+    #         self.pseudop_pop()
+
+
     def helper_symbol(self, sym):
         """
         Pushes a the pseudo ops necessary to put a symbol on the stack
@@ -1656,6 +1665,33 @@ def _list_unique_append(l, v):
     else:
         l.append(v)
         return len(l)
+
+
+# def op_max_stack(opargs):
+#     depth = 0
+#
+#    for op, args in opargs:
+#        effect = op.stack_effect(*args)
+#        depth += effect
+#        if depth > maxdepth:
+#            maxdepth = depth
+#
+#        if op.hasjrel or op.hasjabs:
+#            pass
+
+
+# def label_graph(pseudops):
+#     jump_points = {}
+
+#     for op, args in pseudops:
+#         if op is Pseudop.LABEL:
+#             labal = args[0]
+#             point = jump_points.get(label)
+#             if point is None:
+#                 point = []
+#                 jump_points[label] = point
+
+#             current_point = point
 
 
 def max_stack(pseudops):
