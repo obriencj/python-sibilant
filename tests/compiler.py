@@ -696,7 +696,6 @@ class SpecialWhile(TestCase):
 
 
     def test_while(self):
-
         src = """
         (while False (trigger))
         """
@@ -711,10 +710,10 @@ class SpecialWhile(TestCase):
           (accumulate X))
         """
         data, accu = make_accumulator()
-        stmt, env = compile_expr(src, X=50, accumulate=accu)
+        stmt, env = compile_expr(src, X=10000, accumulate=accu)
         res = stmt()
         self.assertEqual(res, 0)
-        self.assertEqual(data, list(range(49, -1, -1)))
+        self.assertEqual(data, list(range(9999, -1, -1)))
 
 
     def test_while_raise(self):
@@ -818,6 +817,21 @@ class SpecialTry(TestCase):
         self.assertEqual(res, -111)
         self.assertEqual(accu1, [567])
         self.assertEqual(accu2, [-111])
+
+
+    def _test_try_exc_miss(self):
+        accu1, bad_guy = make_raise_accumulator(BaseException)
+        accu2, good_guy = make_accumulator()
+
+        src = """
+        (try
+          (bad_guy 567)
+          (Exception (good_guy -111)))
+        """
+        stmt, env = compile_expr(src, **locals())
+        self.assertRaises(BaseException, stmt)
+        self.assertEqual(accu1, [567])
+        self.assertEqual(accu2, [])
 
 
     def test_try_exc_else(self):
