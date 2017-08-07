@@ -1078,22 +1078,25 @@ class SpecialCodeSpace(CodeSpace):
 
 
     def helper_begin(self, body):
-        if not body:
-            # because all things are expressions, an empty begin still
-            # needs to have a return value. In this case, the return value
-            # will by the python None
-            return self.pseudop_const(None)
-
         self.pseudop_position_of(body)
 
-        # interleave pops with expr, except for the last one
-        first = True
-        for expr in body.unpack():
-            if first:
-                first = False
-            else:
-                self.pseudop_pop()
-            self.add_expression(expr)
+        if not body:
+            # because all things are expressions, an empty begin still
+            # needs to have a return value.
+            self.pseudop_const(None)
+
+        else:
+            # a non-empty body needs to evaluate all of its child
+            # expressions, but only keep the last one on the stack.
+            while True:
+                expr, body = body
+                self.add_expression(expr)
+                if body is nil:
+                    break
+                else:
+                    self.pseudop_pop()
+
+        return None
 
 
     @special(_symbol_lambda)
