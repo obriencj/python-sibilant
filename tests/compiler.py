@@ -21,6 +21,7 @@ license: LGPL v.3
 """
 
 
+from contextlib import contextmanager
 from fractions import Fraction as fraction
 from functools import partial
 from unittest import TestCase
@@ -71,6 +72,30 @@ def make_raise_accumulator(excclass=Exception):
         raise excclass(x)
 
     return accu, accumulate
+
+
+def make_manager():
+    accumulator = list()
+
+    def accu(val):
+        accumulator.append(val)
+        return val
+
+    class Manager():
+        def __init__(self, initial, enter, leave):
+            self.enter = enter
+            self.leave = leave
+            accumulator.append(initial)
+
+        def __enter__(self):
+            accumulator.append(self.enter)
+            return accu
+
+        def __exit__(self, _a, _b, _c):
+            accumulator.append(self.leave)
+            return True
+
+    return accumulator, Manager
 
 
 class TestCompiler(TestCase):
@@ -962,6 +987,35 @@ class SpecialTry(TestCase):
         self.assertEqual(res, 789)
         self.assertEqual(accu1, [567])
         self.assertEqual(accu2, [-111, 789])
+
+
+class SpecialWith(TestCase):
+
+    def test_simple_with(self):
+        accu1, good_manager = make_manager()
+
+        src = """
+        (with (foo (good_manager 123 456 789))
+          (foo 100))
+        """
+        stmt, env = compile_expr(src, **locals())
+        res = stmt()
+        self.assertEqual(res, 100)
+        self.assertEqual(accu1, [123, 456, 100, 789])
+
+
+    def test_raise_with(self):
+        accu1, good_manager = make_manager()
+        accu2, bad_guy = make_raise_accumulator()
+
+        src = """
+        (with (foo (good_manager 123 456 789))
+          (foo (bad_guy 777)))
+        """
+        stmt, env = compile_expr(src, **locals())
+        self.assertRaises(Exception, stmt)
+        self.assertEqual(accu1, [123, 456, 789])
+        self.assertEqual(accu2, [777])
 
 
 #
