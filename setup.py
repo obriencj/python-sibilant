@@ -42,10 +42,11 @@ setup(name = "sibilant",
       packages = [
           "sibilant",
           "sibilant.compiler",
+          "sibilant.site",
       ],
 
       package_data = {
-          "sibilant": ["*.lspy"],
+          "": ["*.lspy"],
       },
 
       test_suite = "tests",
