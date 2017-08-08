@@ -120,7 +120,8 @@
       `(begin
 	,(cond ((eq 'car trigger) `(set-car ,@dest ,value))
 	       ((eq 'cdr trigger) `(set-cdr ,@dest ,value))
-	       ((eq 'item trigger) `(set-item ,@dest ,value)))
+	       ((eq 'item trigger) `(set-item ,@dest ,value))
+	       ((eq 'global trigger) `(define-global ,@dest ,value)))
 	None)))
 
    (else

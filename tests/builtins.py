@@ -49,7 +49,7 @@ def compile_expr(src_str, **base):
 
 class BuiltinsTest(TestCase):
 
-    def test_setbang(self):
+    def test_setbang_var(self):
         src = """
         (begin
           (set! o 101)
@@ -95,6 +95,9 @@ class BuiltinsTest(TestCase):
         res = stmt()
         self.assertEqual(res, 777)
 
+
+    def test_setbang_car(self):
+
         src = """
         (begin
           (set! (car o) 9)
@@ -103,6 +106,9 @@ class BuiltinsTest(TestCase):
         stmt, env = compile_expr(src, o=cons(1, 2))
         res = stmt()
         self.assertEqual(res, cons(9, 2))
+
+
+    def test_setbang_cdr(self):
 
         src = """
         (begin
@@ -113,6 +119,9 @@ class BuiltinsTest(TestCase):
         res = stmt()
         self.assertEqual(res, cons(1, 9))
 
+
+    def test_setbang_item(self):
+
         src = """
         (begin
           (set! (item o 1) 9)
@@ -121,6 +130,9 @@ class BuiltinsTest(TestCase):
         stmt, env = compile_expr(src, o=[1, 2, 3])
         res = stmt()
         self.assertEqual(res, [1, 9, 3])
+
+
+    def test_setbang_setf(self):
 
         o = Object()
         src = """
@@ -145,9 +157,30 @@ class BuiltinsTest(TestCase):
         self.assertEqual(res.foo.bar.z, 9)
 
 
+    def test_setbang_global(self):
+
+        src = """
+        (let ((tacos 999))
+          (set! (global tacos) 9)
+          tacos)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 999)
+        self.assertEqual(env["tacos"], 9)
+
+        src = """
+        (let ((tacos 999))
+          (set! (global tacos) 9)
+          tacos)
+        """
+        stmt, env = compile_expr(src, tacos=5)
+        self.assertEqual(stmt(), 999)
+        self.assertEqual(env["tacos"], 9)
+
+
+
     def test_macroexpand_1(self):
         pass
-
 
 
 #
