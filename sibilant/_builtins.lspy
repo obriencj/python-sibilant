@@ -153,6 +153,18 @@
   `(define ,name (class ,name ,bases ,@&body)))
 
 
+(defmacro defun (name params . &body)
+  `(define ,name (function ,name ,params ,@&body)))
+
+
+(defmacro local (name . &dfn)
+  (let ((target (first &dfn)))
+    (cond ((or (eq target 'function) (eq target 'class))
+	   `(define-local ,(second &dfn) ,&dfn))
+	  (else
+	   (raise (Exception (% "invalid local definition %" target)))))))
+
+
 (defun help-macroexpand-1 (the-macro argbody)
   (if (macro? the-macro)
       (apply the-macro.expand argbody)

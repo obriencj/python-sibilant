@@ -159,7 +159,6 @@ _symbol_global = symbol("global")
 _symbol_define = symbol("define")
 _symbol_define_global = symbol("define-global")
 _symbol_define_local = symbol("define-local")
-_symbol_defun = symbol("defun")
 _symbol_defmacro = symbol("defmacro")
 _symbol_quote = symbol("quote")
 _symbol_quasiquote = symbol("quasiquote")
@@ -168,6 +167,7 @@ _symbol_splice = symbol("unquote-splicing")
 _symbol_begin = symbol("begin")
 _symbol_cond = symbol("cond")
 _symbol_lambda = symbol("lambda")
+_symbol_function = symbol("function")
 _symbol_let = symbol("let")
 _symbol_while = symbol("while")
 _symbol_raise = symbol("raise")
@@ -1588,8 +1588,8 @@ class SpecialCodeSpace(CodeSpace):
         return None
 
 
-    @special(_symbol_defun)
-    def special_defun(self, source):
+    @special(_symbol_function)
+    def special_function(self, source):
 
         called_by, (namesym, cl) = source
         name = str(namesym)
@@ -1618,10 +1618,6 @@ class SpecialCodeSpace(CodeSpace):
             code = subc.complete()
 
         self.pseudop_lambda(code)
-        self.pseudop_define_global(name)
-
-        # defun expression evaluates to None
-        self.pseudop_const(None)
 
         # no additional transform needed
         return None
