@@ -228,6 +228,15 @@ class CPython36(SpecialCodeSpace):
             elif op is Pseudop.BUILD_TUPLE_UNPACK:
                 yield Opcode.BUILD_TUPLE_UNPACK, args[0]
 
+            elif op is Pseudop.SETUP_WITH:
+                yield Opcode.SETUP_WITH, args[0]
+
+            elif op is Pseudop.WITH_CLEANUP_START:
+                yield Opcode.WITH_CLEANUP_START, 0
+
+            elif op is Pseudop.WITH_CLEANUP_FINISH:
+                yield Opcode.WITH_CLEANUP_FINISH, 0
+
             elif op is Pseudop.SETUP_EXCEPT:
                 yield Opcode.SETUP_EXCEPT, args[0]
 

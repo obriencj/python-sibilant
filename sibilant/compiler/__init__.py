@@ -113,13 +113,16 @@ class Pseudop(Enum):
     POP_JUMP_IF_FALSE = _auto()
     BUILD_TUPLE = _auto()
     BUILD_TUPLE_UNPACK = _auto()
+    SETUP_WITH = _auto()
+    WITH_CLEANUP_START = _auto()
+    WITH_CLEANUP_FINISH = _auto()
     SETUP_LOOP = _auto()
     SETUP_EXCEPT = _auto()
     SETUP_FINALLY = _auto()
+    END_FINALLY = _auto()
     POP_BLOCK = _auto()
     POP_EXCEPT = _auto()
     EXCEPTION_MATCH = _auto()
-    END_FINALLY = _auto()
     POSITION = _auto()
     LABEL = _auto()
     FAUX_PUSH = _auto()
@@ -168,6 +171,7 @@ _symbol_begin = symbol("begin")
 _symbol_cond = symbol("cond")
 _symbol_lambda = symbol("lambda")
 _symbol_function = symbol("function")
+_symbol_with = symbol("with")
 _symbol_let = symbol("let")
 _symbol_while = symbol("while")
 _symbol_raise = symbol("raise")
@@ -227,9 +231,24 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudops = []
 
         self.gen_label = label_generator()
+        self._gen_sym = label_generator("gensym_" + str(id(self)) + "_%04i")
 
         if varargs:
             self._prep_varargs()
+
+
+    def gen_sym(self):
+        while True:
+            sym = self._gen_sym()
+            if sym in self.args or \
+               sym in self.fast_vars or \
+               sym in self.free_vars or \
+               sym in self.cell_vars or \
+               sym in self.global_vars:
+
+                continue
+            else:
+                return sym
 
 
     def set_doc(self, docstr):
@@ -568,6 +587,18 @@ class CodeSpace(metaclass=ABCMeta):
 
     def pseudop_setup_loop(self, done_label):
         self.pseudop(Pseudop.SETUP_LOOP, done_label)
+
+
+    def pseudop_setup_with(self, try_label):
+        self.pseudop(Pseudop.SETUP_WITH, try_label)
+
+
+    def pseudop_with_cleanup_start(self):
+        self.pseudop(Pseudop.WITH_CLEANUP_START)
+
+
+    def pseudop_with_cleanup_finish(self):
+        self.pseudop(Pseudop.WITH_CLEANUP_FINISH)
 
 
     def pseudop_setup_except(self, try_label):
@@ -1130,6 +1161,57 @@ class SpecialCodeSpace(CodeSpace):
                     break
                 else:
                     self.pseudop_pop()
+
+        return None
+
+
+    @special(_symbol_with)
+    def special_with(self, source):
+        """
+        Special form for managed context via with
+        """
+
+        called_By, (args, body) = source
+
+        if args.count() != 2:
+            msg = "with context must be binding and expression," \
+                  " not %r" % args
+            raise self.error(msg, cdr(source))
+
+        binding, (expr, _rest) = args
+
+        if not is_symbol(binding):
+            msg = "binding must be a symbol, not %r" % binding
+            raise self.error(msg, args)
+
+        binding = str(binding)
+        self.declare_var(str(binding))
+
+        storage = self.gen_sym()
+        self.declare_var(storage)
+
+        label_cleanup = self.gen_label()
+
+        self.add_expression(expr)
+        self.pseudop_setup_with(label_cleanup)
+        self.pseudop_faux_push(4)
+        self.pseudop_set_var(binding)
+
+        self.helper_begin(body)
+        self.pseudop_set_var(storage)
+
+        self.pseudop_pop_block()
+        self.pseudop_const(None)
+        self.pseudop_faux_pop()
+
+        self.pseudop_label(label_cleanup)
+        self.pseudop_with_cleanup_start()
+        self.pseudop_with_cleanup_finish()
+        self.pseudop_end_finally()
+
+        self.pseudop_get_var(storage)
+        self.pseudop_del_var(storage)
+        self.pseudop_faux_pop(3)
 
         return None
 
@@ -1866,12 +1948,19 @@ def max_stack(pseudops):
             push()
 
         elif op in (Pseudop.SETUP_EXCEPT,
+                    Pseudop.SETUP_WITH,
                     Pseudop.SETUP_FINALLY):
             push(4)
 
         elif op in (Pseudop.POP_BLOCK,
                     Pseudop.POP_EXCEPT):
 
+            pop(4)
+
+        elif op is Pseudop.WITH_CLEANUP_START:
+            push(4)
+
+        elif op is Pseudop.WITH_CLEANUP_FINISH:
             pop(4)
 
         elif op is Pseudop.END_FINALLY:
