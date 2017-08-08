@@ -47,7 +47,7 @@ def compile_expr(src_str, **base):
     return partial(eval, code, env), env
 
 
-class BuiltinsTest(TestCase):
+class BuiltinsSetBang(TestCase):
 
     def test_setbang_var(self):
         src = """
@@ -177,6 +177,8 @@ class BuiltinsTest(TestCase):
         self.assertEqual(stmt(), 999)
         self.assertEqual(env["tacos"], 9)
 
+
+class BuiltinsMacroExpand(TestCase):
 
 
     def test_macroexpand_1(self):
