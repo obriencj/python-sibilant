@@ -646,6 +646,30 @@ class CompilerSpecials(TestCase):
         self.assertEqual(env["beer"], 777)
 
 
+    def test_get_global(self):
+        src = """
+        (let ((tacos 100))
+          (global tacos))
+        """
+        stmt, env = compile_expr(src, tacos=5)
+        self.assertEqual(stmt(), 5)
+
+        src = """
+        (let ((tacos 100))
+          (+ (global tacos) tacos))
+        """
+        stmt, env = compile_expr(src, tacos=5)
+        self.assertEqual(stmt(), 105)
+
+        src = """
+        (let ((tacos 100))
+          (define-global tacos 90)
+          (+ (global tacos) tacos))
+        """
+        stmt, env = compile_expr(src, tacos=5)
+        self.assertEqual(stmt(), 190)
+
+
     def test_define_local(self):
         src = """
         (begin

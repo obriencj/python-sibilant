@@ -148,6 +148,11 @@ class CPython35(SpecialCodeSpace):
                 else:
                     assert False, "missing var %r" % n
 
+            elif op is Pseudop.GET_GLOBAL:
+                n = args[0]
+                i = self.names.index(n)
+                yield Opcode.LOAD_GLOBAL, i, 0
+
             elif op is Pseudop.GET_ATTR:
                 n = args[0]
                 i = self.names.index(n)

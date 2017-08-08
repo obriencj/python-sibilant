@@ -104,6 +104,7 @@ class Pseudop(Enum):
     SET_ATTR = _auto()
     LAMBDA = _auto()
     RET_VAL = _auto()
+    GET_GLOBAL = _auto()
     DEFINE_GLOBAL = _auto()
     DEFINE_LOCAL = _auto()
     JUMP = _auto()
@@ -154,6 +155,7 @@ _symbol_doc = symbol("doc")
 _symbol_getf = symbol("getf")
 _symbol_setf = symbol("setf")
 _symbol_set_var = symbol("set-var")
+_symbol_global = symbol("global")
 _symbol_define = symbol("define")
 _symbol_define_global = symbol("define-global")
 _symbol_define_local = symbol("define-local")
@@ -335,6 +337,11 @@ class CodeSpace(metaclass=ABCMeta):
                 _list_unique_append(self.names, name)
 
 
+    def request_global(self, name):
+        _list_unique_append(self.global_vars, name)
+        _list_unique_append(self.names, name)
+
+
     def request_cell(self, name):
         if name in self.global_vars:
             # no, we won't provide a cell for a global
@@ -475,6 +482,11 @@ class CodeSpace(metaclass=ABCMeta):
 
     def pseudop_del_var(self, name):
         self.pseudop(Pseudop.DELETE_VAR, name)
+
+
+    def pseudop_get_global(self, name):
+        self.request_global(name)
+        self.pseudop(Pseudop.GET_GLOBAL, name)
 
 
     def pseudop_lambda(self, code):
@@ -1512,7 +1524,7 @@ class SpecialCodeSpace(CodeSpace):
 
         value, rest = body
         if not is_nil(rest):
-            raise self.error("extra values in assignment", rest)
+            raise self.error("extra values in assignment", source)
 
         if not is_pair(value):
             self.pseudop_position_of(body)
@@ -1527,6 +1539,19 @@ class SpecialCodeSpace(CodeSpace):
         return None
 
 
+    @special(_symbol_global)
+    def special_global(self, source):
+
+        called_by, (binding, rest) = source
+        if not is_nil(rest):
+            raise self.error("extra values in global lookup", source)
+
+        self.pseudop_position_of(source)
+        self.pseudop_get_global(str(binding))
+
+        return None
+
+
     @special(_symbol_define_global, _symbol_define)
     def special_define_global(self, source):
 
@@ -1536,6 +1561,7 @@ class SpecialCodeSpace(CodeSpace):
 
         assert is_symbol(binding), "define-global with non-symbol binding"
 
+        self.pseudop_position_of(source)
         self.pseudop_define_global(str(binding))
 
         # define expression evaluates to None
@@ -1553,6 +1579,7 @@ class SpecialCodeSpace(CodeSpace):
 
         assert is_symbol(binding), "define-local with non-symbol binding"
 
+        self.pseudop_position_of(source)
         self.pseudop_define_local(str(binding))
 
         # define expression evaluates to None
@@ -1781,7 +1808,8 @@ def max_stack(pseudops):
         elif op is Pseudop.CONST:
             push()
 
-        elif op is Pseudop.GET_VAR:
+        elif op in (Pseudop.GET_VAR,
+                    Pseudop.GET_GLOBAL):
             push()
 
         elif op is Pseudop.SET_VAR:
