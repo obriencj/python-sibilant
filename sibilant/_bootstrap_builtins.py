@@ -38,27 +38,6 @@ import sibilant.compiler as _compiler
 __all__ = []
 
 
-def _reduce_op(opf, name=None):
-    # in the future, this can become a special. Ops invoked with two
-    # arguments can result in the normal call. Ops invoked with more
-    # than two arguments can be wrapped in a reduce call.
-
-    reduce = _functools.reduce
-
-    def fun(*args):
-        return reduce(opf, args)
-
-    name = name if name else opf.__name__
-
-    fun.__name__ = opf.__name__
-    fun.__qualname__ = opf.__name__
-    fun.__doc__ = opf.__doc__
-    fun.__symbol__ = _sibilant.symbol(name)
-
-    globals()[name] = fun
-    __all__.append(name)
-
-
 def _op(opf, name=None, rename=False):
     name = name if name else opf.__name__
 
@@ -76,6 +55,7 @@ def _val(value, name):
 
 
 def _and(val1, *valn):
+    # TODO: convert to special form
     for val2 in valn:
         val1 = val1 and val2
         if not val1:
@@ -84,6 +64,7 @@ def _and(val1, *valn):
 
 
 def _or(val1, *valn):
+    # TODO: convert to special form
     for val2 in valn:
         val1 = val1 or val2
         if val1:
