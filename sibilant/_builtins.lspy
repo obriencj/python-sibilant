@@ -120,7 +120,8 @@
       `(begin
 	,(cond ((eq 'car trigger) `(set-car ,@dest ,value))
 	       ((eq 'cdr trigger) `(set-cdr ,@dest ,value))
-	       ((eq 'item trigger) `(set-item ,@dest ,value)))
+	       ((eq 'item trigger) `(set-item ,@dest ,value))
+	       ((eq 'global trigger) `(define-global ,@dest ,value)))
 	None)))
 
    (else
@@ -150,6 +151,18 @@
 
 (defmacro defclass (name bases . &body)
   `(define ,name (class ,name ,bases ,@&body)))
+
+
+(defmacro defun (name params . &body)
+  `(define ,name (function ,name ,params ,@&body)))
+
+
+(defmacro local (name . &dfn)
+  (let ((target (first &dfn)))
+    (cond ((or (eq target 'function) (eq target 'class))
+	   `(define-local ,(second &dfn) ,&dfn))
+	  (else
+	   (raise (Exception (% "invalid local definition %" target)))))))
 
 
 (defun help-macroexpand-1 (the-macro argbody)

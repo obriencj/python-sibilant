@@ -626,6 +626,81 @@ class CompilerSpecials(TestCase):
         self.assertEqual(stmt(), cons(symbol("hello"), symbol("world")))
 
 
+    def test_define_global(self):
+        src = """
+        (define-global tacos 100)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), None)
+        self.assertEqual(env["tacos"], 100)
+
+        src = """
+        (let ((beer 999))
+          (define-global tacos beer)
+          (define-global beer 777)
+          beer)
+        """
+        stmt, env = compile_expr(src, tacos=5)
+        self.assertEqual(stmt(), 999)
+        self.assertEqual(env["tacos"], 999)
+        self.assertEqual(env["beer"], 777)
+
+
+    def test_get_global(self):
+        src = """
+        (let ((tacos 100))
+          (global tacos))
+        """
+        stmt, env = compile_expr(src, tacos=5)
+        self.assertEqual(stmt(), 5)
+
+        src = """
+        (let ((tacos 100))
+          (+ (global tacos) tacos))
+        """
+        stmt, env = compile_expr(src, tacos=5)
+        self.assertEqual(stmt(), 105)
+
+        src = """
+        (let ((tacos 100))
+          (define-global tacos 90)
+          (+ (global tacos) tacos))
+        """
+        stmt, env = compile_expr(src, tacos=5)
+        self.assertEqual(stmt(), 190)
+
+
+    def test_define_local(self):
+        src = """
+        (begin
+          (define-local tacos 100)
+          tacos)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 100)
+        self.assertNotIn("tacos", env)
+
+        src = """
+        (begin
+          (define-local tacos 100)
+          tacos)
+        """
+        stmt, env = compile_expr(src, tacos=5)
+        self.assertEqual(stmt(), 100)
+        self.assertEqual(env["tacos"], 5)
+
+        src = """
+        (let ((beer 999))
+          (define-local tacos beer)
+          (define-local nachos 100)
+          (+ nachos tacos))
+        """
+        stmt, env = compile_expr(src, tacos=5)
+        self.assertEqual(stmt(), 1099)
+        self.assertNotIn("beer", env)
+        self.assertNotIn("nachos", env)
+
+
     def test_cond(self):
         src = """
         (cond)

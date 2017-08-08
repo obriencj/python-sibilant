@@ -151,6 +151,11 @@ class CPython36(SpecialCodeSpace):
                 else:
                     assert False, "missing var %r" % n
 
+            elif op is Pseudop.GET_GLOBAL:
+                n = args[0]
+                i = self.names.index(n)
+                yield Opcode.LOAD_GLOBAL, i
+
             elif op is Pseudop.GET_ATTR:
                 n = args[0]
                 i = self.names.index(n)
@@ -161,13 +166,27 @@ class CPython36(SpecialCodeSpace):
                 i = self.names.index(n)
                 yield Opcode.STORE_ATTR, i
 
-            elif op is Pseudop.DEFINE:
+            elif op is Pseudop.DEFINE_GLOBAL:
                 n = args[0]
                 if n in self.global_vars:
                     i = self.names.index(n)
                     yield Opcode.STORE_GLOBAL, i
                 else:
                     assert False, "missing global name %r" % n
+
+            elif op is Pseudop.DEFINE_LOCAL:
+                n = args[0]
+                if n in self.cell_vars:
+                    i = self.cell_vars.index(n)
+                    yield Opcode.STORE_DEREF, i
+                elif n in self.free_vars:
+                    i = self.free_vars.index(n) + len(self.cell_vars)
+                    yield Opcode.STORE_DEREF, i
+                elif n in self.fast_vars:
+                    i = self.fast_vars.index(n)
+                    yield Opcode.STORE_FAST, i
+                else:
+                    assert False, "missing local name %r" % n
 
             elif op is Pseudop.POP:
                 yield Opcode.POP_TOP, 0
