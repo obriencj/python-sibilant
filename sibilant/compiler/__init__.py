@@ -1967,12 +1967,16 @@ class Special(object):
     def __init__(self, fun, name=None):
         self.special = fun
         self.__name__ = name or fun.__name__
+        self.__doc__ = fun.__doc__
 
     def __call__(self, *args, **kwds):
         t = type(self)
         n = self.__name__
         msg = "Attempt to call %s %s as runtime function." % (t, n)
         raise TypeError(msg)
+
+    def __repr__(self):
+        return "<special-form %s>" % self.__name__
 
 
 def special(fun):
@@ -2023,10 +2027,14 @@ class Macro(Special):
     def __init__(self, fun, name=None):
         self.expand = fun
         self.__name__ = name or fun.__name__
+        self.__doc__ = fun.__doc__
 
     def special(self, _env, source):
         called_by, cl = source
         return self.expand(*cl.unpack())
+
+    def __repr__(self):
+        return "<macro %s>" % self.__name__
 
 
 def macro(fun):
