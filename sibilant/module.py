@@ -47,8 +47,7 @@ def prep_module(module, builtins=None, defaults=None, filename=None):
         glbls.update(defaults)
 
     if builtins is None:
-        import sibilant.builtins
-        builtins = sibilant.builtins
+        builtins = __import__("sibilant.builtins").builtins
 
     glbls["__builtins__"] = builtins
 
