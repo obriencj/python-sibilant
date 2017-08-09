@@ -1504,7 +1504,7 @@ class SpecialCodeSpace(CodeSpace):
                 # handle the exception, return the result
                 self.helper_begin(act)
                 self.pseudop_return()
-                self.pseudop_faux_pop(3)  # trigger the finally
+                self.pseudop_faux_pop(4)  # trigger the finally
 
                 # the return triggers the finally block to jump to
                 # here. This ensures a value in the key and then
