@@ -22,24 +22,27 @@ license: LGPL v.3
 """
 
 
-def setup():
+def _setup():
     import sys
     from os.path import join, dirname
-    from .module import create_module
     from pkgutil import get_data
+    from .module import create_module
 
-    # because the sibilant.importlib functions will attempt to use this
-    # module, we can't rely on them to in-turn load us. Thus for just the
-    # builtins module, we'll do it manually.
+    # because the sibilant.importlib functions will attempt to use
+    # this module, we can't rely on them to in-turn load us. Thus for
+    # just the builtins module, we'll do it manually. this is a simple
+    # two-step process. First, we import the _bootstrap_builtins,
+    # which is written in Python, and contains a good set of baseline
+    # definitions, as well as the special form bindings needed for
+    # sibilant modules to execute. then we'll load the _builtins
+    # sibilant module with the bootstrap as its __builtins__
+    # definition. Finally, we'll merge the two modules together to
+    # form the contents of this module.
 
     bootstrap = __import__("sibilant._bootstrap_builtins")._bootstrap_builtins
 
     src = get_data(__name__, "_builtins.lspy").decode("utf8")
     filename = join(dirname(__file__), "_builtins.lspy")
-
-    # filename = resource_filename(__name__, "_builtins.lspy")
-    # with open(filename, "rt") as fs:
-
     builtins = create_module("sibilant._builtins", src,
                              builtins=bootstrap,
                              filename=filename)
@@ -55,11 +58,11 @@ def setup():
                 glbls[key] = val
                 _all.add(key)
 
-    module.__all__ = tuple(_all)
+    glbls["__all__"] = tuple(_all)
 
 
-setup()
-del setup
+_setup()
+del _setup
 
 
 #

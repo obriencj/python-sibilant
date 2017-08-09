@@ -166,7 +166,6 @@ _specials()
 
 # === some python builtin types ===
 
-
 def _converters():
     is_pair = _sibilant.is_pair
 
@@ -251,6 +250,7 @@ _op(int)
 _op(float)
 _op(complex)
 _op(help, "help")
+_op(dir, "dir")
 _op(_fractions.Fraction, "fraction")
 _op(_sys.exit, "exit")
 _op(__import__, "import")
