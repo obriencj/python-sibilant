@@ -1,0 +1,56 @@
+
+
+These are compiler features that I need to implement, and then a
+special form that can be used to invoke them.
+
+
+== gen ===
+
+(gen ((bindings) . &body) expr)
+
+similar to pythonic
+
+(&body for bindings in expr)
+
+only implement the generator version, and if you need a list, call
+list on it.
+
+
+=== defgen ===
+
+(defgen name (formals)
+  ...
+  (yield x))
+
+similar to pythonic
+
+def name(formals):
+   ...
+   yield x
+
+
+=== operands ===
+
+** * @ // / % + - << >> & ^ |
+
+All of the binary built-in operands should be converted from function
+calls to operator invocations in special forms that reduce from left
+to right
+
+see BINARY_*
+
+
+=== item ===
+
+Should become BINARY_SUBSCR
+
+
+=== comparators ===
+
+< <= == != > >= in not-in is is-not
+
+All of the comparisons built into the COMPARE_OP should be converted from
+function calls o operator invocations in special forms
+
+
+# The end.
