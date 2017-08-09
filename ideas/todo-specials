@@ -29,15 +29,23 @@ def name(formals):
    yield x
 
 
-=== operands ===
+=== binary operands ===
 
-** * @ // / % + - << >> & ^ |
+** * @ // / % + - << >> & ^ | and or
 
 All of the binary built-in operands should be converted from function
 calls to operator invocations in special forms that reduce from left
 to right
 
 see BINARY_*
+
+
+=== unary operands ===
+
+not ~ + - iter
+
+The unary conversions:
+UNARY_NOT UNARY_INVERT UNARY_POSITIVE UNARY_NEGATIVE
 
 
 === item ===
