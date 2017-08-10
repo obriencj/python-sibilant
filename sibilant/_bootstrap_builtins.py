@@ -60,11 +60,6 @@ _op(_operator.add, "+")
 _op(_operator.sub, "-")
 _op(_operator.mul, "*")
 
-_op(_operator.pos, "pos")
-_op(_operator.neg, "neg")
-
-_op((lambda val: not val), "not", rename=True)
-
 _op(_operator.pow, "**")
 _op(_operator.truediv, "/")
 _op(_operator.mod, "%")
@@ -72,7 +67,6 @@ _op(_operator.floordiv, "//")
 _op(_operator.or_, "|")
 _op(_operator.and_, "&")
 _op(_operator.xor, "^")
-_op(_operator.invert, "~")
 
 _op(_operator.contains, "in")
 _op(_operator.is_, "is")
@@ -212,11 +206,14 @@ _op((lambda *vals: set(vals)), "make-set", rename=True)
 _op((lambda value: isinstance(value, set)),
     "set?", rename=True)
 
+_op(lambda value: hasattr(value, "__iter__"), "iterable?", rename=True)
+
 
 # === some python builtin functions ===
 
 _op(callable)
 _op(callable, "function?")
+_op(next, "next")
 _op(format)
 _op(getattr)
 _op(setattr)

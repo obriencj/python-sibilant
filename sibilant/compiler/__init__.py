@@ -115,8 +115,8 @@ class Pseudop(Enum):
     UNARY_POSITIVE = _auto()
     UNARY_NEGATIVE = _auto()
     UNARY_NOT = _auto()
-    UNARY_INVERY = _auto()
-    UNARY_ITER = _auto()
+    UNARY_INVERT = _auto()
+    ITER = _auto()
     BINARY_POWER = _auto()
     BINARY_MULTIPLY = _auto()
     BINARY_MATRIX_MULTIPLY = _auto()
@@ -199,6 +199,13 @@ _symbol_else = symbol("else")
 _symbol_finally = symbol("finally")
 _symbol_and = symbol("and")
 _symbol_or = symbol("or")
+_symbol_not = symbol("not")
+_symbol_invert = symbol("~")
+_symbol_iter = symbol("iter")
+_symbol_positive = symbol("positive")
+_symbol_negative = symbol("negative")
+_symbol_add = symbol("+")
+_symbol_sub = symbol("-")
 
 
 class CodeSpace(metaclass=ABCMeta):
@@ -642,6 +649,26 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop(Pseudop.END_FINALLY)
 
 
+    def pseudop_unary_positive(self):
+        self.pseudop(Pseudop.UNARY_POSITIVE)
+
+
+    def pseudop_unary_negative(self):
+        self.pseudop(Pseudop.UNARY_NEGATIVE)
+
+
+    def pseudop_unary_not(self):
+        self.pseudop(Pseudop.UNARY_NOT)
+
+
+    def pseudop_unary_invert(self):
+        self.pseudop(Pseudop.UNARY_INVERT)
+
+
+    def pseudop_iter(self):
+        self.pseudop(Pseudop.ITER)
+
+
     def pseudop_compare_lt(self):
         self.pseudop(Pseudop.COMPARE_OP, 0)
 
@@ -975,6 +1002,48 @@ class SpecialCodeSpace(CodeSpace):
             self.pseudop_pop_jump_if_true(end_label)
 
         self.pseudop_label(end_label)
+
+
+    @special(_symbol_not)
+    def special_not(self, source):
+        try:
+            called_by, (expr, rest) = source
+        except ValueError:
+            raise self.error("too few arguments to not", source)
+
+        if not is_nil(rest):
+            raise self.error("too many arguments to not", source)
+
+        self.add_expression(expr)
+        self.pseudop_unary_not()
+
+
+    @special(_symbol_invert)
+    def special_invert(self, source):
+        try:
+            called_by, (expr, rest) = source
+        except ValueError:
+            raise self.error("too few arguments to invert", source)
+
+        if not is_nil(rest):
+            raise self.error("too many arguments to invert", source)
+
+        self.add_expression(expr)
+        self.pseudop_unary_invert()
+
+
+    @special(_symbol_iter)
+    def special_iter(self, source):
+        try:
+            called_by, (expr, rest) = source
+        except ValueError:
+            raise self.error("too few arguments to iter", source)
+
+        if not is_nil(rest):
+            raise self.error("too many arguments to iter", source)
+
+        self.add_expression(expr)
+        self.pseudop_iter()
 
 
     @special(_symbol_getf)
@@ -2008,7 +2077,12 @@ def max_stack(pseudops):
         elif op is Pseudop.DELETE_VAR:
             pass
 
-        elif op is Pseudop.GET_ATTR:
+        elif op in (Pseudop.GET_ATTR,
+                    Pseudop.UNARY_POSITIVE,
+                    Pseudop.UNARY_NEGATIVE,
+                    Pseudop.UNARY_NOT,
+                    Pseudop.UNARY_INVERT,
+                    Pseudop.ITER):
             pop()
             push()
 

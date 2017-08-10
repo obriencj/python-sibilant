@@ -249,6 +249,21 @@ class CPython35(SpecialCodeSpace):
             elif op is Pseudop.END_FINALLY:
                 yield Opcode.END_FINALLY,
 
+            elif op is Pseudop.UNARY_POSITIVE:
+                yield Opcode.UNARY_POSITIVE,
+
+            elif op is Pseudop.UNARY_NEGATIVE:
+                yield Opcode.UNARY_NEGATIVE,
+
+            elif op is Pseudop.UNARY_NOT:
+                yield Opcode.UNARY_NOT,
+
+            elif op is Pseudop.UNARY_INVERT:
+                yield Opcode.UNARY_INVERT,
+
+            elif op is Pseudop.ITER:
+                yield Opcode.GET_ITER,
+
             elif op is Pseudop.COMPARE_OP:
                 yield Opcode.COMPARE_OP, args[0], 0
 

@@ -1107,7 +1107,7 @@ class SpecialWith(TestCase):
         self.assertEqual(accu2, [777])
 
 
-class SpecialBinOps(TestCase):
+class SpecialBinaryOperators(TestCase):
 
     def test_and(self):
         src = """
@@ -1195,6 +1195,124 @@ class SpecialBinOps(TestCase):
         stmt, env = compile_expr(src, good_guy=good_guy)
         self.assertEqual(stmt(), nil)
         self.assertEqual(accu1, [0, None, False, nil])
+
+
+class SpecialUnaryOperators(TestCase):
+
+    def test_not(self):
+        src = """
+        (not True)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), False)
+
+        src = """
+        (not 1)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), False)
+
+        src = """
+        (not '(tacos))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), False)
+
+        src = """
+        (not (make-list 0))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), False)
+
+        src = """
+        (not False)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), True)
+
+        src = """
+        (not 0)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), True)
+
+        src = """
+        (not '())
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), True)
+
+        src = """
+        (not (make-list))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), True)
+
+
+    def test_invert(self):
+        src = """
+        (~ 0)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), -1)
+
+        src = """
+        (~ -1)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 0)
+
+        src = """
+        (~ 1)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), -2)
+
+        src = """
+        (~ -2)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 1)
+
+        src = """
+        (~ 0xff)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), -256)
+
+        src = """
+        (~ (~ 999))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 999)
+
+
+    def test_iter(self):
+        src = """
+        (iter X)
+        """
+        stmt, env = compile_expr(src, X=[1,2,3,4])
+        res = stmt()
+        self.assertEqual(type(res), type(iter([])))
+        self.assertEqual(list(res), [1, 2, 3, 4])
+        self.assertIs(iter(res), res)
+
+        src = """
+        (let ((Y (iter X)))
+          (next Y))
+        """
+        stmt, env = compile_expr(src, X=[1,2,3,4])
+        res = stmt()
+        self.assertEqual(res, 1)
+
+        src = """
+        (let ((Y (iter X)))
+          (next Y)
+          (next Y))
+        """
+        stmt, env = compile_expr(src, X=[1,2,3,4])
+        res = stmt()
+        self.assertEqual(res, 2)
 
 
 #
