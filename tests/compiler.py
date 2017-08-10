@@ -1144,6 +1144,14 @@ class SpecialBinOps(TestCase):
         self.assertEqual(stmt(), 0)
         self.assertEqual(accu1, [0])
 
+        accu1, good_guy = make_accumulator()
+        src = """
+        (and (good_guy nil) (good_guy None) (good_guy False))
+        """
+        stmt, env = compile_expr(src, good_guy=good_guy)
+        self.assertEqual(stmt(), nil)
+        self.assertEqual(accu1, [nil])
+
 
     def test_or(self):
         src = """
