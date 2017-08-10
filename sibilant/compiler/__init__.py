@@ -111,6 +111,26 @@ class Pseudop(Enum):
     JUMP_FORWARD = _auto()
     POP_JUMP_IF_TRUE = _auto()
     POP_JUMP_IF_FALSE = _auto()
+    COMPARE_OP = _auto()
+    UNARY_POSITIVE = _auto()
+    UNARY_NEGATIVE = _auto()
+    UNARY_NOT = _auto()
+    UNARY_INVERY = _auto()
+    UNARY_ITER = _auto()
+    BINARY_POWER = _auto()
+    BINARY_MULTIPLY = _auto()
+    BINARY_MATRIX_MULTIPLY = _auto()
+    BINARY_FLOOR_DIVIDE = _auto()
+    BINARY_TRUE_DIVIDE = _auto()
+    BINARY_MODULO = _auto()
+    BINARY_ADD = _auto()
+    BINARY_SUBTRACT = _auto()
+    BINARY_SUBSCR = _auto()
+    BINARY_LSHIFT = _auto()
+    BINARY_RSHIFT = _auto()
+    BINARY_AND = _auto()
+    BINARY_XOR = _auto()
+    BINARY_OR = _auto()
     BUILD_TUPLE = _auto()
     BUILD_TUPLE_UNPACK = _auto()
     SETUP_WITH = _auto()
@@ -122,7 +142,6 @@ class Pseudop(Enum):
     END_FINALLY = _auto()
     POP_BLOCK = _auto()
     POP_EXCEPT = _auto()
-    EXCEPTION_MATCH = _auto()
     POSITION = _auto()
     LABEL = _auto()
     FAUX_PUSH = _auto()
@@ -178,6 +197,8 @@ _symbol_raise = symbol("raise")
 _symbol_try = symbol("try")
 _symbol_else = symbol("else")
 _symbol_finally = symbol("finally")
+_symbol_and = symbol("and")
+_symbol_or = symbol("or")
 
 
 class CodeSpace(metaclass=ABCMeta):
@@ -621,8 +642,48 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop(Pseudop.END_FINALLY)
 
 
-    def pseudop_exception_match(self):
-        self.pseudop(Pseudop.EXCEPTION_MATCH)
+    def pseudop_compare_lt(self):
+        self.pseudop(Pseudop.COMPARE_OP, 0)
+
+
+    def pseudop_compare_lte(self):
+        self.pseudop(Pseudop.COMPARE_OP, 1)
+
+
+    def pseudop_compare_eq(self):
+        self.pseudop(Pseudop.COMPARE_OP, 2)
+
+
+    def pseudop_compare_not_eq(self):
+        self.pseudop(Pseudop.COMPARE_OP, 3)
+
+
+    def pseudop_compare_gt(self):
+        self.pseudop(Pseudop.COMPARE_OP, 4)
+
+
+    def pseudop_compare_gte(self):
+        self.pseudop(Pseudop.COMPARE_OP, 5)
+
+
+    def pseudop_compare_in(self):
+        self.pseudop(Pseudop.COMPARE_OP, 6)
+
+
+    def pseudop_compare_not_in(self):
+        self.pseudop(Pseudop.COMPARE_OP, 7)
+
+
+    def pseudop_compare_is(self):
+        self.pseudop(Pseudop.COMPARE_OP, 8)
+
+
+    def pseudop_compare_is_not(self):
+        self.pseudop(Pseudop.COMPARE_OP, 9)
+
+
+    def pseudop_compare_exception(self):
+        self.pseudop(Pseudop.COMPARE_OP, 10)
 
 
     def pseudop_raise(self, count):
@@ -830,16 +891,6 @@ class SpecialCodeSpace(CodeSpace):
                 return self.pseudop_const(expr)
 
 
-    def add_expression_with_pop(self, expr):
-        """
-        Insert an expression, then an op to pop its result off of the
-        stack
-        """
-
-        self.add_expression(expr)
-        self.pseudop_pop()
-
-
     def add_expression_with_return(self, expr):
         """
         Insert an expression, then an op to return its result from the
@@ -850,7 +901,8 @@ class SpecialCodeSpace(CodeSpace):
 
 
     def error(self, message, source):
-        return SpecialSyntaxError(message, self.position_of(source))
+        return SpecialSyntaxError(message, self.filename,
+                                  self.position_of(source))
 
 
     @special(_symbol_doc)
@@ -863,6 +915,66 @@ class SpecialCodeSpace(CodeSpace):
         self.pseudop_const(None)
 
         return None
+
+
+    @special(_symbol_and)
+    def special_and(self, source):
+        """
+        Evaluates expressions in order until one returns a false-ish
+        result, then returns it. Otherwise, returns the last value.
+        """
+
+        called_by, rest = source
+
+        self.pseudop_position_of(source)
+        self.helper_and(rest)
+
+        return None
+
+
+    def helper_and(self, exprs):
+        self.pseudop_const(True)
+
+        end_label = self.gen_label()
+        while exprs:
+            self.pseudop_pop()
+
+            ex, exprs = exprs
+            self.add_expression(ex)
+            self.pseudop_dup()
+            self.pseudop_pop_jump_if_false(end_label)
+
+        self.pseudop_label(end_label)
+
+
+    @special(_symbol_or)
+    def special_or(self, source):
+        """
+        Evaluates expressions in order until one returns a true-ish
+        result, then returns it. Otherwise, returns the last value.
+        """
+
+        called_by, rest = source
+
+        self.pseudop_position_of(source)
+        self.helper_or(rest)
+
+        return None
+
+
+    def helper_or(self, exprs):
+        self.pseudop_const(False)
+
+        end_label = self.gen_label()
+        while exprs:
+            self.pseudop_pop()
+
+            ex, exprs = exprs
+            self.add_expression(ex)
+            self.pseudop_dup()
+            self.pseudop_pop_jump_if_true(end_label)
+
+        self.pseudop_label(end_label)
 
 
     @special(_symbol_getf)
@@ -1486,7 +1598,7 @@ class SpecialCodeSpace(CodeSpace):
                 # attempt
                 self.pseudop_dup()
                 self.add_expression(match)
-                self.pseudop_exception_match()
+                self.pseudop_compare_exception()
                 self.pseudop_pop_jump_if_false(label_next)
 
                 # okay, we've matched, so we need to bind the
@@ -1526,7 +1638,7 @@ class SpecialCodeSpace(CodeSpace):
                 # this is an exception match without a binding
                 self.pseudop_dup()
                 self.add_expression(ex)
-                self.pseudop_exception_match()
+                self.pseudop_compare_exception()
                 self.pseudop_pop_jump_if_false(label_next)
 
                 # Now let's throw all that stuff away.
@@ -1966,7 +2078,7 @@ def max_stack(pseudops):
         elif op is Pseudop.END_FINALLY:
             pop(1)
 
-        elif op is Pseudop.EXCEPTION_MATCH:
+        elif op is Pseudop.COMPARE_OP:
             pop(2)
             push()
 
@@ -2055,24 +2167,25 @@ def label_generator(formatstr="label_%04i"):
 class Special(object):
     def __init__(self, fun, name=None):
         self.special = fun
-        self.__name__ = name or fun.__name__
-        self.__doc__ = fun.__doc__
+        self.__name__ = str(name or fun.__name__)
 
     def __call__(self, *args, **kwds):
         t = type(self)
-        n = self.__name__
-        msg = "Attempt to call %s %s as runtime function." % (t, n)
+        msg = "Attempt to call %s as runtime function." % t
         raise TypeError(msg)
 
     def __repr__(self):
         return "<special-form %s>" % self.__name__
 
 
-def special(fun):
-    if is_special(fun):
+def make_special(fun, name=None):
+    if isinstance(fun, Special):
         return fun
+
     else:
-        return Special(fun)
+        nom = str(name or fun.__name__)
+        spec = type(nom, (Special, ), {"__doc__": fun.__doc__})
+        return spec(fun, name)
 
 
 def is_special(value):
@@ -2115,8 +2228,7 @@ class TemporarySpecial(Special):
 class Macro(Special):
     def __init__(self, fun, name=None):
         self.expand = fun
-        self.__name__ = name or fun.__name__
-        self.__doc__ = fun.__doc__
+        self.__name__ = str(name or fun.__name__)
 
     def special(self, _env, source):
         called_by, cl = source
@@ -2126,11 +2238,14 @@ class Macro(Special):
         return "<macro %s>" % self.__name__
 
 
-def macro(fun):
-    if is_macro(fun):
+def make_macro(fun, name=None):
+    if isinstance(fun, Macro):
         return fun
+
     else:
-        return Macro(fun)
+        nom = str(name or fun.__name__)
+        spec = type(nom, (Macro, ), {"__doc__": fun.__doc__})
+        return spec(fun, name)
 
 
 def is_macro(value):
@@ -2149,7 +2264,7 @@ def builtin_specials():
         return invoke_special
 
     for sym, meth in SpecialCodeSpace.all_specials():
-        yield str(sym), Special(gen_wrapper(meth), name=sym)
+        yield str(sym), make_special(gen_wrapper(meth), sym)
 
 
 def compile_from_ast(astree, env, filename=None):

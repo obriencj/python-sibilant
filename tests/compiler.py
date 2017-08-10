@@ -31,7 +31,8 @@ import sibilant.builtins
 from sibilant import car, cdr, cons, nil, symbol, make_proper
 
 from sibilant.compiler import (
-    macro, is_macro, Macro,
+    make_macro, is_macro, Macro,
+    make_special, is_special, Special,
     compile_from_str, compile_from_stream,
 )
 
@@ -1104,6 +1105,88 @@ class SpecialWith(TestCase):
         self.assertRaises(Exception, stmt)
         self.assertEqual(accu1, [123, 456, 789])
         self.assertEqual(accu2, [777])
+
+
+class SpecialBinOps(TestCase):
+
+    def test_and(self):
+        src = """
+        (and 1 2 3)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 3)
+
+        src = """
+        (and 1 0 3)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 0)
+
+        src = """
+        (and)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), True)
+
+        accu1, good_guy = make_accumulator()
+        src = """
+        (and (good_guy 1) (good_guy 0))
+        """
+        stmt, env = compile_expr(src, good_guy=good_guy)
+        self.assertEqual(stmt(), 0)
+        self.assertEqual(accu1, [1, 0])
+
+        accu1, good_guy = make_accumulator()
+        src = """
+        (and (good_guy 0) (good_guy 1))
+        """
+        stmt, env = compile_expr(src, good_guy=good_guy)
+        self.assertEqual(stmt(), 0)
+        self.assertEqual(accu1, [0])
+
+
+    def test_or(self):
+        src = """
+        (or 1 2 3)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 1)
+
+        src = """
+        (or 0 0 3)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 3)
+
+        src = """
+        (or)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), False)
+
+        accu1, good_guy = make_accumulator()
+        src = """
+        (or (good_guy 1) (good_guy 0))
+        """
+        stmt, env = compile_expr(src, good_guy=good_guy)
+        self.assertEqual(stmt(), 1)
+        self.assertEqual(accu1, [1])
+
+        accu1, good_guy = make_accumulator()
+        src = """
+        (or (good_guy 0) (good_guy 1))
+        """
+        stmt, env = compile_expr(src, good_guy=good_guy)
+        self.assertEqual(stmt(), 1)
+        self.assertEqual(accu1, [0, 1])
+
+        accu1, good_guy = make_accumulator()
+        src = """
+        (or (good_guy 0) (good_guy None) (good_guy False) (good_guy nil))
+        """
+        stmt, env = compile_expr(src, good_guy=good_guy)
+        self.assertEqual(stmt(), nil)
+        self.assertEqual(accu1, [0, None, False, nil])
 
 
 #

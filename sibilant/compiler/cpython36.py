@@ -252,8 +252,8 @@ class CPython36(SpecialCodeSpace):
             elif op is Pseudop.END_FINALLY:
                 yield Opcode.END_FINALLY, 0
 
-            elif op is Pseudop.EXCEPTION_MATCH:
-                yield Opcode.COMPARE_OP, 10
+            elif op is Pseudop.COMPARE_OP:
+                yield Opcode.COMPARE_OP, args[0]
 
             elif op is Pseudop.RAISE:
                 yield Opcode.RAISE_VARARGS, args[0]

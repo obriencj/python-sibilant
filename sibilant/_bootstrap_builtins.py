@@ -54,24 +54,6 @@ def _val(value, name):
     __all__.append(name)
 
 
-def _and(val1, *valn):
-    # TODO: convert to special form
-    for val2 in valn:
-        val1 = val1 and val2
-        if not val1:
-            break
-    return val1
-
-
-def _or(val1, *valn):
-    # TODO: convert to special form
-    for val2 in valn:
-        val1 = val1 or val2
-        if val1:
-            break
-    return val1
-
-
 # === standard operators ===
 
 _op(_operator.add, "+")
@@ -81,8 +63,6 @@ _op(_operator.mul, "*")
 _op(_operator.pos, "pos")
 _op(_operator.neg, "neg")
 
-_op(_and, "and", rename=True)
-_op(_or, "or", rename=True)
 _op((lambda val: not val), "not", rename=True)
 
 _op(_operator.pow, "**")
@@ -148,10 +128,10 @@ _op(_sibilant.is_undefined, "undefined?")
 
 # === compiler special forms ===
 
-_val(_compiler.Special, "special")
+_val(_compiler.make_special, "special")
 _op(_compiler.is_special, "special?")
 
-_val(_compiler.Macro, "macro")
+_val(_compiler.make_macro, "macro")
 _op(_compiler.is_macro, "macro?")
 
 
