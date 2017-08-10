@@ -202,10 +202,26 @@ _symbol_or = symbol("or")
 _symbol_not = symbol("not")
 _symbol_invert = symbol("~")
 _symbol_iter = symbol("iter")
-_symbol_positive = symbol("positive")
-_symbol_negative = symbol("negative")
 _symbol_add = symbol("+")
+_symbol_add_ = symbol("add")
 _symbol_sub = symbol("-")
+_symbol_sub_ = symbol("sub")
+_symbol_lt = symbol("<")
+_symbol_lt_ = symbol("lt")
+_symbol_lte = symbol("<=")
+_symbol_lte_ = symbol("lte")
+_symbol_eq = symbol("==")
+_symbol_eq_ = symbol("eq")
+_symbol_not_eq = symbol("!=")
+_symbol_not_eq_ = symbol("not-eq")
+_symbol_gt = symbol(">")
+_symbol_gt_ = symbol("gt")
+_symbol_gte = symbol(">=")
+_symbol_gte_ = symbol("gte")
+_symbol_in = symbol("in")
+_symbol_not_in = symbol("not-in")
+_symbol_is = symbol("is")
+_symbol_is_not = symbol("is-not")
 
 
 class CodeSpace(metaclass=ABCMeta):
@@ -1044,6 +1060,128 @@ class SpecialCodeSpace(CodeSpace):
 
         self.add_expression(expr)
         self.pseudop_iter()
+
+
+    def _helper_binary(self, source, opfun, flip=False):
+        name, rest = source
+
+        try:
+            left, (right, rest) = rest
+
+        except ValueError:
+            raise self.error("too few arguments to %s" % name, source)
+
+        if not is_nil(rest):
+            raise self.error("too many arguments to %s" % name, source)
+
+        if flip:
+            self.add_expression(right)
+            self.add_expression(left)
+
+        else:
+            self.add_expression(left)
+            self.add_expression(right)
+
+        opfun()
+
+
+    @special(_symbol_lt, _symbol_lt_)
+    def special_lt(self, source):
+        """
+        (< VAL1 VAL2)
+        True if VAL1 is less-than VAL2
+        """
+        self._helper_binary(source, self.pseudop_compare_lt)
+
+
+    @special(_symbol_lte, _symbol_lte_)
+    def special_lte(self, source):
+        """
+        (<= VAL1 VAL2)
+        True if VAL1 is less-than, or equal-to VAL2
+        """
+
+        self._helper_binary(source, self.pseudop_compare_lte)
+
+
+    @special(_symbol_eq, _symbol_eq_)
+    def special_eq(self, source):
+        """
+        (== VAL1 VAL2)
+        True if VAL1 and VAL2 are equal
+        """
+
+        self._helper_binary(source, self.pseudop_compare_eq)
+
+
+    @special(_symbol_not_eq, _symbol_not_eq_)
+    def special_not_eq(self, source):
+        """
+        (!= VAL1 VAL2)
+        True if VAL1 and VAL2 are not equal
+        """
+
+        self._helper_binary(source, self.pseudop_compare_not_eq)
+
+
+    @special(_symbol_gt, _symbol_gt_)
+    def special_gt(self, source):
+        """
+        (>= VAL1 VAL2)
+        True if VAL1 is greater-than VAL2
+        """
+
+        self._helper_binary(source, self.pseudop_compare_gt)
+
+
+    @special(_symbol_gte, _symbol_gte_)
+    def special_gte(self, source):
+        """
+        (>= VAL1 VAL2)
+        True if VAL1 is greater-than, or equal-to VAL2
+        """
+
+        self._helper_binary(source, self.pseudop_compare_gte)
+
+
+    @special(_symbol_in)
+    def special_in(self, source):
+        """
+        (in SEQ VALUE)
+        True if SEQ contains VALUE
+        """
+
+        self._helper_binary(source, self.pseudop_compare_in, True)
+
+
+    @special(_symbol_not_in)
+    def special_not_in(self, source):
+        """
+        (not-in SEQ VALUE)
+        False if SEQ contains VALUE
+        """
+
+        self._helper_binary(source, self.pseudop_compare_not_in, True)
+
+
+    @special(_symbol_is)
+    def special_is(self, source):
+        """
+        (is OBJ1 OBJ2)
+        True if OBJ1 and OBJ2 are the same object
+        """
+
+        self._helper_binary(source, self.pseudop_compare_is)
+
+
+    @special(_symbol_is_not)
+    def special_is_not(self, source):
+        """
+        (is-not OBJ1 OBJ2)
+        True if OBJ1 and OBJ2 are different objects
+        """
+
+        self._helper_binary(source, self.pseudop_compare_is_not)
 
 
     @special(_symbol_getf)

@@ -1315,5 +1315,100 @@ class SpecialUnaryOperators(TestCase):
         self.assertEqual(res, 2)
 
 
+class SpecialComparators(TestCase):
+
+    def test_eq(self):
+        src = """
+        (eq 1 1)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, True)
+
+        src = """
+        (eq 0 1)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, False)
+
+        src = """
+        (== 1 1)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, True)
+
+        src = """
+        (== 0 1)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, False)
+
+
+    def test_not_eq(self):
+        src = """
+        (not-eq 1 1)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, False)
+
+        src = """
+        (not-eq 0 1)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, True)
+
+        src = """
+        (!= 1 1)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, False)
+
+        src = """
+        (!= 0 1)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, True)
+
+
+    def test_in(self):
+        src = """
+        (in X 1)
+        """
+        stmt, env = compile_expr(src, X=[0, 1, 2])
+        res = stmt()
+        self.assertEqual(res, True)
+
+        src = """
+        (in X 9)
+        """
+        stmt, env = compile_expr(src, X=[0, 1, 2])
+        res = stmt()
+        self.assertEqual(res, False)
+
+
+    def test_in(self):
+        src = """
+        (not-in X 1)
+        """
+        stmt, env = compile_expr(src, X=[0, 1, 2])
+        res = stmt()
+        self.assertEqual(res, False)
+
+        src = """
+        (not-in X 9)
+        """
+        stmt, env = compile_expr(src, X=[0, 1, 2])
+        res = stmt()
+        self.assertEqual(res, True)
+
+
+
 #
 # The end.
