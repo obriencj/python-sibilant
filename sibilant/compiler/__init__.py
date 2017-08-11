@@ -205,7 +205,7 @@ _symbol_iter = symbol("iter")
 _symbol_add = symbol("+")
 _symbol_add_ = symbol("add")
 _symbol_sub = symbol("-")
-_symbol_sub_ = symbol("sub")
+_symbol_sub_ = symbol("subtract")
 _symbol_lt = symbol("<")
 _symbol_lt_ = symbol("lt")
 _symbol_lte = symbol("<=")
@@ -681,6 +681,14 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop(Pseudop.UNARY_INVERT)
 
 
+    def pseudop_binary_add(self):
+        self.pseudop(Pseudop.BINARY_ADD)
+
+
+    def pseudop_binary_subtract(self):
+        self.pseudop(Pseudop.BINARY_SUBTRACT)
+
+
     def pseudop_iter(self):
         self.pseudop(Pseudop.ITER)
 
@@ -963,6 +971,7 @@ class SpecialCodeSpace(CodeSpace):
     @special(_symbol_and)
     def special_and(self, source):
         """
+        (and EXPR...)
         Evaluates expressions in order until one returns a false-ish
         result, then returns it. Otherwise, returns the last value.
         """
@@ -993,6 +1002,7 @@ class SpecialCodeSpace(CodeSpace):
     @special(_symbol_or)
     def special_or(self, source):
         """
+        (or EXPR...)
         Evaluates expressions in order until one returns a true-ish
         result, then returns it. Otherwise, returns the last value.
         """
@@ -1001,6 +1011,67 @@ class SpecialCodeSpace(CodeSpace):
 
         self.pseudop_position_of(source)
         self.helper_or(rest)
+
+        return None
+
+
+    @special(_symbol_add, _symbol_add_)
+    def special_add(self, source):
+        """
+        (+ VAL)
+        applies unary_positive to VAL
+
+        (+ VAL VAL...)
+        adds the first two values together. Then adds the result to the
+        next value. Continues until only the result remains.
+        """
+
+        called_by, rest = source
+        if is_nil(rest):
+            self.error("too few arguments to %s" % called_by, source)
+
+        val, rest = rest
+        self.add_expression(val)
+
+        if is_nil(rest):
+            self.pseudop_unary_positive()
+
+        else:
+            while rest:
+                val, rest = rest
+                self.add_expression(val)
+                self.pseudop_binary_add()
+
+        return None
+
+
+    @special(_symbol_sub, _symbol_sub_)
+    def special_add(self, source):
+        """
+        (- VAL)
+        applies unary_negative to VAL
+
+        (- VAL VAL...)
+        subtracts the second value from the first value. Then
+        subtracts the next value from the result. Continues until only
+        the result remains.
+        """
+
+        called_by, rest = source
+        if is_nil(rest):
+            self.error("too few arguments to %s" % called_by, source)
+
+        val, rest = rest
+        self.add_expression(val)
+
+        if is_nil(rest):
+            self.pseudop_unary_negative()
+
+        else:
+            while rest:
+                val, rest = rest
+                self.add_expression(val)
+                self.pseudop_binary_subtract()
 
         return None
 
@@ -2290,7 +2361,9 @@ def max_stack(pseudops):
         elif op is Pseudop.END_FINALLY:
             pop(1)
 
-        elif op is Pseudop.COMPARE_OP:
+        elif op in (Pseudop.COMPARE_OP,
+                    Pseudop.BINARY_ADD,
+                    Pseudop.BINARY_SUBTRACT):
             pop(2)
             push()
 

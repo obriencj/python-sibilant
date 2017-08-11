@@ -1197,6 +1197,70 @@ class SpecialBinaryOperators(TestCase):
         self.assertEqual(accu1, [0, None, False, nil])
 
 
+    def test_add(self):
+        src = """
+        (+ 1)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 1)
+
+        src = """
+        (+ -1)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), -1)
+
+        src = """
+        (+ 1 2)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 3)
+
+        src = """
+        (+ 1 2 3)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 6)
+
+        src = """
+        (+ 1 2 -3)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 0)
+
+
+    def test_sub(self):
+        src = """
+        (- 1)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), -1)
+
+        src = """
+        (- -1)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 1)
+
+        src = """
+        (- 2 1)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 1)
+
+        src = """
+        (- 99 1 1)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 97)
+
+        src = """
+        (- 99 1 -2)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 100)
+
+
 class SpecialUnaryOperators(TestCase):
 
     def test_not(self):
@@ -1393,7 +1457,7 @@ class SpecialComparators(TestCase):
         self.assertEqual(res, False)
 
 
-    def test_in(self):
+    def test_not_in(self):
         src = """
         (not-in X 1)
         """
@@ -1408,6 +1472,219 @@ class SpecialComparators(TestCase):
         res = stmt()
         self.assertEqual(res, True)
 
+
+    def test_is(self):
+        o1 = object()
+        o2 = object()
+
+        src = """
+        (is X Y)
+        """
+        stmt, env = compile_expr(src, X=o1, Y=o1)
+        res = stmt()
+        self.assertEqual(res, True)
+
+        src = """
+        (is X Y)
+        """
+        stmt, env = compile_expr(src, X=o1, Y=o2)
+        res = stmt()
+        self.assertEqual(res, False)
+
+
+    def test_is_not(self):
+        o1 = object()
+        o2 = object()
+
+        src = """
+        (is-not X Y)
+        """
+        stmt, env = compile_expr(src, X=o1, Y=o1)
+        res = stmt()
+        self.assertEqual(res, False)
+
+        src = """
+        (is-not X Y)
+        """
+        stmt, env = compile_expr(src, X=o1, Y=o2)
+        res = stmt()
+        self.assertEqual(res, True)
+
+
+    def test_lt(self):
+        src = """
+        (< 1 2)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, True)
+
+        src = """
+        (lt 1 2)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, True)
+
+        src = """
+        (< 99 99)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, False)
+
+        src = """
+        (lt 99 99)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, False)
+
+        src = """
+        (< 2 1)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, False)
+
+        src = """
+        (lt 2 1)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, False)
+
+
+    def test_lte(self):
+        src = """
+        (<= 1 2)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, True)
+
+        src = """
+        (lte 1 2)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, True)
+
+        src = """
+        (<= 99 99)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, True)
+
+        src = """
+        (lte 99 99)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, True)
+
+        src = """
+        (<= 2 1)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, False)
+
+        src = """
+        (lte 2 1)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, False)
+
+
+    def test_gt(self):
+        src = """
+        (> 1 2)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, False)
+
+        src = """
+        (gt 1 2)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, False)
+
+        src = """
+        (> 99 99)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, False)
+
+        src = """
+        (gt 99 99)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, False)
+
+        src = """
+        (> 2 1)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, True)
+
+        src = """
+        (gt 2 1)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, True)
+
+
+    def test_gte(self):
+        src = """
+        (>= 1 2)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, False)
+
+        src = """
+        (gte 1 2)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, False)
+
+        src = """
+        (>= 99 99)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, True)
+
+        src = """
+        (gte 99 99)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, True)
+
+        src = """
+        (>= 2 1)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, True)
+
+        src = """
+        (gte 2 1)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, True)
 
 
 #

@@ -56,10 +56,7 @@ def _val(value, name):
 
 # === standard operators ===
 
-_op(_operator.add, "+")
-_op(_operator.sub, "-")
 _op(_operator.mul, "*")
-
 _op(_operator.pow, "**")
 _op(_operator.truediv, "/")
 _op(_operator.mod, "%")

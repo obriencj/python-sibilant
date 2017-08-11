@@ -267,6 +267,12 @@ class CPython35(SpecialCodeSpace):
             elif op is Pseudop.COMPARE_OP:
                 yield Opcode.COMPARE_OP, args[0], 0
 
+            elif op is Pseudop.BINARY_ADD:
+                yield Opcode.BINARY_ADD,
+
+            elif op is Pseudop.BINARY_SUBTRACT:
+                yield Opcode.BINARY_SUBTRACT,
+
             elif op is Pseudop.RAISE:
                 yield Opcode.RAISE_VARARGS, args[0], 0
 
