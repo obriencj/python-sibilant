@@ -58,6 +58,75 @@ class UnsupportedVersion(SibilantException):
     pass
 
 
+class Special(object):
+    def __init__(self, fun, name=None, runtime=None):
+        self.special = fun
+        self.__name__ = str(name or fun.__name__)
+        self.__call__ = runtime or self.__nocall__
+
+    def __nocall__(self, *args, **kwds):
+        t = type(self)
+        msg = "Attempt to call %s as runtime function." % t
+        raise TypeError(msg)
+
+    def __repr__(self):
+        return "<special-form %s>" % self.__name__
+
+
+def make_special(fun, name=None, runtime=None):
+    if isinstance(fun, Special):
+        return fun
+
+    else:
+        nom = str(name or fun.__name__)
+        spec = type(nom, (Special, ), {"__doc__": fun.__doc__})
+        return spec(fun, name=name, runtime=runtime)
+
+
+def is_special(value):
+    return isinstance(value, Special)
+
+
+class TemporarySpecial(Special):
+    def expire(self):
+        self.special = self.__dead__
+
+    def __dead__(self):
+        raise Exception("temporary special invoked outside of its limits")
+
+
+class Macro(Special):
+    def __init__(self, fun, name=None):
+        self.expand = fun
+        self.__name__ = str(name or fun.__name__)
+
+    def __call__(self, *args, **kwds):
+        t = type(self)
+        msg = "Attempt to call %s as runtime function." % t
+        raise TypeError(msg)
+
+    def special(self, _env, source):
+        called_by, cl = source
+        return self.expand(*cl.unpack())
+
+    def __repr__(self):
+        return "<macro %s>" % self.__name__
+
+
+def make_macro(fun, name=None):
+    if isinstance(fun, Macro):
+        return fun
+
+    else:
+        nom = str(name or fun.__name__)
+        spec = type(nom, (Macro, ), {"__doc__": fun.__doc__})
+        return spec(fun, name)
+
+
+def is_macro(value):
+    return isinstance(value, Macro)
+
+
 class Opcode(Enum):
 
     def hasconst(self):
@@ -222,6 +291,12 @@ _symbol_in = symbol("in")
 _symbol_not_in = symbol("not-in")
 _symbol_is = symbol("is")
 _symbol_is_not = symbol("is-not")
+_symbol_mult = symbol("*")
+_symbol_mult_ = symbol("multiply")
+_symbol_div = symbol("/")
+_symbol_div_ = symbol("divide")
+_symbol_floordiv = symbol("//")
+_symbol_floordiv_ = symbol("floor-divide")
 
 
 class CodeSpace(metaclass=ABCMeta):
@@ -689,6 +764,18 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop(Pseudop.BINARY_SUBTRACT)
 
 
+    def pseudop_binary_multiply(self):
+        self.pseudop(Pseudop.BINARY_MULTIPLY)
+
+
+    def pseudop_binary_divide(self):
+        self.pseudop(Pseudop.BINARY_DIVIDE)
+
+
+    def pseudop_binary_floor_divide(self):
+        self.pseudop(Pseudop.BINARY_FLOORDIVIDE)
+
+
     def pseudop_iter(self):
         self.pseudop(Pseudop.ITER)
 
@@ -836,13 +923,24 @@ class CodeSpace(metaclass=ABCMeta):
 def _special():
     _specials = {}
 
-    def special(namesym, *aliases):
+    def special(namesym, *aliases, runtime=None):
+        def deco(meth):
+            @wraps(meth)
+            def invoke_special(env, cl):
+                compiler = env.get("__compiler__", None)
+                if not compiler:
+                    raise Exception("special invoked without active compiler")
+                return meth(compiler, cl)
 
-        def deco(fun):
-            _specials[namesym] = fun
+            spec = make_special(invoke_special,
+                                name=str(namesym),
+                                runtime=runtime)
+
+            _specials[namesym] = spec
             for alias in aliases:
-                _specials[alias] = fun
-            return fun
+                _specials[alias] = spec
+
+            return invoke_special
 
         return deco
 
@@ -1015,6 +1113,21 @@ class SpecialCodeSpace(CodeSpace):
         return None
 
 
+    def helper_or(self, exprs):
+        self.pseudop_const(False)
+
+        end_label = self.gen_label()
+        while exprs:
+            self.pseudop_pop()
+
+            ex, exprs = exprs
+            self.add_expression(ex)
+            self.pseudop_dup()
+            self.pseudop_pop_jump_if_true(end_label)
+
+        self.pseudop_label(end_label)
+
+
     @special(_symbol_add, _symbol_add_)
     def special_add(self, source):
         """
@@ -1029,6 +1142,8 @@ class SpecialCodeSpace(CodeSpace):
         called_by, rest = source
         if is_nil(rest):
             self.error("too few arguments to %s" % called_by, source)
+
+        self.pseudop_position_of(source)
 
         val, rest = rest
         self.add_expression(val)
@@ -1046,7 +1161,7 @@ class SpecialCodeSpace(CodeSpace):
 
 
     @special(_symbol_sub, _symbol_sub_)
-    def special_add(self, source):
+    def special_subtract(self, source):
         """
         (- VAL)
         applies unary_negative to VAL
@@ -1060,6 +1175,8 @@ class SpecialCodeSpace(CodeSpace):
         called_by, rest = source
         if is_nil(rest):
             self.error("too few arguments to %s" % called_by, source)
+
+        self.pseudop_position_of(source)
 
         val, rest = rest
         self.add_expression(val)
@@ -1076,21 +1193,6 @@ class SpecialCodeSpace(CodeSpace):
         return None
 
 
-    def helper_or(self, exprs):
-        self.pseudop_const(False)
-
-        end_label = self.gen_label()
-        while exprs:
-            self.pseudop_pop()
-
-            ex, exprs = exprs
-            self.add_expression(ex)
-            self.pseudop_dup()
-            self.pseudop_pop_jump_if_true(end_label)
-
-        self.pseudop_label(end_label)
-
-
     @special(_symbol_not)
     def special_not(self, source):
         try:
@@ -1100,6 +1202,8 @@ class SpecialCodeSpace(CodeSpace):
 
         if not is_nil(rest):
             raise self.error("too many arguments to not", source)
+
+        self.pseudop_position_of(source)
 
         self.add_expression(expr)
         self.pseudop_unary_not()
@@ -1115,6 +1219,8 @@ class SpecialCodeSpace(CodeSpace):
         if not is_nil(rest):
             raise self.error("too many arguments to invert", source)
 
+        self.pseudop_position_of(source)
+
         self.add_expression(expr)
         self.pseudop_unary_invert()
 
@@ -1128,6 +1234,8 @@ class SpecialCodeSpace(CodeSpace):
 
         if not is_nil(rest):
             raise self.error("too many arguments to iter", source)
+
+        self.pseudop_position_of(source)
 
         self.add_expression(expr)
         self.pseudop_iter()
@@ -1144,6 +1252,8 @@ class SpecialCodeSpace(CodeSpace):
 
         if not is_nil(rest):
             raise self.error("too many arguments to %s" % name, source)
+
+        self.pseudop_position_of(source)
 
         if flip:
             self.add_expression(right)
@@ -2201,6 +2311,11 @@ class SpecialCodeSpace(CodeSpace):
             return None
 
 
+def builtin_specials():
+    for sym, spec in SpecialCodeSpace.all_specials():
+        yield str(sym), spec
+
+
 def _list_unique_append(l, v):
     if v in l:
         return l.index(v)
@@ -2449,34 +2564,6 @@ def label_generator(formatstr="label_%04i"):
     return gen_label
 
 
-class Special(object):
-    def __init__(self, fun, name=None):
-        self.special = fun
-        self.__name__ = str(name or fun.__name__)
-
-    def __call__(self, *args, **kwds):
-        t = type(self)
-        msg = "Attempt to call %s as runtime function." % t
-        raise TypeError(msg)
-
-    def __repr__(self):
-        return "<special-form %s>" % self.__name__
-
-
-def make_special(fun, name=None):
-    if isinstance(fun, Special):
-        return fun
-
-    else:
-        nom = str(name or fun.__name__)
-        spec = type(nom, (Special, ), {"__doc__": fun.__doc__})
-        return spec(fun, name)
-
-
-def is_special(value):
-    return isinstance(value, Special)
-
-
 @contextmanager
 def temporary_specials(env, **kwds):
     specs = dict((key, TemporarySpecial(value, name=key))
@@ -2500,56 +2587,6 @@ def temporary_specials(env, **kwds):
                 del env[key]
             else:
                 env[key] = value
-
-
-class TemporarySpecial(Special):
-    def expire(self):
-        self.special = self.__dead__
-
-    def __dead__(self):
-        raise Exception("temporary special invoked outside of its limits")
-
-
-class Macro(Special):
-    def __init__(self, fun, name=None):
-        self.expand = fun
-        self.__name__ = str(name or fun.__name__)
-
-    def special(self, _env, source):
-        called_by, cl = source
-        return self.expand(*cl.unpack())
-
-    def __repr__(self):
-        return "<macro %s>" % self.__name__
-
-
-def make_macro(fun, name=None):
-    if isinstance(fun, Macro):
-        return fun
-
-    else:
-        nom = str(name or fun.__name__)
-        spec = type(nom, (Macro, ), {"__doc__": fun.__doc__})
-        return spec(fun, name)
-
-
-def is_macro(value):
-    return isinstance(value, Macro)
-
-
-def builtin_specials():
-    def gen_wrapper(meth):
-        @wraps(meth)
-        def invoke_special(env, cl):
-            compiler = env.get("__compiler__", None)
-            if not compiler:
-                raise Exception("special invoked without active compiler")
-            return meth(compiler, cl)
-
-        return invoke_special
-
-    for sym, meth in SpecialCodeSpace.all_specials():
-        yield str(sym), make_special(gen_wrapper(meth), sym)
 
 
 def compile_from_ast(astree, env, filename=None):
