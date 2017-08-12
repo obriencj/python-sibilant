@@ -49,10 +49,10 @@ def compile_expr(src_str, **base):
 
 class BuiltinsSetBang(TestCase):
 
-    def test_setbang_var(self):
+    def test_setf_var(self):
         src = """
         (begin
-          (set! o 101)
+          (setf o 101)
           o)
         """
         stmt, env = compile_expr(src, o=100)
@@ -61,7 +61,7 @@ class BuiltinsSetBang(TestCase):
 
         src = """
         (begin
-          (set! o tacos)
+          (setf o tacos)
           o)
         """
         stmt, env = compile_expr(src, o=100, tacos=888)
@@ -70,7 +70,7 @@ class BuiltinsSetBang(TestCase):
 
         src = """
         (let ((x o))
-            (set! x tacos)
+            (setf x tacos)
             x)
         """
         stmt, env = compile_expr(src, o=100, tacos=777)
@@ -79,7 +79,7 @@ class BuiltinsSetBang(TestCase):
 
         src = """
         (begin
-          (set! o (i tacos))
+          (setf o (i tacos))
           o)
         """
         stmt, env = compile_expr(src, o=100, tacos=888, i=lambda x:x)
@@ -88,7 +88,7 @@ class BuiltinsSetBang(TestCase):
 
         src = """
         (let ((x o))
-          (set! x (i tacos))
+          (setf x (i tacos))
           x)
         """
         stmt, env = compile_expr(src, o=100, tacos=777, i=lambda x:x)
@@ -96,11 +96,11 @@ class BuiltinsSetBang(TestCase):
         self.assertEqual(res, 777)
 
 
-    def test_setbang_car(self):
+    def test_setf_car(self):
 
         src = """
         (begin
-          (set! (car o) 9)
+          (setf (car o) 9)
           o)
         """
         stmt, env = compile_expr(src, o=cons(1, 2))
@@ -112,7 +112,7 @@ class BuiltinsSetBang(TestCase):
 
         src = """
         (begin
-          (set! (cdr o) 9)
+          (setf (cdr o) 9)
           o)
         """
         stmt, env = compile_expr(src, o=cons(1, 2))
@@ -124,7 +124,7 @@ class BuiltinsSetBang(TestCase):
 
         src = """
         (begin
-          (set! (item o 1) 9)
+          (setf (item o 1) 9)
           o)
         """
         stmt, env = compile_expr(src, o=[1, 2, 3])
@@ -137,7 +137,7 @@ class BuiltinsSetBang(TestCase):
         o = Object()
         src = """
         (begin
-          (set! o.bar tacos)
+          (setf o.bar tacos)
           o)
         """
         stmt, env = compile_expr(src, o=o, tacos=9)
@@ -149,7 +149,7 @@ class BuiltinsSetBang(TestCase):
         o.foo.bar = Object()
         src = """
         (begin
-          (set! o.foo.bar.z tacos)
+          (setf o.foo.bar.z tacos)
           o)
         """
         stmt, env = compile_expr(src, o=o, tacos=9)
@@ -161,7 +161,7 @@ class BuiltinsSetBang(TestCase):
 
         src = """
         (let ((tacos 999))
-          (set! (global tacos) 9)
+          (setf (global tacos) 9)
           tacos)
         """
         stmt, env = compile_expr(src)
@@ -170,7 +170,7 @@ class BuiltinsSetBang(TestCase):
 
         src = """
         (let ((tacos 999))
-          (set! (global tacos) 9)
+          (setf (global tacos) 9)
           tacos)
         """
         stmt, env = compile_expr(src, tacos=5)

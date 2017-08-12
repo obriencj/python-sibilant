@@ -16,6 +16,30 @@
 ;; license: LGPL v.3
 
 
+;; === defines ===
+
+(defmacro defclass (name bases . &body)
+  `(define ,name (class ,name ,bases ,@&body)))
+
+
+(defmacro defun (name params . &body)
+  `(define ,name (function ,name ,params ,@&body)))
+
+
+;; === macros ===
+
+(defun help-macroexpand-1 (the-macro argbody)
+  (cond ((macro? the-macro)
+	 (apply the-macro.expand argbody))
+	(else
+	 (raise (Exception (% "not a macro %r" the-macro))))))
+
+
+(defmacro macroexpand-1 (expr)
+  `(help-macroexpand-1 ,(car expr) (quote ,(cdr expr))))
+
+
+;; === conditionals ===
 
 (defmacro if (condition true_body . &false_body)
   `(cond (,condition ,true_body)
@@ -32,6 +56,8 @@
   `(cond (,condition 'False)
 	 (else ,@&body)))
 
+
+;; === math shortcuts ===
 
 (defmacro incr (dest . by)
   (cond
@@ -61,6 +87,8 @@
   `(set! ,dest (- ,dest ,by)))
 
 
+;; === imports ===
+
 (defmacro defimport (modulename . &as_name)
   (doc "Import a module and bind it to the global scope")
 
@@ -71,9 +99,9 @@
   (unless (or (nil? &as_name) (== 1 (&as_name.count)))
     (raise (Exception ("unexpected additional arguments to defimport"))))
 
-  (set-var &as_name
-	   (if (nil? &as_name) (item (modulename.split "." 1) 0)
-	     (car &as_name)))
+  (setq &as_name
+	(if (nil? &as_name) (item (modulename.split "." 1) 0)
+	  (car &as_name)))
 
   `(define ,&as_name (import ,(str modulename) (globals))))
 
@@ -92,46 +120,79 @@
 	(byname None))
 
     (while &bindings
-      (set-var current (car &bindings))
+      (setq current (car &bindings))
 
-      (set-var member (if (pair? current) (first current) current))
-      (set-var byname (if (pair? current) (second current) member))
+      (setq member (if (pair? current) (first current) current))
+      (setq byname (if (pair? current) (second current) member))
 
       (coll.append
-       `(define ,byname (getf (import ,(str modulename) (globals) None
-				      (make-list ,(str member)))
+       `(define ,byname (get-attr (import ,(str modulename) (globals) None
+					  (make-list ,(str member)))
 			      ,member)))
 
-      (set-var &bindings (cdr &bindings)))
+      (setq &bindings (cdr &bindings)))
 
     `(begin ,@coll)))
 
 
-(defmacro set! (target value)
-  (cond
-   ((symbol? target)
-    (if (in (str target) ".")
-	(let ((spltrgt (target.rsplit "." 1)))
-	  `(setf ,(item spltrgt 0) ,(item spltrgt 1) ,value))
-	`(set-var ,target ,value)))
+;; === setf and general variables ===
 
-   ((and (proper? target))
-    (let ((trigger (car target)) (dest (cdr target)))
-      `(begin
-	,(cond ((eq 'car trigger) `(set-car ,@dest ,value))
-	       ((eq 'cdr trigger) `(set-cdr ,@dest ,value))
-	       ((eq 'item trigger) `(set-item ,@dest ,value))
-	       ((eq 'global trigger) `(define-global ,@dest ,value)))
-	None)))
+(let ((*gv-forms* (make-dict)))
 
-   (else
-    (raise (Exception (% "invalid set! target %s" target))))))
+  (defun gv-define-setter-fn (name fn)
+    (set-item *gv-forms* name fn)
+    None)
 
+  (defmacro gv-define-setter (name formals . &body)
+    `(gv-define-setter-fn
+      ',name
+      (lambda ,formals ,@&body)))
+
+  (defmacro gv-define-simple-setter (name setter)
+    `(gv-define-setter
+      ,name (dest val) `(,',setter ,@dest ,val)))
+
+  (defmacro setf (target value)
+    (cond
+     ((symbol? target)
+      (if (in (str target) ".")
+	  (let ((spltrgt (target.rsplit "." 1)))
+	    `(set-attr ,(item spltrgt 0) ,(item spltrgt 1) ,value))
+	`(setq ,target ,value)))
+
+     ((and (proper? target) (in *gv-forms* (car target)))
+      ((item *gv-forms* (car target)) (cdr target) value))
+
+     (else
+      (raise (Exception (% "invalid setf target %s" target)))))))
+
+(begin
+  (gv-define-simple-setter attr set-attr)
+  (gv-define-simple-setter car set-car)
+  (gv-define-simple-setter cdr set-cdr)
+  (gv-define-simple-setter item set-item)
+  (gv-define-simple-setter global define-global)
+  (gv-define-setter caar (val x) `(set-car (car ,x) ,val))
+
+  None)
+
+
+;; === local variable definitions ===
+
+(defmacro local (name . &dfn)
+  (let ((target (first &dfn)))
+    (cond ((or (eq target 'function) (eq target 'class))
+	   `(define-local ,(second &dfn) ,&dfn))
+	  (else
+	   (raise (Exception (% "invalid local definition %" target)))))))
+
+
+;; === python object system classes ==
 
 (defmacro method (name params . &body)
   `(let ((*method* (lambda ,params ,@&body))
 	 (*name* ,(str name)))
-     (setf *method* __name__ *name*)
+     (set-attr *method* __name__ *name*)
      (set-item *members* *name* *method*)))
 
 
@@ -142,37 +203,11 @@
 		   (begin ,@&body)
 		   *members*)))
 
-     (set-var *flds* (*body* (dict)))
+     (setq *flds* (*body* (dict)))
      (set-item *flds* "__doc__" *body*.__doc__)
      (type *name*
 	   (make-tuple ,@bases)
 	   *flds*)))
-
-
-(defmacro defclass (name bases . &body)
-  `(define ,name (class ,name ,bases ,@&body)))
-
-
-(defmacro defun (name params . &body)
-  `(define ,name (function ,name ,params ,@&body)))
-
-
-(defmacro local (name . &dfn)
-  (let ((target (first &dfn)))
-    (cond ((or (eq target 'function) (eq target 'class))
-	   `(define-local ,(second &dfn) ,&dfn))
-	  (else
-	   (raise (Exception (% "invalid local definition %" target)))))))
-
-
-(defun help-macroexpand-1 (the-macro argbody)
-  (if (macro? the-macro)
-      (apply the-macro.expand argbody)
-    (raise (Exception (% "not a macro")))))
-
-
-(defmacro macroexpand-1 (expr)
-  `(help-macroexpand-1 ,(car expr) (quote ,(cdr expr))))
 
 
 ;;
