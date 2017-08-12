@@ -14,11 +14,12 @@
 
 
 import dis
+import operator
 
 from abc import ABCMeta, abstractmethod
 from contextlib import contextmanager
 from enum import Enum
-from functools import partial, wraps
+from functools import partial, reduce, wraps
 from itertools import count
 from platform import python_implementation
 from sys import version_info
@@ -59,15 +60,25 @@ class UnsupportedVersion(SibilantException):
 
 
 class Special(object):
+
+    def __new__(cls, fun, name=None, runtime=None):
+        nom = str(name or fun.__name__)
+        cls = type(nom, (cls, ), {"__doc__": fun.__doc__})
+        return object.__new__(cls)
+
     def __init__(self, fun, name=None, runtime=None):
         self.special = fun
+        self.runtime = runtime
         self.__name__ = str(name or fun.__name__)
-        self.__call__ = runtime or self.__nocall__
 
-    def __nocall__(self, *args, **kwds):
-        t = type(self)
-        msg = "Attempt to call %s as runtime function." % t
-        raise TypeError(msg)
+    def __call__(self, *args, **kwds):
+        if self.runtime:
+            return self.runtime(*args, **kwds)
+
+        else:
+            t = type(self)
+            msg = "Attempt to call %s as runtime function." % t
+            raise TypeError(msg)
 
     def __repr__(self):
         return "<special-form %s>" % self.__name__
@@ -76,26 +87,20 @@ class Special(object):
 def make_special(fun, name=None, runtime=None):
     if isinstance(fun, Special):
         return fun
-
     else:
-        nom = str(name or fun.__name__)
-        spec = type(nom, (Special, ), {"__doc__": fun.__doc__})
-        return spec(fun, name=name, runtime=runtime)
+        return Special(fun, name=name, runtime=runtime)
 
 
 def is_special(value):
     return isinstance(value, Special)
 
 
-class TemporarySpecial(Special):
-    def expire(self):
-        self.special = self.__dead__
-
-    def __dead__(self):
-        raise Exception("temporary special invoked outside of its limits")
-
-
 class Macro(Special):
+    def __new__(cls, fun, name=None):
+        nom = str(name or fun.__name__)
+        cls = type(nom, (cls, ), {"__doc__": fun.__doc__})
+        return object.__new__(cls)
+
     def __init__(self, fun, name=None):
         self.expand = fun
         self.__name__ = str(name or fun.__name__)
@@ -116,11 +121,8 @@ class Macro(Special):
 def make_macro(fun, name=None):
     if isinstance(fun, Macro):
         return fun
-
     else:
-        nom = str(name or fun.__name__)
-        spec = type(nom, (Macro, ), {"__doc__": fun.__doc__})
-        return spec(fun, name)
+        return Macro(fun, name=name)
 
 
 def is_macro(value):
@@ -966,6 +968,59 @@ def code_space_for_version(ver=version_info,
     return None
 
 
+def _runtime_and(*vals):
+    res = True
+    for val in vals:
+        res = res and val
+        if not res:
+            break
+    return res
+
+
+def _runtime_or(*vals):
+    res = False
+    for val in vals:
+        res = res or val
+        if res:
+            break
+    return res
+
+
+def _runtime_add(val, *vals):
+    if vals:
+        return reduce(operator.add, vals, val)
+    else:
+        return +val
+
+
+def _runtime_subtract(val, *vals):
+    if vals:
+        return reduce(operator.sub, vals, val)
+    else:
+        return -val
+
+
+def _runtime_multiply(val, *vals):
+    if vals:
+        return reduce(operator.mul, vals, val)
+    else:
+        return 1 * val
+
+
+def _runtime_divide(val, *vals):
+    if vals:
+        return reduce(operator.truediv, vals, val)
+    else:
+        return 1 / val
+
+
+def _runtime_floordivide(val, *vals):
+    if vals:
+        return reduce(operator.floordiv, vals, val)
+    else:
+        return 1 // val
+
+
 class SpecialCodeSpace(CodeSpace):
     """
     Adds special forms to the basic functionality of CodeSpace
@@ -1066,7 +1121,7 @@ class SpecialCodeSpace(CodeSpace):
         return None
 
 
-    @special(_symbol_and)
+    @special(_symbol_and, runtime=_runtime_and)
     def special_and(self, source):
         """
         (and EXPR...)
@@ -1097,7 +1152,7 @@ class SpecialCodeSpace(CodeSpace):
         self.pseudop_label(end_label)
 
 
-    @special(_symbol_or)
+    @special(_symbol_or, runtime=_runtime_or)
     def special_or(self, source):
         """
         (or EXPR...)
@@ -1128,7 +1183,7 @@ class SpecialCodeSpace(CodeSpace):
         self.pseudop_label(end_label)
 
 
-    @special(_symbol_add, _symbol_add_)
+    @special(_symbol_add, _symbol_add_, runtime=_runtime_add)
     def special_add(self, source):
         """
         (+ VAL)
@@ -1160,7 +1215,7 @@ class SpecialCodeSpace(CodeSpace):
         return None
 
 
-    @special(_symbol_sub, _symbol_sub_)
+    @special(_symbol_sub, _symbol_sub_, runtime=_runtime_subtract)
     def special_subtract(self, source):
         """
         (- VAL)
