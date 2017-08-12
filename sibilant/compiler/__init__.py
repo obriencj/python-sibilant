@@ -245,9 +245,9 @@ _CONST_TYPES = (
 
 _symbol_nil = symbol("nil")
 _symbol_doc = symbol("doc")
-_symbol_getf = symbol("getf")
-_symbol_setf = symbol("setf")
-_symbol_set_var = symbol("set-var")
+_symbol_attr = symbol("attr")
+_symbol_set_attr = symbol("set-attr")
+_symbol_setq = symbol("setq")
 _symbol_global = symbol("global")
 _symbol_define = symbol("define")
 _symbol_define_global = symbol("define-global")
@@ -1084,7 +1084,7 @@ class SpecialCodeSpace(CodeSpace):
                 if len(ex) == 1:
                     return self.pseudop_get_var(str(expr))
                 else:
-                    expr = cons(_symbol_getf, *ex, nil)
+                    expr = cons(_symbol_attr, *ex, nil)
                     continue
 
             else:
@@ -1420,15 +1420,15 @@ class SpecialCodeSpace(CodeSpace):
         self._helper_binary(source, self.pseudop_compare_is_not)
 
 
-    @special(_symbol_getf)
-    def special_getf(self, source):
+    @special(_symbol_attr)
+    def special_get_attr(self, source):
         try:
             called_by, (obj, (member, rest)) = source
         except ValueError:
-            raise self.error("too few arguments to getf", source)
+            raise self.error("too few arguments to attr", source)
 
         if not is_nil(rest):
-            raise self.error("too many arguments to getf", source)
+            raise self.error("too many arguments to attr", source)
 
         self.pseudop_position_of(source)
         self.add_expression(obj)
@@ -1438,15 +1438,15 @@ class SpecialCodeSpace(CodeSpace):
         return None
 
 
-    @special(_symbol_setf)
-    def special_setf(self, source):
+    @special(_symbol_set_attr)
+    def special_set_attr(self, source):
         try:
             called_by, (obj, (member, (value, rest))) = source
         except ValueError:
-            raise self.error("too few arguments to setf", source)
+            raise self.error("too few arguments to set-attr", source)
 
         if not is_nil(rest):
-            raise self.error("too many arguments to setf", source)
+            raise self.error("too many arguments to set-attr", source)
 
         self.add_expression(obj)
         self.add_expression(value)
@@ -2150,8 +2150,8 @@ class SpecialCodeSpace(CodeSpace):
         return None
 
 
-    @special(_symbol_set_var)
-    def special_set_var(self, source):
+    @special(_symbol_setq)
+    def special_setq(self, source):
 
         called_by, (binding, body) = source
 

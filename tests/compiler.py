@@ -377,7 +377,7 @@ class TestCompiler(TestCase):
         self.assertEqual(res, exp)
 
 
-    def test_getf(self):
+    def test_attr(self):
 
         o = Object()
         o.foo = Object()
@@ -392,14 +392,14 @@ class TestCompiler(TestCase):
         self.assertEqual(res, 111)
 
         src = """
-        (getf o.foo.bar baz)
+        (attr o.foo.bar baz)
         """
         stmt, env = compile_expr(src, o=o)
         res = stmt()
         self.assertEqual(res, 111)
 
 
-    def test_getf(self):
+    def test_set_attr(self):
 
         o = Object()
         o.foo = Object()
@@ -407,7 +407,7 @@ class TestCompiler(TestCase):
         o.foo.bar.baz = 111
 
         src = """
-        (setf o.foo.bar baz 999)
+        (set-attr o.foo.bar baz 999)
         """
         stmt, env = compile_expr(src, o=o)
         res = stmt()
@@ -415,7 +415,7 @@ class TestCompiler(TestCase):
         self.assertEqual(o.foo.bar.baz, 999)
 
         src = """
-        (setf (getf o.foo bar) baz 888)
+        (set-attr (attr o.foo bar) baz 888)
         """
         stmt, env = compile_expr(src, o=o)
         res = stmt()
@@ -428,7 +428,7 @@ class CompilerClosures(TestCase):
     def test_4(self):
         src = """
         (lambda (a b)
-          (set-var a ((lambda (x) (+ a x)) 9))
+          (setq a ((lambda (x) (+ a x)) 9))
           (cons a b))
         """
         stmt, env = compile_expr(src)
@@ -438,7 +438,7 @@ class CompilerClosures(TestCase):
 
         src = """
         (lambda (a b)
-          (set-var b ((lambda (x) (+ b x)) 9))
+          (setq b ((lambda (x) (+ b x)) 9))
           (cons a b))
         """
         stmt, env = compile_expr(src)
@@ -448,7 +448,7 @@ class CompilerClosures(TestCase):
 
         src = """
         (lambda (a b)
-          (set-var a ((lambda (x) (+ b x)) 9))
+          (setq a ((lambda (x) (+ b x)) 9))
           (cons a b))
         """
         stmt, env = compile_expr(src)
@@ -458,7 +458,7 @@ class CompilerClosures(TestCase):
 
         src = """
         (lambda (a b)
-          (set-var b ((lambda (x) (+ a x)) 9))
+          (setq b ((lambda (x) (+ a x)) 9))
           (cons a b))
         """
         stmt, env = compile_expr(src)
@@ -573,7 +573,7 @@ class CompilerSpecials(TestCase):
         src = """
         (lambda (value)
           (cons (lambda () value)
-                (lambda (v) (set! value v))))
+                (lambda (v) (setq value v))))
         """
 
         stmt, env = compile_expr(src)
@@ -807,7 +807,7 @@ class SpecialWhile(TestCase):
 
         src = """
         (while X
-          (set! X (- X 1))
+          (setq X (- X 1))
           (accumulate X))
         """
         data, accu = make_accumulator()
