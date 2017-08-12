@@ -1241,7 +1241,8 @@ class SpecialBinaryOperators(TestCase):
 
         accu1, good_guy = make_accumulator()
         src = """
-        (or (good_guy 0) (good_guy None) (good_guy False) (good_guy nil))
+        (or (good_guy 0) (good_guy None)
+            (good_guy False) (good_guy nil))
         """
         stmt, env = compile_expr(src, good_guy=good_guy)
         self.assertEqual(stmt(), nil)
