@@ -22,6 +22,10 @@ _builtins.lspy.
 This module and _builtins are then merged together to create the real
 builtins module
 
+This contains re-bindings of common existing Python functions,
+sometimes just under a slightly more lisp-ish name, but in some cases
+also altered to handle the list form of pairs.
+
 author: Christopher O'Brien  <obriencj@gmail.com>
 license: LGPL v.3
 """
@@ -73,7 +77,6 @@ _op(_operator.setitem, "set-item")
 # === useful stuff from functools ===
 
 _op(_functools.partial)
-_op(_functools.reduce)
 
 
 # == sibilant data types ===
@@ -126,7 +129,9 @@ _specials()
 # === some python builtin types ===
 
 def _converters():
+    _unset = object()
     is_pair = _sibilant.is_pair
+    reduce = _functools.reduce
 
     def _as_tuple(value):
         if is_pair(value):
@@ -160,12 +165,53 @@ def _converters():
 
     _op(_count, "count")
 
-    def _apply(fun, arglist):
+    def _apply(fun, arglist=()):
         if is_pair(arglist):
             arglist = arglist.unpack()
         return fun(*arglist)
 
     _op(_apply, "apply", rename=True)
+
+    map_ = map
+
+    def _map(fun, arglist):
+        if is_pair(arglist):
+            arglist = arglist.unpack()
+        return map_(fun, arglist)
+
+    _op(_map, "map", rename=True)
+
+    zip_ = zip
+
+    def _zip(left, right):
+        if is_pair(left):
+            left = left.unpack()
+        if is_pair(right):
+            right = right.unpack()
+        return zip_(left, right)
+
+    _op(_map, "zip", rename=True)
+
+    enumerate_ = enumerate
+
+    def _enumerate(value):
+        if is_pair(value):
+            value = value.unpack()
+        return enumerate_(value)
+
+    _op(_enumerate, "enumerate", rename=True)
+
+    reduce_ = reduce
+
+    def _reduce(fun, values, init=_unset):
+        if is_pair(values):
+            values = values.unpack()
+        if init is _unset:
+            return reduce_(fun, values)
+        else:
+            return reduce_(fun, values, init)
+
+    _op(_reduce, "reduce", rename=True)
 
 
 _converters()
@@ -211,6 +257,7 @@ _op(type)
 _op(int)
 _op(float)
 _op(complex)
+_op(range)
 _op(help, "help")
 _op(dir, "dir")
 _op(_fractions.Fraction, "fraction")

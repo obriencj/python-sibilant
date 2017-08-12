@@ -1110,6 +1110,8 @@ class SpecialWith(TestCase):
 class SpecialBinaryOperators(TestCase):
 
     def test_and(self):
+        # this tests the compiled form of `and`
+
         src = """
         (and 1 2 3)
         """
@@ -1153,7 +1155,56 @@ class SpecialBinaryOperators(TestCase):
         self.assertEqual(accu1, [nil])
 
 
+    def test_apply_and(self):
+        # this tests the run-time application of `and` as a function
+
+        src = """
+        (apply and `(1 2 3))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 3)
+
+        src = """
+        (apply and `(1 0 3))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 0)
+
+        src = """
+        (apply and)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), True)
+
+        accu1, good_guy = make_accumulator()
+        src = """
+        (apply and `(,(good_guy 1) ,(good_guy 0)))
+        """
+        stmt, env = compile_expr(src, good_guy=good_guy)
+        self.assertEqual(stmt(), 0)
+        self.assertEqual(accu1, [1, 0])
+
+        accu1, good_guy = make_accumulator()
+        src = """
+        (apply and `(,(good_guy 0) ,(good_guy 1)))
+        """
+        stmt, env = compile_expr(src, good_guy=good_guy)
+        self.assertEqual(stmt(), 0)
+        self.assertEqual(accu1, [0, 1])
+
+        accu1, good_guy = make_accumulator()
+        src = """
+        (apply and
+               `(,(good_guy nil) ,(good_guy None) ,(good_guy False)))
+        """
+        stmt, env = compile_expr(src, good_guy=good_guy)
+        self.assertEqual(stmt(), nil)
+        self.assertEqual(accu1, [nil, None, False])
+
+
     def test_or(self):
+        # this tests the compiled form of `or`
+
         src = """
         (or 1 2 3)
         """
@@ -1197,7 +1248,60 @@ class SpecialBinaryOperators(TestCase):
         self.assertEqual(accu1, [0, None, False, nil])
 
 
+    def test_apply_or(self):
+        # this tests the run-time application of `or` as a function
+
+        src = """
+        (apply or `(1 2 3))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 1)
+
+        src = """
+        (apply or `(0 0 3))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 3)
+
+        src = """
+        (apply or `())
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), False)
+
+        accu1, good_guy = make_accumulator()
+        src = """
+        (apply or `(,(good_guy 1) ,(good_guy 0)))
+        """
+        stmt, env = compile_expr(src, good_guy=good_guy)
+        self.assertEqual(stmt(), 1)
+        self.assertEqual(accu1, [1, 0])
+        # note: different semantice when used as a runtime function,
+        # no way to stop evaluation of arguments, because arguments
+        # are collected prior to invocation
+
+        accu1, good_guy = make_accumulator()
+        src = """
+        (apply or `(,(good_guy 0) ,(good_guy 1)))
+        """
+        stmt, env = compile_expr(src, good_guy=good_guy)
+        self.assertEqual(stmt(), 1)
+        self.assertEqual(accu1, [0, 1])
+
+        accu1, good_guy = make_accumulator()
+        src = """
+        (apply or
+               `(,(good_guy 0) ,(good_guy None)
+                 ,(good_guy False) ,(good_guy nil)))
+        """
+        stmt, env = compile_expr(src, good_guy=good_guy)
+        self.assertEqual(stmt(), nil)
+        self.assertEqual(accu1, [0, None, False, nil])
+
+
     def test_add(self):
+        # this tests the compiled form of `+`
+
         src = """
         (+ 1)
         """
@@ -1229,7 +1333,43 @@ class SpecialBinaryOperators(TestCase):
         self.assertEqual(stmt(), 0)
 
 
+    def test_apply_add(self):
+        # this tests the run-time application of `+` as a function
+
+        src = """
+        (apply + `(1))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 1)
+
+        src = """
+        (apply + `(-1))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), -1)
+
+        src = """
+        (apply + `(1 2))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 3)
+
+        src = """
+        (apply + `(1 2 3))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 6)
+
+        src = """
+        (apply + `(1 2 -3))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 0)
+
+
     def test_sub(self):
+        # this tests the compiled form of `-`
+
         src = """
         (- 1)
         """
@@ -1256,6 +1396,40 @@ class SpecialBinaryOperators(TestCase):
 
         src = """
         (- 99 1 -2)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 100)
+
+
+    def test_apply_sub(self):
+        # this tests the run-time application of `-` as a function
+
+        src = """
+        (apply - `(1))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), -1)
+
+        src = """
+        (apply - `(-1))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 1)
+
+        src = """
+        (apply - `(2 1))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 1)
+
+        src = """
+        (apply - `(99 1 1))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 97)
+
+        src = """
+        (apply - `(99 1 -2))
         """
         stmt, env = compile_expr(src)
         self.assertEqual(stmt(), 100)
