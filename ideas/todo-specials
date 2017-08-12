@@ -1,7 +1,42 @@
 
-
 These are compiler features that I need to implement, and then a
 special form that can be used to invoke them.
+
+
+Builtin
+  Special
+    these are the actual special forms (try, lambda, begin)
+    .compile  --> pushes bytecode into compiler
+    .expand --> expands sub-expressions
+    .__call__  --> error
+  Operator
+    these are combination compile-time and run-time operators, can be
+    referenced at either time and should have very similar results
+    .compile  --> pushes bytecode into compiler
+    .expand --> expands sub-expressions
+    .__call__  --> runtime version
+  Macro
+    .compile --> calls .expand1
+    .expand_1  --> expands macro form once
+    .expand --> repeatedly expands macro and then expands sub-expressions
+    .__call__ --> error
+
+
+(make-special name
+  (compile (source)
+    ...)
+  (expand (source)
+    ...))
+
+(make-operator name
+  (compile (source)
+    ...)
+  (runtime (formals)
+    ...)
+
+(make-macro name (formals)
+  ...)
+
 
 
 == gen ===
