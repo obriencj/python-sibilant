@@ -18,6 +18,14 @@
 
 ;; === defines ===
 
+(define-global defmacro
+  (macro (function
+	  defmacro (name formals . &body)
+	  (doc "Defines a Macro instance in the current module")
+	  `(define-global ,name
+	     (macro (function ,name ,formals ,@&body))))))
+
+
 (defmacro defclass (name bases . &body)
   `(define ,name (class ,name ,bases ,@&body)))
 

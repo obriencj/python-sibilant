@@ -1314,32 +1314,32 @@ class SpecialCodeSpace(CodeSpace):
         return None
 
 
-    # @special(symbol("while"))
-    def special_new_while(self, source):
+    # # @special(symbol("while"))
+    # def special_new_while(self, source):
 
-        called_by, (test, body) = source
+    #     called_by, (test, body) = source
 
-        looptop = self.gen_label()
-        loopbottom = self.gen_label()
-        eoloop = self.gen_label()
+    #     looptop = self.gen_label()
+    #     loopbottom = self.gen_label()
+    #     eoloop = self.gen_label()
 
-        self.pseudop_const(None)
-        self.pseudop_setup_loop(eoloop)
-        self.pseudop_label(looptop)
-        self.add_expression(test)
-        self.pseudop_pop_jump_if_false(loopbottom)
+    #     self.pseudop_const(None)
+    #     self.pseudop_setup_loop(eoloop)
+    #     self.pseudop_label(looptop)
+    #     self.add_expression(test)
+    #     self.pseudop_pop_jump_if_false(loopbottom)
 
-        # try
-        # except continue
-        # except break
+    #     # try
+    #     # except continue
+    #     # except break
 
-        self.pseudop_jump(looptop)
-        self.pseudop_label(loopbottom)
-        self.pseudop_pop_block()
-        self.pseudop_label(eoloop)
+    #     self.pseudop_jump(looptop)
+    #     self.pseudop_label(loopbottom)
+    #     self.pseudop_pop_block()
+    #     self.pseudop_label(eoloop)
 
-        # no additional transform needed
-        return None
+    #     # no additional transform needed
+    #     return None
 
 
     @special(_symbol_raise)
@@ -1705,46 +1705,46 @@ class SpecialCodeSpace(CodeSpace):
         return None
 
 
-    @special(_symbol_defmacro)
-    def special_defmacro(self, source):
+    # @special(_symbol_defmacro)
+    # def special_defmacro(self, source):
 
-        called_by, (namesym, cl) = source
-        name = str(namesym)
+    #     called_by, (namesym, cl) = source
+    #     name = str(namesym)
 
-        args, body = cl
+    #     args, body = cl
 
-        if is_symbol(args):
-            args = [str(args)]
-            varargs = True
+    #     if is_symbol(args):
+    #         args = [str(args)]
+    #         varargs = True
 
-        elif is_pair(args):
-            varargs = not is_proper(args)
-            args = map(str, args.unpack())
+    #     elif is_pair(args):
+    #         varargs = not is_proper(args)
+    #         args = map(str, args.unpack())
 
-        else:
-            msg = "formals must be symbol or pair, not %r" % type(args)
-            raise self.error(msg, cl)
+    #     else:
+    #         msg = "formals must be symbol or pair, not %r" % type(args)
+    #         raise self.error(msg, cl)
 
-        kid = self.child_context(args=args, varargs=varargs,
-                                 name=name,
-                                 declared_at=self.position_of(source))
+    #     kid = self.child_context(args=args, varargs=varargs,
+    #                              name=name,
+    #                              declared_at=self.position_of(source))
 
-        with kid as subc:
-            subc.helper_begin(body)
-            subc.pseudop_return()
-            code = subc.complete()
+    #     with kid as subc:
+    #         subc.helper_begin(body)
+    #         subc.pseudop_return()
+    #         code = subc.complete()
 
-        self.pseudop_get_var("macro")
-        self.pseudop_lambda(code)
-        self.pseudop_call(1)
+    #     self.pseudop_get_var("macro")
+    #     self.pseudop_lambda(code)
+    #     self.pseudop_call(1)
 
-        self.pseudop_define_global(name)
+    #     self.pseudop_define_global(name)
 
-        # defmacro expression evaluates to None
-        self.pseudop_const(None)
+    #     # defmacro expression evaluates to None
+    #     self.pseudop_const(None)
 
-        # no additional transform needed
-        return None
+    #     # no additional transform needed
+    #     return None
 
 
     @special(_symbol_cond)
