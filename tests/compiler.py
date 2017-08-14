@@ -110,6 +110,34 @@ class TestCompiler(TestCase):
         self.assertRaises(NameError, stmt)
 
 
+    def test_bool(self):
+        src = "True"
+        stmt, env = compile_expr(src)
+        self.assertIs(stmt(), True)
+
+        src = "False"
+        stmt, env = compile_expr(src)
+        self.assertIs(stmt(), False)
+
+        # this is testing that the Pythonic behavior of equating 0
+        # with False, and 1 with True, is not impacting compilation
+        # and storage of those constant values within the same code
+        # block. this is a reproducer for a bug where the constant
+        # values were being combined.
+
+        src = "(make-list True 1 True 1 False 0 False 0)"
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertIs(res[0], True)
+        self.assertIs(res[1], 1)
+        self.assertIs(res[2], True)
+        self.assertIs(res[3], 1)
+        self.assertIs(res[4], False)
+        self.assertIs(res[5], 0)
+        self.assertIs(res[6], False)
+        self.assertIs(res[7], 0)
+
+
     def test_number(self):
         src = "123"
         stmt, env = compile_expr(src)

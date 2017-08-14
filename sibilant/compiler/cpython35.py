@@ -94,7 +94,7 @@ class CPython35(SpecialCodeSpace):
                 yield Opcode.CALL_FUNCTION, n, 0
 
             elif op is Pseudop.CONST:
-                i = self.consts.index(args[0])
+                i = _const_index(self.consts, args[0])
                 yield Opcode.LOAD_CONST, i, 0
 
             elif op is Pseudop.GET_VAR:
@@ -298,6 +298,18 @@ class CPython35(SpecialCodeSpace):
             yield Opcode.LOAD_CONST, ci, 0
             yield Opcode.LOAD_CONST, ni, 0
             yield Opcode.MAKE_FUNCTION, 0, 0
+
+
+def _const_index(of_list, value):
+    # have to use an `is` comparator, because the list.index method
+    # will consider False and 0, and True and 1 to be equivalent,
+    # breaking any constant pools containing those values.
+
+    for index, found in enumerate(of_list):
+        if found is value:
+            return index
+    else:
+        assert False, "missing constant pool index for value %r" % value
 
 
 def apply_jump_labels(coll, jabs, jrel, labels):

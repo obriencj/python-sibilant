@@ -26,15 +26,13 @@
 	     (macro (function ,name ,formals ,@&body))))))
 
 
-(defmacro defclass (name bases . &body)
-  `(define ,name (class ,name ,bases ,@&body)))
-
-
 (defmacro defun (name params . &body)
   `(define ,name (function ,name ,params ,@&body)))
 
 
-;; === macros ===
+(defmacro defclass (name bases . &body)
+  `(define ,name (class ,name ,bases ,@&body)))
+
 
 (defun help-macroexpand-1 (the-macro argbody)
   (cond ((macro? the-macro)
@@ -52,16 +50,16 @@
 (defmacro if (condition true_body . &false_body)
   `(cond (,condition ,true_body)
 	 (else ,(cond (&false_body (car &false_body))
-		      (else False)))))
+		      (else None)))))
 
 
 (defmacro when (condition . &body)
   `(cond (,condition ,@&body)
-	 (else False)))
+	 (else None)))
 
 
 (defmacro unless (condition . &body)
-  `(cond (,condition 'False)
+  `(cond (,condition None)
 	 (else ,@&body)))
 
 
@@ -78,7 +76,7 @@
    (else
     (raise (Exception "too many argument to incr"))))
 
-  `(set! ,dest (+ ,dest ,by)))
+  `(setf ,dest (+ ,dest ,by)))
 
 
 (defmacro decr (dest . by)
@@ -92,7 +90,7 @@
    (else
     (raise (Exception "too many argument to decr"))))
 
-  `(set! ,dest (- ,dest ,by)))
+  `(setf ,dest (- ,dest ,by)))
 
 
 ;; === imports ===

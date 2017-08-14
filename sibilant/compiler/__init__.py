@@ -322,7 +322,7 @@ class CodeSpace(metaclass=ABCMeta):
 
     def declare_const(self, value):
         assert (type(value) in _CONST_TYPES), "invalid const type %r" % value
-        return _list_unique_append(self.consts, value)
+        _list_unique_append(self.consts, value)
 
 
     def declare_var(self, name):
@@ -680,6 +680,7 @@ class CodeSpace(metaclass=ABCMeta):
         code = self.code_bytes(lnt)
 
         consts = tuple(self.consts)
+        # print("consts:", repr(consts))
 
         names = tuple(self.names)
 
@@ -1171,7 +1172,7 @@ class SpecialCodeSpace(CodeSpace):
         Special form for managed context via with
         """
 
-        called_By, (args, body) = source
+        called_by, (args, body) = source
 
         if args.count() != 2:
             msg = "with context must be binding and expression," \
@@ -1224,33 +1225,42 @@ class SpecialCodeSpace(CodeSpace):
 
         called_by, (args, body) = source
 
-        if is_symbol(args):
-            pyargs = [str(args)]
-            varargs = True
+        self.pseudop_position_of(source)
 
-        elif is_pair(args):
-            varargs = not is_proper(args)
-            pyargs = []
-            for arg in args.unpack():
-                if not is_symbol(arg):
-                    raise self.error("formals must be symbols", cdr(source))
-                else:
-                    pyargs.append(str(arg))
+        self.helper_function("<lambda>", args, body,
+                             declared_at=self.position_of(source))
 
-        else:
-            msg = "formals must be symbol or pair, not %r" % type(args)
-            raise self.error(msg, cdr(source))
+        # no additional transform needed
+        return None
 
-        kid = self.child_context(args=pyargs, varargs=varargs,
-                                 name="<lambda>",
-                                 declared_at=self.position_of(source))
 
+    @special(_symbol_function)
+    def special_function(self, source):
+
+        called_by, (namesym, cl) = source
+        args, body = cl
+
+        # todo create the function inside of a closure that has a
+        # single local cell, which is the new function's name. this
+        # will give the function the ability to reference its cell via
+        # that cell.
+
+        name = str(namesym)
+        declared_at = self.position_of(source)
+
+        self.pseudop_position_of(source)
+
+        kid = self.child_context(declared_at=declared_at)
         with kid as subc:
-            subc.helper_begin(body)
+            subc.declare_var(name)
+            subc.helper_function(name, args, body, declared_at=declared_at)
+            subc.pseudop_dup()
+            subc.pseudop_set_var(name)
             subc.pseudop_return()
             code = subc.complete()
 
         self.pseudop_lambda(code)
+        self.pseudop_call(0)
 
         # no additional transform needed
         return None
@@ -1268,15 +1278,10 @@ class SpecialCodeSpace(CodeSpace):
             args.append(str(name))
             vals.append(val)
 
-        kid = self.child_context(args=args, name="<let>",
-                                 declared_at=self.position_of(source))
+        self.pseudop_position_of(source)
 
-        with kid as subc:
-            subc.helper_begin(body)
-            subc.pseudop_return()
-            code = subc.complete()
-
-        self.pseudop_lambda(code)
+        self.helper_function("<let>", args, body,
+                             declared_at=self.position_of(source))
 
         for val in vals:
             self.add_expression(val)
@@ -1287,9 +1292,40 @@ class SpecialCodeSpace(CodeSpace):
         return None
 
 
+    def helper_function(self, name, args, body, declared_at=None):
+        if is_symbol(args):
+            varargs = True
+            args = [str(args)]
+
+        elif is_pair(args):
+            varargs = not is_proper(args)
+            args = map(str, args.unpack())
+
+        elif isinstance(args, (list, tuple)):
+            varargs = False
+            args = map(str, args)
+
+        else:
+            msg = "formals must be symbol or pair, not %r" % type(args)
+            raise self.error(msg, cl)
+
+        if declared_at is None:
+            declared_at = self.position_of(body)
+
+        kid = self.child_context(args=args, varargs=varargs,
+                                 name=name,
+                                 declared_at=declared_at)
+
+        with kid as subc:
+            subc.helper_begin(body)
+            subc.pseudop_return()
+            code = subc.complete()
+
+        self.pseudop_lambda(code)
+
+
     @special(_symbol_while)
     def special_while(self, source):
-
         called_by, (test, body) = source
 
         top = self.gen_label()
@@ -1312,34 +1348,6 @@ class SpecialCodeSpace(CodeSpace):
 
         # no additional transform needed
         return None
-
-
-    # # @special(symbol("while"))
-    # def special_new_while(self, source):
-
-    #     called_by, (test, body) = source
-
-    #     looptop = self.gen_label()
-    #     loopbottom = self.gen_label()
-    #     eoloop = self.gen_label()
-
-    #     self.pseudop_const(None)
-    #     self.pseudop_setup_loop(eoloop)
-    #     self.pseudop_label(looptop)
-    #     self.add_expression(test)
-    #     self.pseudop_pop_jump_if_false(loopbottom)
-
-    #     # try
-    #     # except continue
-    #     # except break
-
-    #     self.pseudop_jump(looptop)
-    #     self.pseudop_label(loopbottom)
-    #     self.pseudop_pop_block()
-    #     self.pseudop_label(eoloop)
-
-    #     # no additional transform needed
-    #     return None
 
 
     @special(_symbol_raise)
@@ -1670,41 +1678,6 @@ class SpecialCodeSpace(CodeSpace):
         return None
 
 
-    @special(_symbol_function)
-    def special_function(self, source):
-
-        called_by, (namesym, cl) = source
-        name = str(namesym)
-
-        args, body = cl
-
-        if is_symbol(args):
-            args = [str(args)]
-            varargs = True
-
-        elif is_pair(args):
-            varargs = not is_proper(args)
-            args = map(str, args.unpack())
-
-        else:
-            msg = "formals must be symbol or pair, not %r" % type(args)
-            raise self.error(msg, cl)
-
-        kid = self.child_context(args=args, varargs=varargs,
-                                 name=name,
-                                 declared_at=self.position_of(source))
-
-        with kid as subc:
-            subc.helper_begin(body)
-            subc.pseudop_return()
-            code = subc.complete()
-
-        self.pseudop_lambda(code)
-
-        # no additional transform needed
-        return None
-
-
     # @special(_symbol_defmacro)
     # def special_defmacro(self, source):
 
@@ -1752,8 +1725,6 @@ class SpecialCodeSpace(CodeSpace):
 
         called_by, cl = source
 
-        self.pseudop_label(self.gen_label())
-
         done = self.gen_label()
         label = self.gen_label()
 
@@ -1762,15 +1733,16 @@ class SpecialCodeSpace(CodeSpace):
             label = self.gen_label()
 
             if test is _symbol_else:
+                # print(repr(body))
                 self.helper_begin(body)
-                self.pseudop_jump(done)
+                self.pseudop_jump_forward(done)
                 break
 
             else:
                 self.add_expression(test)
                 self.pseudop_pop_jump_if_false(label)
                 self.helper_begin(body)
-                self.pseudop_jump(done)
+                self.pseudop_jump_forward(done)
 
         else:
             # there was no else statement, so add a catch-all
@@ -1811,12 +1783,17 @@ class SpecialCodeSpace(CodeSpace):
             return None
 
 
-def _list_unique_append(l, v):
-    if v in l:
-        return l.index(v)
+def _list_unique_append(onto_list, value):
+    # we have to manually loop and use the `is` operator, because the
+    # list.index method will match False with 0 and True with 1, which
+    # incorrectly collapses consts pools when both values are present
+
+    for index, found in enumerate(onto_list):
+        if found is value:
+            return index
     else:
-        l.append(v)
-        return len(l)
+        onto_list.append(value)
+        return len(onto_list)
 
 
 # def op_max_stack(opargs):
