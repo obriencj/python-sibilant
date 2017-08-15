@@ -44,6 +44,14 @@ class TestCompose(TestCase):
         self.assertEqual(col, exp)
 
 
+    def test_keyword(self):
+        src = ":else"
+        col = compose_from_str(src)
+        exp = Keyword((1, 0), ":else")
+
+        self.assertEqual(col, exp)
+
+
     def test_number(self):
         src = "123"
         col = compose_from_str(src)
