@@ -216,7 +216,21 @@ class Reader(object):
 
 
     def _read_string(self, stream, char):
-        pass
+        combine = []
+
+        esc = False
+        for c in iter(stream):
+            if (not esc) and c == '\"':
+                # done deal
+                break
+            esc = (not esc) and c == '\\'
+            combine.append(c)
+
+        if c != '\"':
+            raise ReaderSyntaxError("EOF", stream.position())
+
+        combine = "".join(combine).encode()
+        return Event.VALUE, combine.decode("unicode-escape")
 
 
     def _read_quote(self, stream, char):
@@ -279,10 +293,21 @@ class ReaderStream(object):
 
 
     def position(self):
+        """
+        The line and column of the next character to be read.
+
+        Line numbers start from 1, columns start from 0
+        """
+
         return self.lin, self.col
 
 
     def read(self, count=1):
+        """
+        This analyzes each actual read in order to perform line and column
+        position counting.
+        """
+
         data = self.stream.read(count)
 
         lin = self.lin
@@ -327,7 +352,6 @@ class ReaderStream(object):
         # and then resets it. We call self.read() here so that the
         # col/lineno accumulators can be updated.
         return self.read(index)
-
 
 
 def setup_reader():
