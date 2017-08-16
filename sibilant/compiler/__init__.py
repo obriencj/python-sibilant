@@ -25,7 +25,7 @@ from sys import version_info
 from types import CodeType
 
 from .. import (
-    nil, symbol, is_pair, is_proper, is_symbol,
+    nil, symbol, is_pair, is_proper, is_symbol, is_keyword,
     cons, cdr, is_nil,
     SibilantException,
 )
@@ -639,6 +639,15 @@ class CodeSpace(metaclass=ABCMeta):
     #         self.pseudop_pop()
 
 
+    def helper_keyword(self, kwd):
+        """
+        Pushes a the pseudo ops necessary to put a keyword on the stack
+        """
+        self.pseudop_get_var("keyword")
+        self.pseudop_const(str(kwd))
+        self.pseudop_call(1)
+
+
     def helper_symbol(self, sym):
         """
         Pushes a the pseudo ops necessary to put a symbol on the stack
@@ -815,6 +824,9 @@ class SpecialCodeSpace(CodeSpace):
                 self.pseudop_call(expr.count() - 1)
                 return None
 
+            elif is_keyword(expr):
+                return self.helper_keyword(str(expr))
+
             elif is_symbol(expr):
                 ex = expr.rsplit(".", 1)
                 if len(ex) == 1:
@@ -933,6 +945,9 @@ class SpecialCodeSpace(CodeSpace):
         if body is nil:
             self.pseudop_get_var("nil")
 
+        elif is_keyword(body):
+            self.helper_keyword(body)
+
         elif is_symbol(body):
             self.helper_symbol(body)
 
@@ -982,6 +997,10 @@ class SpecialCodeSpace(CodeSpace):
 
         if marked is nil or marked is _symbol_nil:
             self.pseudop_get_var("nil")
+            return
+
+        elif is_keyword(marked):
+            self.helper_keyword(marked)
             return
 
         elif is_symbol(marked):
@@ -1038,6 +1057,11 @@ class SpecialCodeSpace(CodeSpace):
                 if expr is nil or expr is _symbol_nil:
                     curr_tup += 1
                     self.pseudop_get_var("nil")
+                    continue
+
+                elif is_keyword(expr):
+                    self.helper_keyword(expr)
+                    curr_tup += 1
                     continue
 
                 elif is_symbol(expr):

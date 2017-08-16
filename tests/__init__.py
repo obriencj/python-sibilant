@@ -28,8 +28,8 @@ from sibilant import (
     cons, nil, is_pair, is_proper, is_nil,
     car, cdr, setcar, setcdr, last,
     ref, attr, undefined, deref, setref,
-    symbol, is_symbol,
-    Pair, Nil, Symbol,
+    symbol, is_symbol, keyword, is_keyword,
+    Pair, Nil, Symbol, Keyword,
 )
 
 
@@ -281,6 +281,106 @@ class SymbolTest(TestCase):
 
     def test_against_str(self):
         x = symbol('x')
+
+        self.assertFalse(x is 'x')
+
+        self.assertNotEqual(x, 'x')
+        self.assertNotEqual('x', x)
+
+
+class KeywordTest(TestCase):
+
+    def test_keyword(self):
+        x = keyword('x')
+        y = keyword('x')
+        z = keyword(x)
+
+        self.assertTrue(is_keyword(x))
+        self.assertIsInstance(x, Keyword)
+
+        self.assertEqual(x, x)
+        self.assertEqual(x, y)
+        self.assertEqual(x, z)
+        self.assertEqual(y, x)
+        self.assertEqual(y, y)
+        self.assertEqual(y, z)
+        self.assertEqual(z, x)
+        self.assertEqual(z, y)
+        self.assertEqual(z, z)
+
+        self.assertEqual(id(x), id(y))
+        self.assertEqual(id(y), id(z))
+
+        self.assertTrue(x is y)
+        self.assertTrue(y is z)
+
+        w = keyword('w')
+
+        self.assertNotEqual(x, w)
+        self.assertNotEqual(w, x)
+        self.assertFalse(x is w)
+
+
+    def test_keyword_2(self):
+        w = "X"
+        x = keyword(w)
+        y = keyword(str(x))
+        z = keyword(str(y))
+
+        self.assertEqual(x, x)
+        self.assertEqual(x, y)
+        self.assertEqual(x, z)
+        self.assertEqual(y, x)
+        self.assertEqual(y, y)
+        self.assertEqual(y, z)
+        self.assertEqual(z, x)
+        self.assertEqual(z, y)
+        self.assertEqual(z, z)
+
+        self.assertEqual(id(x), id(y))
+        self.assertEqual(id(y), id(z))
+
+        self.assertTrue(x is y)
+        self.assertTrue(y is z)
+
+        self.assertEqual(id(w), id(str(x)))
+        self.assertEqual(id(w), id(str(y)))
+        self.assertEqual(id(w), id(str(z)))
+
+
+    def test_dict(self):
+        x = keyword('x')
+        y = keyword('y')
+
+        d = dict()
+        d[x] = "cookies"
+        d[y] = "cake"
+        d['x'] = "chicken"
+        d['y'] = "tuna"
+
+        self.assertEqual(d[x], "cookies")
+        self.assertEqual(d[y], "cake")
+        self.assertEqual(d['x'], "chicken")
+        self.assertEqual(d['y'], "tuna")
+
+
+    def test_against_symbol(self):
+        xk = keyword("x")
+        xs = symbol("x")
+
+        self.assertFalse(xk is xs)
+        self.assertNotEqual(xk, xs)
+        self.assertNotEqual(xs, xk)
+
+
+    def test_repr_str(self):
+        x = keyword('x')
+        self.assertEqual(repr(x), "keyword('x')")
+        self.assertEqual(str(x), 'x')
+
+
+    def test_against_str(self):
+        x = keyword('x')
 
         self.assertFalse(x is 'x')
 

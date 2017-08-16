@@ -25,14 +25,14 @@ from abc import ABCMeta, abstractmethod
 from functools import partial
 from io import StringIO
 
-from . import cons, nil, symbol
+from . import cons, nil, symbol, keyword
 from . import SibilantException
 from .parse import Event, parse
 
 
 __all__ = (
     "SibilantSyntaxError",
-    "Node", "List", "Atom", "Symbol",
+    "Node", "List", "Atom", "Symbol", "Keyword",
     "Literal", "Number", "Integer", "Decimal",
     "Fraction", "Complex", "Nil", "String",
     "Marked", "Quote", "Quasi", "Unquote", "Splice",
@@ -163,6 +163,8 @@ class Symbol(Atom):
             cls = None_
         elif token == "...":
             cls = Ellipsis_
+        elif token[0] == ":" or token[-1] == ":":
+            cls = Keyword
 
         return super().__new__(cls)
 
@@ -173,6 +175,12 @@ class Symbol(Atom):
 
 class Literal(Atom):
     pass
+
+
+class Keyword(Symbol):
+
+    def simplify(self, positions):
+        return keyword(self.token.strip(":"))
 
 
 class Number(Literal):
