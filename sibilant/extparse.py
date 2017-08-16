@@ -40,10 +40,13 @@ _quasiquote_sym = symbol("quasiquote")
 _unquote_sym = symbol("unquote")
 _unquotesplicing_sym = symbol("unquote-splicing")
 _splice_sym = symbol("splice")
+_fraction_sym = symbol("fraction")
 
 
 class Event(Enum):
+    VALUE = object()
     DOT = object()
+    SKIP = object()
     CLOSE_PAREN = object()
 
 
@@ -73,27 +76,36 @@ class Reader(object):
         if isinstance(stream, IOBase):
             stream = ReaderStream(stream)
 
-        return self._read(stream)
+        event, pos, value = self._read(stream)
+
+        if event is not Event.VALUE:
+            raise ReaderSyntaxError("invalid syntax", pos)
+
+        return value
 
 
     def _read(self, stream):
-        for c in iter(stream):
-            if c.isspace():
+        while True:
+            stream.skip_whitespace()
+
+            position = stream.position()
+            c = stream.read()
+            macro = self.reader_macros.get(c, self._read_atom)
+
+            event, value = macro(stream, c)
+
+            # print("_read:", event, position, value)
+
+            if event is Event.SKIP:
                 continue
             else:
                 break
-        else:
-            # end of stream without a non-whitespace value
-            return None
 
-        position = stream.position()
-        macro = self.reader_macros.get(c, self._read_atom)
-
-        value = macro(stream, c)
+        # record cons cell locations in the positions map
         if is_pair(value):
-            self.positions[id(value)] = value
+            self.positions[id(value)] = position
 
-        return value
+        return event, position, value
 
 
     def set_macro(self, char, macro_fn, terminating=False):
@@ -121,48 +133,86 @@ class Reader(object):
         atom = c + stream.read_until(self._terms.__contains__)
 
         if atom == ".":
-            return Event.DOT
-        elif decimal_like(atom):
-            return as_decimal(atom)
-        elif fraction_like(atom):
-            return as_fraction(atom)
+            return Event.DOT, None
+        elif atom in ("#t", "True"):
+            value = True
+        elif atom in ("#f", "False"):
+            value = False
+        elif atom == "None":
+            value = None
+        elif atom == "nil":
+            value = nil
+        elif atom == "...":
+            value = ...
         elif complex_like(atom):
-            return as_complex(atom)
+            value = as_complex(atom)
+        elif fraction_like(atom):
+            value = as_fraction(atom)
+        elif decimal_like(atom):
+            value = as_decimal(atom)
         elif keyword_like(atom):
-            return keyword(atom)
+            value = keyword(atom.strip(":"))
         else:
-            return symbol(atom)
+            value = symbol(atom)
+
+        return Event.VALUE, value
 
 
     def _read_pair(self, stream, char):
         if char == ")":
-            return Event.CLOSE_PAREN
+            return Event.CLOSE_PAREN, None
 
-        position = stream.position()
-        head = self._read(stream)
+        result = nil
+        work = result
 
-        if head is Event.CLOSE_PAREN:
-            # terminate the proper list
-            return nil
+        while True:
+            event, position, value = self._read(stream)
 
-        elif head is Event.DOT:
-            # improper list, the next item is the tail
-            tail = self._read(stream)
+            if event is Event.CLOSE_PAREN:
+                if result is nil:
+                    return Event.VALUE, nil
+                else:
+                    work[1] = nil
+                    return Event.VALUE, result
 
-            # test for syntax error -- there shouldn't be anything
-            # left in the list syntax after the dot and tail
-            position = stream.position()
-            rest = self._read(stream)
-            if rest is not Event.CLOSE_PAREN:
-                raise ReaderSyntaxError("invalid use of .", position)
 
-            return tail
+            elif event is Event.DOT:
+                if result is nil:
+                    # haven't put any items into the result yet, dot
+                    # is therefore invalid.
+                    raise ReaderSyntaxError("invalid dotted list",
+                                            position)
 
-        else:
-            # continue the list
-            value = cons(head, self._read_pair(stream, char))
-            self.positions[id(value)] = position
-            return value
+                # improper list, the next item is the tail. Read it
+                # and be done.
+                event, tail_pos, tail = self._read(stream)
+                if event is not Event.VALUE:
+                    raise ReaderSyntaxError("invalid list syntax",
+                                            tail_pos)
+
+                close_event, close_pos, _value = self._read(stream)
+                if close_event is not Event.CLOSE_PAREN:
+                    raise ReaderSyntaxError("invalid use of .",
+                                            close_pos)
+
+                work[1] = tail
+                return Event.VALUE, result
+
+            elif result is nil:
+                # begin the list.
+                result = cons(value, nil)
+                work = result
+                self.positions[id(work)] = position
+                continue
+
+            else:
+                # append to the current list
+                work[1] = cons(value, nil)
+                work = work[1]
+                self.positions[id(work)] = position
+                continue
+
+        return Event.VALUE, result
 
 
     def _read_string(self, stream, char):
@@ -170,35 +220,62 @@ class Reader(object):
 
 
     def _read_quote(self, stream, char):
-        return cons(_quote_sym, self.read(stream), nil)
+        event, pos, child = self._read(stream)
+
+        if event is not Event.VALUE:
+            msg = "invalid use of %s" % char
+            raise ReaderSyntaxError(msg, pos)
+
+        return Event.VALUE, cons(_quote_sym, child, nil)
 
 
     def _read_quasiquote(self, stream, char):
-        return cons(_quasiquote_sym, self.read(stream), nil)
+        event, pos, child = self._read(stream)
+
+        if event is not Event.VALUE:
+            msg = "invalid use of %s" % char
+            raise ReaderSyntaxError(msg, pos)
+
+        return Event.VALUE, cons(_quasiquote_sym, child, nil)
 
 
     def _read_unquote(self, stream, char):
-        child = self.read(stream)
+        event, pos, child = self._read(stream)
+
+        if event is not Event.VALUE:
+            msg = "invalid use of %s" % char
+            raise ReaderSyntaxError(msg, pos)
+
         if is_pair(child) and child[0] is _splice_sym:
-            return cons(_unquotesplicing_sym, child[1])
+            value = cons(_unquotesplicing_sym, child[1])
         else:
-            return cons(_unquote_sym, child, nil)
+            value = cons(_unquote_sym, child, nil)
+
+        return Event.VALUE, value
 
 
     def _read_splice(self, stream, char):
-        return cons(_splice_sym, self.read(stream), nil)
+        event, pos, child = self._read(stream)
+
+        if event is not Event.VALUE:
+            msg = "invalid use of %s" % char
+            raise ReaderSyntaxError(msg, pos)
+
+        return Event.VALUE, cons(_splice_sym, child, nil)
 
 
     def _read_comment(self, stream, char):
-        pass
+        comment = stream.read_until("\n\r".__contains__)
+        return Event.SKIP, comment
 
 
 class ReaderStream(object):
 
+
     def __init__(self, stream):
         self.stream = stream
         self.lin = 1
-        self.col = -1
+        self.col = 0
 
 
     def position(self):
@@ -214,10 +291,10 @@ class ReaderStream(object):
         for c in data:
             if c == "\n":
                 lin += 1
-                col = -1
+                col = 0
                 continue
             elif c == "\r":
-                col = -1
+                col = 0
                 continue
             else:
                 col += 1
@@ -232,35 +309,25 @@ class ReaderStream(object):
         return iter(partial(self.read, 1), '')
 
 
-    def read_eol(self):
-        return self.read_until("\n\r".__contains__)
+    def skip_whitespace(self):
+        self.read_until(lambda c: not c.isspace())
 
 
     def read_until(self, testf):
         stream = self.stream
         start = stream.tell()
 
-        for c in iter(partial(stream.read, 1), ''):
-            if testf(c):
-                end = stream.tell() - 1
+        for index, char in enumerate(iter(partial(stream.read, 1), '')):
+            if testf(char):
                 break
-        else:
-            end = stream.tell()
 
         stream.seek(start, 0)
 
         # note, all the above seeking works on the stream directly,
         # and then resets it. We call self.read() here so that the
         # col/lineno accumulators can be updated.
-        return self.read(end - start)
+        return self.read(index)
 
-
-    def tell(self):
-        return self.stream.tell()
-
-
-    def seek(self, offset, whence):
-        self.stream.seek(offset, whence)
 
 
 def setup_reader():
@@ -279,6 +346,21 @@ fraction_like = regex(r"\d+/\d+").match
 complex_like = regex(r"-?\d*\.?\d+\+\d*\.?\d*[ij]").match
 
 keyword_like = regex(r"^(:.+|.+:)$").match
+
+
+def as_decimal(s):
+    return float(s) if "." in s else int(s)
+
+
+def as_fraction(s):
+    return cons(_fraction_sym, s, nil)
+
+
+def as_complex(s):
+    if s[-1] == "i":
+        return complex(s[:-1] + "j")
+    else:
+        return complex(s)
 
 
 #
