@@ -249,6 +249,20 @@ class TestCompiler(TestCase):
         self.assertEqual(stmt(), symbol("tacos"))
 
 
+    def test_quote_keyword(self):
+        src = "':tacos"
+        stmt, env = compile_expr(src, tacos=5)
+        self.assertIs(stmt(), keyword("tacos"))
+
+        src = "'tacos:"
+        stmt, env = compile_expr(src, tacos=5)
+        self.assertIs(stmt(), keyword("tacos"))
+
+        src = "':tacos:"
+        stmt, env = compile_expr(src, tacos=5)
+        self.assertIs(stmt(), keyword("tacos"))
+
+
     def test_quote_list(self):
         src = "'()"
         stmt, env = compile_expr(src)
