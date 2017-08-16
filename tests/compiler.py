@@ -28,7 +28,10 @@ from unittest import TestCase
 
 import sibilant.builtins
 
-from sibilant import car, cdr, cons, nil, symbol, make_proper
+from sibilant import (
+    car, cdr, cons, nil,
+    symbol, keyword, make_proper,
+)
 
 from sibilant.compiler import (
     macro, is_macro, Macro,
@@ -108,6 +111,20 @@ class TestCompiler(TestCase):
         src = "tacos"
         stmt, env = compile_expr(src)
         self.assertRaises(NameError, stmt)
+
+
+    def test_keyword(self):
+        src = ":tacos"
+        stmt, env = compile_expr(src)
+        self.assertIs(stmt(), keyword("tacos"))
+
+        src = "tacos:"
+        stmt, env = compile_expr(src)
+        self.assertIs(stmt(), keyword("tacos"))
+
+        src = ":tacos:"
+        stmt, env = compile_expr(src)
+        self.assertIs(stmt(), keyword("tacos"))
 
 
     def test_bool(self):
