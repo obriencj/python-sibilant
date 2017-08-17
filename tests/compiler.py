@@ -34,8 +34,8 @@ from sibilant import (
 )
 
 from sibilant.compiler import (
+    iter_compile,
     macro, is_macro, Macro,
-    compile_from_str, compile_from_stream,
 )
 
 import dis
@@ -53,7 +53,8 @@ def basic_env(**base):
 
 def compile_expr(src_str, **base):
     env = basic_env(**base)
-    code = compile_from_str(src_str, env)
+    icode = iter_compile(src_str, env)
+    code = next(icode)
     return partial(eval, code, env), env
 
 
