@@ -24,137 +24,244 @@ license: LGPL v.3
 from io import StringIO
 from unittest import TestCase
 
-from sibilant.parse import Event, parse
+from sibilant import cons, symbol, keyword, nil
+from sibilant.parse import default_reader, source_str
 
 
-def collect_emissions(source):
-    return list(parse(StringIO(source)))
+def parse_source(src_str):
+    reader = default_reader
+    stream = source_str(src_str)
+    return reader.read(stream)
 
 
 class TestParse(TestCase):
 
-    def __init__(self, *args, **kwds):
-        super(TestParse, self).__init__(*args, **kwds)
-        self.maxDiff = None
+
+    def test_nothing(self):
+        src = ""
+        col = parse_source(src)
+        self.assertIs(col, None)
 
 
     def test_symbol(self):
         src = "lambda"
-        col = collect_emissions(src)
-        exp = [(Event.SYMBOL, (1, 0), "lambda")]
-        self.assertEqual(col, exp)
+        col = parse_source(src)
+        self.assertIs(col, symbol("lambda"))
+
+        src = "Number123"
+        col = parse_source(src)
+        self.assertIs(col, symbol("Number123"))
+
+        src = "None"
+        col = parse_source(src)
+        self.assertIs(col, symbol("None"))
+
+        src = "True"
+        col = parse_source(src)
+        self.assertIs(col, symbol("True"))
+
+        src = "False"
+        col = parse_source(src)
+        self.assertIs(col, symbol("False"))
+
+        src = "nil"
+        col = parse_source(src)
+        self.assertIs(col, symbol("nil"))
+
+        src = "..."
+        col = parse_source(src)
+        self.assertIs(col, symbol("..."))
+
+        src = "taco:bell"
+        col = parse_source(src)
+        self.assertIs(col, symbol("taco:bell"))
+
+
+    def test_keyword(self):
+        src = ":x"
+        col = parse_source(src)
+        self.assertIs(col, keyword("x"))
+
+        src = "x:"
+        col = parse_source(src)
+        self.assertIs(col, keyword("x"))
+
+        src = ":x:"
+        col = parse_source(src)
+        self.assertIs(col, keyword("x"))
+        src = ":x"
+        col = parse_source(src)
+        self.assertIs(col, keyword("x"))
+
+        src = "x:"
+        col = parse_source(src)
+        self.assertIs(col, keyword("x"))
+
+        src = ":number-1"
+        col = parse_source(src)
+        self.assertIs(col, keyword("number-1"))
+
+        src = "number-1:"
+        col = parse_source(src)
+        self.assertIs(col, keyword("number-1"))
 
 
     def test_number(self):
         src = "123"
-        col = collect_emissions(src)
-        exp = [(Event.NUMBER, (1, 0), "123")]
-        self.assertEqual(col, exp)
+        col = parse_source(src)
+        self.assertEqual(col, 123)
 
+        src = "-9"
+        col = parse_source(src)
+        self.assertEqual(col, -9)
 
-    def test_sharp(self):
-        src = "#t"
-        col = collect_emissions(src)
-        exp = [(Event.SYMBOL, (1, 0), "#t")]
-        self.assertEqual(col, exp)
+        src = "1.5"
+        col = parse_source(src)
+        self.assertEqual(col, 1.5)
+
+        src = "1+5i"
+        col = parse_source(src)
+        self.assertEqual(col, complex("1+5j"))
+
+        src = "1+5j"
+        col = parse_source(src)
+        self.assertEqual(col, complex("1+5j"))
+
+        src = "1/2"
+        col = parse_source(src)
+        self.assertEqual(col, cons(symbol("fraction"),
+                                   "1/2", nil))
+
+        src = "-1/2"
+        col = parse_source(src)
+        self.assertEqual(col, cons(symbol("fraction"),
+                                   "-1/2", nil))
 
 
     def test_string(self):
         src = '""'
-        col = collect_emissions(src)
-        exp = [(Event.STRING, (1, 0), "")]
-        self.assertEqual(col, exp)
+        col = parse_source(src)
+        self.assertEqual(col, "")
 
         src = ' "" '
-        col = collect_emissions(src)
-        exp = [(Event.STRING, (1, 1), "")]
-        self.assertEqual(col, exp)
+        col = parse_source(src)
+        self.assertEqual(col, "")
 
         src = '"hello world"'
-        col = collect_emissions(src)
-        exp = [(Event.STRING, (1, 0), "hello world")]
-        self.assertEqual(col, exp)
+        col = parse_source(src)
+        self.assertEqual(col, "hello world")
 
-        src = ' "hello world" '
-        col = collect_emissions(src)
-        exp = [(Event.STRING, (1, 1), "hello world")]
-        self.assertEqual(col, exp)
+        src = ' "hello\\n \\tworld" '
+        col = parse_source(src)
+        self.assertEqual(col, "hello\n \tworld")
 
 
     def test_quote_symbol(self):
-        src = "'foo"
-        col = collect_emissions(src)
-        exp = [(Event.QUOTE, (1, 0)),
-               (Event.SYMBOL, (1, 1), "foo")]
-        self.assertEqual(col, exp)
+        src = """
+        'foo
+        """
+        col = parse_source(src)
+        self.assertEqual(col, cons(symbol("quote"),
+                                   symbol("foo"),
+                                   nil))
 
 
     def test_quote_list(self):
-        src = "'(foo bar)"
-        col = collect_emissions(src)
-        exp = [(Event.QUOTE, (1, 0)),
-               (Event.OPEN, (1, 1)),
-               (Event.SYMBOL, (1, 2), "foo"),
-               (Event.SYMBOL, (1, 6), "bar"),
-               (Event.CLOSE, (1, 9))]
-        self.assertEqual(col, exp)
+        src = """
+        '(foo bar)
+        """
+        col = parse_source(src)
+        self.assertEqual(col, cons(symbol("quote"),
+                                   cons(symbol("foo"),
+                                        symbol("bar"),
+                                        nil),
+                                   nil))
+
+        src = """
+        \n'(foo\n bar\n)
+        """
+        col = parse_source(src)
+        self.assertEqual(col, cons(symbol("quote"),
+                                   cons(symbol("foo"),
+                                        symbol("bar"),
+                                        nil),
+                                   nil))
 
 
     def test_quasi(self):
-        src = "`bar"
-        col = collect_emissions(src)
-        exp = [(Event.QUASI, (1, 0)),
-               (Event.SYMBOL, (1, 1), "bar")]
-        self.assertEqual(col, exp)
+        src = """
+        `bar
+        """
+        col = parse_source(src)
+        self.assertEqual(col, cons(symbol("quasiquote"),
+                                   symbol("bar"),
+                                   nil))
 
 
     def test_unquote(self):
-        src = ",baz"
-        col = collect_emissions(src)
-        exp = [(Event.UNQUOTE, (1, 0)),
-               (Event.SYMBOL, (1, 1), "baz")]
-        self.assertEqual(col, exp)
+        src = """
+        ,baz
+        """
+        col = parse_source(src)
+        self.assertEqual(col, cons(symbol("unquote"),
+                                   symbol("baz"),
+                                   nil))
 
 
     def test_splice(self):
-        src = "@qux"
-        col = collect_emissions(src)
-        exp = [(Event.SPLICE, (1, 0)),
-               (Event.SYMBOL, (1, 1), "qux")]
-        self.assertEqual(col, exp)
+        src = """
+        @qux
+        """
+        col = parse_source(src)
+        self.assertEqual(col, cons(symbol("splice"),
+                                   symbol("qux"),
+                                   nil))
 
 
     def test_quote_unquote_splice(self):
-        src = """`(,@foo)"""
-        col = collect_emissions(src)
-        exp = [(Event.QUASI, (1, 0)),
-               (Event.OPEN, (1, 1)),
-               (Event.UNQUOTE, (1, 2)),
-               (Event.SPLICE, (1, 3)),
-               (Event.SYMBOL, (1, 4), "foo"),
-               (Event.CLOSE, (1, 7))]
+        src = """
+        `(,@foo)
+        """
+        col = parse_source(src)
+        exp = cons(symbol("quasiquote"),
+                   cons(cons(symbol("unquote-splicing"),
+                             symbol("foo"),
+                             nil),
+                        nil),
+                   nil)
+        self.assertEqual(col, exp)
+
+        src = """
+        `(,@(foo bar))
+        """
+        col = parse_source(src)
+        exp = cons(symbol("quasiquote"),
+                   cons(cons(symbol("unquote-splicing"),
+                             cons(symbol("foo"),
+                                  symbol("bar"),
+                                  nil),
+                             nil),
+                        nil),
+                   nil)
         self.assertEqual(col, exp)
 
 
     def test_list(self):
         src = "(testing a thing)"
-        col = collect_emissions(src)
-        exp = [(Event.OPEN, (1, 0)),
-               (Event.SYMBOL, (1, 1), "testing"),
-               (Event.SYMBOL, (1, 9), "a"),
-               (Event.SYMBOL, (1, 11), "thing"),
-               (Event.CLOSE, (1, 16))]
+        col = parse_source(src)
+        exp = cons(symbol("testing"),
+                   symbol("a"),
+                   symbol("thing"),
+                   nil)
+
         self.assertEqual(col, exp)
 
 
     def test_dot(self):
         src = "(testing . 123)"
-        col = collect_emissions(src)
-        exp = [(Event.OPEN, (1, 0)),
-               (Event.SYMBOL, (1, 1), "testing"),
-               (Event.DOT, (1, 9)),
-               (Event.NUMBER, (1, 11), "123"),
-               (Event.CLOSE, (1, 14))]
+        col = parse_source(src)
+        exp = cons(symbol("testing"), 123)
+
         self.assertEqual(col, exp)
 
 
@@ -163,16 +270,13 @@ class TestParse(TestCase):
         ( this is
         a test )
         """
-        col = collect_emissions(src)
-        exp = [(Event.NEWLINE, (1, 0)),
-               (Event.OPEN, (2, 8)),
-               (Event.SYMBOL, (2, 10), "this"),
-               (Event.SYMBOL, (2, 15), "is"),
-               (Event.NEWLINE, (2, 17)),
-               (Event.SYMBOL, (3, 8), "a"),
-               (Event.SYMBOL, (3, 10), "test"),
-               (Event.CLOSE, (3, 15)),
-               (Event.NEWLINE, (3, 16))]
+        col = parse_source(src)
+        exp = cons(symbol("this"),
+                   symbol("is"),
+                   symbol("a"),
+                   symbol("test"),
+                   nil)
+
         self.assertEqual(col, exp)
 
 
@@ -182,34 +286,30 @@ class TestParse(TestCase):
         ( this is ; well it's something
         a test ) ; this ought to work
         """
-        col = collect_emissions(src)
-        exp = [(Event.NEWLINE, (1, 0)),
-               (Event.COMMENT, (2, 8), "; Let's check out the comments"),
-               (Event.NEWLINE, (2, 38)),
-               (Event.OPEN, (3, 8)),
-               (Event.SYMBOL, (3, 10), "this"),
-               (Event.SYMBOL, (3, 15), "is"),
-               (Event.COMMENT, (3, 18), "; well it's something"),
-               (Event.NEWLINE, (3, 39)),
-               (Event.SYMBOL, (4, 8), "a"),
-               (Event.SYMBOL, (4, 10), "test"),
-               (Event.CLOSE, (4, 15)),
-               (Event.COMMENT, (4, 17), "; this ought to work"),
-               (Event.NEWLINE, (4, 37))]
+        col = parse_source(src)
+        exp = cons(symbol("this"),
+                   symbol("is"),
+                   symbol("a"),
+                   symbol("test"),
+                   nil)
+
         self.assertEqual(col, exp)
 
 
-    def test_exec_header(self):
-        src = "#! /usr/bin/env sibilant\n" \
-              "(testing . 123)"
+    def test_multi(self):
+        src = """
+        1.0 "2" (3)
+        """
+        strm = source_str(src)
+        read = default_reader.read
 
-        col = collect_emissions(src)
-        exp = [(Event.OPEN, (2, 0)),
-               (Event.SYMBOL, (2, 1), "testing"),
-               (Event.DOT, (2, 9)),
-               (Event.NUMBER, (2, 11), "123"),
-               (Event.CLOSE, (2, 14))]
-        self.assertEqual(col, exp)
+        a = read(strm)
+        b = read(strm)
+        c = read(strm)
+
+        self.assertEqual(a, 1.0)
+        self.assertEqual(b, "2")
+        self.assertEqual(c, cons(3, nil))
 
 
 #

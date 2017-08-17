@@ -23,11 +23,13 @@ Sibilant, a Scheme for Python
 
 from functools import reduce
 from itertools import islice
+from weakref import WeakValueDictionary
 
 
 __all__ = (
     "SibilantException", "NotYetImplemented",
     "symbol", "is_symbol",
+    "keyword", "is_keyword",
 
     "cons", "car", "cdr", "nil",
     "setcar", "setcdr",
@@ -89,6 +91,111 @@ undefined = UndefinedType()
 
 def is_undefined(value):
     return value is undefined
+
+
+class Symbol(object):
+    """
+    symbol type.
+
+    Symbol instances are automatically interned. Symbols are equal
+    only to themselves. Symbols hash the same as their str
+    representation.
+    """
+
+    __slots__ = ("_name", "__weakref__", )
+
+    __intern = WeakValueDictionary()
+
+
+    def __new__(cls, name):
+        # applying str auto-interns
+        name = str(name)
+
+        s = cls.__intern.get(name)
+        if s is None:
+            s = object.__new__(cls)
+            s._name = name
+            cls.__intern[name] = s
+        return s
+
+
+    def __eq__(self, other):
+        return self is other
+
+
+    def __ne__(self, other):
+        return self is not other
+
+
+    def __hash__(self):
+        return self._name.__hash__()
+
+
+    def __repr__(self):
+        return "".join(("symbol(", repr(self._name), ")"))
+
+
+    def __str__(self):
+        return self._name
+
+
+    def split(self, sep=None, maxsplit=-1):
+        cls = type(self)
+        return [cls(s) for s in self._name.split(sep, maxsplit)]
+
+
+    def rsplit(self, sep=None, maxsplit=-1):
+        cls = type(self)
+        return [cls(s) for s in self._name.rsplit(sep, maxsplit)]
+
+
+def symbol(name):
+    if isinstance(name, Symbol):
+        return name
+    else:
+        return Symbol(name)
+
+
+def is_symbol(value):
+    return isinstance(value, Symbol)
+
+
+class Keyword(Symbol):
+    """
+    keyword type.
+
+    keywords are symbols used only as delimeters or markup. evaluation
+    of a keyword as an expression only ever results in the keyword.
+    """
+
+    __intern = WeakValueDictionary()
+
+
+    def __new__(cls, name):
+        # applying str auto-interns
+        name = str(name).strip(":")
+
+        s = cls.__intern.get(name)
+        if s is None:
+            s = object.__new__(cls)
+            s._name = name
+            cls.__intern[name] = s
+        return s
+
+
+    def __repr__(self):
+        return "".join(("keyword(", repr(self._name), ")"))
+
+
+def keyword(name):
+    if isinstance(name, Keyword):
+        return name
+    else:
+        return Keyword(name)
+
+
+def is_keyword(value):
+    return isinstance(value, Keyword)
 
 
 class RefType(object):
@@ -610,71 +717,6 @@ def last(seq):
     for val in iter(seq):
         pass
     return val
-
-
-class Symbol(object):
-    """
-    symbol type.
-
-    Symbol instances are automatically interned. Symbols are equal
-    only to themselves. Symbols hash the same as their str
-    representation.
-    """
-
-    __slots__ = ("_name", )
-
-    __intern = {}
-
-
-    def __new__(cls, name):
-        # applying str auto-interns
-        name = str(name)
-
-        s = cls.__intern.get(name)
-        if s is None:
-            s = super().__new__(cls)
-            s._name = name
-            cls.__intern[name] = s
-        return s
-
-
-    def __eq__(self, other):
-        return self is other
-
-
-    def __ne__(self, other):
-        return self is not other
-
-
-    def __hash__(self):
-        return self._name.__hash__()
-
-
-    def __repr__(self):
-        return "".join(("symbol(", repr(self._name), ")"))
-
-
-    def __str__(self):
-        return self._name
-
-
-    def split(self, sep=None, maxsplit=-1):
-        return [symbol(s) for s in self._name.split(sep, maxsplit)]
-
-
-    def rsplit(self, sep=None, maxsplit=-1):
-        return [symbol(s) for s in self._name.rsplit(sep, maxsplit)]
-
-
-def symbol(name):
-    if isinstance(name, Symbol):
-        return name
-    else:
-        return Symbol(name)
-
-
-def is_symbol(value):
-    return isinstance(value, Symbol)
 
 
 #

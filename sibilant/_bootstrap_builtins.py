@@ -93,6 +93,8 @@ _val(_sibilant.nil, "nil")
 _op(_sibilant.is_nil, "nil?")
 _val(_sibilant.symbol, "symbol")
 _op(_sibilant.is_symbol, "symbol?")
+_val(_sibilant.keyword, "keyword")
+_op(_sibilant.is_keyword, "keyword?")
 
 _op(_sibilant.first, "first")
 _op(_sibilant.second, "second", rename=True)

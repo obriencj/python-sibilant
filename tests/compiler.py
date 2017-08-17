@@ -28,12 +28,15 @@ from unittest import TestCase
 
 import sibilant.builtins
 
-from sibilant import car, cdr, cons, nil, symbol, make_proper
+from sibilant import (
+    car, cdr, cons, nil,
+    symbol, keyword, make_proper,
+)
 
 from sibilant.compiler import (
     make_macro, is_macro, Macro,
     make_special, is_special, Special,
-    compile_from_str, compile_from_stream,
+    iter_compile,
 )
 
 import dis
@@ -51,7 +54,8 @@ def basic_env(**base):
 
 def compile_expr(src_str, **base):
     env = basic_env(**base)
-    code = compile_from_str(src_str, env)
+    icode = iter_compile(src_str, env)
+    code = next(icode)
     return partial(eval, code, env), env
 
 
@@ -109,6 +113,48 @@ class TestCompiler(TestCase):
         src = "tacos"
         stmt, env = compile_expr(src)
         self.assertRaises(NameError, stmt)
+
+
+    def test_keyword(self):
+        src = ":tacos"
+        stmt, env = compile_expr(src)
+        self.assertIs(stmt(), keyword("tacos"))
+
+        src = "tacos:"
+        stmt, env = compile_expr(src)
+        self.assertIs(stmt(), keyword("tacos"))
+
+        src = ":tacos:"
+        stmt, env = compile_expr(src)
+        self.assertIs(stmt(), keyword("tacos"))
+
+
+    def test_bool(self):
+        src = "True"
+        stmt, env = compile_expr(src)
+        self.assertIs(stmt(), True)
+
+        src = "False"
+        stmt, env = compile_expr(src)
+        self.assertIs(stmt(), False)
+
+        # this is testing that the Pythonic behavior of equating 0
+        # with False, and 1 with True, is not impacting compilation
+        # and storage of those constant values within the same code
+        # block. this is a reproducer for a bug where the constant
+        # values were being combined.
+
+        src = "(make-list True 1 True 1 False 0 False 0)"
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertIs(res[0], True)
+        self.assertIs(res[1], 1)
+        self.assertIs(res[2], True)
+        self.assertIs(res[3], 1)
+        self.assertIs(res[4], False)
+        self.assertIs(res[5], 0)
+        self.assertIs(res[6], False)
+        self.assertIs(res[7], 0)
 
 
     def test_number(self):
@@ -203,6 +249,20 @@ class TestCompiler(TestCase):
         src = "'tacos"
         stmt, env = compile_expr(src, tacos=5)
         self.assertEqual(stmt(), symbol("tacos"))
+
+
+    def test_quote_keyword(self):
+        src = "':tacos"
+        stmt, env = compile_expr(src, tacos=5)
+        self.assertIs(stmt(), keyword("tacos"))
+
+        src = "'tacos:"
+        stmt, env = compile_expr(src, tacos=5)
+        self.assertIs(stmt(), keyword("tacos"))
+
+        src = "':tacos:"
+        stmt, env = compile_expr(src, tacos=5)
+        self.assertIs(stmt(), keyword("tacos"))
 
 
     def test_quote_list(self):
@@ -639,7 +699,7 @@ class CompilerSpecials(TestCase):
         self.assertTrue(is_macro(swap_test))
         self.assertEqual(swap_test.__name__, "swap_test")
 
-        self.assertRaises(TypeError, swap_test, 1, 2, 3)
+        self.assertRaises(AttributeError, swap_test, 1, 2, 3)
 
         self.assertEqual(swap_test.expand(1, 2, 3),
                          cons(3, 2, 1, nil))

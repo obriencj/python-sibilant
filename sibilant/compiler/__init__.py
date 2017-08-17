@@ -20,21 +20,21 @@ from abc import ABCMeta, abstractmethod
 from contextlib import contextmanager
 from enum import Enum
 from functools import partial, reduce, wraps
+from io import StringIO, IOBase
 from itertools import count
 from platform import python_implementation
 from sys import version_info
 from types import CodeType
 
 from .. import (
-    nil, symbol, is_pair, is_proper, is_symbol,
-    cons, cdr, is_nil,
     SibilantException,
+    symbol, is_symbol, is_keyword,
+    cons, cdr, is_pair, is_proper, nil, is_nil,
 )
 
-from ..ast import (
+from ..parse import (
     SibilantSyntaxError,
-    compose_from_str, compose_from_stream,
-    compose_all_from_str, compose_all_from_stream,
+    default_reader, source_str, source_stream,
 )
 
 
@@ -44,15 +44,12 @@ __all__ = (
     "CodeSpace", "SpecialCodeSpace",
     "code_space_for_version",
     "macro", "is_macro",
-    "compile_from_str", "compile_from_stream", "compile_from_ast",
+    "iter_compile",
 )
 
 
 class SpecialSyntaxError(SibilantSyntaxError):
-    def __init__(self, message, location):
-        self.message = message
-        if location:
-            self.lineno, self.offset = location
+    pass
 
 
 class UnsupportedVersion(SibilantException):
@@ -299,6 +296,10 @@ _symbol_div = symbol("/")
 _symbol_div_ = symbol("divide")
 _symbol_floordiv = symbol("//")
 _symbol_floordiv_ = symbol("floor-divide")
+_symbol_None = symbol("None")
+_symbol_True = symbol("True")
+_symbol_False = symbol("False")
+_symbol_ellipsis = symbol("...")
 
 
 class CodeSpace(metaclass=ABCMeta):
@@ -443,7 +444,7 @@ class CodeSpace(metaclass=ABCMeta):
 
     def declare_const(self, value):
         assert (type(value) in _CONST_TYPES), "invalid const type %r" % value
-        return _list_unique_append(self.consts, value)
+        _list_unique_append(self.consts, value)
 
 
     def declare_var(self, name):
@@ -840,6 +841,15 @@ class CodeSpace(metaclass=ABCMeta):
     #         self.pseudop_pop()
 
 
+    def helper_keyword(self, kwd):
+        """
+        Pushes a the pseudo ops necessary to put a keyword on the stack
+        """
+        self.pseudop_get_var("keyword")
+        self.pseudop_const(str(kwd))
+        self.pseudop_call(1)
+
+
     def helper_symbol(self, sym):
         """
         Pushes a the pseudo ops necessary to put a symbol on the stack
@@ -881,6 +891,7 @@ class CodeSpace(metaclass=ABCMeta):
         code = self.code_bytes(lnt)
 
         consts = tuple(self.consts)
+        # print("consts:", repr(consts))
 
         names = tuple(self.names)
 
@@ -1044,7 +1055,7 @@ class SpecialCodeSpace(CodeSpace):
         self.pseudop_position_of(expr)
 
         while True:
-            if expr is nil or expr is _symbol_nil:
+            if expr is nil:
                 return self.pseudop_get_var("nil")
 
             elif is_pair(expr):
@@ -1080,11 +1091,10 @@ class SpecialCodeSpace(CodeSpace):
                 return None
 
             elif is_symbol(expr):
-                ex = expr.rsplit(".", 1)
-                if len(ex) == 1:
-                    return self.pseudop_get_var(str(expr))
+                expr = self.compile_symbol(expr)
+                if expr is None:
+                    return
                 else:
-                    expr = cons(_symbol_attr, *ex, nil)
                     continue
 
             else:
@@ -1104,9 +1114,34 @@ class SpecialCodeSpace(CodeSpace):
         self.pseudop_return()
 
 
+    def compile_symbol(self, sym):
+        """
+        The various ways that a symbol on its own can evaluate.
+        """
+
+        # TODO: check if symbol is a macrolet and expand it
+
+        if is_keyword(sym):
+            return self.helper_keyword(str(sym))
+        elif sym is _symbol_None:
+            return self.pseudop_const(None)
+        elif sym is _symbol_True:
+            return self.pseudop_const(True)
+        elif sym is _symbol_False:
+            return self.pseudop_const(False)
+        elif sym is _symbol_ellipsis:
+            return self.pseudop_const(...)
+        else:
+            ex = sym.rsplit(".", 1)
+            if len(ex) == 1:
+                return self.pseudop_get_var(str(sym))
+            else:
+                return cons(_symbol_attr, *ex, nil)
+
+
     def error(self, message, source):
-        return SpecialSyntaxError(message, self.filename,
-                                  self.position_of(source))
+        return SpecialSyntaxError(message, self.position_of(source),
+                                  filename=self.filename)
 
 
     @special(_symbol_doc)
@@ -1487,6 +1522,9 @@ class SpecialCodeSpace(CodeSpace):
         if body is nil:
             self.pseudop_get_var("nil")
 
+        elif is_keyword(body):
+            self.helper_keyword(body)
+
         elif is_symbol(body):
             self.helper_symbol(body)
 
@@ -1536,6 +1574,10 @@ class SpecialCodeSpace(CodeSpace):
 
         if marked is nil or marked is _symbol_nil:
             self.pseudop_get_var("nil")
+            return
+
+        elif is_keyword(marked):
+            self.helper_keyword(marked)
             return
 
         elif is_symbol(marked):
@@ -1592,6 +1634,11 @@ class SpecialCodeSpace(CodeSpace):
                 if expr is nil or expr is _symbol_nil:
                     curr_tup += 1
                     self.pseudop_get_var("nil")
+                    continue
+
+                elif is_keyword(expr):
+                    self.helper_keyword(expr)
+                    curr_tup += 1
                     continue
 
                 elif is_symbol(expr):
@@ -1726,7 +1773,7 @@ class SpecialCodeSpace(CodeSpace):
         Special form for managed context via with
         """
 
-        called_By, (args, body) = source
+        called_by, (args, body) = source
 
         if args.count() != 2:
             msg = "with context must be binding and expression," \
@@ -1779,33 +1826,42 @@ class SpecialCodeSpace(CodeSpace):
 
         called_by, (args, body) = source
 
-        if is_symbol(args):
-            pyargs = [str(args)]
-            varargs = True
+        self.pseudop_position_of(source)
 
-        elif is_pair(args):
-            varargs = not is_proper(args)
-            pyargs = []
-            for arg in args.unpack():
-                if not is_symbol(arg):
-                    raise self.error("formals must be symbols", cdr(source))
-                else:
-                    pyargs.append(str(arg))
+        self.helper_function("<lambda>", args, body,
+                             declared_at=self.position_of(source))
 
-        else:
-            msg = "formals must be symbol or pair, not %r" % type(args)
-            raise self.error(msg, cdr(source))
+        # no additional transform needed
+        return None
 
-        kid = self.child_context(args=pyargs, varargs=varargs,
-                                 name="<lambda>",
-                                 declared_at=self.position_of(source))
 
+    @special(_symbol_function)
+    def special_function(self, source):
+
+        called_by, (namesym, cl) = source
+        args, body = cl
+
+        # todo create the function inside of a closure that has a
+        # single local cell, which is the new function's name. this
+        # will give the function the ability to reference its cell via
+        # that cell.
+
+        name = str(namesym)
+        declared_at = self.position_of(source)
+
+        self.pseudop_position_of(source)
+
+        kid = self.child_context(declared_at=declared_at)
         with kid as subc:
-            subc.helper_begin(body)
+            subc.declare_var(name)
+            subc.helper_function(name, args, body, declared_at=declared_at)
+            subc.pseudop_dup()
+            subc.pseudop_set_var(name)
             subc.pseudop_return()
             code = subc.complete()
 
         self.pseudop_lambda(code)
+        self.pseudop_call(0)
 
         # no additional transform needed
         return None
@@ -1823,15 +1879,10 @@ class SpecialCodeSpace(CodeSpace):
             args.append(str(name))
             vals.append(val)
 
-        kid = self.child_context(args=args, name="<let>",
-                                 declared_at=self.position_of(source))
+        self.pseudop_position_of(source)
 
-        with kid as subc:
-            subc.helper_begin(body)
-            subc.pseudop_return()
-            code = subc.complete()
-
-        self.pseudop_lambda(code)
+        self.helper_function("<let>", args, body,
+                             declared_at=self.position_of(source))
 
         for val in vals:
             self.add_expression(val)
@@ -1842,9 +1893,40 @@ class SpecialCodeSpace(CodeSpace):
         return None
 
 
+    def helper_function(self, name, args, body, declared_at=None):
+        if is_symbol(args):
+            varargs = True
+            args = [str(args)]
+
+        elif is_pair(args):
+            varargs = not is_proper(args)
+            args = map(str, args.unpack())
+
+        elif isinstance(args, (list, tuple)):
+            varargs = False
+            args = map(str, args)
+
+        else:
+            msg = "formals must be symbol or pair, not %r" % type(args)
+            raise self.error(msg, cl)
+
+        if declared_at is None:
+            declared_at = self.position_of(body)
+
+        kid = self.child_context(args=args, varargs=varargs,
+                                 name=name,
+                                 declared_at=declared_at)
+
+        with kid as subc:
+            subc.helper_begin(body)
+            subc.pseudop_return()
+            code = subc.complete()
+
+        self.pseudop_lambda(code)
+
+
     @special(_symbol_while)
     def special_while(self, source):
-
         called_by, (test, body) = source
 
         top = self.gen_label()
@@ -1864,34 +1946,6 @@ class SpecialCodeSpace(CodeSpace):
 
         self.pseudop_jump(top)
         self.pseudop_label(done)
-
-        # no additional transform needed
-        return None
-
-
-    # @special(symbol("while"))
-    def special_new_while(self, source):
-
-        called_by, (test, body) = source
-
-        looptop = self.gen_label()
-        loopbottom = self.gen_label()
-        eoloop = self.gen_label()
-
-        self.pseudop_const(None)
-        self.pseudop_setup_loop(eoloop)
-        self.pseudop_label(looptop)
-        self.add_expression(test)
-        self.pseudop_pop_jump_if_false(loopbottom)
-
-        # try
-        # except continue
-        # except break
-
-        self.pseudop_jump(looptop)
-        self.pseudop_label(loopbottom)
-        self.pseudop_pop_block()
-        self.pseudop_label(eoloop)
 
         # no additional transform needed
         return None
@@ -2225,89 +2279,52 @@ class SpecialCodeSpace(CodeSpace):
         return None
 
 
-    @special(_symbol_function)
-    def special_function(self, source):
+    # @special(_symbol_defmacro)
+    # def special_defmacro(self, source):
 
-        called_by, (namesym, cl) = source
-        name = str(namesym)
+    #     called_by, (namesym, cl) = source
+    #     name = str(namesym)
 
-        args, body = cl
+    #     args, body = cl
 
-        if is_symbol(args):
-            args = [str(args)]
-            varargs = True
+    #     if is_symbol(args):
+    #         args = [str(args)]
+    #         varargs = True
 
-        elif is_pair(args):
-            varargs = not is_proper(args)
-            args = map(str, args.unpack())
+    #     elif is_pair(args):
+    #         varargs = not is_proper(args)
+    #         args = map(str, args.unpack())
 
-        else:
-            msg = "formals must be symbol or pair, not %r" % type(args)
-            raise self.error(msg, cl)
+    #     else:
+    #         msg = "formals must be symbol or pair, not %r" % type(args)
+    #         raise self.error(msg, cl)
 
-        kid = self.child_context(args=args, varargs=varargs,
-                                 name=name,
-                                 declared_at=self.position_of(source))
+    #     kid = self.child_context(args=args, varargs=varargs,
+    #                              name=name,
+    #                              declared_at=self.position_of(source))
 
-        with kid as subc:
-            subc.helper_begin(body)
-            subc.pseudop_return()
-            code = subc.complete()
+    #     with kid as subc:
+    #         subc.helper_begin(body)
+    #         subc.pseudop_return()
+    #         code = subc.complete()
 
-        self.pseudop_lambda(code)
+    #     self.pseudop_get_var("macro")
+    #     self.pseudop_lambda(code)
+    #     self.pseudop_call(1)
 
-        # no additional transform needed
-        return None
+    #     self.pseudop_define_global(name)
 
+    #     # defmacro expression evaluates to None
+    #     self.pseudop_const(None)
 
-    @special(_symbol_defmacro)
-    def special_defmacro(self, source):
-
-        called_by, (namesym, cl) = source
-        name = str(namesym)
-
-        args, body = cl
-
-        if is_symbol(args):
-            args = [str(args)]
-            varargs = True
-
-        elif is_pair(args):
-            varargs = not is_proper(args)
-            args = map(str, args.unpack())
-
-        else:
-            msg = "formals must be symbol or pair, not %r" % type(args)
-            raise self.error(msg, cl)
-
-        kid = self.child_context(args=args, varargs=varargs,
-                                 name=name,
-                                 declared_at=self.position_of(source))
-
-        with kid as subc:
-            subc.helper_begin(body)
-            subc.pseudop_return()
-            code = subc.complete()
-
-        self.pseudop_get_var("macro")
-        self.pseudop_lambda(code)
-        self.pseudop_call(1)
-
-        self.pseudop_define_global(name)
-
-        # defmacro expression evaluates to None
-        self.pseudop_const(None)
-
-        # no additional transform needed
-        return None
+    #     # no additional transform needed
+    #     return None
 
 
     @special(_symbol_cond)
     def special_cond(self, source):
 
         called_by, cl = source
-
-        self.pseudop_label(self.gen_label())
 
         done = self.gen_label()
         label = self.gen_label()
@@ -2317,15 +2334,16 @@ class SpecialCodeSpace(CodeSpace):
             label = self.gen_label()
 
             if test is _symbol_else:
+                # print(repr(body))
                 self.helper_begin(body)
-                self.pseudop_jump(done)
+                self.pseudop_jump_forward(done)
                 break
 
             else:
                 self.add_expression(test)
                 self.pseudop_pop_jump_if_false(label)
                 self.helper_begin(body)
-                self.pseudop_jump(done)
+                self.pseudop_jump_forward(done)
 
         else:
             # there was no else statement, so add a catch-all
@@ -2366,17 +2384,17 @@ class SpecialCodeSpace(CodeSpace):
             return None
 
 
-def builtin_specials():
-    for sym, spec in SpecialCodeSpace.all_specials():
-        yield str(sym), spec
+def _list_unique_append(onto_list, value):
+    # we have to manually loop and use the `is` operator, because the
+    # list.index method will match False with 0 and True with 1, which
+    # incorrectly collapses consts pools when both values are present
 
-
-def _list_unique_append(l, v):
-    if v in l:
-        return l.index(v)
+    for index, found in enumerate(onto_list):
+        if found is value:
+            return index
     else:
-        l.append(v)
-        return len(l)
+        onto_list.append(value)
+        return len(onto_list)
 
 
 # def op_max_stack(opargs):
@@ -2644,43 +2662,79 @@ def temporary_specials(env, **kwds):
                 env[key] = value
 
 
-def compile_from_ast(astree, env, filename=None):
-    positions = {}
+class TemporarySpecial(Special):
+    def expire(self):
+        self.special = self.__dead__
 
-    cl = astree.simplify(positions)
+    def __dead__(self):
+        raise Exception("temporary special invoked outside of its limits")
+
+
+class Macro(Special):
+    def __init__(self, fun, name=None):
+        self.expand = fun
+        self.__name__ = name or fun.__name__
+        self.__doc__ = fun.__doc__
+
+    def special(self, _env, source):
+        called_by, cl = source
+        return self.expand(*cl.unpack())
+
+    def __repr__(self):
+        return "<macro %s>" % self.__name__
+
+
+def macro(fun):
+    if is_macro(fun):
+        return fun
+    else:
+        return Macro(fun)
+
+
+def is_macro(value):
+    return isinstance(value, Macro)
+
+
+def builtin_specials():
+    for sym, meth in SpecialCodeSpace.all_specials():
+        yield str(sym), meth
+
+
+def iter_compile(source, env, filename=None, reader=None):
+
+    if isinstance(source, str):
+        source = source_str(source)
+
+    elif isinstance(source, IOBase):
+        source = source_stream(source)
+
+    if reader is None:
+        reader = default_reader
 
     factory = code_space_for_version(version_info)
     if not factory:
         raise UnsupportedVersion(version_info)
 
-    codespace = factory(filename=filename, positions=positions)
+    positions = source.positions
 
-    with codespace.activate(env):
-        assert(env.get("__compiler__") == codespace)
-        codespace.add_expression_with_return(cl)
-        code = codespace.complete()
+    env["__stream__"] = source
+    env["__reader__"] = reader
+    env["read"] = reader.read
 
-    return code
+    while True:
+        codespace = factory(filename=filename, positions=positions)
+        with codespace.activate(env):
+            assert(env.get("__compiler__") == codespace)
 
+            # read until EOF
+            expr = reader.read(source)
+            if expr is None:
+                break
 
-def compile_from_stream(stream, env, filename=None):
-    astree = compose_from_stream(stream)
-    return compile_from_ast(astree, env)
-
-
-def compile_from_str(src_str, env, filename=None):
-    astree = compose_from_str(src_str)
-    return compile_from_ast(astree, env)
-
-
-def compile_all_from_stream(stream, env):
-    for astree in compose_all_from_stream(stream):
-        yield compile_from_ast(astree, env)
-
-
-def compile_all_from_str(src_str, env):
-    for astree in compose_all_from_str(src_str):
-        yield compile_from_ast(astree, env)
+            # compile
+            codespace.add_expression_with_return(expr)
+            code = codespace.complete()
+        yield code
 
 
 #
