@@ -23,6 +23,7 @@ license: LGPL v.3
 
 from . import symbol, keyword, cons, nil, is_pair
 
+from contextlib import contextmanager
 from enum import Enum
 from functools import partial
 from io import StringIO, IOBase
@@ -30,8 +31,9 @@ from re import compile as regex
 
 
 __all__ = (
-    "set_reader_macro", "read", "position_of",
-    "ReaderStream",
+    "Reader", "ReaderStream",
+    "SibilantSyntaxError", "ReaderSyntaxError",
+    "reader_open", "reader_str",
 )
 
 
@@ -48,40 +50,51 @@ class Event(Enum):
     DOT = object()
     SKIP = object()
     CLOSE_PAREN = object()
+    EOF = object()
 
 
-class ReaderSyntaxError(SyntaxError):
+EOF = Event.EOF
+
+
+class SibilantSyntaxError(SyntaxError):
     def __init__(self, msg, position):
         super().__init__(msg)
         self.position = position
+
+
+class ReaderSyntaxError(SibilantSyntaxError):
+    pass
 
 
 class Reader(object):
 
     def __init__(self):
         self.reader_macros = {}
-        self.positions = {}
         self.terminating = ["\n", "\r", "\t", " "]
         self._terms = "".join(self.terminating)
 
 
-    def position_of(self, value):
-        return self.positions.get(id(value))
+    def read(self, reader_stream):
+        """
+        Returns a cons cell, symbol, or numeric value. Returns None if no
+        data left in stream. Raises ReaderSyntaxError to complain
+        about syntactic difficulties in the stream.
+        """
 
+        if isinstance(reader_stream, str):
+            reader_stream = StringIO(reader_stream)
 
-    def read(self, stream):
-        if isinstance(stream, str):
-            stream = StringIO(stream)
+        if isinstance(reader_stream, IOBase):
+            reader_stream = ReaderStream(reader_stream)
 
-        if isinstance(stream, IOBase):
-            stream = ReaderStream(stream)
+        event, pos, value = self._read(reader_stream)
 
-        event, pos, value = self._read(stream)
-
-        if event is not Event.VALUE:
+        if event is Event.VALUE:
+            return value
+        elif event is Event.EOF:
+            return None
+        else:
             raise ReaderSyntaxError("invalid syntax", pos)
-
-        return value
 
 
     def _read(self, stream):
@@ -90,6 +103,9 @@ class Reader(object):
 
             position = stream.position()
             c = stream.read()
+            if not c:
+                return Event.EOF, position, None
+
             macro = self.reader_macros.get(c, self._read_atom)
 
             event, value = macro(stream, c)
@@ -103,7 +119,7 @@ class Reader(object):
 
         # record cons cell locations in the positions map
         if is_pair(value):
-            self.positions[id(value)] = position
+            stream.record_position(value, position)
 
         return event, position, value
 
@@ -134,16 +150,6 @@ class Reader(object):
 
         if atom == ".":
             return Event.DOT, None
-        elif atom in ("#t", "True"):
-            value = True
-        elif atom in ("#f", "False"):
-            value = False
-        elif atom == "None":
-            value = None
-        elif atom == "nil":
-            value = nil
-        elif atom == "...":
-            value = ...
         elif complex_like(atom):
             value = as_complex(atom)
         elif fraction_like(atom):
@@ -202,14 +208,14 @@ class Reader(object):
                 # begin the list.
                 result = cons(value, nil)
                 work = result
-                self.positions[id(work)] = position
+                stream.record_position(work, position)
                 continue
 
             else:
                 # append to the current list
                 work[1] = cons(value, nil)
                 work = work[1]
-                self.positions[id(work)] = position
+                stream.record_position(work, position)
                 continue
 
         return Event.VALUE, result
@@ -219,6 +225,8 @@ class Reader(object):
         combine = []
 
         esc = False
+
+        c = ""
         for c in iter(stream):
             if (not esc) and c == '\"':
                 # done deal
@@ -227,7 +235,7 @@ class Reader(object):
             combine.append(c)
 
         if c != '\"':
-            raise ReaderSyntaxError("EOF", stream.position())
+            raise ReaderSyntaxError("Unexpected EOF", stream.position())
 
         combine = "".join(combine).encode()
         return Event.VALUE, combine.decode("unicode-escape")
@@ -283,13 +291,38 @@ class Reader(object):
         return Event.SKIP, comment
 
 
+@contextmanager
+def reader_open(filename):
+    with open(filename, "rt") as fs:
+        reader = ReaderStream(fs, filename=filename)
+        reader.skip_exec()
+        yield reader
+
+
+def reader_str(source_str):
+    return ReaderStream(StringIO(source_str))
+
+
 class ReaderStream(object):
 
-
-    def __init__(self, stream):
+    def __init__(self, stream, filename=None):
+        self.filename = filename
         self.stream = stream
         self.lin = 1
         self.col = 0
+        self.positions = {}
+
+
+    def position_of(self, value):
+        return self.positions.get(id(value))
+
+
+    def record_position(self, value, position=None):
+        if position is None:
+            position = self.lin, self.col
+
+        self.positions[id(value)] = position
+        return position
 
 
     def position(self):
@@ -327,6 +360,7 @@ class ReaderStream(object):
 
         self.lin = lin
         self.col = col
+
         return data
 
 
@@ -334,38 +368,48 @@ class ReaderStream(object):
         return iter(partial(self.read, 1), '')
 
 
+    def skip_exec(self):
+        stream = self.stream
+        start = stream.tell()
+
+        if stream.read(2) == "#!":
+            stream.readline()
+            self.lin += 1
+            self.col = 0
+        else:
+            stream.seek(start, 0)
+
+
     def skip_whitespace(self):
-        self.read_until(lambda c: not c.isspace())
+        return self.read_until(lambda c: not c.isspace())
 
 
     def read_until(self, testf):
         stream = self.stream
         start = stream.tell()
 
+        index = 0
         for index, char in enumerate(iter(partial(stream.read, 1), '')):
             if testf(char):
                 break
+        else:
+            index += 1
 
         stream.seek(start, 0)
 
-        # note, all the above seeking works on the stream directly,
-        # and then resets it. We call self.read() here so that the
-        # col/lineno accumulators can be updated.
-        return self.read(index)
+        if index:
+            # note, all the above seeking works on the stream directly,
+            # and then resets it. We call self.read() here so that the
+            # col/lineno accumulators can be updated.
+            return self.read(index)
 
+        else:
+            return ""
 
-def setup_reader():
-    reader = Reader()
-    reader.add_default_macros()
-
-    return reader.set_macro, reader.read, reader.position_of
-
-
-set_reader_macro, read, position_of = setup_reader()
 
 decimal_like = regex(r"-?(\d*\.?\d+|\d+\.?\d*)").match
 
-fraction_like = regex(r"\d+/\d+").match
+fraction_like = regex(r"-?\d+/\d+").match
 
 complex_like = regex(r"-?\d*\.?\d+\+\d*\.?\d*[ij]").match
 

@@ -19,6 +19,7 @@ from abc import ABCMeta, abstractmethod
 from contextlib import contextmanager
 from enum import Enum
 from functools import partial, wraps
+from io import StringIO, IOBase
 from itertools import count
 from platform import python_implementation
 from sys import version_info
@@ -30,10 +31,8 @@ from .. import (
     SibilantException,
 )
 
-from ..ast import (
-    SibilantSyntaxError,
-    compose_from_str, compose_from_stream,
-    compose_all_from_str, compose_all_from_stream,
+from ..parse import (
+    Reader, ReaderStream, SibilantSyntaxError,
 )
 
 
@@ -43,7 +42,7 @@ __all__ = (
     "CodeSpace", "SpecialCodeSpace",
     "code_space_for_version",
     "macro", "is_macro",
-    "compile_from_str", "compile_from_stream", "compile_from_ast",
+    "iter_compile",
 )
 
 
@@ -178,6 +177,10 @@ _symbol_raise = symbol("raise")
 _symbol_try = symbol("try")
 _symbol_else = symbol("else")
 _symbol_finally = symbol("finally")
+_symbol_None = symbol("None")
+_symbol_True = symbol("True")
+_symbol_False = symbol("False")
+_symbol_ellipsis = symbol("...")
 
 
 class CodeSpace(metaclass=ABCMeta):
@@ -789,7 +792,7 @@ class SpecialCodeSpace(CodeSpace):
         self.pseudop_position_of(expr)
 
         while True:
-            if expr is nil or expr is _symbol_nil:
+            if expr is nil:
                 return self.pseudop_get_var("nil")
 
             elif is_pair(expr):
@@ -824,15 +827,11 @@ class SpecialCodeSpace(CodeSpace):
                 self.pseudop_call(expr.count() - 1)
                 return None
 
-            elif is_keyword(expr):
-                return self.helper_keyword(str(expr))
-
             elif is_symbol(expr):
-                ex = expr.rsplit(".", 1)
-                if len(ex) == 1:
-                    return self.pseudop_get_var(str(expr))
+                expr = self.compile_symbol(expr)
+                if expr is None:
+                    return
                 else:
-                    expr = cons(_symbol_attr, *ex, nil)
                     continue
 
             else:
@@ -860,6 +859,31 @@ class SpecialCodeSpace(CodeSpace):
         """
         self.add_expression(expr)
         self.pseudop_return()
+
+
+    def compile_symbol(self, sym):
+        """
+        The various ways that a symbol on its own can evaluate.
+        """
+
+        # TODO: check if symbol is a macrolet and expand it
+
+        if is_keyword(sym):
+            return self.helper_keyword(str(sym))
+        elif sym is _symbol_None:
+            return self.pseudop_const(None)
+        elif sym is _symbol_True:
+            return self.pseudop_const(True)
+        elif sym is _symbol_False:
+            return self.pseudop_const(False)
+        elif sym is _symbol_ellipsis:
+            return self.pseudop_const(...)
+        else:
+            ex = sym.rsplit(".", 1)
+            if len(ex) == 1:
+                return self.pseudop_get_var(str(sym))
+            else:
+                return cons(_symbol_attr, *ex, nil)
 
 
     def error(self, message, source):
@@ -2153,43 +2177,40 @@ def builtin_specials():
         yield str(sym), Special(gen_wrapper(meth), name=sym)
 
 
-def compile_from_ast(astree, env, filename=None):
-    positions = {}
+def iter_compile(source, env, filename=None):
+    if isinstance(source, str):
+        source = StringIO(source)
 
-    cl = astree.simplify(positions)
+    if isinstance(source, IOBase):
+        source = ReaderStream(source)
+
+    reader = Reader()
+    reader.add_default_macros()
 
     factory = code_space_for_version(version_info)
     if not factory:
         raise UnsupportedVersion(version_info)
 
-    codespace = factory(filename=filename, positions=positions)
+    positions = source.positions
 
-    with codespace.activate(env):
-        assert(env.get("__compiler__") == codespace)
-        codespace.add_expression_with_return(cl)
-        code = codespace.complete()
+    env["__stream__"] = source
+    env["__reader__"] = reader
+    env["read"] = reader.read
 
-    return code
+    while True:
+        codespace = factory(filename=filename, positions=positions)
+        with codespace.activate(env):
+            assert(env.get("__compiler__") == codespace)
 
+            # read until EOF
+            expr = reader.read(source)
+            if expr is None:
+                break
 
-def compile_from_stream(stream, env, filename=None):
-    astree = compose_from_stream(stream)
-    return compile_from_ast(astree, env)
-
-
-def compile_from_str(src_str, env, filename=None):
-    astree = compose_from_str(src_str)
-    return compile_from_ast(astree, env)
-
-
-def compile_all_from_stream(stream, env):
-    for astree in compose_all_from_stream(stream):
-        yield compile_from_ast(astree, env)
-
-
-def compile_all_from_str(src_str, env):
-    for astree in compose_all_from_str(src_str):
-        yield compile_from_ast(astree, env)
+            # compile
+            codespace.add_expression_with_return(expr)
+            code = codespace.complete()
+        yield code
 
 
 #

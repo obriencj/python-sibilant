@@ -28,7 +28,7 @@ import sibilant.builtins
 
 from sibilant import car, cdr, cons, nil, symbol
 
-from sibilant.compiler import compile_from_str
+from sibilant.compiler import iter_compile
 
 
 class Object(object):
@@ -43,7 +43,8 @@ def basic_env(**base):
 
 def compile_expr(src_str, **base):
     env = basic_env(**base)
-    code = compile_from_str(src_str, env)
+    icode = iter_compile(src_str, env)
+    code = next(icode)
     return partial(eval, code, env), env
 
 
