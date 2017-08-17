@@ -63,19 +63,20 @@ class Special(object):
         cls = type(nom, (cls, ), {"__doc__": fun.__doc__})
         return object.__new__(cls)
 
+
     def __init__(self, fun, name=None, runtime=None):
         self.special = fun
         self.runtime = runtime
         self.__name__ = str(name or fun.__name__)
 
+
     def __call__(self, *args, **kwds):
         if self.runtime:
             return self.runtime(*args, **kwds)
-
         else:
-            t = type(self)
-            msg = "Attempt to call %s as runtime function." % t
+            msg = "Attempt to call %s as runtime function." % self.__name__
             raise TypeError(msg)
+
 
     def __repr__(self):
         return "<special-form %s>" % self.__name__
@@ -98,18 +99,21 @@ class Macro(Special):
         cls = type(nom, (cls, ), {"__doc__": fun.__doc__})
         return object.__new__(cls)
 
+
     def __init__(self, fun, name=None):
         self.expand = fun
         self.__name__ = str(name or fun.__name__)
 
+
     def __call__(self, *args, **kwds):
-        t = type(self)
-        msg = "Attempt to call %s as runtime function." % t
+        msg = "Attempt to call %s as runtime function." % self.__name__
         raise TypeError(msg)
+
 
     def special(self, _env, source):
         called_by, cl = source
         return self.expand(*cl.unpack())
+
 
     def __repr__(self):
         return "<macro %s>" % self.__name__
@@ -2668,31 +2672,6 @@ class TemporarySpecial(Special):
 
     def __dead__(self):
         raise Exception("temporary special invoked outside of its limits")
-
-
-class Macro(Special):
-    def __init__(self, fun, name=None):
-        self.expand = fun
-        self.__name__ = name or fun.__name__
-        self.__doc__ = fun.__doc__
-
-    def special(self, _env, source):
-        called_by, cl = source
-        return self.expand(*cl.unpack())
-
-    def __repr__(self):
-        return "<macro %s>" % self.__name__
-
-
-def macro(fun):
-    if is_macro(fun):
-        return fun
-    else:
-        return Macro(fun)
-
-
-def is_macro(value):
-    return isinstance(value, Macro)
 
 
 def builtin_specials():

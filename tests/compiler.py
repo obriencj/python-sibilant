@@ -699,7 +699,7 @@ class CompilerSpecials(TestCase):
         self.assertTrue(is_macro(swap_test))
         self.assertEqual(swap_test.__name__, "swap_test")
 
-        self.assertRaises(AttributeError, swap_test, 1, 2, 3)
+        self.assertRaises(TypeError, swap_test, 1, 2, 3)
 
         self.assertEqual(swap_test.expand(1, 2, 3),
                          cons(3, 2, 1, nil))
