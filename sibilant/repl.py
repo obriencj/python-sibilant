@@ -26,8 +26,8 @@ import sibilant.builtins
 
 from traceback import print_exc
 
-from sibilant.ast import compose_all_from_str
-from sibilant.compiler import compile_from_ast
+from sibilant.compiler import iter_compile
+from sibilant.parse import Reader, ReaderSyntaxError
 
 
 def basic_env(**base):
@@ -52,12 +52,16 @@ def repl(stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr,
     print("sibilant > ", end="", file=stdout)
     stdout.flush()
 
+    reader = Reader()
+    reader.add_default_macros()
+
     for line in stdin:
         try:
-            for astree in compose_all_from_str(line):
-                code = compile_from_ast(astree, env)
-                result = eval(code, env)
+            for code in iter_compile(line, env,
+                                     filename="<repl>",
+                                     reader=reader):
 
+                result = eval(code, env)
                 env['_'] = result
                 if result is not None:
                     print(result, file=stdout)
@@ -66,6 +70,10 @@ def repl(stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr,
             print(ki, file=stderr)
             stderr.flush()
             break
+
+        except ReaderSyntaxError as rse:
+            print(rse, file=stderr)
+            stderr.flush()
 
         except Exception as se:
             print_exc(file=stderr)

@@ -2177,15 +2177,16 @@ def builtin_specials():
         yield str(sym), Special(gen_wrapper(meth), name=sym)
 
 
-def iter_compile(source, env, filename=None):
+def iter_compile(source, env, filename=None, reader=None):
     if isinstance(source, str):
         source = StringIO(source)
 
     if isinstance(source, IOBase):
         source = ReaderStream(source)
 
-    reader = Reader()
-    reader.add_default_macros()
+    if reader is None:
+        reader = Reader()
+        reader.add_default_macros()
 
     factory = code_space_for_version(version_info)
     if not factory:
