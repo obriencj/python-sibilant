@@ -115,6 +115,18 @@ class TestParse(TestCase):
         col = parse_source(src)
         self.assertEqual(col, -9)
 
+        src = "0xfe"
+        col = parse_source(src)
+        self.assertEqual(col, 0xfe)
+
+        src = "0o74"
+        col = parse_source(src)
+        self.assertEqual(col, 0o74)
+
+        src = "0b101"
+        col = parse_source(src)
+        self.assertEqual(col, 0b101)
+
         src = "1.5"
         col = parse_source(src)
         self.assertEqual(col, 1.5)
