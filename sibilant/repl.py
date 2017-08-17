@@ -24,7 +24,7 @@ license: LGPL v.3
 import sys
 import sibilant.builtins
 
-from traceback import print_exc
+from traceback import format_exception, format_exception_only
 
 from sibilant.compiler import iter_compile
 from sibilant.parse import ReaderSyntaxError, default_reader
@@ -62,23 +62,23 @@ def repl(stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr,
             for code in iter_compile(line, env,
                                      filename="<repl>",
                                      reader=reader):
-
-                result = eval(code, env)
-                env['_'] = result
-                if result is not None:
-                    print(result, file=stdout)
+                if code:
+                    result = eval(code, env)
+                    env['_'] = result
+                    if result is not None:
+                        print(result, file=stdout)
 
         except KeyboardInterrupt as ki:
             print(ki, file=stderr)
             stderr.flush()
             break
 
-        except ReaderSyntaxError as rse:
-            print(rse, file=stderr)
+        except SyntaxError as rse:
+            show_syntaxerr(file=stderr)
             stderr.flush()
 
         except Exception as se:
-            print_exc(file=stderr)
+            show_traceback(file=stderr)
             stderr.flush()
 
         print("sibilant > ", end="", file=stdout)
@@ -86,6 +86,32 @@ def repl(stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr,
 
     print(file=stdout)
     return env
+
+
+def show_syntaxerr(file=sys.stderr):
+    type_, value, tb = sys.exc_info()
+    sys.last_type = type_
+    sys.last_value = value
+    sys.last_traceback = tb
+
+    lines = format_exception_only(type_, value)
+    print(''.join(lines), file=file)
+
+
+def show_traceback(skip=1, file=sys.stderr):
+    sys.last_type, sys.last_value, last_tb = ei = sys.exc_info()
+    sys.last_traceback = last_tb
+
+    while skip >= 0:
+        last_tb = last_tb.tb_next
+        skip -= 1
+
+    try:
+        lines = format_exception(ei[0], ei[1], last_tb)
+        print(''.join(lines), file=file)
+
+    finally:
+        last_tb = ei = None
 
 
 #

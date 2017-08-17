@@ -48,10 +48,7 @@ __all__ = (
 
 
 class SpecialSyntaxError(SibilantSyntaxError):
-    def __init__(self, message, location):
-        self.message = message
-        if location:
-            self.lineno, self.offset = location
+    pass
 
 
 class UnsupportedVersion(SibilantException):
@@ -888,7 +885,8 @@ class SpecialCodeSpace(CodeSpace):
 
 
     def error(self, message, source):
-        return SpecialSyntaxError(message, self.position_of(source))
+        return SpecialSyntaxError(message, self.position_of(source),
+                                  filename=self.filename)
 
 
     @special(_symbol_doc)

@@ -57,9 +57,11 @@ EOF = Event.EOF
 
 
 class SibilantSyntaxError(SyntaxError):
-    def __init__(self, msg, position):
-        super().__init__(msg)
-        self.position = position
+    def __init__(self, message, location=None, filename=None):
+        self.message = message
+        self.filename = filename
+        if location:
+            self.lineno, self.offset = location
 
 
 class ReaderSyntaxError(SibilantSyntaxError):
@@ -94,7 +96,7 @@ class Reader(object):
         elif event is Event.EOF:
             return None
         else:
-            raise ReaderSyntaxError("invalid syntax", pos)
+            raise reader_stream.error("invalid syntax", pos)
 
 
     def _read(self, stream):
@@ -192,23 +194,26 @@ class Reader(object):
                 if result is nil:
                     # haven't put any items into the result yet, dot
                     # is therefore invalid.
-                    raise ReaderSyntaxError("invalid dotted list",
-                                            position)
+                    raise stream.error("invalid dotted list",
+                                       position)
 
                 # improper list, the next item is the tail. Read it
                 # and be done.
                 event, tail_pos, tail = self._read(stream)
                 if event is not Event.VALUE:
-                    raise ReaderSyntaxError("invalid list syntax",
-                                            tail_pos)
+                    raise stream.error("invalid list syntax",
+                                       tail_pos)
 
                 close_event, close_pos, _value = self._read(stream)
                 if close_event is not Event.CLOSE_PAREN:
-                    raise ReaderSyntaxError("invalid use of .",
-                                            close_pos)
+                    raise stream.error("invalid use of dot in list",
+                                       close_pos)
 
                 work[1] = tail
                 return Event.VALUE, result
+
+            elif event is Event.EOF:
+                raise stream.error("unexpected EOF")
 
             elif result is nil:
                 # begin the list.
@@ -241,7 +246,7 @@ class Reader(object):
             combine.append(c)
 
         if c != '\"':
-            raise ReaderSyntaxError("Unexpected EOF", stream.position())
+            raise stream.error("Unexpected EOF")
 
         combine = "".join(combine).encode()
         return Event.VALUE, combine.decode("unicode-escape")
@@ -252,7 +257,7 @@ class Reader(object):
 
         if event is not Event.VALUE:
             msg = "invalid use of %s" % char
-            raise ReaderSyntaxError(msg, pos)
+            raise stream.error(msg, pos)
 
         return Event.VALUE, cons(_quote_sym, child, nil)
 
@@ -262,7 +267,7 @@ class Reader(object):
 
         if event is not Event.VALUE:
             msg = "invalid use of %s" % char
-            raise ReaderSyntaxError(msg, pos)
+            raise stream.error(msg, pos)
 
         return Event.VALUE, cons(_quasiquote_sym, child, nil)
 
@@ -272,7 +277,7 @@ class Reader(object):
 
         if event is not Event.VALUE:
             msg = "invalid use of %s" % char
-            raise ReaderSyntaxError(msg, pos)
+            raise stream.error(msg, pos)
 
         if is_pair(child) and child[0] is _splice_sym:
             value = cons(_unquotesplicing_sym, child[1])
@@ -287,7 +292,7 @@ class Reader(object):
 
         if event is not Event.VALUE:
             msg = "invalid use of %s" % char
-            raise ReaderSyntaxError(msg, pos)
+            raise stream.error(msg, pos)
 
         return Event.VALUE, cons(_splice_sym, child, nil)
 
@@ -347,6 +352,13 @@ class SourceStream(object):
         """
 
         return self.lin, self.col
+
+
+    def error(self, message, position=None):
+        if position is None:
+            position = self.lin, self.col
+
+        return ReaderSyntaxError(message, position, filename=self.filename)
 
 
     def read(self, count=1):
