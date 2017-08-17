@@ -173,7 +173,7 @@ class Keyword(Symbol):
 
     def __new__(cls, name):
         # applying str auto-interns
-        name = str(name)
+        name = str(name).strip(":")
 
         s = cls.__intern.get(name)
         if s is None:

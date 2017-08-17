@@ -24,7 +24,6 @@ license: LGPL v.3
 from . import symbol, keyword, cons, nil, is_pair
 
 from contextlib import contextmanager
-from enum import Enum
 from functools import partial
 from io import StringIO, IOBase
 from re import compile as regex
@@ -45,15 +44,37 @@ _splice_sym = symbol("splice")
 _fraction_sym = symbol("fraction")
 
 
-class Event(Enum):
-    VALUE = object()
-    DOT = object()
-    SKIP = object()
-    CLOSE_PAREN = object()
-    EOF = object()
+_integer_like = partial(regex(r"-?\d+").match)
+
+_decimal_like = partial(regex(r"-?(\d*\.\d+|\d+\.\d*)").match)
+
+_fraction_like = partial(regex(r"-?\d+/\d+").match)
+
+_complex_like = partial(regex(r"-?\d*\.?\d+\+\d*\.?\d*[ij]").match)
+
+_keyword_like = partial(regex(r"^(:.+|.+:)$").match)
+
+_as_decimal = partial(float)
+
+_as_integer = partial(int)
 
 
-EOF = Event.EOF
+def _as_fraction(s):
+    return cons(_fraction_sym, s, nil)
+
+
+def _as_complex(s):
+    if s[-1] == "i":
+        return complex(s[:-1] + "j")
+    else:
+        return complex(s)
+
+
+VALUE = keyword("value")
+DOT = keyword("dot")
+SKIP = keyword("skip")
+CLOSE_PAREN = keyword("close-pair")
+EOF = keyword("eof")
 
 
 class SibilantSyntaxError(SyntaxError):
@@ -70,10 +91,15 @@ class ReaderSyntaxError(SibilantSyntaxError):
 
 class Reader(object):
 
-    def __init__(self):
+    def __init__(self, nodefaults=False):
         self.reader_macros = {}
+        self.atom_patterns = []
         self.terminating = ["\n", "\r", "\t", " "]
         self._terms = "".join(self.terminating)
+
+        if not nodefaults:
+            self._add_default_macros()
+            self._add_default_atoms()
 
 
     def read(self, reader_stream):
@@ -91,9 +117,10 @@ class Reader(object):
 
         event, pos, value = self._read(reader_stream)
 
-        if event is Event.VALUE:
+        if event is VALUE:
             return value
-        elif event is Event.EOF:
+        elif event is EOF:
+            # TODO: could probably raise error?
             return None
         else:
             raise reader_stream.error("invalid syntax", pos)
@@ -106,7 +133,7 @@ class Reader(object):
             position = stream.position()
             c = stream.read()
             if not c:
-                return Event.EOF, position, None
+                return EOF, position, None
 
             macro = self.reader_macros.get(c, self._read_atom)
 
@@ -114,7 +141,7 @@ class Reader(object):
 
             # print("_read:", event, position, value)
 
-            if event is Event.SKIP:
+            if event is SKIP:
                 continue
             else:
                 break
@@ -135,11 +162,22 @@ class Reader(object):
         self._terms = "".join(self.terminating)
 
 
-    def add_default_macros(self):
+    def get_event_macro(self, char):
+        return self.reader_macros.get(char)
+
+
+    def set_macro_character(self, char, macro_fn, terminating=False):
+        def macro_adapter(stream, char):
+            return VALUE, macro_fn(stream, char)
+        self.set_event_macro(char, macro_adapter, terminating)
+
+
+    def _add_default_macros(self):
         sm = self.set_event_macro
 
-        sm("()", self._read_pair, True)
-        sm('""', self._read_string, True)
+        sm("(", self._read_pair, True)
+        sm(")", self._close_paren, True)
+        sm('"', self._read_string, True)
         sm("'", self._read_quote, True)
         sm("`", self._read_quasiquote, True)
         sm(",", self._read_unquote, True)
@@ -147,34 +185,59 @@ class Reader(object):
         sm(";", self._read_comment, True)
 
 
-    def set_macro_character(self, char, macro_fn, terminating=False):
-        def macro_adapter(stream, char):
-            return Event.VALUE, macro_fn(stream, char)
-        self.set_event_macro(char, macro_adapter, terminating)
+    def set_atom_pattern(self, namesym, match_fn, conversion_fn):
+        for patt in self.atom_patterns:
+            if patt[0] is namesym:
+                patt[1] = match_fn
+                patt[2] = conversion_fn
+                break
+        else:
+            self.atom_patterns.insert(0, [namesym, match_fn, conversion_fn])
+
+
+    def get_atom_pattern(self, namesym):
+        for patt in self.atom_patterns:
+            if patt[0] is namesym:
+                return patt
+        else:
+            return None
+
+
+    def _add_default_atoms(self):
+        ap = self.set_atom_pattern
+
+        ap(symbol("keyword"), _keyword_like, keyword)
+        ap(symbol("int"), _integer_like, _as_integer)
+        ap(symbol("float"), _decimal_like, _as_decimal)
+        ap(symbol("complex"), _complex_like, _as_complex)
+        ap(symbol("fraction"), _fraction_like, _as_fraction)
 
 
     def _read_atom(self, stream, c):
+        """
+        The default character macro handler, for when nothing else has
+        matched.
+        """
+
         atom = c + stream.read_until(self._terms.__contains__)
 
         if atom == ".":
-            return Event.DOT, None
-        elif complex_like(atom):
-            value = as_complex(atom)
-        elif fraction_like(atom):
-            value = as_fraction(atom)
-        elif decimal_like(atom):
-            value = as_decimal(atom)
-        elif keyword_like(atom):
-            value = keyword(atom.strip(":"))
+            return DOT, None
+
+        for name, match, conv in self.atom_patterns:
+            if match(atom):
+                value = conv(atom)
+                break
         else:
             value = symbol(atom)
 
-        return Event.VALUE, value
+        return VALUE, value
 
 
     def _read_pair(self, stream, char):
-        if char == ")":
-            return Event.CLOSE_PAREN, None
+        """
+        The character macro handler for pair notation
+        """
 
         result = nil
         work = result
@@ -182,15 +245,15 @@ class Reader(object):
         while True:
             event, position, value = self._read(stream)
 
-            if event is Event.CLOSE_PAREN:
+            if event is CLOSE_PAREN:
                 if result is nil:
-                    return Event.VALUE, nil
+                    return VALUE, nil
                 else:
                     work[1] = nil
-                    return Event.VALUE, result
+                    return VALUE, result
 
 
-            elif event is Event.DOT:
+            elif event is DOT:
                 if result is nil:
                     # haven't put any items into the result yet, dot
                     # is therefore invalid.
@@ -200,19 +263,19 @@ class Reader(object):
                 # improper list, the next item is the tail. Read it
                 # and be done.
                 event, tail_pos, tail = self._read(stream)
-                if event is not Event.VALUE:
+                if event is not VALUE:
                     raise stream.error("invalid list syntax",
                                        tail_pos)
 
                 close_event, close_pos, _value = self._read(stream)
-                if close_event is not Event.CLOSE_PAREN:
+                if close_event is not CLOSE_PAREN:
                     raise stream.error("invalid use of dot in list",
                                        close_pos)
 
                 work[1] = tail
-                return Event.VALUE, result
+                return VALUE, result
 
-            elif event is Event.EOF:
+            elif event is EOF:
                 raise stream.error("unexpected EOF")
 
             elif result is nil:
@@ -229,10 +292,22 @@ class Reader(object):
                 stream.record_position(work, position)
                 continue
 
-        return Event.VALUE, result
+        return VALUE, result
+
+
+    def _close_paren(self, stream, char):
+        """
+        The character macro handler for a closing parenthesis
+        """
+
+        return CLOSE_PAREN, None
 
 
     def _read_string(self, stream, char):
+        """
+        The character macro handler for string literals
+        """
+
         combine = []
 
         esc = False
@@ -249,33 +324,45 @@ class Reader(object):
             raise stream.error("Unexpected EOF")
 
         combine = "".join(combine).encode()
-        return Event.VALUE, combine.decode("unicode-escape")
+        return VALUE, combine.decode("unicode-escape")
 
 
     def _read_quote(self, stream, char):
+        """
+        The character macro handler for quote
+        """
+
         event, pos, child = self._read(stream)
 
-        if event is not Event.VALUE:
+        if event is not VALUE:
             msg = "invalid use of %s" % char
             raise stream.error(msg, pos)
 
-        return Event.VALUE, cons(_quote_sym, child, nil)
+        return VALUE, cons(_quote_sym, child, nil)
 
 
     def _read_quasiquote(self, stream, char):
+        """
+        The character macro handler for quasiquote
+        """
+
         event, pos, child = self._read(stream)
 
-        if event is not Event.VALUE:
+        if event is not VALUE:
             msg = "invalid use of %s" % char
             raise stream.error(msg, pos)
 
-        return Event.VALUE, cons(_quasiquote_sym, child, nil)
+        return VALUE, cons(_quasiquote_sym, child, nil)
 
 
     def _read_unquote(self, stream, char):
+        """
+        The character macro handler for unquote
+        """
+
         event, pos, child = self._read(stream)
 
-        if event is not Event.VALUE:
+        if event is not VALUE:
             msg = "invalid use of %s" % char
             raise stream.error(msg, pos)
 
@@ -284,26 +371,30 @@ class Reader(object):
         else:
             value = cons(_unquote_sym, child, nil)
 
-        return Event.VALUE, value
+        return VALUE, value
 
 
     def _read_splice(self, stream, char):
+        """
+        The character macro handler for splice
+        """
+
         event, pos, child = self._read(stream)
 
-        if event is not Event.VALUE:
+        if event is not VALUE:
             msg = "invalid use of %s" % char
             raise stream.error(msg, pos)
 
-        return Event.VALUE, cons(_splice_sym, child, nil)
+        return VALUE, cons(_splice_sym, child, nil)
 
 
     def _read_comment(self, stream, char):
+        """
+        The character macro handler for comments
+        """
+
         comment = stream.read_until("\n\r".__contains__)
-        return Event.SKIP, comment
-
-
-default_reader = Reader()
-default_reader.add_default_macros()
+        return SKIP, comment
 
 
 @contextmanager
@@ -433,28 +524,7 @@ class SourceStream(object):
             return ""
 
 
-decimal_like = regex(r"-?(\d*\.?\d+|\d+\.?\d*)").match
-
-fraction_like = regex(r"-?\d+/\d+").match
-
-complex_like = regex(r"-?\d*\.?\d+\+\d*\.?\d*[ij]").match
-
-keyword_like = regex(r"^(:.+|.+:)$").match
-
-
-def as_decimal(s):
-    return float(s) if "." in s else int(s)
-
-
-def as_fraction(s):
-    return cons(_fraction_sym, s, nil)
-
-
-def as_complex(s):
-    if s[-1] == "i":
-        return complex(s[:-1] + "j")
-    else:
-        return complex(s)
+default_reader = Reader()
 
 
 #
