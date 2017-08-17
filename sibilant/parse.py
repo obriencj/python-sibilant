@@ -31,9 +31,9 @@ from re import compile as regex
 
 
 __all__ = (
-    "Reader", "ReaderStream",
     "SibilantSyntaxError", "ReaderSyntaxError",
-    "reader_open", "reader_str",
+    "SourceStream", "source_open", "source_str", "source_stream",
+    "Reader", "default_reader",
 )
 
 
@@ -124,7 +124,7 @@ class Reader(object):
         return event, position, value
 
 
-    def set_macro(self, char, macro_fn, terminating=False):
+    def set_event_macro(self, char, macro_fn, terminating=False):
         for c in char:
             self.reader_macros[c] = macro_fn
             if terminating:
@@ -134,7 +134,7 @@ class Reader(object):
 
 
     def add_default_macros(self):
-        sm = self.set_macro
+        sm = self.set_event_macro
 
         sm("()", self._read_pair, True)
         sm('""', self._read_string, True)
@@ -143,6 +143,12 @@ class Reader(object):
         sm(",", self._read_unquote, True)
         sm("@", self._read_splice, True)
         sm(";", self._read_comment, True)
+
+
+    def set_macro_character(self, char, macro_fn, terminating=False):
+        def macro_adapter(stream, char):
+            return Event.VALUE, macro_fn(stream, char)
+        self.set_event_macro(char, macro_adapter, terminating)
 
 
     def _read_atom(self, stream, c):
@@ -291,19 +297,27 @@ class Reader(object):
         return Event.SKIP, comment
 
 
+default_reader = Reader()
+default_reader.add_default_macros()
+
+
 @contextmanager
-def reader_open(filename):
+def source_open(filename):
     with open(filename, "rt") as fs:
-        reader = ReaderStream(fs, filename=filename)
+        reader = SourceStream(fs, filename=filename)
         reader.skip_exec()
         yield reader
 
 
-def reader_str(source_str):
-    return ReaderStream(StringIO(source_str))
+def source_str(source_str, filename=None):
+    return SourceStream(StringIO(source_str))
 
 
-class ReaderStream(object):
+def source_stream(source_stream, filename=None):
+    return SourceStream(source_stream)
+
+
+class SourceStream(object):
 
     def __init__(self, stream, filename=None):
         self.filename = filename

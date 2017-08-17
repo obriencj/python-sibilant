@@ -26,13 +26,14 @@ from sys import version_info
 from types import CodeType
 
 from .. import (
-    nil, symbol, is_pair, is_proper, is_symbol, is_keyword,
-    cons, cdr, is_nil,
     SibilantException,
+    symbol, is_symbol, is_keyword,
+    cons, cdr, is_pair, is_proper, nil, is_nil,
 )
 
 from ..parse import (
-    Reader, ReaderStream, SibilantSyntaxError,
+    SibilantSyntaxError,
+    default_reader, source_str, source_stream,
 )
 
 
@@ -2178,15 +2179,15 @@ def builtin_specials():
 
 
 def iter_compile(source, env, filename=None, reader=None):
-    if isinstance(source, str):
-        source = StringIO(source)
 
-    if isinstance(source, IOBase):
-        source = ReaderStream(source)
+    if isinstance(source, str):
+        source = source_str(source)
+
+    elif isinstance(source, IOBase):
+        source = source_stream(source)
 
     if reader is None:
-        reader = Reader()
-        reader.add_default_macros()
+        reader = default_reader
 
     factory = code_space_for_version(version_info)
     if not factory:

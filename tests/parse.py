@@ -25,15 +25,12 @@ from io import StringIO
 from unittest import TestCase
 
 from sibilant import cons, symbol, keyword, nil
-from sibilant.parse import Reader, reader_str
+from sibilant.parse import default_reader, source_str
 
 
 def parse_source(src_str):
-    reader = Reader()
-    reader.add_default_macros()
-
-    stream = reader_str(src_str)
-
+    reader = default_reader
+    stream = source_str(src_str)
     return reader.read(stream)
 
 
@@ -303,11 +300,8 @@ class TestParse(TestCase):
         src = """
         1.0 "2" (3)
         """
-        strm = reader_str(src)
-
-        rdr = Reader()
-        rdr.add_default_macros()
-        read = rdr.read
+        strm = source_str(src)
+        read = default_reader.read
 
         a = read(strm)
         b = read(strm)

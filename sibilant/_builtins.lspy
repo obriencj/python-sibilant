@@ -45,6 +45,11 @@
   `(help-macroexpand-1 ,(car expr) (quote ,(cdr expr))))
 
 
+(defun set-macro-character (char handler_fn terminating)
+  (__reader__.set_macro_character
+   char handler_fn))
+
+
 ;; === conditionals ===
 
 (defmacro if (condition true_body . &false_body)

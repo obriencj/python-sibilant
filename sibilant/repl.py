@@ -27,7 +27,7 @@ import sibilant.builtins
 from traceback import print_exc
 
 from sibilant.compiler import iter_compile
-from sibilant.parse import Reader, ReaderSyntaxError
+from sibilant.parse import ReaderSyntaxError, default_reader
 
 
 def basic_env(**base):
@@ -52,8 +52,10 @@ def repl(stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr,
     print("sibilant > ", end="", file=stdout)
     stdout.flush()
 
-    reader = Reader()
-    reader.add_default_macros()
+    # we may want to ensure we use the same reader every time. that's
+    # mostly guaranteed by using default_reader, but we might get
+    # fancier if we ever make this repl not suck.
+    reader = default_reader
 
     for line in stdin:
         try:
