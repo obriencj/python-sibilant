@@ -42,7 +42,7 @@ _symbol_sub_ = symbol("-")
 _symbol_mult = symbol("multiply")
 _symbol_mult_ = symbol("*")
 _symbol_matrix_mult = symbol("matrix-multiply")
-#  _symbol_matrix_mult_ = symbol("@")
+_symbol_matrix_mult_ = symbol("@")
 _symbol_pow = symbol("power")
 _symbol_pow_ = symbol("**")
 _symbol_mod = symbol("modulo")
@@ -93,8 +93,8 @@ def operator():
     def operator(namesym, runtime, *aliases):
         name = str(namesym)
 
-        runtime = partial(runtime)
-        runtime.__name__ = name
+        # runtime = partial(runtime)
+        # runtime.__name__ = name
 
         def deco(compilefn):
             compilefn.__name__ = name
@@ -460,7 +460,7 @@ def _operator_modulo(code, source):
     _helper_binary(code, source, code.pseudop_binary_modulo)
 
 
-@operator(_symbol_matrix_mult, pyop.matmul)  # , _symbol_matrix_mult_)
+@operator(_symbol_matrix_mult, pyop.matmul, _symbol_matrix_mult_)
 def _operator_matmul(code, source):
     """
     (matrix-multiply MATRIX MATRIX)

@@ -175,7 +175,30 @@ class Reader(object):
 
 
     def get_event_macro(self, char):
-        return self.reader_macros.get(char)
+        try:
+            return (self.reader_macros[char], char in self.terminating)
+        except KeyError:
+            return None
+
+
+    def clear_event_macro(self, char):
+        if char in self.reader_macros:
+            self.terminating.remove(char)
+            self._terms = "".join(self.terminating)
+            del self.reader_macros[char]
+
+
+    @contextmanager
+    def temporary_event_macro(self, char, macro_fn, terminating=False):
+        old = self.get_event_macro(char)
+        self.set_event_macro(char, macro_fn, terminating)
+
+        yield self
+
+        if old is None:
+            self.clear_event_macro(char)
+        else:
+            self.set_event_macro(char, *old)
 
 
     def set_macro_character(self, char, macro_fn, terminating=False):
@@ -192,8 +215,8 @@ class Reader(object):
         sm('"', self._read_string, True)
         sm("'", self._read_quote, True)
         sm("`", self._read_quasiquote, True)
-        sm(",", self._read_unquote, True)
-        sm("@", self._read_splice, True)
+        # sm(",", self._read_unquote, True)
+        # sm("@", self._read_splice, True)
         sm(";", self._read_comment, True)
 
 
@@ -361,7 +384,8 @@ class Reader(object):
         The character macro handler for quasiquote
         """
 
-        event, pos, child = self._read(stream)
+        with self.temporary_event_macro(",", self._read_unquote, True):
+            event, pos, child = self._read(stream)
 
         if event is not VALUE:
             msg = "invalid use of %s" % char
@@ -375,7 +399,8 @@ class Reader(object):
         The character macro handler for unquote
         """
 
-        event, pos, child = self._read(stream)
+        with self.temporary_event_macro("@", self._read_splice, True):
+            event, pos, child = self._read(stream)
 
         if event is not VALUE:
             msg = "invalid use of %s" % char

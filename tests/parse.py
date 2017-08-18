@@ -210,26 +210,6 @@ class TestParse(TestCase):
                                    nil))
 
 
-    def test_unquote(self):
-        src = """
-        ,baz
-        """
-        col = parse_source(src)
-        self.assertEqual(col, cons(symbol("unquote"),
-                                   symbol("baz"),
-                                   nil))
-
-
-    def test_splice(self):
-        src = """
-        @qux
-        """
-        col = parse_source(src)
-        self.assertEqual(col, cons(symbol("splice"),
-                                   symbol("qux"),
-                                   nil))
-
-
     def test_quote_unquote_splice(self):
         src = """
         `(,@foo)
