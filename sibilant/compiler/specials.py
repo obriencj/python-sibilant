@@ -1017,7 +1017,8 @@ def _special_define_global(code, source):
 
     _helper_begin(code, body)
 
-    assert is_symbol(binding), "define-global with non-symbol binding"
+    if not is_symbol(binding):
+        raise code.error("define-global with non-symbol binding", source)
 
     code.pseudop_position_of(source)
     code.pseudop_define_global(str(binding))
@@ -1035,7 +1036,8 @@ def _special_define_local(code, source):
 
     _helper_begin(code, body)
 
-    assert is_symbol(binding), "define-local with non-symbol binding"
+    if not is_symbol(binding):
+        raise code.error("define-local with non-symbol binding", source)
 
     code.pseudop_position_of(source)
     code.pseudop_define_local(str(binding))
