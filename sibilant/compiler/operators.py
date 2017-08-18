@@ -35,33 +35,35 @@ __all__ = []
 _symbol_nil = symbol("nil")
 
 _symbol_item = symbol("item")
-_symbol_add = symbol("+")
-_symbol_add_ = symbol("add")
-_symbol_sub = symbol("-")
-_symbol_sub_ = symbol("subtract")
-_symbol_mult = symbol("*")
-_symbol_mult_ = symbol("multiply")
-_symbol_pow = symbol("**")
-_symbol_pow_ = symbol("pow")
-_symbol_mod = symbol("%")
-_symbol_mod_ = symbol("mod")
-_symbol_div = symbol("/")
-_symbol_div_ = symbol("divide")
-_symbol_floordiv = symbol("//")
-_symbol_floordiv_ = symbol("floor-divide")
+_symbol_add = symbol("add")
+_symbol_add_ = symbol("+")
+_symbol_sub = symbol("subtract")
+_symbol_sub_ = symbol("-")
+_symbol_mult = symbol("multiply")
+_symbol_mult_ = symbol("*")
+_symbol_matrix_mult = symbol("matrix-multiply")
+_symbol_matrix_mult_ = symbol("@")
+_symbol_pow = symbol("power")
+_symbol_pow_ = symbol("**")
+_symbol_mod = symbol("modulo")
+_symbol_mod_ = symbol("%")
+_symbol_div = symbol("divide")
+_symbol_div_ = symbol("/")
+_symbol_floordiv = symbol("floor-divide")
+_symbol_floordiv_ = symbol("//")
 
-_symbol_lt = symbol("<")
-_symbol_lt_ = symbol("lt")
-_symbol_lte = symbol("<=")
-_symbol_lte_ = symbol("lte")
-_symbol_eq = symbol("==")
-_symbol_eq_ = symbol("eq")
-_symbol_not_eq = symbol("!=")
-_symbol_not_eq_ = symbol("not-eq")
-_symbol_gt = symbol(">")
-_symbol_gt_ = symbol("gt")
-_symbol_gte = symbol(">=")
-_symbol_gte_ = symbol("gte")
+_symbol_lt = symbol("lt")
+_symbol_lt_ = symbol("<")
+_symbol_le = symbol("le")
+_symbol_le_ = symbol("<=")
+_symbol_eq = symbol("eq")
+_symbol_eq_ = symbol("==")
+_symbol_not_eq = symbol("not-eq")
+_symbol_not_eq_ = symbol("!=")
+_symbol_gt = symbol("gt")
+_symbol_gt_ = symbol(">")
+_symbol_ge = symbol("ge")
+_symbol_ge_ = symbol(">=")
 _symbol_in = symbol("in")
 _symbol_not_in = symbol("not-in")
 _symbol_is = symbol("is")
@@ -82,6 +84,7 @@ def operator():
         name = str(namesym)
 
         def deco(compilefn):
+            compilefn.__name__ = name
             inst = Operator(name, compilefn, runtime)
 
             __all__.append(name)
@@ -444,7 +447,7 @@ def _operator_modulo(code, source):
     _helper_binary(code, source, code.pseudop_binary_modulo)
 
 
-@operator(_symbol_gte, pyop.ge, _symbol_gte_)
+@operator(_symbol_ge, pyop.ge, _symbol_ge_)
 def _operator_gte(code, source):
     """
     (>= VAL1 VAL2)
@@ -503,7 +506,7 @@ def _operator_lt(code, source):
     _helper_binary(code, source, code.pseudop_compare_lt)
 
 
-@operator(_symbol_lte, pyop.le, _symbol_lte_)
+@operator(_symbol_le, pyop.le, _symbol_le_)
 def _operator_lte(code, source):
     """
     (<= VAL1 VAL2)

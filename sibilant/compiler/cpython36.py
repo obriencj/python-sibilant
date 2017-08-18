@@ -282,6 +282,9 @@ class CPython36(ExpressionCodeSpace):
             elif op is Pseudop.BINARY_MULTIPLY:
                 yield Opcode.BINARY_MULTIPLY, 0
 
+            elif op is Pseudop.BINARY_MATRIX_MULTIPLY:
+                yield Opcode.BINARY_MATRIX_MULTIPLY, 0
+
             elif op is Pseudop.BINARY_TRUE_DIVIDE:
                 yield Opcode.BINARY_TRUE_DIVIDE, 0
 
@@ -293,6 +296,21 @@ class CPython36(ExpressionCodeSpace):
 
             elif op is Pseudop.BINARY_MODULO:
                 yield Opcode.BINARY_MODULO, 0
+
+            elif op is Pseudop.BINARY_LSHIFT:
+                yield Opcode.BINARY_LSHIFT, 0
+
+            elif op is Pseudop.BINARY_RSHIFT:
+                yield Opcode.BINARY_RSHIFT, 0
+
+            elif op is Pseudop.BINARY_AND:
+                yield Opcode.BINARY_AND, 0
+
+            elif op is Pseudop.BINARY_XOR:
+                yield Opcode.BINARY_XOR, 0
+
+            elif op is Pseudop.BINARY_OR:
+                yield Opcode.BINARY_OR, 0
 
             elif op is Pseudop.RAISE:
                 yield Opcode.RAISE_VARARGS, args[0]

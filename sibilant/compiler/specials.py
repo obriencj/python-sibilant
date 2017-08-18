@@ -68,6 +68,7 @@ def special():
         name = str(namesym)
 
         def deco(compilefn):
+            compilefn.__name__ = name
             inst = Special(str(namesym), compilefn)
 
             __all__.append(name)

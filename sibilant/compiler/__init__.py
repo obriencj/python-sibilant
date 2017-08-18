@@ -269,7 +269,6 @@ class Pseudop(Enum):
     BINARY_MODULO = _auto()
     BINARY_ADD = _auto()
     BINARY_SUBTRACT = _auto()
-    BINARY_SUBSCR = _auto()
     BINARY_LSHIFT = _auto()
     BINARY_RSHIFT = _auto()
     BINARY_AND = _auto()
@@ -808,12 +807,8 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop(Pseudop.BINARY_MULTIPLY)
 
 
-    def pseudop_binary_power(self):
-        self.pseudop(Pseudop.BINARY_POWER)
-
-
-    def pseudop_binary_modulo(self):
-        self.pseudop(Pseudop.BINARY_MODULO)
+    def pseudop_binary_matrix_multiply(self):
+        self.pseudop(Pseudop.BINARY_MATRIX_MULTIPLY)
 
 
     def pseudop_binary_divide(self):
@@ -822,6 +817,34 @@ class CodeSpace(metaclass=ABCMeta):
 
     def pseudop_binary_floor_divide(self):
         self.pseudop(Pseudop.BINARY_FLOOR_DIVIDE)
+
+
+    def pseudop_binary_power(self):
+        self.pseudop(Pseudop.BINARY_POWER)
+
+
+    def pseudop_binary_modulo(self):
+        self.pseudop(Pseudop.BINARY_MODULO)
+
+
+    def pseudop_binar_lshift(self):
+        self.pseudop(Pseudop.BINARY_)
+
+
+    def pseudop_binar_rshift(self):
+        self.pseudop(Pseudop.BINARY_)
+
+
+    def pseudop_binar_and(self):
+        self.pseudop(Pseudop.BINARY_)
+
+
+    def pseudop_binar_xor(self):
+        self.pseudop(Pseudop.BINARY_)
+
+
+    def pseudop_binar_or(self):
+        self.pseudop(Pseudop.BINARY_)
 
 
     def pseudop_iter(self):
@@ -1298,10 +1321,16 @@ def max_stack(pseudops):
                     pseu.BINARY_ADD,
                     pseu.BINARY_SUBTRACT,
                     pseu.BINARY_MULTIPLY,
+                    pseu.BINARY_MATRIX_MULTIPLY,
                     pseu.BINARY_TRUE_DIVIDE,
                     pseu.BINARY_FLOOR_DIVIDE,
                     pseu.BINARY_POWER,
-                    pseu.BINARY_MODULO):
+                    pseu.BINARY_MODULO,
+                    pseu.BINARY_LSHIFT,
+                    pseu.BINARY_RSHIFT,
+                    pseu.BINARY_AND,
+                    pseu.BINARY_XOR,
+                    pseu.BINARY_OR, ):
             pop(2)
             push()
 
