@@ -827,24 +827,24 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop(Pseudop.BINARY_MODULO)
 
 
-    def pseudop_binar_lshift(self):
-        self.pseudop(Pseudop.BINARY_)
+    def pseudop_binary_lshift(self):
+        self.pseudop(Pseudop.BINARY_LSHIFT)
 
 
-    def pseudop_binar_rshift(self):
-        self.pseudop(Pseudop.BINARY_)
+    def pseudop_binary_rshift(self):
+        self.pseudop(Pseudop.BINARY_RSHIFT)
 
 
-    def pseudop_binar_and(self):
-        self.pseudop(Pseudop.BINARY_)
+    def pseudop_binary_and(self):
+        self.pseudop(Pseudop.BINARY_AND)
 
 
-    def pseudop_binar_xor(self):
-        self.pseudop(Pseudop.BINARY_)
+    def pseudop_binary_xor(self):
+        self.pseudop(Pseudop.BINARY_XOR)
 
 
-    def pseudop_binar_or(self):
-        self.pseudop(Pseudop.BINARY_)
+    def pseudop_binary_or(self):
+        self.pseudop(Pseudop.BINARY_OR)
 
 
     def pseudop_iter(self):

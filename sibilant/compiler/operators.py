@@ -42,7 +42,7 @@ _symbol_sub_ = symbol("-")
 _symbol_mult = symbol("multiply")
 _symbol_mult_ = symbol("*")
 _symbol_matrix_mult = symbol("matrix-multiply")
-_symbol_matrix_mult_ = symbol("@")
+#  _symbol_matrix_mult_ = symbol("@")
 _symbol_pow = symbol("power")
 _symbol_pow_ = symbol("**")
 _symbol_mod = symbol("modulo")
@@ -51,6 +51,16 @@ _symbol_div = symbol("divide")
 _symbol_div_ = symbol("/")
 _symbol_floordiv = symbol("floor-divide")
 _symbol_floordiv_ = symbol("//")
+_symbol_lshift = symbol("shift-left")
+_symbol_lshift_ = symbol("<<")
+_symbol_rshift = symbol("shift-right")
+_symbol_rshift_ = symbol(">>")
+_symbol_bit_and = symbol("bitwise-and")
+_symbol_bit_and_ = symbol("&")
+_symbol_bit_or = symbol("bitwise-or")
+_symbol_bit_or_ = symbol("|")
+_symbol_bit_xor = symbol("bitwise-xor")
+_symbol_bit_xor_ = symbol("^")
 
 _symbol_lt = symbol("lt")
 _symbol_lt_ = symbol("<")
@@ -448,6 +458,66 @@ def _operator_modulo(code, source):
     """
 
     _helper_binary(code, source, code.pseudop_binary_modulo)
+
+
+@operator(_symbol_matrix_mult, pyop.matmul)  # , _symbol_matrix_mult_)
+def _operator_matmul(code, source):
+    """
+    (matrix-multiply MATRIX MATRIX)
+    Multiply two matrices, return the result
+    """
+
+    _helper_binary(code, source, code.pseudop_binary_matrix_multiply)
+
+
+@operator(_symbol_lshift, pyop.lshift, _symbol_lshift_)
+def _operator_lshift(code, source):
+    """
+    (<< VALUE COUNT)
+    Bitshift VALUE left by COUNT bits
+    """
+
+    _helper_binary(code, source, code.pseudop_binary_lshift)
+
+
+@operator(_symbol_rshift, pyop.rshift, _symbol_rshift_)
+def _operator_lshift(code, source):
+    """
+    (>> VALUE COUNT)
+    Bitshift VALUE right by COUNT bits
+    """
+
+    _helper_binary(code, source, code.pseudop_binary_rshift)
+
+
+@operator(_symbol_bit_and, pyop.and_, _symbol_bit_and_)
+def _operator_bit_and(code, source):
+    """
+    (& VALUE MASK)
+    Applies bitwise-and MASK to VALUE
+    """
+
+    _helper_binary(code, source, code.pseudop_binary_and)
+
+
+@operator(_symbol_bit_or, pyop.or_, _symbol_bit_or_)
+def _operator_bit_or(code, source):
+    """
+    (| VALUE SETMASK)
+    Applies bitwise-or SETMASK to VALUE
+    """
+
+    _helper_binary(code, source, code.pseudop_binary_or)
+
+
+@operator(_symbol_bit_xor, pyop.xor, _symbol_bit_xor_)
+def _operator_bit_xor(code, source):
+    """
+    (^ VALUE FLIPMASK)
+    Applies bitwise-xor FLIPMASK to VALUE
+    """
+
+    _helper_binary(code, source, code.pseudop_binary_xor)
 
 
 @operator(_symbol_ge, pyop.ge, _symbol_ge_)
