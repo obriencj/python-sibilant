@@ -1098,8 +1098,10 @@ class ExpressionCodeSpace(CodeSpace):
             # we found a Macro instance, return the relevant
             # method
             return found
+
         else:
-            # what we found doesn't qualify, throw it away
+            # we either found nothing, or what we found doesn't
+            # qualify
             return None
 
 

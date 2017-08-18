@@ -88,6 +88,7 @@ def _helper_keyword(code, kwd):
     """
     Pushes a the pseudo ops necessary to put a keyword on the stack
     """
+
     code.pseudop_get_var("keyword")
     code.pseudop_const(str(kwd))
     code.pseudop_call(1)
@@ -97,6 +98,7 @@ def _helper_symbol(code, sym):
     """
     Pushes a the pseudo ops necessary to put a symbol on the stack
     """
+
     code.pseudop_get_var("symbol")
     code.pseudop_const(str(sym))
     code.pseudop_call(1)
@@ -104,6 +106,11 @@ def _helper_symbol(code, sym):
 
 @special(_symbol_doc)
 def _special_doc(code, source):
+    """
+    (doc STR STR...)
+    joins STR together and sets it as the docstr for the parent scope
+    """
+
     called_by, rest = source
 
     code.set_doc(" ".join(d.strip() for d in map(str, rest.unpack())))
@@ -203,6 +210,16 @@ def _helper_quote(code, body):
 
 @special(_symbol_unquote)
 def _special_unquote(code, source):
+    """
+    (quote EXPR)
+
+    Returns the raw form of EXPR, without evaluating it
+
+    'EXPR
+
+    Same as (quote EXPR)
+    """
+
     raise code.error("unquote outside of quasiquote", source)
 
 
@@ -214,7 +231,11 @@ def _special_splice(code, source):
 @special(_symbol_quasiquote)
 def _special_quasiquote(code, source):
     """
+    (quasiquote EXPR)
     Special form for quasiquote
+
+    `EXPR
+    Same as (quasiquote EXPR)
     """
 
     called_by, (body, rest) = source
@@ -394,7 +415,13 @@ def _helper_quasiquote(code, marked, level=0):
 @special(_symbol_begin)
 def _special_begin(code, source):
     """
-    Special form for begin
+    (begin EXPR EXPR...)
+
+    Evaluates each EXPR in turn. Returns the last result only.
+
+    (begin)
+
+    Evaluates to None
     """
 
     called_by, body = source
@@ -481,7 +508,11 @@ def _special_with(code, source):
 @special(_symbol_lambda)
 def _special_lambda(code, source):
     """
-    Special form for lambda
+    (lambda (FORMAL...) BODY...)
+
+    Creates an anonymous function taking FORMAL arguments, and executing
+    the BODY expressions in order. The result of the final expression is
+    returned.
     """
 
     called_by, (args, body) = source
@@ -497,6 +528,13 @@ def _special_lambda(code, source):
 
 @special(_symbol_function)
 def _special_function(code, source):
+    """
+    (function NAME (FORMAL...) BODY...)
+
+    Creates a function with a binding to itself as NAME, taking FORMAL
+    arguments, and executing the BODY expressions in order. The result
+    of the final expression is returned.
+    """
 
     called_by, (namesym, cl) = source
     args, body = cl
@@ -529,6 +567,13 @@ def _special_function(code, source):
 
 @special(_symbol_let)
 def _special_let(code, source):
+    """
+    (let ((BINDING EXPR) ...) BODY...)
+
+    Creates a lexical scope where each BINDING is assigned the value from
+    evaluating EXPR, then executes the BODY expressions in order. The
+    result of the final expression is returned.
+    """
 
     called_by, (bindings, body) = source
 
@@ -587,6 +632,15 @@ def _helper_function(code, name, args, body, declared_at=None):
 
 @special(_symbol_while)
 def _special_while(code, source):
+    """
+    (while TEST_EXPR BODY...)
+
+    Evaluates TEST_EXPR. If the result is truthful, evaluates the BODY
+    expressions in order, then repeats until the evaluation of
+    TEST_EXPR is not truthful. The result is the last successful BODY
+    expression, or None if BODY was never executed.
+    """
+
     called_by, (test, body) = source
 
     top = code.gen_label()
@@ -613,6 +667,17 @@ def _special_while(code, source):
 
 @special(_symbol_raise)
 def _special_raise(code, source):
+    """
+    (raise EXCEPTION_EXPR)
+
+    evaluates EXCEPTION_EXPR and raises it in the Python interpreter.
+    This function does not return, and execution will jump to whatever
+    outer exception handlers exist (if any).
+
+    (raise)
+
+    re-raises the most recently raised exception
+    """
 
     called_by, cl = source
 
@@ -632,6 +697,43 @@ def _special_raise(code, source):
 
 @special(_symbol_try)
 def _special_try(code, source):
+    """
+    (try EXPR
+      (EXCEPTION_TYPE EXC_BODY...)
+      ...)
+
+    Attempts evaluation of EXPR. If an exception is raised, and it
+    matches the EXCEPTION_TYPE expression, then evaluate the
+    expressions of EXC_BODY in order and return the last result.
+    Multiple exception matches can be specified. If no EXCEPTION_TYPE
+    matches, the exception is propagated upwards and this function does
+    not return.
+
+    (try EXPR
+      ((EXCEPTION_TYPE BINDING) EXC_BODY...)
+      ...)
+
+    As above, but binds the exception to BINDING before evaluating
+    EXC_BODY.
+
+    (try EXPR
+      EXC_HANDLERS...
+      (else BODY...))
+
+    As above, but if no exception was raised by EXPR, the expressions of
+    BODY are evaluated in order and the last value is returned. Note that
+    if an exception is raised during BODY eval, it is not caught.
+
+    (try EXPR
+      EXC_HANDLERS...
+      (finally BODY...))
+
+    As above, but the expressions of BODY are evaluated in order
+    whether an exception was or was not raised or caught. If an
+    exception was raised but not matched, then once BODY is completed,
+    the exception will be propagated upwards and this function does
+    not return. Otherwise, the final value of BODY is returned.
+    """
 
     kid = code.child_context(name="<try>",
                              declared_at=code.position_of(source))
@@ -866,6 +968,11 @@ def _helper_special_try(code, source):
 
 @special(_symbol_setq)
 def _special_setq(code, source):
+    """
+    (setq SYM EXPR)
+
+    binds the result of evaluating EXPR to SYM)
+    """
 
     called_by, (binding, body) = source
 
