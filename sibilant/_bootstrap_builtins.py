@@ -111,6 +111,9 @@ _op(_compiler.is_special, "special?")
 _val(_compiler.Macro, "macro")
 _op(_compiler.is_macro, "macro?")
 
+_val(_compiler.Macrolet, "macrolet")
+_op(_compiler.is_macrolet, "macrolet?")
+
 _val(_compiler.Operator, "operator")
 _op(_compiler.is_operator, "operator?")
 

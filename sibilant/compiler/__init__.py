@@ -44,7 +44,8 @@ __all__ = (
     "CodeSpace", "ExpressionCodeSpace",
     "code_space_for_version",
     "Special", "is_special",
-    "Macro", "is_special",
+    "Macro", "is_macro",
+    "Macrolet", "is_macrolet",
     "Operator", "is_operator",
     "iter_compile",
 )
@@ -61,37 +62,22 @@ class UnsupportedVersion(SibilantException):
     pass
 
 
-class Builtin(object):
+class Compiled(metaclass=ABCMeta):
     __slots__ = ("__name__", )
-    __objname__ = "sibilant-builtin"
+    __objname__ = "sibilant-compiled"
+
 
     def __init__(self, name):
         self.__name__ = name
-
-    def __repr__(self):
-        return "<%s %s>" % (self.__objname__, self.__name__)
-
-
-class Runtime(Builtin, metaclass=ABCMeta):
-    __objname__ = "sibilant-runtime"
-
-
-    def __call__(self, *args, **kwds):
-        return self.__runtime__(*args, **kwds)
-
-
-    @abstractstaticmethod
-    def __runtime__(*args, **kwds):
-        pass
-
-
-class Compiled(Builtin, metaclass=ABCMeta):
-    __objname__ = "sibilant-compiled"
 
 
     def __call__(self, *args, **kwds):
         msg = "Attempt to call %r as a runtime function" % self
         raise TypeError(msg)
+
+
+    def __repr__(self):
+        return "<%s %s>" % (self.__objname__, self.__name__)
 
 
     @abstractmethod
@@ -135,6 +121,15 @@ def is_special(obj):
 
 
 class Macro(Compiled, metaclass=ABCMeta):
+    """
+    A Macro is defined at run-time but consumed at compile-time to
+    transform a source expression. It is an error to invoke it as
+    a callable at run-time.
+
+    Call the `expand` method with a full source expression to obtain
+    the one-time transformed result.
+    """
+
     __objname__ = "macro"
 
 
@@ -157,21 +152,56 @@ class Macro(Compiled, metaclass=ABCMeta):
         pass
 
 
-    def compile(self, _compiler, source_obj):
+    def compile(self, compiler, source_obj):
         called_by, source = source_obj
-        return self.expand(*source.unpack())
+        expr = self.expand(*source.unpack())
+
+        # a Macro should always evaluate to some kind of non-None. If
+        # all the work of the macro was performed in the environment
+        # for some reason, it's still expected to provide an expanded
+        # result, or stack underruns are almost guaranteed. Therefore
+        # if the wrapped macro function returns None we will pretend
+        # it expanded to the None symbol instead.
+        return _symbol_None if expr is None else expr
 
 
 def is_macro(obj):
     return isinstance(obj, Macro)
 
 
-class Operator(Runtime, Compiled, metaclass=ABCMeta):
+class Macrolet(Macro):
+
+    def __init__(self, name, macrofn):
+        super().__init__(name)
+
+
+    def compile(self, compiler, source_obj):
+        expanded = self.expand()
+        expanded = _symbol_None if expanded is None else expanded
+
+        if is_symbol(source_obj):
+            return expanded
+
+        elif is_pair(source_obj):
+            called_by, source = source_obj
+            return cons(expanded, source)
+
+        else:
+            msg = "Error expanding macrolet %s from %r" % \
+                  (self.__name__, source_obj)
+            compiler.error(msg, source_obj)
+
+
+def is_macrolet(obj):
+    return isinstance(obj, Macrolet)
+
+
+class Operator(Compiled):
     __objname__ = "operator"
 
 
     def __init__(self, name, compilefn, runtimefn):
-        self.__name__ = name
+        super().__init__(name)
 
 
     def __new__(cls, name, compilefn, runtimefn):
@@ -180,15 +210,11 @@ class Operator(Runtime, Compiled, metaclass=ABCMeta):
         nom = str(name or runtimefn.__name__ or compilefn.__name__)
         mbs = {
             "__doc__": compilefn.__doc__,
-            "__runtime__": staticmethod(runtimefn),
-            "__inline__": staticmethod(compilefn),
+            "__call__": staticmethod(runtimefn),
+            "compile": staticmethod(compilefn),
         }
         cls = type(nom, (cls, ), mbs)
         return object.__new__(cls)
-
-
-    def compile(self, compiler, source_obj):
-        return self.__inline__(compiler, source_obj)
 
 
 def is_operator(obj):
