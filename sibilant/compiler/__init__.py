@@ -16,7 +16,7 @@
 import dis
 import operator as pyop
 
-from abc import ABCMeta, abstractmethod, abstractstaticmethod
+from abc import ABCMeta, abstractmethod
 from contextlib import contextmanager
 from enum import Enum
 from functools import partial, reduce, wraps
@@ -43,6 +43,7 @@ __all__ = (
     "Opcode", "Pseudop",
     "CodeSpace", "ExpressionCodeSpace",
     "code_space_for_version",
+    "Compiled", "is_compiled",
     "Special", "is_special",
     "Macro", "is_macro",
     "Macrolet", "is_macrolet",
@@ -59,7 +60,7 @@ class UnsupportedVersion(SibilantException):
     pass
 
 
-class Compiled(metaclass=ABCMeta):
+class Compiled():
     __slots__ = ("__name__", )
     __objname__ = "sibilant-compiled"
 
@@ -77,7 +78,6 @@ class Compiled(metaclass=ABCMeta):
         return "<%s %s>" % (self.__objname__, self.__name__)
 
 
-    @abstractmethod
     def compile(self, compiler, source_obj):
         pass
 
@@ -86,7 +86,7 @@ def is_compiled(obj):
     return isinstance(obj, Compiled)
 
 
-class Special(Compiled, metaclass=ABCMeta):
+class Special(Compiled):
     __objname__ = "special-form"
 
 
@@ -98,26 +98,17 @@ class Special(Compiled, metaclass=ABCMeta):
         nom = str(name or compilefn.__name__)
         mbs = {
             "__doc__": compilefn.__doc__,
-            "__inline__": staticmethod(compilefn),
+            "compile": staticmethod(compilefn),
         }
         cls = type(nom, (cls, ), mbs)
         return object.__new__(cls)
-
-
-    @abstractstaticmethod
-    def __inline__(env, source_obj):
-        pass
-
-
-    def compile(self, compiler, source_obj):
-        return self.__inline__(compiler, source_obj)
 
 
 def is_special(obj):
     return isinstance(obj, Special)
 
 
-class Macro(Compiled, metaclass=ABCMeta):
+class Macro(Compiled):
     """
     A Macro is defined at run-time but consumed at compile-time to
     transform a source expression. It is an error to invoke it as
@@ -142,11 +133,6 @@ class Macro(Compiled, metaclass=ABCMeta):
         }
         cls = type(nom, (cls, ), mbs)
         return object.__new__(cls)
-
-
-    @abstractstaticmethod
-    def expand(*args):
-        pass
 
 
     def compile(self, compiler, source_obj):
