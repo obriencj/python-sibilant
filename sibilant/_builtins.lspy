@@ -137,8 +137,8 @@
       (setq byname (if (pair? current) (second current) member))
 
       (coll.append
-       `(define ,byname (get-attr (import ,(str modulename) (globals) None
-					  (make-list ,(str member)))
+       `(define ,byname (attr (import ,(str modulename) (globals) None
+				      (make-list ,(str member)))
 			      ,member)))
 
       (setq &bindings (cdr &bindings)))

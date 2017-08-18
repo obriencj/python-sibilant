@@ -1610,13 +1610,13 @@ class BinaryOperators(TestCase):
         (** 4 1/2)
         """
         stmt, env = compile_expr(src)
-        self.assertEqual(stmt(), 2)
+        self.assertEqual(stmt(), 2.0)
 
         src = """
         (** 4 0.5)
         """
         stmt, env = compile_expr(src)
-        self.assertEqual(stmt(), 2)
+        self.assertEqual(stmt(), 2.0)
 
 
     def test_modulo(self):
