@@ -19,11 +19,18 @@
 ;; === defines ===
 
 (define-global defmacro
-  (macro (function
-	  defmacro (name formals . &body)
-	  (doc "Defines a Macro instance in the current module")
-	  `(define-global ,name
-	     (macro (function ,name ,formals ,@&body))))))
+  (macro
+   "defmacro"
+   (function defmacro (name formals . &body)
+	     (doc "Defines a Macro instance in the current module")
+	     `(define-global ,name
+		(macro ,(str name) (function ,name ,formals ,@&body))))))
+
+
+(defmacro defmacrolet (name . &body)
+  (doc "Defined a Macrolet in the current module")
+  `(define-global ,name
+     (macrolet ,(str name) (function ,name () ,@&body))))
 
 
 (defmacro defun (name params . &body)
@@ -34,20 +41,8 @@
   `(define ,name (class ,name ,bases ,@&body)))
 
 
-(defun help-macroexpand-1 (the-macro argbody)
-  (cond ((macro? the-macro)
-	 (apply the-macro.expand argbody))
-	(else
-	 (raise (Exception (% "not a macro %r" the-macro))))))
-
-
-(defmacro macroexpand-1 (expr)
-  `(help-macroexpand-1 ,(car expr) (quote ,(cdr expr))))
-
-
-(defun set-macro-character (char handler_fn terminating)
-  (__reader__.set_macro_character
-   char handler_fn))
+(defmacro set-macro-character args
+  `(__reader__.set_macro_character ,@args))
 
 
 ;; === conditionals ===
@@ -137,8 +132,8 @@
       (setq byname (if (pair? current) (second current) member))
 
       (coll.append
-       `(define ,byname (get-attr (import ,(str modulename) (globals) None
-					  (make-list ,(str member)))
+       `(define ,byname (attr (import ,(str modulename) (globals) None
+				      (make-list ,(str member)))
 			      ,member)))
 
       (setq &bindings (cdr &bindings)))

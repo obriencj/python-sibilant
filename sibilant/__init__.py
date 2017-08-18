@@ -379,7 +379,11 @@ class Pair(object):
                     found.add(id(rest))
                     val, rest = rest
                     col.append(" ")
-                    col.append(str(val))
+                    if isinstance(val, str):
+                        val = '"%s"' % val.replace('"', r'\"')
+                    else:
+                        val = str(val)
+                    col.append(val)
             else:
                 # end of improper list
                 col.append(" . ")

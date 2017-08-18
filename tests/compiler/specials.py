@@ -14,269 +14,177 @@
 
 
 """
-unittest for sibilant.compile
+unittest for sibilant.compile.specials
 
 author: Christopher O'Brien  <obriencj@gmail.com>
 license: LGPL v.3
 """
 
 
-from contextlib import contextmanager
-from fractions import Fraction as fraction
+import dis
+
 from functools import partial
 from unittest import TestCase
 
-import sibilant.builtins
-
-from sibilant import (
-    car, cdr, cons, nil,
-    symbol, keyword, make_proper,
+from . import (
+    compile_expr, make_accumulator, make_raise_accumulator,
+    make_manager,
 )
 
+from sibilant import symbol, cons, nil, is_nil
 from sibilant.compiler import (
-    iter_compile,
-    macro, is_macro, Macro,
+    Special, is_special,
+    Macro, is_macro,
 )
 
-import dis
 
+class Lambda(TestCase):
 
-class Object(object):
-    pass
+    def test_lambda(self):
+        src = "(lambda () tacos)"
+        stmt, env = compile_expr(src)
+        fun = stmt()
+        self.assertTrue(callable(fun))
+        self.assertRaises(NameError, fun)
 
-
-def basic_env(**base):
-    env = {"__builtins__": sibilant.builtins}
-    env.update(base)
-    return env
-
-
-def compile_expr(src_str, **base):
-    env = basic_env(**base)
-    icode = iter_compile(src_str, env)
-    code = next(icode)
-    return partial(eval, code, env), env
-
-
-def make_accumulator():
-    accu = list()
-
-    def accumulate(x):
-        accu.append(x)
-        return x
-
-    return accu, accumulate
-
-
-def make_raise_accumulator(excclass=Exception):
-    accu = list()
-
-    def accumulate(x):
-        accu.append(x)
-        raise excclass(x)
-
-    return accu, accumulate
-
-
-def make_manager():
-    accumulator = list()
-
-    def accu(val):
-        accumulator.append(val)
-        return val
-
-    class Manager():
-        def __init__(self, initial, enter, leave):
-            self.enter = enter
-            self.leave = leave
-            accumulator.append(initial)
-
-        def __enter__(self):
-            accumulator.append(self.enter)
-            return accu
-
-        def __exit__(self, _a, _b, _c):
-            accumulator.append(self.leave)
-            return True
-
-    return accumulator, Manager
-
-
-class TestCompiler(TestCase):
-
-    def test_global_symbol(self):
-        src = "tacos"
+        src = "(lambda () tacos)"
         stmt, env = compile_expr(src, tacos=5)
-        self.assertEqual(stmt(), 5)
+        fun = stmt()
+        self.assertTrue(callable(fun))
+        self.assertEqual(fun(), 5)
 
-        src = "tacos"
-        stmt, env = compile_expr(src)
-        self.assertRaises(NameError, stmt)
-
-
-    def test_keyword(self):
-        src = ":tacos"
-        stmt, env = compile_expr(src)
-        self.assertIs(stmt(), keyword("tacos"))
-
-        src = "tacos:"
-        stmt, env = compile_expr(src)
-        self.assertIs(stmt(), keyword("tacos"))
-
-        src = ":tacos:"
-        stmt, env = compile_expr(src)
-        self.assertIs(stmt(), keyword("tacos"))
-
-
-    def test_bool(self):
-        src = "True"
-        stmt, env = compile_expr(src)
-        self.assertIs(stmt(), True)
-
-        src = "False"
-        stmt, env = compile_expr(src)
-        self.assertIs(stmt(), False)
-
-        # this is testing that the Pythonic behavior of equating 0
-        # with False, and 1 with True, is not impacting compilation
-        # and storage of those constant values within the same code
-        # block. this is a reproducer for a bug where the constant
-        # values were being combined.
-
-        src = "(make-list True 1 True 1 False 0 False 0)"
-        stmt, env = compile_expr(src)
-        res = stmt()
-        self.assertIs(res[0], True)
-        self.assertIs(res[1], 1)
-        self.assertIs(res[2], True)
-        self.assertIs(res[3], 1)
-        self.assertIs(res[4], False)
-        self.assertIs(res[5], 0)
-        self.assertIs(res[6], False)
-        self.assertIs(res[7], 0)
-
-
-    def test_number(self):
-        src = "123"
-        stmt, env = compile_expr(src)
-        self.assertEqual(stmt(), 123)
-
-        src = "-123"
-        stmt, env = compile_expr(src)
-        self.assertEqual(stmt(), -123)
-
-        src = "1/2"
-        stmt, env = compile_expr(src)
-        self.assertEqual(stmt(), fraction(1, 2))
-
-        src = "-1/2"
-        stmt, env = compile_expr(src)
-        self.assertEqual(stmt(), fraction(-1, 2))
-
-        src = "1.5"
-        stmt, env = compile_expr(src)
-        self.assertEqual(stmt(), 1.5)
-
-        src = ".5"
-        stmt, env = compile_expr(src)
-        self.assertEqual(stmt(), 0.5)
-
-        src = "1."
-        stmt, env = compile_expr(src)
-        self.assertEqual(stmt(), 1.0)
-
-        src = "-1.5"
-        stmt, env = compile_expr(src)
-        self.assertEqual(stmt(), -1.5)
-
-        src = "-1."
-        stmt, env = compile_expr(src)
-        self.assertEqual(stmt(), -1.0)
-
-        src = "8+1j"
-        stmt, env = compile_expr(src)
-        self.assertEqual(stmt(), complex("8+1j"))
-
-        src = "3+i"
-        stmt, env = compile_expr(src)
-        self.assertEqual(stmt(), complex("3+j"))
-
-        src = "-1.1+2j"
-        stmt, env = compile_expr(src)
-        self.assertEqual(stmt(), complex("-1.1+2j"))
-
-
-    def test_string(self):
-        src = '""'
-        stmt, env = compile_expr(src)
-        self.assertEqual(stmt(), "")
-
-        src = '"hello world"'
-        stmt, env = compile_expr(src)
-        self.assertEqual(stmt(), "hello world")
-
-
-    def test_cons(self):
-        src = "(cons 1 2 3 nil)"
-        stmt, env = compile_expr(src)
-        self.assertEqual(stmt(), cons(1, 2, 3, nil))
-
-
-    def test_dot(self):
-        src = "'(1.4)"
-        stmt, env = compile_expr(src)
-        self.assertEqual(stmt(), cons(1.4, nil))
-
-        src = "'(1. 4)"
-        stmt, env = compile_expr(src)
-        self.assertEqual(stmt(), cons(1.0, 4, nil))
-
-        src = "'(1 .4)"
-        stmt, env = compile_expr(src)
-        self.assertEqual(stmt(), cons(1, 0.4, nil))
-
-        src = "'(1 . 4)"
-        stmt, env = compile_expr(src)
-        self.assertEqual(stmt(), cons(1, 4))
-
-        src = "'(1. . .4)"
-        stmt, env = compile_expr(src)
-        self.assertEqual(stmt(), cons(1.0, 0.4))
-
-
-    def test_quote_symbol(self):
-        src = "'tacos"
+        src = "(lambda (tacos) tacos)"
         stmt, env = compile_expr(src, tacos=5)
-        self.assertEqual(stmt(), symbol("tacos"))
+        fun = stmt()
+        self.assertTrue(callable(fun))
+        self.assertEqual(fun(1), 1)
 
 
-    def test_quote_keyword(self):
-        src = "':tacos"
-        stmt, env = compile_expr(src, tacos=5)
-        self.assertIs(stmt(), keyword("tacos"))
-
-        src = "'tacos:"
-        stmt, env = compile_expr(src, tacos=5)
-        self.assertIs(stmt(), keyword("tacos"))
-
-        src = "':tacos:"
-        stmt, env = compile_expr(src, tacos=5)
-        self.assertIs(stmt(), keyword("tacos"))
-
-
-    def test_quote_list(self):
-        src = "'()"
+    def test_make_adder(self):
+        src = "(lambda (X) (lambda (Y) (+ X Y)))"
         stmt, env = compile_expr(src)
-        self.assertEqual(stmt(), nil)
+        make_adder = stmt()
+        self.assertTrue(callable(make_adder))
 
-        src = "'(())"
+        add_8 = make_adder(8)
+        self.assertEqual(add_8(1), 9)
+
+        hello = make_adder("hello ")
+        self.assertEqual(hello("world"), "hello world")
+
+        # just to show the cell wasn't polluted by the new make_adder
+        # call
+        self.assertEqual(add_8(2), 10)
+
+
+    def test_getter_setter(self):
+        src = """
+        (lambda (value)
+          (cons (lambda () value)
+                (lambda (v) (setq value v))))
+        """
+
         stmt, env = compile_expr(src)
-        self.assertEqual(stmt(), cons(nil, nil))
 
-        src = "'(1 2 3)"
+        getter_setter = stmt()
+        self.assertTrue(callable(getter_setter))
+
+        getter, setter = getter_setter(0)
+        self.assertTrue(callable(getter))
+        self.assertTrue(callable(setter))
+
+        self.assertEqual(getter(), 0)
+        self.assertEqual(setter(5), None)
+        self.assertEqual(getter(), 5)
+
+
+    def test_4(self):
+        src = """
+        (lambda (a b)
+          (setq a ((lambda (x) (+ a x)) 9))
+          (cons a b))
+        """
         stmt, env = compile_expr(src)
-        self.assertEqual(stmt(), cons(1, 2, 3, nil))
+        fun = stmt()
+        res = fun(100, 200)
+        self.assertTrue(res, cons(109, 200))
 
+        src = """
+        (lambda (a b)
+          (setq b ((lambda (x) (+ b x)) 9))
+          (cons a b))
+        """
+        stmt, env = compile_expr(src)
+        fun = stmt()
+        res = fun(100, 200)
+        self.assertTrue(res, cons(100, 209))
+
+        src = """
+        (lambda (a b)
+          (setq a ((lambda (x) (+ b x)) 9))
+          (cons a b))
+        """
+        stmt, env = compile_expr(src)
+        fun = stmt()
+        res = fun(100, 200)
+        self.assertTrue(res, cons(209, 200))
+
+        src = """
+        (lambda (a b)
+          (setq b ((lambda (x) (+ a x)) 9))
+          (cons a b))
+        """
+        stmt, env = compile_expr(src)
+        fun = stmt()
+        res = fun(100, 200)
+        self.assertTrue(res, cons(100, 109))
+
+
+    def test_3(self):
+        src = """
+        (lambda (a b)
+          (lambda (x) (+ a x)))
+        """
+        stmt, env = compile_expr(src)
+        fun = stmt()
+        funx = fun(1, 9)
+        self.assertTrue(funx(2), 3)
+
+        src = """
+        (lambda (a b)
+          (lambda (x) (+ b x)))
+        """
+        stmt, env = compile_expr(src)
+        fun = stmt()
+        funx = fun(1, 9)
+        self.assertTrue(funx(2), 11)
+
+
+    def test_2(self):
+        src = """
+        (lambda (a b)
+          (lambda (x)
+           (lambda () (cons (+ a x) b))))
+        """
+        stmt, env = compile_expr(src)
+        fun = stmt()
+        funx = fun(1, 9)
+        funy = funx(2)
+        self.assertTrue(funy(), cons(3, 9))
+
+
+    def test_1(self):
+        src = """
+        (lambda (a b)
+          (lambda (x) (cons (+ a x) b)))
+        """
+        stmt, env = compile_expr(src)
+        fun = stmt()
+        funx = fun(1, 9)
+        self.assertTrue(funx(2), cons(3, 9))
+
+
+class Quasiquote(TestCase):
 
     def test_quasiquote(self):
         src = """
@@ -436,178 +344,8 @@ class TestCompiler(TestCase):
         self.assertEqual(res, exp)
 
 
-    def test_attr(self):
-
-        o = Object()
-        o.foo = Object()
-        o.foo.bar = Object()
-        o.foo.bar.baz = 111
-
-        src = """
-        o.foo.bar.baz
-        """
-        stmt, env = compile_expr(src, o=o)
-        res = stmt()
-        self.assertEqual(res, 111)
-
-        src = """
-        (attr o.foo.bar baz)
-        """
-        stmt, env = compile_expr(src, o=o)
-        res = stmt()
-        self.assertEqual(res, 111)
-
-
-    def test_set_attr(self):
-
-        o = Object()
-        o.foo = Object()
-        o.foo.bar = Object()
-        o.foo.bar.baz = 111
-
-        src = """
-        (set-attr o.foo.bar baz 999)
-        """
-        stmt, env = compile_expr(src, o=o)
-        res = stmt()
-        self.assertEqual(res, None)
-        self.assertEqual(o.foo.bar.baz, 999)
-
-        src = """
-        (set-attr (attr o.foo bar) baz 888)
-        """
-        stmt, env = compile_expr(src, o=o)
-        res = stmt()
-        self.assertEqual(res, None)
-        self.assertEqual(o.foo.bar.baz, 888)
-
-
-class CompilerClosures(TestCase):
-
-    def test_4(self):
-        src = """
-        (lambda (a b)
-          (setq a ((lambda (x) (+ a x)) 9))
-          (cons a b))
-        """
-        stmt, env = compile_expr(src)
-        fun = stmt()
-        res = fun(100, 200)
-        self.assertTrue(res, cons(109, 200))
-
-        src = """
-        (lambda (a b)
-          (setq b ((lambda (x) (+ b x)) 9))
-          (cons a b))
-        """
-        stmt, env = compile_expr(src)
-        fun = stmt()
-        res = fun(100, 200)
-        self.assertTrue(res, cons(100, 209))
-
-        src = """
-        (lambda (a b)
-          (setq a ((lambda (x) (+ b x)) 9))
-          (cons a b))
-        """
-        stmt, env = compile_expr(src)
-        fun = stmt()
-        res = fun(100, 200)
-        self.assertTrue(res, cons(209, 200))
-
-        src = """
-        (lambda (a b)
-          (setq b ((lambda (x) (+ a x)) 9))
-          (cons a b))
-        """
-        stmt, env = compile_expr(src)
-        fun = stmt()
-        res = fun(100, 200)
-        self.assertTrue(res, cons(100, 109))
-
-
-    def test_3(self):
-        src = """
-        (lambda (a b)
-          (lambda (x) (+ a x)))
-        """
-        stmt, env = compile_expr(src)
-        fun = stmt()
-        funx = fun(1, 9)
-        self.assertTrue(funx(2), 3)
-
-        src = """
-        (lambda (a b)
-          (lambda (x) (+ b x)))
-        """
-        stmt, env = compile_expr(src)
-        fun = stmt()
-        funx = fun(1, 9)
-        self.assertTrue(funx(2), 11)
-
-
-    def test_2(self):
-        src = """
-        (lambda (a b)
-          (lambda (x)
-           (lambda () (cons (+ a x) b))))
-        """
-        stmt, env = compile_expr(src)
-        fun = stmt()
-        funx = fun(1, 9)
-        funy = funx(2)
-        self.assertTrue(funy(), cons(3, 9))
-
-
-    def test_1(self):
-        src = """
-        (lambda (a b)
-          (lambda (x) (cons (+ a x) b)))
-        """
-        stmt, env = compile_expr(src)
-        fun = stmt()
-        funx = fun(1, 9)
-        self.assertTrue(funx(2), cons(3, 9))
-
-
 class CompilerSpecials(TestCase):
 
-
-    def test_lambda(self):
-        src = "(lambda () tacos)"
-        stmt, env = compile_expr(src)
-        fun = stmt()
-        self.assertTrue(callable(fun))
-        self.assertRaises(NameError, fun)
-
-        src = "(lambda () tacos)"
-        stmt, env = compile_expr(src, tacos=5)
-        fun = stmt()
-        self.assertTrue(callable(fun))
-        self.assertEqual(fun(), 5)
-
-        src = "(lambda (tacos) tacos)"
-        stmt, env = compile_expr(src, tacos=5)
-        fun = stmt()
-        self.assertTrue(callable(fun))
-        self.assertEqual(fun(1), 1)
-
-
-    def test_make_adder(self):
-        src = "(lambda (X) (lambda (Y) (+ X Y)))"
-        stmt, env = compile_expr(src)
-        make_adder = stmt()
-        self.assertTrue(callable(make_adder))
-
-        add_8 = make_adder(8)
-        self.assertEqual(add_8(1), 9)
-
-        hello = make_adder("hello ")
-        self.assertEqual(hello("world"), "hello world")
-
-        # just to show the cell wasn't polluted by the new make_adder
-        # call
-        self.assertEqual(add_8(2), 10)
 
 
     def test_let(self):
@@ -626,27 +364,6 @@ class CompilerSpecials(TestCase):
         src = "(let ((tacos 1)) (cons tacos beer))"
         stmt, env = compile_expr(src, tacos=5, beer=9)
         self.assertEqual(stmt(), cons(1, 9))
-
-
-    def test_getter_setter(self):
-        src = """
-        (lambda (value)
-          (cons (lambda () value)
-                (lambda (v) (setq value v))))
-        """
-
-        stmt, env = compile_expr(src)
-
-        getter_setter = stmt()
-        self.assertTrue(callable(getter_setter))
-
-        getter, setter = getter_setter(0)
-        self.assertTrue(callable(getter))
-        self.assertTrue(callable(setter))
-
-        self.assertEqual(getter(), 0)
-        self.assertEqual(setter(5), None)
-        self.assertEqual(getter(), 5)
 
 
     def test_define(self):

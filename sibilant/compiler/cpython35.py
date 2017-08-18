@@ -14,11 +14,11 @@
 
 
 from . import (
-    SpecialCodeSpace, Pseudop, Opcode,
+    ExpressionCodeSpace, Pseudop, Opcode,
 )
 
 
-class CPython35(SpecialCodeSpace):
+class CPython35(ExpressionCodeSpace):
     """
     SpecialCodeSpace emitting bytecode compatible with CPython version
     3.5
@@ -249,8 +249,65 @@ class CPython35(SpecialCodeSpace):
             elif op is Pseudop.END_FINALLY:
                 yield Opcode.END_FINALLY,
 
-            elif op is Pseudop.EXCEPTION_MATCH:
-                yield Opcode.COMPARE_OP, 10, 0
+            elif op is Pseudop.UNARY_POSITIVE:
+                yield Opcode.UNARY_POSITIVE,
+
+            elif op is Pseudop.UNARY_NEGATIVE:
+                yield Opcode.UNARY_NEGATIVE,
+
+            elif op is Pseudop.UNARY_NOT:
+                yield Opcode.UNARY_NOT,
+
+            elif op is Pseudop.UNARY_INVERT:
+                yield Opcode.UNARY_INVERT,
+
+            elif op is Pseudop.ITER:
+                yield Opcode.GET_ITER,
+
+            elif op is Pseudop.COMPARE_OP:
+                yield Opcode.COMPARE_OP, args[0], 0
+
+            elif op is Pseudop.ITEM:
+                yield Opcode.BINARY_SUBSCR,
+
+            elif op is Pseudop.BINARY_ADD:
+                yield Opcode.BINARY_ADD,
+
+            elif op is Pseudop.BINARY_SUBTRACT:
+                yield Opcode.BINARY_SUBTRACT,
+
+            elif op is Pseudop.BINARY_MULTIPLY:
+                yield Opcode.BINARY_MULTIPLY,
+
+            elif op is Pseudop.BINARY_MATRIX_MULTIPLY:
+                yield Opcode.BINARY_MATRIX_MULTIPLY,
+
+            elif op is Pseudop.BINARY_TRUE_DIVIDE:
+                yield Opcode.BINARY_TRUE_DIVIDE,
+
+            elif op is Pseudop.BINARY_FLOOR_DIVIDE:
+                yield Opcode.BINARY_FLOOR_DIVIDE,
+
+            elif op is Pseudop.BINARY_POWER:
+                yield Opcode.BINARY_POWER,
+
+            elif op is Pseudop.BINARY_MODULO:
+                yield Opcode.BINARY_MODULO,
+
+            elif op is Pseudop.BINARY_LSHIFT:
+                yield Opcode.BINARY_LSHIFT,
+
+            elif op is Pseudop.BINARY_RSHIFT:
+                yield Opcode.BINARY_RSHIFT,
+
+            elif op is Pseudop.BINARY_AND:
+                yield Opcode.BINARY_AND,
+
+            elif op is Pseudop.BINARY_XOR:
+                yield Opcode.BINARY_XOR,
+
+            elif op is Pseudop.BINARY_OR:
+                yield Opcode.BINARY_OR,
 
             elif op is Pseudop.RAISE:
                 yield Opcode.RAISE_VARARGS, args[0], 0
@@ -298,6 +355,46 @@ class CPython35(SpecialCodeSpace):
             yield Opcode.LOAD_CONST, ci, 0
             yield Opcode.LOAD_CONST, ni, 0
             yield Opcode.MAKE_FUNCTION, 0, 0
+
+
+    def lnt_compile(self, lnt, firstline=None):
+        if not lnt:
+            return (1 if firstline is None else firstline), b''
+
+        firstline = lnt[0][1] if firstline is None else firstline
+        gathered = []
+
+        prev_offset = 0
+        prev_line = firstline
+
+        for offset, line, _col in lnt:
+            if gathered and line == prev_line:
+                continue
+
+            d_offset = (offset - prev_offset)
+            d_line = (line - prev_line)
+
+            d_offset &= 0xff
+
+            if d_line < 0:
+                # before version 3.6, negative relative line numbers
+                # weren't possible. Thus the line of a CALL_FUNCTION
+                # is the line it closes on, rather than the line it
+                # begins on. So we'll skip this lnt entry.
+                continue
+
+            if d_line < -128 or d_line > 127:
+                dd_line = (d_line >> 8) & 0xff
+                gathered.append(bytes([d_offset, dd_line]))
+
+            d_line &= 0xff
+            gathered.append(bytes([d_offset, d_line]))
+
+            prev_offset = offset
+            prev_line = line
+
+        res = firstline, b''.join(gathered)
+        return res
 
 
 def _const_index(of_list, value):

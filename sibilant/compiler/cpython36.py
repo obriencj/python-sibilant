@@ -14,11 +14,11 @@
 
 
 from . import (
-    SpecialCodeSpace, Pseudop, Opcode,
+    ExpressionCodeSpace, Pseudop, Opcode,
 )
 
 
-class CPython36(SpecialCodeSpace):
+class CPython36(ExpressionCodeSpace):
     """
     SpecialCodeSpace emitting bytecode compatible with CPython version
     3.6
@@ -252,8 +252,65 @@ class CPython36(SpecialCodeSpace):
             elif op is Pseudop.END_FINALLY:
                 yield Opcode.END_FINALLY, 0
 
-            elif op is Pseudop.EXCEPTION_MATCH:
-                yield Opcode.COMPARE_OP, 10
+            elif op is Pseudop.UNARY_POSITIVE:
+                yield Opcode.UNARY_POSITIVE, 0
+
+            elif op is Pseudop.UNARY_NEGATIVE:
+                yield Opcode.UNARY_NEGATIVE, 0
+
+            elif op is Pseudop.UNARY_NOT:
+                yield Opcode.UNARY_NOT, 0
+
+            elif op is Pseudop.UNARY_INVERT:
+                yield Opcode.UNARY_INVERT, 0
+
+            elif op is Pseudop.ITER:
+                yield Opcode.GET_ITER, 0
+
+            elif op is Pseudop.COMPARE_OP:
+                yield Opcode.COMPARE_OP, args[0]
+
+            elif op is Pseudop.ITEM:
+                yield Opcode.BINARY_SUBSCR, 0
+
+            elif op is Pseudop.BINARY_ADD:
+                yield Opcode.BINARY_ADD, 0
+
+            elif op is Pseudop.BINARY_SUBTRACT:
+                yield Opcode.BINARY_SUBTRACT, 0
+
+            elif op is Pseudop.BINARY_MULTIPLY:
+                yield Opcode.BINARY_MULTIPLY, 0
+
+            elif op is Pseudop.BINARY_MATRIX_MULTIPLY:
+                yield Opcode.BINARY_MATRIX_MULTIPLY, 0
+
+            elif op is Pseudop.BINARY_TRUE_DIVIDE:
+                yield Opcode.BINARY_TRUE_DIVIDE, 0
+
+            elif op is Pseudop.BINARY_FLOOR_DIVIDE:
+                yield Opcode.BINARY_FLOOR_DIVIDE, 0
+
+            elif op is Pseudop.BINARY_POWER:
+                yield Opcode.BINARY_POWER, 0
+
+            elif op is Pseudop.BINARY_MODULO:
+                yield Opcode.BINARY_MODULO, 0
+
+            elif op is Pseudop.BINARY_LSHIFT:
+                yield Opcode.BINARY_LSHIFT, 0
+
+            elif op is Pseudop.BINARY_RSHIFT:
+                yield Opcode.BINARY_RSHIFT, 0
+
+            elif op is Pseudop.BINARY_AND:
+                yield Opcode.BINARY_AND, 0
+
+            elif op is Pseudop.BINARY_XOR:
+                yield Opcode.BINARY_XOR, 0
+
+            elif op is Pseudop.BINARY_OR:
+                yield Opcode.BINARY_OR, 0
 
             elif op is Pseudop.RAISE:
                 yield Opcode.RAISE_VARARGS, args[0]
@@ -302,7 +359,51 @@ class CPython36(SpecialCodeSpace):
             yield Opcode.MAKE_FUNCTION, 0
 
 
+    def lnt_compile(self, lnt, firstline=None):
+        if not lnt:
+            return (1 if firstline is None else firstline), b''
+
+        firstline = lnt[0][1] if firstline is None else firstline
+        gathered = []
+
+        prev_offset = 0
+        prev_line = firstline
+
+        for offset, line, _col in lnt:
+            if gathered and line == prev_line:
+                continue
+
+            d_offset = (offset - prev_offset)
+            d_line = (line - prev_line)
+
+            d_offset &= 0xff
+
+            if d_line < 0:
+                # in version 3.6 and beyond, negative line numbers
+                # work fine, so a CALL_FUNCTION can correctly state
+                # that it happens at line it started on, rather than
+                # on the line it closes at
+                pass
+
+            if d_line < -128 or d_line > 127:
+                dd_line = (d_line >> 8) & 0xff
+                gathered.append(bytes([d_offset, dd_line]))
+
+            d_line &= 0xff
+            gathered.append(bytes([d_offset, d_line]))
+
+            prev_offset = offset
+            prev_line = line
+
+        res = firstline, b''.join(gathered)
+        return res
+
+
 def _const_index(of_list, value):
+    # have to use an `is` comparator, because the list.index method
+    # will consider False and 0, and True and 1 to be equivalent,
+    # breaking any constant pools containing those values.
+
     for index, found in enumerate(of_list):
         if found is value:
             return index
