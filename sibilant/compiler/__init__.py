@@ -1012,6 +1012,7 @@ class ExpressionCodeSpace(CodeSpace):
 
         while expr is not None:
             if expr is nil:
+                # convert nil expressions to a literal nil
                 self.pseudop_get_var("nil")
                 expr = None
 
@@ -1039,14 +1040,17 @@ class ExpressionCodeSpace(CodeSpace):
 
 
     def compile_pair(self, expr):
+        if not is_proper(expr):
+            raise self.error("cannot evaluate improper lists as expressions",
+                             expr)
+
         head, tail = expr
 
         if is_symbol(head):
-            # see if this is a special, either a builtin one
-            # or a defined macro.
-            special = self.find_compiled(head)
-            if special:
-                return special.compile(self, expr)
+            # see if this is a a compiled call
+            comp = self.find_compiled(head)
+            if comp:
+                return comp.compile(self, expr)
 
         # either not a symbol, or it was and the symbol wasn't
         # a special, so just make it into a function call
@@ -1063,9 +1067,11 @@ class ExpressionCodeSpace(CodeSpace):
         The various ways that a symbol on its own can evaluate.
         """
 
-        # TODO: check if symbol is a macrolet and expand it
+        comp = self.find_compiled(sym)
+        if comp and is_macrolet(comp):
+            return comp.compile(sym)
 
-        if is_keyword(sym):
+        elif is_keyword(sym):
             # it should be fairly rare that a keyword is actually
             # passed anywhere at runtime -- it's mostly meant for use
             # as a marker in source expressions for specials.
