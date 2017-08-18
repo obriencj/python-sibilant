@@ -34,8 +34,8 @@ from sibilant import (
 )
 
 from sibilant.compiler import (
-    make_macro, is_macro, Macro,
-    make_special, is_special, Special,
+    is_macro, Macro,
+    is_special, Special,
     iter_compile,
 )
 
@@ -1167,10 +1167,14 @@ class SpecialWith(TestCase):
         self.assertEqual(accu2, [777])
 
 
-class SpecialBinaryOperators(TestCase):
+class BinaryOperators(TestCase):
 
     def test_and(self):
         # this tests the compiled form of `and`
+
+        src = "(operator? and)"
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), True)
 
         src = """
         (and 1 2 3)
@@ -1264,6 +1268,10 @@ class SpecialBinaryOperators(TestCase):
 
     def test_or(self):
         # this tests the compiled form of `or`
+
+        src = "(operator? or)"
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), True)
 
         src = """
         (or 1 2 3)
@@ -1363,6 +1371,10 @@ class SpecialBinaryOperators(TestCase):
     def test_add(self):
         # this tests the compiled form of `+`
 
+        src = "(operator? +)"
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), True)
+
         src = """
         (+ 1)
         """
@@ -1431,6 +1443,10 @@ class SpecialBinaryOperators(TestCase):
     def test_sub(self):
         # this tests the compiled form of `-`
 
+        src = "(operator? -)"
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), True)
+
         src = """
         (- 1)
         """
@@ -1496,7 +1512,134 @@ class SpecialBinaryOperators(TestCase):
         self.assertEqual(stmt(), 100)
 
 
-class SpecialUnaryOperators(TestCase):
+    def test_mult(self):
+
+        src = "(operator? *)"
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), True)
+
+        src = """
+        (* 999)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 999)
+
+        src = """
+        (* 5 2)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 10)
+
+        src = """
+        (* -5 2)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), -10)
+
+        src = """
+        (* -5 -2)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 10)
+
+        src = """
+        (* 1 2 3 -4)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), -24)
+
+        src = """
+        (* "TACOS " 2)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), "TACOS TACOS ")
+
+
+    def test_apply_mult(self):
+
+        src = """
+        (apply * '(999))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 999)
+
+        src = """
+        (apply * '(5 2))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 10)
+
+        src = """
+        (apply * '(-5 2))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), -10)
+
+        src = """
+        (apply * '(-5 -2))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 10)
+
+        src = """
+        (apply * '(1 2 3 -4))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), -24)
+
+        src = """
+        (apply * '("TACOS " 2))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), "TACOS TACOS ")
+
+
+    def test_power(self):
+
+        src = "(operator? **)"
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), True)
+
+        src = """
+        (** 2 2)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 4)
+
+        src = """
+        (** 4 1/2)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 2)
+
+        src = """
+        (** 4 0.5)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 2)
+
+
+    def test_modulo(self):
+
+        src = "(operator? %)"
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), True)
+
+        src = """
+        (% 5 2)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 1)
+
+        src = """
+        (% "first %s second %s third %s" (make-tuple 3 2 1))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), "first 3 second 2 third 1")
+
+
+
+class UnaryOperators(TestCase):
 
     def test_not(self):
         src = """
@@ -1543,6 +1686,56 @@ class SpecialUnaryOperators(TestCase):
 
         src = """
         (not (make-list))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), True)
+
+
+    def test_apply_not(self):
+        src = """
+        (apply not '(,True))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), False)
+
+        src = """
+        (apply not '(1))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), False)
+
+        src = """
+        (apply not '((tacos)))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), False)
+
+        src = """
+        (apply not `(,(make-list 0))))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), False)
+
+        src = """
+        (apply not `(,False))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), True)
+
+        src = """
+        (apply not '(0))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), True)
+
+        src = """
+        (apply not '(()))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), True)
+
+        src = """
+        (apply not `(,(make-list)))
         """
         stmt, env = compile_expr(src)
         self.assertEqual(stmt(), True)
@@ -1614,7 +1807,7 @@ class SpecialUnaryOperators(TestCase):
         self.assertEqual(res, 2)
 
 
-class SpecialComparators(TestCase):
+class Comparators(TestCase):
 
     def test_eq(self):
         src = """
@@ -1640,6 +1833,36 @@ class SpecialComparators(TestCase):
 
         src = """
         (== 0 1)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, False)
+
+
+    def test_apply_eq(self):
+        src = """
+        (apply eq '(1 1))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, True)
+
+        src = """
+        (apply eq '(0 1))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, False)
+
+        src = """
+        (apply == '(1 1))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, True)
+
+        src = """
+        (apply == '(0 1))
         """
         stmt, env = compile_expr(src)
         res = stmt()
@@ -1676,6 +1899,36 @@ class SpecialComparators(TestCase):
         self.assertEqual(res, True)
 
 
+    def test_apply_not_eq(self):
+        src = """
+        (apply not-eq '(1 1))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, False)
+
+        src = """
+        (apply not-eq '(0 1))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, True)
+
+        src = """
+        (apply != '(1 1))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, False)
+
+        src = """
+        (apply != '(0 1))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, True)
+
+
     def test_in(self):
         src = """
         (in X 1)
@@ -1692,6 +1945,22 @@ class SpecialComparators(TestCase):
         self.assertEqual(res, False)
 
 
+    def test_apply_in(self):
+        src = """
+        (apply in `(,X 1))
+        """
+        stmt, env = compile_expr(src, X=[0, 1, 2])
+        res = stmt()
+        self.assertEqual(res, True)
+
+        src = """
+        (apply in `(,X 9))
+        """
+        stmt, env = compile_expr(src, X=[0, 1, 2])
+        res = stmt()
+        self.assertEqual(res, False)
+
+
     def test_not_in(self):
         src = """
         (not-in X 1)
@@ -1702,6 +1971,22 @@ class SpecialComparators(TestCase):
 
         src = """
         (not-in X 9)
+        """
+        stmt, env = compile_expr(src, X=[0, 1, 2])
+        res = stmt()
+        self.assertEqual(res, True)
+
+
+    def test_apply_not_in(self):
+        src = """
+        (apply not-in `(,X 1))
+        """
+        stmt, env = compile_expr(src, X=[0, 1, 2])
+        res = stmt()
+        self.assertEqual(res, False)
+
+        src = """
+        (apply not-in `(,X 9))
         """
         stmt, env = compile_expr(src, X=[0, 1, 2])
         res = stmt()
@@ -1727,6 +2012,25 @@ class SpecialComparators(TestCase):
         self.assertEqual(res, False)
 
 
+    def test_apply_is(self):
+        o1 = object()
+        o2 = object()
+
+        src = """
+        (apply is `(,X ,Y))
+        """
+        stmt, env = compile_expr(src, X=o1, Y=o1)
+        res = stmt()
+        self.assertEqual(res, True)
+
+        src = """
+        (apply is `(,X ,Y))
+        """
+        stmt, env = compile_expr(src, X=o1, Y=o2)
+        res = stmt()
+        self.assertEqual(res, False)
+
+
     def test_is_not(self):
         o1 = object()
         o2 = object()
@@ -1740,6 +2044,25 @@ class SpecialComparators(TestCase):
 
         src = """
         (is-not X Y)
+        """
+        stmt, env = compile_expr(src, X=o1, Y=o2)
+        res = stmt()
+        self.assertEqual(res, True)
+
+
+    def test_apply_is_not(self):
+        o1 = object()
+        o2 = object()
+
+        src = """
+        (apply is-not `(,X ,Y))
+        """
+        stmt, env = compile_expr(src, X=o1, Y=o1)
+        res = stmt()
+        self.assertEqual(res, False)
+
+        src = """
+        (apply is-not `(,X ,Y))
         """
         stmt, env = compile_expr(src, X=o1, Y=o2)
         res = stmt()
@@ -1790,6 +2113,50 @@ class SpecialComparators(TestCase):
         self.assertEqual(res, False)
 
 
+    def test_apply_lt(self):
+        src = """
+        (apply < '(1 2))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, True)
+
+        src = """
+        (apply lt '(1 2))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, True)
+
+        src = """
+        (apply < '(99 99))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, False)
+
+        src = """
+        (apply lt '(99 99))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, False)
+
+        src = """
+        (apply < '(2 1))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, False)
+
+        src = """
+        (apply lt '(2 1))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, False)
+
+
     def test_lte(self):
         src = """
         (<= 1 2)
@@ -1828,6 +2195,50 @@ class SpecialComparators(TestCase):
 
         src = """
         (lte 2 1)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, False)
+
+
+    def test_apply_lte(self):
+        src = """
+        (apply <= '(1 2))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, True)
+
+        src = """
+        (apply lte '(1 2))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, True)
+
+        src = """
+        (apply <= '(99 99))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, True)
+
+        src = """
+        (apply lte '(99 99))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, True)
+
+        src = """
+        (apply <= '(2 1))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, False)
+
+        src = """
+        (apply lte '(2 1))
         """
         stmt, env = compile_expr(src)
         res = stmt()
@@ -1878,6 +2289,50 @@ class SpecialComparators(TestCase):
         self.assertEqual(res, True)
 
 
+    def test_apply_gt(self):
+        src = """
+        (apply > '(1 2))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, False)
+
+        src = """
+        (apply gt '(1 2))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, False)
+
+        src = """
+        (apply > '(99 99))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, False)
+
+        src = """
+        (apply gt '(99 99))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, False)
+
+        src = """
+        (apply > '(2 1))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, True)
+
+        src = """
+        (apply gt '(2 1))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, True)
+
+
     def test_gte(self):
         src = """
         (>= 1 2)
@@ -1920,6 +2375,42 @@ class SpecialComparators(TestCase):
         stmt, env = compile_expr(src)
         res = stmt()
         self.assertEqual(res, True)
+
+
+    def test_apply_gte(self):
+        src = """
+        (apply >= '(1 2))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, False)
+
+        src = """
+        (apply gte '(1 2))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, False)
+
+        src = """
+        (apply >= '(99 99))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, True)
+
+        src = """
+        (apply gte '(99 99))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, True)
+
+        src = """
+        (apply >= '(2 1))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
 
 
 #

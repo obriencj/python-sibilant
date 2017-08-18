@@ -14,9 +14,9 @@
 
 
 import dis
-import operator
+import operator as pyop
 
-from abc import ABCMeta, abstractmethod
+from abc import ABCMeta, abstractmethod, abstractstaticmethod
 from contextlib import contextmanager
 from enum import Enum
 from functools import partial, reduce, wraps
@@ -43,7 +43,9 @@ __all__ = (
     "Opcode", "Pseudop",
     "CodeSpace", "SpecialCodeSpace",
     "code_space_for_version",
-    "macro", "is_macro",
+    "Special", "is_special",
+    "Macro", "is_special",
+    "Operator", "is_operator",
     "iter_compile",
 )
 
@@ -56,78 +58,138 @@ class UnsupportedVersion(SibilantException):
     pass
 
 
-class Special(object):
+class Builtin(object):
+    __slots__ = ("__name__", )
+    __objname__ = "sibilant-builtin"
 
-    def __new__(cls, fun, name=None, runtime=None):
-        nom = str(name or fun.__name__)
-        cls = type(nom, (cls, ), {"__doc__": fun.__doc__})
-        return object.__new__(cls)
-
-
-    def __init__(self, fun, name=None, runtime=None):
-        self.special = fun
-        self.runtime = runtime
-        self.__name__ = str(name or fun.__name__)
-
-
-    def __call__(self, *args, **kwds):
-        if self.runtime:
-            return self.runtime(*args, **kwds)
-        else:
-            msg = "Attempt to call %s as runtime function." % self.__name__
-            raise TypeError(msg)
-
+    def __init__(self, name):
+        self.__name__ = name
 
     def __repr__(self):
-        return "<special-form %s>" % self.__name__
+        return "<%s %s>" % (self.__objname__, self.__name__)
 
 
-def make_special(fun, name=None, runtime=None):
-    if isinstance(fun, Special):
-        return fun
-    else:
-        return Special(fun, name=name, runtime=runtime)
-
-
-def is_special(value):
-    return isinstance(value, Special)
-
-
-class Macro(Special):
-    def __new__(cls, fun, name=None):
-        nom = str(name or fun.__name__)
-        cls = type(nom, (cls, ), {"__doc__": fun.__doc__})
-        return object.__new__(cls)
-
-
-    def __init__(self, fun, name=None):
-        self.expand = fun
-        self.__name__ = str(name or fun.__name__)
+class Runtime(Builtin, metaclass=ABCMeta):
+    __objname__ = "sibilant-runtime"
 
 
     def __call__(self, *args, **kwds):
-        msg = "Attempt to call %s as runtime function." % self.__name__
+        return self.__runtime__(*args, **kwds)
+
+
+    @abstractstaticmethod
+    def __runtime__(*args, **kwds):
+        pass
+
+
+class Compiled(Builtin, metaclass=ABCMeta):
+    __objname__ = "sibilant-compiled"
+
+
+    def __call__(self, *args, **kwds):
+        msg = "Attempt to call %r as a runtime function" % self
         raise TypeError(msg)
 
 
-    def special(self, _env, source):
-        called_by, cl = source
-        return self.expand(*cl.unpack())
+    @abstractmethod
+    def compile(self, compiler, source_obj):
+        pass
 
 
-    def __repr__(self):
-        return "<macro %s>" % self.__name__
+def is_compiled(obj):
+    return isinstance(obj, Compiled)
 
 
-def make_macro(fun, name=None):
-    if isinstance(fun, Macro):
-        return fun
-    else:
-        return Macro(fun, name=name)
+class Special(Compiled, metaclass=ABCMeta):
+    __objname__ = "special-form"
 
 
-def is_macro(value):
-    return isinstance(value, Macro)
+    def __init__(self, name, compilefn):
+        super().__init__(name)
+
+
+    def __new__(cls, name, compilefn):
+        nom = str(name or compilefn.__name__)
+        mbs = {
+            "__doc__": compilefn.__doc__,
+            "__inline__": staticmethod(compilefn),
+        }
+        cls = type(nom, (cls, ), mbs)
+        return object.__new__(cls)
+
+
+    @abstractstaticmethod
+    def __inline__(env, source_obj):
+        pass
+
+
+    def compile(self, compiler, source_obj):
+        return self.__inline__(compiler, source_obj)
+
+
+def is_special(obj):
+    return isinstance(obj, Special)
+
+
+class Macro(Compiled, metaclass=ABCMeta):
+    __objname__ = "macro"
+
+
+    def __init__(self, name, macrofn):
+        super().__init__(name)
+
+
+    def __new__(cls, name, expandfn):
+        nom = str(name or expandfn.__name__)
+        mbs = {
+            "__doc__": expandfn.__doc__,
+            "expand": staticmethod(expandfn),
+        }
+        cls = type(nom, (cls, ), mbs)
+        return object.__new__(cls)
+
+
+    @abstractstaticmethod
+    def expand(*args):
+        pass
+
+
+    def compile(self, _compiler, source_obj):
+        called_by, source = source_obj
+        return self.expand(*source.unpack())
+
+
+def is_macro(obj):
+    return isinstance(obj, Macro)
+
+
+class Operator(Runtime, Compiled, metaclass=ABCMeta):
+    __objname__ = "operator"
+
+
+    def __init__(self, name, compilefn, runtimefn):
+        self.__name__ = name
+
+
+    def __new__(cls, name, compilefn, runtimefn):
+        assert(compilefn is not None)
+        assert(runtimefn is not None)
+        nom = str(name or runtimefn.__name__ or compilefn.__name__)
+        mbs = {
+            "__doc__": compilefn.__doc__,
+            "__runtime__": staticmethod(runtimefn),
+            "__inline__": staticmethod(compilefn),
+        }
+        cls = type(nom, (cls, ), mbs)
+        return object.__new__(cls)
+
+
+    def compile(self, compiler, source_obj):
+        return self.__inline__(compiler, source_obj)
+
+
+def is_operator(obj):
+    return isinstance(obj, Operator)
 
 
 class Opcode(Enum):
@@ -189,6 +251,7 @@ class Pseudop(Enum):
     UNARY_NOT = _auto()
     UNARY_INVERT = _auto()
     ITER = _auto()
+    ITEM = _auto()
     BINARY_POWER = _auto()
     BINARY_MULTIPLY = _auto()
     BINARY_MATRIX_MULTIPLY = _auto()
@@ -269,15 +332,29 @@ _symbol_raise = symbol("raise")
 _symbol_try = symbol("try")
 _symbol_else = symbol("else")
 _symbol_finally = symbol("finally")
+
 _symbol_and = symbol("and")
 _symbol_or = symbol("or")
 _symbol_not = symbol("not")
 _symbol_invert = symbol("~")
 _symbol_iter = symbol("iter")
+
+_symbol_item = symbol("item")
 _symbol_add = symbol("+")
 _symbol_add_ = symbol("add")
 _symbol_sub = symbol("-")
 _symbol_sub_ = symbol("subtract")
+_symbol_mult = symbol("*")
+_symbol_mult_ = symbol("multiply")
+_symbol_pow = symbol("**")
+_symbol_pow_ = symbol("pow")
+_symbol_mod = symbol("%")
+_symbol_mod_ = symbol("mod")
+_symbol_div = symbol("/")
+_symbol_div_ = symbol("divide")
+_symbol_floordiv = symbol("//")
+_symbol_floordiv_ = symbol("floor-divide")
+
 _symbol_lt = symbol("<")
 _symbol_lt_ = symbol("lt")
 _symbol_lte = symbol("<=")
@@ -294,12 +371,7 @@ _symbol_in = symbol("in")
 _symbol_not_in = symbol("not-in")
 _symbol_is = symbol("is")
 _symbol_is_not = symbol("is-not")
-_symbol_mult = symbol("*")
-_symbol_mult_ = symbol("multiply")
-_symbol_div = symbol("/")
-_symbol_div_ = symbol("divide")
-_symbol_floordiv = symbol("//")
-_symbol_floordiv_ = symbol("floor-divide")
+
 _symbol_None = symbol("None")
 _symbol_True = symbol("True")
 _symbol_False = symbol("False")
@@ -775,16 +847,28 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop(Pseudop.BINARY_MULTIPLY)
 
 
+    def pseudop_binary_power(self):
+        self.pseudop(Pseudop.BINARY_POWER)
+
+
+    def pseudop_binary_modulo(self):
+        self.pseudop(Pseudop.BINARY_MODULO)
+
+
     def pseudop_binary_divide(self):
-        self.pseudop(Pseudop.BINARY_DIVIDE)
+        self.pseudop(Pseudop.BINARY_TRUE_DIVIDE)
 
 
     def pseudop_binary_floor_divide(self):
-        self.pseudop(Pseudop.BINARY_FLOORDIVIDE)
+        self.pseudop(Pseudop.BINARY_FLOOR_DIVIDE)
 
 
     def pseudop_iter(self):
         self.pseudop(Pseudop.ITER)
+
+
+    def pseudop_item(self):
+        self.pseudop(Pseudop.ITEM)
 
 
     def pseudop_compare_lt(self):
@@ -940,28 +1024,31 @@ class CodeSpace(metaclass=ABCMeta):
 def _special():
     _specials = {}
 
-    def special(namesym, *aliases, runtime=None):
+    def special(namesym, *aliases):
         def deco(meth):
-            @wraps(meth)
-            def invoke_special(env, cl):
-                compiler = env.get("__compiler__", None)
-                if not compiler:
-                    raise Exception("special invoked without active compiler")
-                return meth(compiler, cl)
-
-            spec = make_special(invoke_special,
-                                name=str(namesym),
-                                runtime=runtime)
+            spec = Special(str(namesym), meth)
 
             _specials[namesym] = spec
             for alias in aliases:
                 _specials[alias] = spec
 
-            return invoke_special
+            return meth
 
         return deco
 
-    return special, _specials.items
+    def operator(namesym, runtime, *aliases):
+        def deco(meth):
+            spec = Operator(str(namesym), meth, runtime)
+
+            _specials[namesym] = spec
+            for alias in aliases:
+                _specials[alias] = spec
+
+            return meth
+
+        return deco
+
+    return special, operator, _specials.items
 
 
 def code_space_for_version(ver=version_info,
@@ -1003,35 +1090,35 @@ def _runtime_or(*vals):
 
 def _runtime_add(val, *vals):
     if vals:
-        return reduce(operator.add, vals, val)
+        return reduce(pyop.add, vals, val)
     else:
         return +val
 
 
 def _runtime_subtract(val, *vals):
     if vals:
-        return reduce(operator.sub, vals, val)
+        return reduce(pyop.sub, vals, val)
     else:
         return -val
 
 
 def _runtime_multiply(val, *vals):
     if vals:
-        return reduce(operator.mul, vals, val)
+        return reduce(pyop.mul, vals, val)
     else:
         return 1 * val
 
 
 def _runtime_divide(val, *vals):
     if vals:
-        return reduce(operator.truediv, vals, val)
+        return reduce(pyop.truediv, vals, val)
     else:
         return 1 / val
 
 
-def _runtime_floordivide(val, *vals):
+def _runtime_floor_divide(val, *vals):
     if vals:
-        return reduce(operator.floordiv, vals, val)
+        return reduce(pyop.floordiv, vals, val)
     else:
         return 1 // val
 
@@ -1042,7 +1129,7 @@ class SpecialCodeSpace(CodeSpace):
     """
 
     # decorator and lookup function for built-in special forms
-    special, all_specials = _special()
+    special, operator, all_specials = _special()
 
 
     def add_expression(self, expr):
@@ -1069,9 +1156,9 @@ class SpecialCodeSpace(CodeSpace):
                 if is_symbol(head):
                     # see if this is a special, either a builtin one
                     # or a defined macro.
-                    special = self.find_special(head)
+                    special = self.find_compiled(head)
                     if special:
-                        expr = special.special(self.env, expr)
+                        expr = special.compile(self, expr)
                         if expr is None:
                             # the special form or macro has done all
                             # the work already (injecting pseudo ops,
@@ -1160,8 +1247,8 @@ class SpecialCodeSpace(CodeSpace):
         return None
 
 
-    @special(_symbol_and, runtime=_runtime_and)
-    def special_and(self, source):
+    @operator(_symbol_and, _runtime_and)
+    def operator_and(self, source):
         """
         (and EXPR...)
         Evaluates expressions in order until one returns a false-ish
@@ -1191,8 +1278,8 @@ class SpecialCodeSpace(CodeSpace):
         self.pseudop_label(end_label)
 
 
-    @special(_symbol_or, runtime=_runtime_or)
-    def special_or(self, source):
+    @operator(_symbol_or, runtime=_runtime_or)
+    def operator_or(self, source):
         """
         (or EXPR...)
         Evaluates expressions in order until one returns a true-ish
@@ -1222,8 +1309,18 @@ class SpecialCodeSpace(CodeSpace):
         self.pseudop_label(end_label)
 
 
-    @special(_symbol_add, _symbol_add_, runtime=_runtime_add)
-    def special_add(self, source):
+    @operator(_symbol_item, pyop.getitem)
+    def operator_item(self, source):
+        """
+        (item OBJ KEY)
+        gets item from OBJ by key KEY
+        """
+
+        self._helper_binary(source, self.pseudop_item)
+
+
+    @operator(_symbol_add, _runtime_add, _symbol_add_)
+    def operator_add(self, source):
         """
         (+ VAL)
         applies unary_positive to VAL
@@ -1254,8 +1351,8 @@ class SpecialCodeSpace(CodeSpace):
         return None
 
 
-    @special(_symbol_sub, _symbol_sub_, runtime=_runtime_subtract)
-    def special_subtract(self, source):
+    @operator(_symbol_sub, _runtime_subtract, _symbol_sub_)
+    def operator_subtract(self, source):
         """
         (- VAL)
         applies unary_negative to VAL
@@ -1287,8 +1384,127 @@ class SpecialCodeSpace(CodeSpace):
         return None
 
 
-    @special(_symbol_not)
-    def special_not(self, source):
+    @operator(_symbol_mult, _runtime_multiply, _symbol_mult_)
+    def operator_multiply(self, source):
+        """
+        (* VAL)
+        same as (* 1 VAL)
+
+        (* VAL VAL...)
+        multiplies values together, from left to right.
+        """
+
+        called_by, rest = source
+        if is_nil(rest):
+            self.error("too few arguments to %s" % called_by, source)
+
+        self.pseudop_position_of(source)
+
+        val, rest = rest
+        if is_nil(rest):
+            self.pseudop_const(1)
+            self.add_expression(val)
+            self.pseudop_binary_multiply()
+
+        else:
+            self.add_expression(val)
+            while rest:
+                val, rest = rest
+                self.add_expression(val)
+                self.pseudop_binary_multiply()
+
+        return None
+
+
+    @operator(_symbol_div, _runtime_divide, _symbol_div_)
+    def operator_divide(self, source):
+        """
+        (/ VAL)
+        same as (/ 1 VAL)
+
+        (/ VAL VAL...)
+        divides the first value from the second, and then divides the
+        result by the next value
+        """
+
+        called_by, rest = source
+        if is_nil(rest):
+            self.error("too few arguments to %s" % called_by, source)
+
+        self.pseudop_position_of(source)
+
+        val, rest = rest
+        if is_nil(rest):
+            self.pseudop_const(1)
+            self.add_expression(val)
+            self.pseudop_binary_divide()
+
+        else:
+            self.add_expression(val)
+            while rest:
+                val, rest = rest
+                self.add_expression(val)
+                self.pseudop_binary_divide()
+
+        return None
+
+
+    @operator(_symbol_floordiv, _runtime_floor_divide, _symbol_floordiv_)
+    def operator_floor_divide(self, source):
+        """
+        (// VAL)
+        same as (// 1 VAL)
+
+        (// VAL VAL...)
+        divides the first value from the second, and then divides the
+        result by the next value
+        """
+
+        called_by, rest = source
+        if is_nil(rest):
+            self.error("too few arguments to %s" % called_by, source)
+
+        self.pseudop_position_of(source)
+
+        val, rest = rest
+        if is_nil(rest):
+            self.pseudop_const(1)
+            self.add_expression(val)
+            self.pseudop_binary_floor_divide()
+
+        else:
+            self.add_expression(val)
+            while rest:
+                val, rest = rest
+                self.add_expression(val)
+                self.pseudop_binary_floor_divide()
+
+        return None
+
+
+    @operator(_symbol_pow, pyop.pow, _symbol_pow_)
+    def operator_power(self, source):
+        """
+        (** VAL EXPONENT)
+        raises VAL to the EXPONENT
+        """
+
+        self._helper_binary(source, self.pseudop_binary_power)
+
+
+    @operator(_symbol_mod, pyop.mod, _symbol_mod_)
+    def operator_modulo(self, source):
+        """
+        (% VAL MOD)
+        VAL modulo MOD. If VAL is a string, Pythonic string
+        substitution is invoked.
+        """
+
+        self._helper_binary(source, self.pseudop_binary_modulo)
+
+
+    @operator(_symbol_not, pyop.not_)
+    def operator_not(self, source):
         try:
             called_by, (expr, rest) = source
         except ValueError:
@@ -1303,8 +1519,8 @@ class SpecialCodeSpace(CodeSpace):
         self.pseudop_unary_not()
 
 
-    @special(_symbol_invert)
-    def special_invert(self, source):
+    @operator(_symbol_invert, pyop.invert)
+    def operator_invert(self, source):
         try:
             called_by, (expr, rest) = source
         except ValueError:
@@ -1319,8 +1535,8 @@ class SpecialCodeSpace(CodeSpace):
         self.pseudop_unary_invert()
 
 
-    @special(_symbol_iter)
-    def special_iter(self, source):
+    @operator(_symbol_iter, iter)
+    def operator_iter(self, source):
         try:
             called_by, (expr, rest) = source
         except ValueError:
@@ -1360,8 +1576,8 @@ class SpecialCodeSpace(CodeSpace):
         opfun()
 
 
-    @special(_symbol_lt, _symbol_lt_)
-    def special_lt(self, source):
+    @operator(_symbol_lt, pyop.lt, _symbol_lt_)
+    def operator_lt(self, source):
         """
         (< VAL1 VAL2)
         True if VAL1 is less-than VAL2
@@ -1369,8 +1585,8 @@ class SpecialCodeSpace(CodeSpace):
         self._helper_binary(source, self.pseudop_compare_lt)
 
 
-    @special(_symbol_lte, _symbol_lte_)
-    def special_lte(self, source):
+    @operator(_symbol_lte, pyop.le, _symbol_lte_)
+    def operator_lte(self, source):
         """
         (<= VAL1 VAL2)
         True if VAL1 is less-than, or equal-to VAL2
@@ -1379,8 +1595,8 @@ class SpecialCodeSpace(CodeSpace):
         self._helper_binary(source, self.pseudop_compare_lte)
 
 
-    @special(_symbol_eq, _symbol_eq_)
-    def special_eq(self, source):
+    @operator(_symbol_eq, pyop.eq, _symbol_eq_)
+    def operator_eq(self, source):
         """
         (== VAL1 VAL2)
         True if VAL1 and VAL2 are equal
@@ -1389,8 +1605,8 @@ class SpecialCodeSpace(CodeSpace):
         self._helper_binary(source, self.pseudop_compare_eq)
 
 
-    @special(_symbol_not_eq, _symbol_not_eq_)
-    def special_not_eq(self, source):
+    @operator(_symbol_not_eq, pyop.ne, _symbol_not_eq_)
+    def operator_not_eq(self, source):
         """
         (!= VAL1 VAL2)
         True if VAL1 and VAL2 are not equal
@@ -1399,8 +1615,8 @@ class SpecialCodeSpace(CodeSpace):
         self._helper_binary(source, self.pseudop_compare_not_eq)
 
 
-    @special(_symbol_gt, _symbol_gt_)
-    def special_gt(self, source):
+    @operator(_symbol_gt, pyop.gt, _symbol_gt_)
+    def operator_gt(self, source):
         """
         (>= VAL1 VAL2)
         True if VAL1 is greater-than VAL2
@@ -1409,8 +1625,8 @@ class SpecialCodeSpace(CodeSpace):
         self._helper_binary(source, self.pseudop_compare_gt)
 
 
-    @special(_symbol_gte, _symbol_gte_)
-    def special_gte(self, source):
+    @operator(_symbol_gte, pyop.ge, _symbol_gte_)
+    def operator_gte(self, source):
         """
         (>= VAL1 VAL2)
         True if VAL1 is greater-than, or equal-to VAL2
@@ -1419,8 +1635,8 @@ class SpecialCodeSpace(CodeSpace):
         self._helper_binary(source, self.pseudop_compare_gte)
 
 
-    @special(_symbol_in)
-    def special_in(self, source):
+    @operator(_symbol_in, pyop.contains)
+    def operator_in(self, source):
         """
         (in SEQ VALUE)
         True if SEQ contains VALUE
@@ -1429,8 +1645,8 @@ class SpecialCodeSpace(CodeSpace):
         self._helper_binary(source, self.pseudop_compare_in, True)
 
 
-    @special(_symbol_not_in)
-    def special_not_in(self, source):
+    @operator(_symbol_not_in, (lambda seq, value: value not in seq))
+    def operator_not_in(self, source):
         """
         (not-in SEQ VALUE)
         False if SEQ contains VALUE
@@ -1439,8 +1655,8 @@ class SpecialCodeSpace(CodeSpace):
         self._helper_binary(source, self.pseudop_compare_not_in, True)
 
 
-    @special(_symbol_is)
-    def special_is(self, source):
+    @operator(_symbol_is, pyop.is_)
+    def operator_is(self, source):
         """
         (is OBJ1 OBJ2)
         True if OBJ1 and OBJ2 are the same object
@@ -1449,8 +1665,8 @@ class SpecialCodeSpace(CodeSpace):
         self._helper_binary(source, self.pseudop_compare_is)
 
 
-    @special(_symbol_is_not)
-    def special_is_not(self, source):
+    @operator(_symbol_is_not, pyop.is_not)
+    def operator_is_not(self, source):
         """
         (is-not OBJ1 OBJ2)
         True if OBJ1 and OBJ2 are different objects
@@ -2359,7 +2575,7 @@ class SpecialCodeSpace(CodeSpace):
         return None
 
 
-    def find_special(self, namesym):
+    def find_compiled(self, namesym):
         self.require_active()
 
         # okay, let's look through the environment by name
@@ -2379,7 +2595,7 @@ class SpecialCodeSpace(CodeSpace):
                 # nope
                 found = None
 
-        if found and is_special(found):
+        if found and is_compiled(found):
             # we found a Macro instance, return the relevant
             # method
             return found
@@ -2434,6 +2650,9 @@ def max_stack(pseudops):
     function is total crap, but it's good enough for now.
     """
 
+    # save ourselves one bazillion global lookups of the same value
+    pseu = Pseudop
+
     maxc = 0
     stac = 0
     at_label = {}
@@ -2456,51 +2675,51 @@ def max_stack(pseudops):
     for op, *args in pseudops:
         # print(op, args, stac, maxc)
 
-        if op is Pseudop.POSITION:
+        if op is pseu.POSITION:
             pass
 
-        elif op is Pseudop.DEBUG_STACK:
+        elif op is pseu.DEBUG_STACK:
             print(" ".join(map(str, args)), "max:", maxc, "current:", stac)
 
-        elif op is Pseudop.CALL:
+        elif op is pseu.CALL:
             pop(args[0])
 
-        elif op is Pseudop.CONST:
+        elif op is pseu.CONST:
             push()
 
-        elif op in (Pseudop.GET_VAR,
-                    Pseudop.GET_GLOBAL):
+        elif op in (pseu.GET_VAR,
+                    pseu.GET_GLOBAL):
             push()
 
-        elif op is Pseudop.SET_VAR:
+        elif op is pseu.SET_VAR:
             pop()
 
-        elif op is Pseudop.DELETE_VAR:
+        elif op is pseu.DELETE_VAR:
             pass
 
-        elif op in (Pseudop.GET_ATTR,
-                    Pseudop.UNARY_POSITIVE,
-                    Pseudop.UNARY_NEGATIVE,
-                    Pseudop.UNARY_NOT,
-                    Pseudop.UNARY_INVERT,
-                    Pseudop.ITER):
+        elif op in (pseu.GET_ATTR,
+                    pseu.UNARY_POSITIVE,
+                    pseu.UNARY_NEGATIVE,
+                    pseu.UNARY_NOT,
+                    pseu.UNARY_INVERT,
+                    pseu.ITER):
             pop()
             push()
 
-        elif op is Pseudop.SET_ATTR:
+        elif op is pseu.SET_ATTR:
             pop(2)
 
-        elif op is Pseudop.DUP:
+        elif op is pseu.DUP:
             push()
 
-        elif op in (Pseudop.DEFINE_GLOBAL,
-                    Pseudop.DEFINE_LOCAL):
+        elif op in (pseu.DEFINE_GLOBAL,
+                    pseu.DEFINE_LOCAL):
             pop()
 
-        elif op is Pseudop.POP:
+        elif op is pseu.POP:
             pop()
 
-        elif op is Pseudop.LAMBDA:
+        elif op is pseu.LAMBDA:
             a = len(args[0].co_freevars)
             if a:
                 push(a)
@@ -2509,64 +2728,70 @@ def max_stack(pseudops):
             pop(2)
             push()
 
-        elif op is Pseudop.RET_VAL:
+        elif op is pseu.RET_VAL:
             pop()
 
-        elif op in (Pseudop.JUMP,
-                    Pseudop.JUMP_FORWARD):
+        elif op in (pseu.JUMP,
+                    pseu.JUMP_FORWARD):
             at_label[args[0]] = stac
 
-        elif op is Pseudop.LABEL:
+        elif op is pseu.LABEL:
             stac = at_label.get(args[0], stac)
 
-        elif op in (Pseudop.POP_JUMP_IF_TRUE,
-                    Pseudop.POP_JUMP_IF_FALSE):
+        elif op in (pseu.POP_JUMP_IF_TRUE,
+                    pseu.POP_JUMP_IF_FALSE):
             pop()
             at_label[args[0]] = stac
 
-        elif op is Pseudop.CALL_VARARGS:
+        elif op is pseu.CALL_VARARGS:
             # TODO: need to revamp CALL_VARARGS to act on an optional
             # kwargs as well
             pop()
 
-        elif op in (Pseudop.BUILD_TUPLE,
-                    Pseudop.BUILD_TUPLE_UNPACK):
+        elif op in (pseu.BUILD_TUPLE,
+                    pseu.BUILD_TUPLE_UNPACK):
             pop(args[0])
             push()
 
-        elif op in (Pseudop.SETUP_EXCEPT,
-                    Pseudop.SETUP_WITH,
-                    Pseudop.SETUP_FINALLY):
+        elif op in (pseu.SETUP_EXCEPT,
+                    pseu.SETUP_WITH,
+                    pseu.SETUP_FINALLY):
             push(4)
 
-        elif op in (Pseudop.POP_BLOCK,
-                    Pseudop.POP_EXCEPT):
+        elif op in (pseu.POP_BLOCK,
+                    pseu.POP_EXCEPT):
 
             pop(4)
 
-        elif op is Pseudop.WITH_CLEANUP_START:
+        elif op is pseu.WITH_CLEANUP_START:
             push(4)
 
-        elif op is Pseudop.WITH_CLEANUP_FINISH:
+        elif op is pseu.WITH_CLEANUP_FINISH:
             pop(4)
 
-        elif op is Pseudop.END_FINALLY:
+        elif op is pseu.END_FINALLY:
             pop(1)
 
-        elif op in (Pseudop.COMPARE_OP,
-                    Pseudop.BINARY_ADD,
-                    Pseudop.BINARY_SUBTRACT):
+        elif op in (pseu.COMPARE_OP,
+                    pseu.ITEM,
+                    pseu.BINARY_ADD,
+                    pseu.BINARY_SUBTRACT,
+                    pseu.BINARY_MULTIPLY,
+                    pseu.BINARY_TRUE_DIVIDE,
+                    pseu.BINARY_FLOOR_DIVIDE,
+                    pseu.BINARY_POWER,
+                    pseu.BINARY_MODULO):
             pop(2)
             push()
 
-        elif op is Pseudop.RAISE:
+        elif op is pseu.RAISE:
             pop(args[0])
 
-        elif op is Pseudop.FAUX_PUSH:
+        elif op is pseu.FAUX_PUSH:
             push(args[0])
 
-        elif op in (Pseudop.ROT_THREE,
-                    Pseudop.ROT_TWO):
+        elif op in (pseu.ROT_THREE,
+                    pseu.ROT_TWO):
             pass
 
         else:

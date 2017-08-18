@@ -60,16 +60,10 @@ def _val(value, name):
 
 # === standard operators ===
 
-_op(_operator.mul, "*")
-_op(_operator.pow, "**")
-_op(_operator.truediv, "/")
-_op(_operator.mod, "%")
-_op(_operator.floordiv, "//")
 _op(_operator.or_, "|")
 _op(_operator.and_, "&")
 _op(_operator.xor, "^")
 
-_op((lambda obj, key: obj[key]), "item")
 _op(_operator.delitem, "del-item")
 _op(_operator.setitem, "set-item")
 
@@ -108,11 +102,14 @@ _op(_sibilant.is_undefined, "undefined?")
 
 # === compiler special forms ===
 
-_val(_compiler.make_special, "special")
+_val(_compiler.Special, "special")
 _op(_compiler.is_special, "special?")
 
-_val(_compiler.make_macro, "macro")
+_val(_compiler.Macro, "macro")
 _op(_compiler.is_macro, "macro?")
+
+_val(_compiler.Operator, "operator")
+_op(_compiler.is_operator, "operator?")
 
 
 def _specials():

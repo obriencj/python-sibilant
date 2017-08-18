@@ -19,11 +19,12 @@
 ;; === defines ===
 
 (define-global defmacro
-  (macro (function
-	  defmacro (name formals . &body)
-	  (doc "Defines a Macro instance in the current module")
-	  `(define-global ,name
-	     (macro (function ,name ,formals ,@&body))))))
+  (macro
+   "defmacro"
+   (function defmacro (name formals . &body)
+	     (doc "Defines a Macro instance in the current module")
+	     `(define-global ,name
+		(macro ,(str name) (function ,name ,formals ,@&body))))))
 
 
 (defmacro defun (name params . &body)
@@ -45,9 +46,8 @@
   `(help-macroexpand-1 ,(car expr) (quote ,(cdr expr))))
 
 
-(defun set-macro-character (char handler_fn terminating)
-  (__reader__.set_macro_character
-   char handler_fn))
+(defmacro set-macro-character args
+  `(__reader__.set_macro_character ,@args))
 
 
 ;; === conditionals ===

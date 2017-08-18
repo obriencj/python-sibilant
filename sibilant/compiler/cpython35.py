@@ -267,11 +267,29 @@ class CPython35(SpecialCodeSpace):
             elif op is Pseudop.COMPARE_OP:
                 yield Opcode.COMPARE_OP, args[0], 0
 
+            elif op is Pseudop.ITEM:
+                yield Opcode.BINARY_SUBSCR,
+
             elif op is Pseudop.BINARY_ADD:
                 yield Opcode.BINARY_ADD,
 
             elif op is Pseudop.BINARY_SUBTRACT:
                 yield Opcode.BINARY_SUBTRACT,
+
+            elif op is Pseudop.BINARY_MULTIPLY:
+                yield Opcode.BINARY_MULTIPLY,
+
+            elif op is Pseudop.BINARY_TRUE_DIVIDE:
+                yield Opcode.BINARY_TRUE_DIVIDE,
+
+            elif op is Pseudop.BINARY_FLOOR_DIVIDE:
+                yield Opcode.BINARY_FLOOR_DIVIDE,
+
+            elif op is Pseudop.BINARY_POWER:
+                yield Opcode.BINARY_POWER,
+
+            elif op is Pseudop.BINARY_MODULO:
+                yield Opcode.BINARY_MODULO,
 
             elif op is Pseudop.RAISE:
                 yield Opcode.RAISE_VARARGS, args[0], 0
