@@ -20,7 +20,7 @@ The built-in operators with compile-time optimizations
 
 import operator as pyop
 
-from functools import reduce
+from functools import partial, reduce
 
 from .. import (
     symbol, is_symbol,
@@ -82,6 +82,9 @@ def operator():
 
     def operator(namesym, runtime, *aliases):
         name = str(namesym)
+
+        runtime = partial(runtime)
+        runtime.__name__ = name
 
         def deco(compilefn):
             compilefn.__name__ = name
