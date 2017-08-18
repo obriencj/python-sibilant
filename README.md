@@ -102,7 +102,7 @@ tracebacks will interleave between python source code and sibilant
 source code, and correctly show the line that the raise came from.
 
 
-### defmacro
+### defmacro and defmacrolet
 
 A special form and macro system is implemented already. Macros are the
 simple, low-level variety, transforming the `cons` list from the
@@ -140,35 +140,6 @@ and/or compileall system to convery sibilant sources directly into
 .pyc files. These would of course still have a hard dependency on
 sibilant, in the most minimal case if only for the `Symbol` and `Pair`
 datatypes and associated functions.
-
-
-### Future Feature: Refactor Parse and Compile Model
-
-It's currently convoluted. Some of this can be cut away in the future,
-but the result of all the half-hearted poking over all these years is
-a bunch of transformations on the input.
-
-* A string or stream representing S-Expressions is parsed into a
-  series of events (parse.py)
-* The event stream is collected and an ast is formed (ast.py)
-* The full ast is simplified into a series of cons cells
-* Those cons cells are fed into a combined code/name-space which
-  tracks variable scoping and constant values, and collects a series
-  of pseudo opcodes (compile.py)
-* When the code space is completed, the pseudo ops compile into real
-  cpython operations, and a python code is emitted, ready for eval.
-
-I'd like to skip a transform in there somewhere. The ast is nice
-because it has line and offset information. However special forms and
-runtime defmacro will want to operate on the cons cells. I might be
-able to associate the line/offset information with the cons cell
-object IDs, and drop the ast entirely. I haven't decided yet.
-
-I really like the pseudop (pseudo opecode) step. It makes it easy to
-keep track of only what's important in each distinct operation. It
-also allows me to defer proper bytecode emission (and hence worrying
-about which minor version of CPython I'm running on). Not getting rid
-of that for now.
 
 
 ### Future Feature: Rewrite Sibilant in Sibilant
