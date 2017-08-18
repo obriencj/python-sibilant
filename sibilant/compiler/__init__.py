@@ -51,9 +51,6 @@ __all__ = (
 )
 
 
-_symbol_attr = symbol("attr")
-
-
 class CompilerSyntaxError(SibilantSyntaxError):
     pass
 
@@ -170,9 +167,6 @@ def is_macro(obj):
 
 
 class Macrolet(Macro):
-
-    def __init__(self, name, macrofn):
-        super().__init__(name)
 
 
     def compile(self, compiler, source_obj):
@@ -336,11 +330,16 @@ _CONST_TYPES = (
 )
 
 
+# a bunch of commonly used symbols, so we don't have to try and
+# recreate over and over.
+
 _symbol_nil = symbol("nil")
 _symbol_None = symbol("None")
 _symbol_True = symbol("True")
 _symbol_False = symbol("False")
 _symbol_ellipsis = symbol("...")
+
+_symbol_attr = symbol("attr")
 
 
 def _label_generator(formatstr="label_%04i"):
@@ -1069,7 +1068,7 @@ class ExpressionCodeSpace(CodeSpace):
 
         comp = self.find_compiled(sym)
         if comp and is_macrolet(comp):
-            return comp.compile(sym)
+            return comp.compile(self, sym)
 
         elif is_keyword(sym):
             # it should be fairly rare that a keyword is actually

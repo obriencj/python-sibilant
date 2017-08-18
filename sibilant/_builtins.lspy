@@ -27,6 +27,12 @@
 		(macro ,(str name) (function ,name ,formals ,@&body))))))
 
 
+(defmacro defmacrolet (name . &body)
+  (doc "Defined a Macrolet in the current module")
+  `(define-global ,name
+     (macrolet ,(str name) (function ,name () ,@&body))))
+
+
 (defmacro defun (name params . &body)
   `(define ,name (function ,name ,params ,@&body)))
 
