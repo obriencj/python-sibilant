@@ -1039,6 +1039,9 @@ class ExpressionCodeSpace(CodeSpace):
 
 
     def compile_pair(self, expr):
+
+        self.require_active()
+
         if not is_proper(expr):
             raise self.error("cannot evaluate improper lists as expressions",
                              expr)
@@ -1065,6 +1068,8 @@ class ExpressionCodeSpace(CodeSpace):
         """
         The various ways that a symbol on its own can evaluate.
         """
+
+        self.require_active()
 
         comp = self.find_compiled(sym)
         if comp and is_macrolet(comp):
@@ -1106,8 +1111,6 @@ class ExpressionCodeSpace(CodeSpace):
 
 
     def find_compiled(self, namesym):
-        self.require_active()
-
         # okay, let's look through the environment by name
         name = str(namesym)
         env = self.env

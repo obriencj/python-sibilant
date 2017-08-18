@@ -41,17 +41,6 @@
   `(define ,name (class ,name ,bases ,@&body)))
 
 
-(defun help-macroexpand-1 (the-macro argbody)
-  (cond ((macro? the-macro)
-	 (apply the-macro.expand argbody))
-	(else
-	 (raise (Exception (% "not a macro %r" the-macro))))))
-
-
-(defmacro macroexpand-1 (expr)
-  `(help-macroexpand-1 ,(car expr) (quote ,(cdr expr))))
-
-
 (defmacro set-macro-character args
   `(__reader__.set_macro_character ,@args))
 

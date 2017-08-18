@@ -24,6 +24,8 @@ from .. import (
     nil, is_nil, cons, is_pair, is_proper,
 )
 
+from . import is_macro
+
 
 __all__ = []
 
@@ -54,6 +56,8 @@ _symbol_raise = symbol("raise")
 _symbol_try = symbol("try")
 _symbol_else = symbol("else")
 _symbol_finally = symbol("finally")
+
+_symbol_macroexpand_1 = symbol("macroexpand-1")
 
 
 def special():
@@ -1080,6 +1084,33 @@ def _special_cond(code, source):
     code.pseudop_label(done)
 
     return None
+
+
+@special(_symbol_macroexpand_1)
+def _special_macroexpand_1(code, source):
+    called_by, body = source
+
+    if is_symbol(body):
+        namesym = body
+        args = nil
+
+    elif is_proper(body):
+        namesym, args = body
+
+        if not is_symbol(namesym):
+            msg = "cannot expand: %r" % namesym
+            raise comp.error(msg, source)
+
+    else:
+        msg = "invalid parameter to %s: %r" % (called_by, body)
+        raise comp.error(msg, source)
+
+    found = code.find_compiled(namesym)
+    if not is_macro(found):
+        msg = "%s is not a macro: %r" % (namesym, found)
+        raise code.error(msg, source)
+
+    return _helper_quote(code, found.expand(*args))
 
 
 # --- and finally clean up ---
