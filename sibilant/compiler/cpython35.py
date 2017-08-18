@@ -14,11 +14,11 @@
 
 
 from . import (
-    SpecialCodeSpace, Pseudop, Opcode,
+    ExpressionCodeSpace, Pseudop, Opcode,
 )
 
 
-class CPython35(SpecialCodeSpace):
+class CPython35(ExpressionCodeSpace):
     """
     SpecialCodeSpace emitting bytecode compatible with CPython version
     3.5
@@ -337,6 +337,46 @@ class CPython35(SpecialCodeSpace):
             yield Opcode.LOAD_CONST, ci, 0
             yield Opcode.LOAD_CONST, ni, 0
             yield Opcode.MAKE_FUNCTION, 0, 0
+
+
+    def lnt_compile(self, lnt, firstline=None):
+        if not lnt:
+            return (1 if firstline is None else firstline), b''
+
+        firstline = lnt[0][1] if firstline is None else firstline
+        gathered = []
+
+        prev_offset = 0
+        prev_line = firstline
+
+        for offset, line, _col in lnt:
+            if gathered and line == prev_line:
+                continue
+
+            d_offset = (offset - prev_offset)
+            d_line = (line - prev_line)
+
+            d_offset &= 0xff
+
+            if d_line < 0:
+                # before version 3.6, negative relative line numbers
+                # weren't possible. Thus the line of a CALL_FUNCTION
+                # is the line it closes on, rather than the line it
+                # begins on. So we'll skip this lnt entry.
+                continue
+
+            if d_line < -128 or d_line > 127:
+                dd_line = (d_line >> 8) & 0xff
+                gathered.append(bytes([d_offset, dd_line]))
+
+            d_line &= 0xff
+            gathered.append(bytes([d_offset, d_line]))
+
+            prev_offset = offset
+            prev_line = line
+
+        res = firstline, b''.join(gathered)
+        return res
 
 
 def _const_index(of_list, value):

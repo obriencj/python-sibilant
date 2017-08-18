@@ -14,11 +14,11 @@
 
 
 from . import (
-    SpecialCodeSpace, Pseudop, Opcode,
+    ExpressionCodeSpace, Pseudop, Opcode,
 )
 
 
-class CPython36(SpecialCodeSpace):
+class CPython36(ExpressionCodeSpace):
     """
     SpecialCodeSpace emitting bytecode compatible with CPython version
     3.6
@@ -341,7 +341,51 @@ class CPython36(SpecialCodeSpace):
             yield Opcode.MAKE_FUNCTION, 0
 
 
+    def lnt_compile(self, lnt, firstline=None):
+        if not lnt:
+            return (1 if firstline is None else firstline), b''
+
+        firstline = lnt[0][1] if firstline is None else firstline
+        gathered = []
+
+        prev_offset = 0
+        prev_line = firstline
+
+        for offset, line, _col in lnt:
+            if gathered and line == prev_line:
+                continue
+
+            d_offset = (offset - prev_offset)
+            d_line = (line - prev_line)
+
+            d_offset &= 0xff
+
+            if d_line < 0:
+                # in version 3.6 and beyond, negative line numbers
+                # work fine, so a CALL_FUNCTION can correctly state
+                # that it happens at line it started on, rather than
+                # on the line it closes at
+                pass
+
+            if d_line < -128 or d_line > 127:
+                dd_line = (d_line >> 8) & 0xff
+                gathered.append(bytes([d_offset, dd_line]))
+
+            d_line &= 0xff
+            gathered.append(bytes([d_offset, d_line]))
+
+            prev_offset = offset
+            prev_line = line
+
+        res = firstline, b''.join(gathered)
+        return res
+
+
 def _const_index(of_list, value):
+    # have to use an `is` comparator, because the list.index method
+    # will consider False and 0, and True and 1 to be equivalent,
+    # breaking any constant pools containing those values.
+
     for index, found in enumerate(of_list):
         if found is value:
             return index

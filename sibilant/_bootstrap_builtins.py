@@ -35,8 +35,11 @@ import sys as _sys
 import fractions as _fractions
 import functools as _functools
 import operator as _operator
+
 import sibilant as _sibilant
 import sibilant.compiler as _compiler
+import sibilant.compiler.specials as _specials
+import sibilant.compiler.operators as _operators
 
 
 __all__ = []
@@ -100,7 +103,7 @@ _op(_sibilant.last, "last")
 _op(_sibilant.is_undefined, "undefined?")
 
 
-# === compiler special forms ===
+# === sibilant compiled builtins ===
 
 _val(_compiler.Special, "special")
 _op(_compiler.is_special, "special?")
@@ -111,14 +114,11 @@ _op(_compiler.is_macro, "macro?")
 _val(_compiler.Operator, "operator")
 _op(_compiler.is_operator, "operator?")
 
+from .compiler.specials import *
+from .compiler.operators import *
 
-def _specials():
-    for name, special in _compiler.builtin_specials():
-        globals()[name] = special
-        __all__.append(name)
-
-
-_specials()
+__all__.extend(_specials.__all__)
+__all__.extend(_operators.__all__)
 
 
 # === some python builtin types ===
@@ -267,7 +267,8 @@ _val(Exception, "Exception")
 _val(KeyboardInterrupt, "KeyboardInterrupt")
 
 
-# === Export 'em and lock it down ===
+# === Export 'em ===
+
 
 __all__ = tuple(__all__)
 
