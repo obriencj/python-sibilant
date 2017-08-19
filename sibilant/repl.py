@@ -27,7 +27,7 @@ import sibilant.builtins
 from traceback import format_exception, format_exception_only
 
 from sibilant.compiler import iter_compile
-from sibilant.parse import ReaderSyntaxError, default_reader
+from sibilant.parse import default_reader
 
 
 def basic_env(**base):

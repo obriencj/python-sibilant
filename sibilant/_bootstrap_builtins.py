@@ -41,8 +41,13 @@ import sibilant.compiler as _compiler
 import sibilant.compiler.specials as _specials
 import sibilant.compiler.operators as _operators
 
+from .compiler.specials import *   # noqa
+from .compiler.operators import *  # noqa
+
 
 __all__ = []
+__all__.extend(_specials.__all__)
+__all__.extend(_operators.__all__)
 
 
 def _op(opf, name=None, rename=False):
@@ -115,12 +120,6 @@ _op(_compiler.is_macrolet, "macrolet?")
 
 _val(_compiler.Operator, "operator")
 _op(_compiler.is_operator, "operator?")
-
-from .compiler.specials import *
-from .compiler.operators import *
-
-__all__.extend(_specials.__all__)
-__all__.extend(_operators.__all__)
 
 
 # === some python builtin types ===

@@ -125,7 +125,7 @@ class Reader(object):
             reader_stream = StringIO(reader_stream)
 
         if isinstance(reader_stream, IOBase):
-            reader_stream = ReaderStream(reader_stream)
+            reader_stream = SourceStream(reader_stream)
 
         event, pos, value = self._read(reader_stream)
 
@@ -238,7 +238,7 @@ class Reader(object):
         def macro_adapter(stream, char):
             return VALUE, macro_fn(stream, char)
 
-        return temporary_event_macro(char, macro_adapter, terminating)
+        return self.temporary_event_macro(char, macro_adapter, terminating)
 
 
     def _add_default_macros(self):

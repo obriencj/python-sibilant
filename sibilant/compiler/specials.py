@@ -19,9 +19,8 @@ The built-in compile-time special forms
 
 
 from .. import (
-    symbol, is_symbol,
-    keyword, is_keyword,
-    nil, is_nil, cons, is_pair, is_proper,
+    symbol, is_symbol, is_keyword,
+    nil, is_nil, cdr, is_pair, is_proper,
 )
 
 from . import is_macro
@@ -618,7 +617,7 @@ def _helper_function(code, name, args, body, declared_at=None):
 
     else:
         msg = "formals must be symbol or pair, not %r" % type(args)
-        raise code.error(msg, cl)
+        raise code.error(msg, args)
 
     if declared_at is None:
         declared_at = code.position_of(body)

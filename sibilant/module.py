@@ -15,7 +15,6 @@
 
 import types
 
-from io import IOBase
 from os.path import split
 
 from sibilant.compiler import iter_compile

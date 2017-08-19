@@ -14,13 +14,12 @@
 
 
 import dis
-import operator as pyop
 
 from abc import ABCMeta, abstractmethod
 from contextlib import contextmanager
 from enum import Enum
-from functools import partial, reduce, wraps
-from io import StringIO, IOBase
+from functools import partial
+from io import IOBase
 from itertools import count
 from platform import python_implementation
 from sys import version_info
@@ -29,7 +28,7 @@ from types import CodeType
 from .. import (
     SibilantException,
     symbol, is_symbol, is_keyword,
-    cons, cdr, is_pair, is_proper, nil, is_nil,
+    cons, nil, is_pair, is_proper,
 )
 
 from ..parse import (

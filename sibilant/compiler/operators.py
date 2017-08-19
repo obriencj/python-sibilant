@@ -20,13 +20,9 @@ The built-in operators with compile-time optimizations
 
 import operator as pyop
 
-from functools import partial, reduce
+from functools import reduce
 
-from .. import (
-    symbol, is_symbol,
-    keyword, is_keyword,
-    nil, is_nil, cons, is_pair, is_proper,
-)
+from .. import symbol, is_nil
 
 
 __all__ = []
@@ -481,7 +477,7 @@ def _operator_lshift(code, source):
 
 
 @operator(_symbol_rshift, pyop.rshift, _symbol_rshift_)
-def _operator_lshift(code, source):
+def _operator_rshift(code, source):
     """
     (>> VALUE COUNT)
     Bitshift VALUE right by COUNT bits
