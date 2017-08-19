@@ -1019,6 +1019,7 @@ class ExpressionCodeSpace(CodeSpace):
         self.pseudop_position_of(expr)
 
         while expr is not None:
+
             if expr is nil:
                 # convert nil expressions to a literal nil
                 self.pseudop_get_var("nil")
@@ -1037,6 +1038,8 @@ class ExpressionCodeSpace(CodeSpace):
                 # constant, the end.
                 expr = self.pseudop_const(expr)
 
+        return None
+
 
     def add_expression_with_return(self, expr):
         """
@@ -1048,7 +1051,6 @@ class ExpressionCodeSpace(CodeSpace):
 
 
     def compile_pair(self, expr):
-
         self.require_active()
 
         if not is_proper(expr):
@@ -1061,15 +1063,44 @@ class ExpressionCodeSpace(CodeSpace):
             # see if this is a a compiled call
             comp = self.find_compiled(head)
             if comp:
+                # yup. We'll just report that we've expanded to that
                 return comp.compile(self, expr)
 
-        # either not a symbol, or it was and the symbol wasn't
-        # a special, so just make it into a function call
-        for cl in expr.unpack():
+            head = self.compile_symbol(head)
+            if head is None:
+                # fall out of this nonsense
+                pass
+            elif is_compiled(head):
+                # head evaluated at compile-time to a higher-order macro
+                return head.compile(self, cons(symbol(head.__name__), tail))
+            else:
+                return cons(head, tail)
+
+        elif is_proper(head):
+            head = self.compile_pair(head)
+            if head is None:
+                # fall out of this nonsense
+                pass
+            elif is_compiled(head):
+                # head evaluated at compile-time to a higher-order macro
+                return head.compile(self, cons(symbol(head.__name__), tail))
+            else:
+                return cons(head, tail)
+
+        else:
+            # head was neither a proper nor a symbol... wtf was it?
+            # probably an error, so let's try and actually add it as
+            # an expression and let it blow up.
+            self.add_expression(head)
+
+        # if we made it this far, head has already been compiled and
+        # returned None (meaning it was just a plain-ol expression),
+        # so we can proceed with normal apply semantics
+        for cl in tail.unpack():
             self.add_expression(cl)
 
         self.pseudop_position_of(expr)
-        self.pseudop_call(expr.count() - 1)
+        self.pseudop_call(tail.count())
         return None
 
 
