@@ -347,7 +347,6 @@ class Quasiquote(TestCase):
 class CompilerSpecials(TestCase):
 
 
-
     def test_let(self):
         src = "(let ((tacos 1) (beer 2)) (cons tacos beer))"
         stmt, env = compile_expr(src, tacos=5)
@@ -728,7 +727,6 @@ class SpecialTry(TestCase):
         self.assertEqual(accu2, [])
 
 
-
     def test_named_try_exc_miss(self):
         accu1, bad_guy = make_raise_accumulator(BaseException)
         accu2, good_guy = make_accumulator()
@@ -852,6 +850,47 @@ class SpecialTry(TestCase):
         self.assertEqual(res, 789)
         self.assertEqual(accu1, [567])
         self.assertEqual(accu2, [-111, 789])
+
+
+    def test_hammer_try(self):
+
+        accu1, bad_guy = make_raise_accumulator()
+        accu2, good_guy = make_accumulator()
+        counter = 5000
+
+        src = """
+        (while (< 0 counter)
+          (decr counter)
+          (try
+            (bad_guy 567)
+            ((Exception e) (good_guy -111))
+            (else (good_guy 456))
+            (finally (good_guy 789))))
+        """
+        stmt, env = compile_expr(src, **locals())
+        res = stmt()
+        self.assertEqual(res, 789)
+        self.assertEqual(accu1, [567] * counter)
+        self.assertEqual(accu2, [-111, 789] * counter)
+
+        accu1, bad_guy = make_raise_accumulator()
+        accu2, good_guy = make_accumulator()
+        counter = 5000
+
+        src = """
+        (while (< 0 counter)
+          (decr counter)
+          (try
+            (bad_guy 567)
+            (Exception (good_guy -111))
+            (else (good_guy 456))
+            (finally (good_guy 789))))
+        """
+        stmt, env = compile_expr(src, **locals())
+        res = stmt()
+        self.assertEqual(res, 789)
+        self.assertEqual(accu1, [567] * counter)
+        self.assertEqual(accu2, [-111, 789] * counter)
 
 
 class SpecialWith(TestCase):

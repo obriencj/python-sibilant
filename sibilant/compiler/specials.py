@@ -739,15 +739,7 @@ def _special_try(code, source):
     not return. Otherwise, the final value of BODY is returned.
     """
 
-    kid = code.child_context(name="<try>",
-                             declared_at=code.position_of(source))
-
-    with kid as subc:
-        _helper_special_try(code, source)
-        kid_code = subc.complete()
-
-    code.pseudop_lambda(kid_code)
-    code.pseudop_call(0)
+    _helper_special_try(code, source)
 
     return None
 
@@ -755,6 +747,9 @@ def _special_try(code, source):
 def _helper_special_try(code, source):
 
     called_by, (expr, catches) = source
+
+    storage = code.gen_sym()
+    code.declare_var(storage)
 
     the_end = code.gen_label()
 
@@ -816,7 +811,7 @@ def _helper_special_try(code, source):
         # but if there isn't an else clause, then the result of
         # the expression is the real deal. If there was a finally,
         # that will be jumped to.
-        code.pseudop_return()
+        code.pseudop_set_var(storage)
         code.pseudop_pop_block()
         code.pseudop_jump_forward(the_end)
 
@@ -878,16 +873,16 @@ def _helper_special_try(code, source):
 
             # handle the exception, return the result
             _helper_begin(code, act)
-            code.pseudop_return()
-            code.pseudop_faux_pop(4)  # trigger the finally
+            code.pseudop_set_var(storage)
+            code.pseudop_pop_block()
+            code.pseudop_pop_except()
 
-            # the return triggers the finally block to jump to
-            # here. This ensures a value in the key and then
-            # deletes it. Necessary just in case the handler
-            # code also deleted the key (don't want to try
-            # deleting it twice)
+            # no idea why this None needs to be on the stack, but it
+            # does.
+            code.pseudop_const(None)
             code.pseudop_label(cleanup)
-            code.pseudop_faux_push()  # the finally pushes a return
+
+            # kill off that exception binding
             code.pseudop_const(None)
             code.pseudop_set_var(key)
             code.pseudop_del_var(key)
@@ -895,7 +890,7 @@ def _helper_special_try(code, source):
             # end_finally pops our cleanup block and
             # finishes returning
             code.pseudop_end_finally()
-            code.pseudop_return_none()
+            code.pseudop_jump_forward(the_end)
 
         else:
             # this is an exception match without a binding
@@ -910,12 +905,10 @@ def _helper_special_try(code, source):
             code.pseudop_pop()
 
             _helper_begin(code, act)
-            code.pseudop_return()
+            code.pseudop_set_var(storage)
 
-        # yay we handled it!
-        code.pseudop_pop_except()
-        code.pseudop_debug("handled declared exception")
-        code.pseudop_jump_forward(the_end)
+            code.pseudop_pop_except()
+            code.pseudop_jump_forward(the_end)
 
     # after all the attempts at trying to match the exception, we
     # land here. This is the catch-all fallback, that will
@@ -929,32 +922,29 @@ def _helper_special_try(code, source):
 
     if has_else:
         # okay, we've arrived at the else handler. Let's run it,
-        # and return that value.
+        # and store that value
         code.pseudop_label(label_else)
         code.pseudop_debug("start of else handler")
         _helper_begin(code, act_else)
 
         # if there is a finally registered, this will trigger it
         # to run (and possibly overwrite the return value)
-        code.pseudop_return()
+        code.pseudop_set_var(storage)
         code.pseudop_debug("end of else handler")
 
     if has_finally:
-        # here's the actual handling of the finally event. This
-        # will get jumped to from the returns above, if the
-        # finally block was registered.
+        # here's the actual handling of the finally event. This will
+        # get jumped to from the pop_blocks above, if the finally
+        # block was registered.
         code.pseudop_label(the_end)
         code.pseudop_pop_block()
 
+        # run the handler and store the result
         code.pseudop_const(None)
-        code.pseudop_faux_pop()
-
-        # run the handler and overwrite the return value with its
-        # result
         code.pseudop_label(label_finally)
-        code.pseudop_faux_push(1)  # implicit from the finally block
+
         _helper_begin(code, act_finally)
-        code.pseudop_return()
+        code.pseudop_set_var(storage)
 
         # and close off the finally block
         code.pseudop_debug("closing off finally")
@@ -962,7 +952,13 @@ def _helper_special_try(code, source):
 
     else:
         code.pseudop_label(the_end)
-        code.pseudop_return_none()
+
+    code.pseudop_get_var(storage)
+
+    # cleanup our storage var
+    code.pseudop_const(None)
+    code.pseudop_set_var(storage)
+    code.pseudop_del_var(storage)
 
     code.pseudop_debug("at the end")
 

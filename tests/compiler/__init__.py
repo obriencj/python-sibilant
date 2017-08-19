@@ -59,6 +59,16 @@ def compile_expr(src_str, **base):
     return partial(eval, code, env), env
 
 
+def compile_dis_expr(src_str, **base):
+    env = basic_env(**base)
+    icode = iter_compile(src_str, env)
+    code = next(icode)
+    dis.show_code(code)
+    print("Disassembly:")
+    dis.dis(code)
+    return partial(eval, code, env), env
+
+
 def make_accumulator():
     accu = list()
 
