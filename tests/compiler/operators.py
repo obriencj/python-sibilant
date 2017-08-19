@@ -247,6 +247,11 @@ class BinaryOperators(TestCase):
         self.assertEqual(stmt(), True)
 
         src = """
+        (+)
+        """
+        self.assertRaises(SyntaxError, compile_expr, src)
+
+        src = """
         (+ 1)
         """
         stmt, env = compile_expr(src)
@@ -319,6 +324,11 @@ class BinaryOperators(TestCase):
         self.assertEqual(stmt(), True)
 
         src = """
+        (-)
+        """
+        self.assertRaises(SyntaxError, compile_expr, src)
+
+        src = """
         (- 1)
         """
         stmt, env = compile_expr(src)
@@ -388,6 +398,11 @@ class BinaryOperators(TestCase):
         src = "(operator? *)"
         stmt, env = compile_expr(src)
         self.assertEqual(stmt(), True)
+
+        src = """
+        (*)
+        """
+        self.assertRaises(SyntaxError, compile_expr, src)
 
         src = """
         (* 999)
@@ -465,11 +480,185 @@ class BinaryOperators(TestCase):
         self.assertEqual(stmt(), "TACOS TACOS ")
 
 
+    def test_div(self):
+
+        src = "(operator? /)"
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), True)
+
+        src = """
+        (/)
+        """
+        self.assertRaises(SyntaxError, compile_expr, src)
+
+        src = """
+        (/ 2)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 0.5)
+
+        src = """
+        (/ 10 2)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 5)
+
+        src = """
+        (/ -10 2)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), -5)
+
+        src = """
+        (/ -10 -2)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 5)
+
+        src = """
+        (/ -24 4 2)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), -3)
+
+
+    def test_apply_div(self):
+
+        src = """
+        (apply / '(2))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 0.5)
+
+        src = """
+        (apply / '(10 2))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 5)
+
+        src = """
+        (apply / '(-10 2))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), -5)
+
+        src = """
+        (apply / '(-10 -2))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 5)
+
+        src = """
+        (apply / '(-24 4 2))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), -3)
+
+
+    def test_floordiv(self):
+
+        src = "(operator? //)"
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), True)
+
+        src = """
+        (//)
+        """
+        self.assertRaises(SyntaxError, compile_expr, src)
+
+        src = """
+        (// 2)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertIs(res, 0)
+
+        src = """
+        (// 11 2)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 5)
+
+        src = """
+        (// -11 2)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), -6)
+
+        src = """
+        (// -11 -2)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 5)
+
+        src = """
+        (// 25 4 2)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 3)
+
+        src = """
+        (// -25 4 2)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), -4)
+
+
+    def test_apply_floordiv(self):
+
+        src = """
+        (apply // '(2))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertIs(res, 0)
+
+        src = """
+        (apply // '(11 2))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 5)
+
+        src = """
+        (apply // '(-11 2))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), -6)
+
+        src = """
+        (apply // '(-11 -2))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 5)
+
+        src = """
+        (apply // '(25 4 2))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 3)
+
+        src = """
+        (apply // '(-25 4 2))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), -4)
+
+
     def test_power(self):
 
         src = "(operator? **)"
         stmt, env = compile_expr(src)
         self.assertEqual(stmt(), True)
+
+        src = """
+        (** 1)
+        """
+        self.assertRaises(SyntaxError, compile_expr, src)
+
+        src = """
+        (** 1 2 3)
+        """
+        self.assertRaises(SyntaxError, compile_expr, src)
 
         src = """
         (** 2 2)
@@ -490,11 +679,42 @@ class BinaryOperators(TestCase):
         self.assertEqual(stmt(), 2.0)
 
 
+    def test_apply_power(self):
+
+        src = """
+        (apply ** '(2 2))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 4)
+
+        src = """
+        (apply ** `(4 ,1/2))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 2.0)
+
+        src = """
+        (apply ** '(4 0.5))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 2.0)
+
+
     def test_modulo(self):
 
         src = "(operator? %)"
         stmt, env = compile_expr(src)
         self.assertEqual(stmt(), True)
+
+        src = """
+        (% 1)
+        """
+        self.assertRaises(SyntaxError, compile_expr, src)
+
+        src = """
+        (% 1 2 3)
+        """
+        self.assertRaises(SyntaxError, compile_expr, src)
 
         src = """
         (% 5 2)
@@ -509,10 +729,385 @@ class BinaryOperators(TestCase):
         self.assertEqual(stmt(), "first 3 second 2 third 1")
 
 
+    def test_apply_modulo(self):
+
+        src = """
+        (apply % '(5 2))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 1)
+
+        src = """
+        (apply % `("first %s second %s third %s" ,(make-tuple 3 2 1)))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), "first 3 second 2 third 1")
+
+
+    def test_lshift(self):
+
+        src = "(operator? <<)"
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), True)
+
+        src = """
+        (<< 1)
+        """
+        self.assertRaises(SyntaxError, compile_expr, src)
+
+        src = """
+        (<< 1 2 3)
+        """
+        self.assertRaises(SyntaxError, compile_expr, src)
+
+        src = """
+        (<< 5 1)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 10)
+
+        src = """
+        (<< 1 0)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 1)
+
+        src = """
+        (<< 1 1)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 2)
+
+        src = """
+        (<< 1 2)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 4)
+
+        src = """
+        (<< 1 3)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 8)
+
+        src = """
+        (<< 1 4)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 16)
+
+
+    def test_apply_lshift(self):
+
+        src = """
+        (apply << '(5 1))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 10)
+
+        src = """
+        (apply << '(1 0))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 1)
+
+        src = """
+        (apply << '(1 1))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 2)
+
+        src = """
+        (apply << '(1 2))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 4)
+
+        src = """
+        (apply << '(1 3))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 8)
+
+        src = """
+        (apply << '(1 4))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 16)
+
+
+    def test_rshift(self):
+
+        src = "(operator? >>)"
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), True)
+
+        src = """
+        (>> 1)
+        """
+        self.assertRaises(SyntaxError, compile_expr, src)
+
+        src = """
+        (>> 1 2 3)
+        """
+        self.assertRaises(SyntaxError, compile_expr, src)
+
+        src = """
+        (>> 10 1)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 5)
+
+        src = """
+        (>> 1 1)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 0)
+
+        src = """
+        (>> 2 1)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 1)
+
+        src = """
+        (>> 4 2)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 1)
+
+        src = """
+        (>> 8 3)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 1)
+
+        src = """
+        (>> 16 4)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 1)
+
+
+    def test_apply_rshift(self):
+
+        src = """
+        (apply >> '(10 1))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 5)
+
+        src = """
+        (apply >> '(1 1))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 0)
+
+        src = """
+        (apply >> '(2 1))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 1)
+
+        src = """
+        (apply >> '(4 2))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 1)
+
+        src = """
+        (apply >> '(8 3))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 1)
+
+        src = """
+        (apply >> '(16 4))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 1)
+
+
+    def test_bitwise_and(self):
+
+        src = "(operator? &)"
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), True)
+
+        src = """
+        (& 1)
+        """
+        self.assertRaises(SyntaxError, compile_expr, src)
+
+        src = """
+        (& 1 2 3)
+        """
+        self.assertRaises(SyntaxError, compile_expr, src)
+
+        src = """
+        (& 5 3)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 1)
+
+        src = """
+        (& 11 7)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 3)
+
+        src = """
+        (& 5 0)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 0)
+
+
+    def test_apply_bitwise_and(self):
+
+        src = """
+        (apply & '(5 3))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 1)
+
+        src = """
+        (apply & '(11 7))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 3)
+
+        src = """
+        (apply & '(5 0))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 0)
+
+
+    def test_bitwise_or(self):
+
+        src = "(operator? |)"
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), True)
+
+        src = """
+        (| 5 3)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 7)
+
+        src = """
+        (| 11 7)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 15)
+
+        src = """
+        (| 5 0)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 5)
+
+
+    def test_apply_bitwise_or(self):
+
+        src = """
+        (apply | '(5 3))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 7)
+
+        src = """
+        (apply | '(11 7))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 15)
+
+        src = """
+        (apply | '(5 0))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 5)
+
+
+    def test_bitwise_xor(self):
+
+        src = "(operator? ^)"
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), True)
+
+        src = """
+        (^ 5 3)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 6)
+
+        src = """
+        (^ 11 7)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 12)
+
+        src = """
+        (^ 5 0)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 5)
+
+        src = """
+        (^ 5 5)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 0)
+
+
+    def test_apply_bitwise_xor(self):
+
+        src = """
+        (apply ^ '(5 3))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 6)
+
+        src = """
+        (apply ^ '(11 7))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 12)
+
+        src = """
+        (apply ^ '(5 0))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 5)
+
+        src = """
+        (apply ^ '(5 5))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 0)
+
 
 class UnaryOperators(TestCase):
 
     def test_not(self):
+
+        src = """
+        (operator? not)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), True)
+
+        src = """
+        (not)
+        """
+        self.assertRaises(SyntaxError, compile_expr, src)
+
+        src = """
+        (not 1 2)
+        """
+        self.assertRaises(SyntaxError, compile_expr, src)
+
         src = """
         (not True)
         """
@@ -563,6 +1158,7 @@ class UnaryOperators(TestCase):
 
 
     def test_apply_not(self):
+
         src = """
         (apply not '(,True))
         """
@@ -613,6 +1209,23 @@ class UnaryOperators(TestCase):
 
 
     def test_invert(self):
+
+        src = """
+        (operator? ~)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), True)
+
+        src = """
+        (~)
+        """
+        self.assertRaises(SyntaxError, compile_expr, src)
+
+        src = """
+        (~ 1 2)
+        """
+        self.assertRaises(SyntaxError, compile_expr, src)
+
         src = """
         (~ 0)
         """
@@ -651,6 +1264,23 @@ class UnaryOperators(TestCase):
 
 
     def test_iter(self):
+
+        src = """
+        (operator? iter)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), True)
+
+        src = """
+        (iter)
+        """
+        self.assertRaises(SyntaxError, compile_expr, src)
+
+        src = """
+        (iter 1 2)
+        """
+        self.assertRaises(SyntaxError, compile_expr, src)
+
         src = """
         (iter X)
         """
