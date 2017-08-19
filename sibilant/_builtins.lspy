@@ -205,20 +205,41 @@
 
 ;; === c_r magic ===
 
-(defmacro c__r (atom)
-  (unless (is str (type atom))
-    (raise (Exception (% "what happened in c__r: %r" atom))))
+;; I thought this was such a good idea, to use a higher-order macro to
+;; create the various cadr forms as requested at compile-time. But it
+;; falls apart whenever someone tried to evaluate it without then
+;; re-expanding it ie. a (print cadr) will result in the cadr being
+;; expanded into (c__r "card"), then c__r expands... into a
+;; macro. There's no invocation of the macro from there, so at
+;; compile-time you're left with an expression that didn't express
+;; into any actual compileable form and is just left as a macro
+;; instance (which is not a valid constant value, either, if we ever
+;; want to compile our code objects to file)
 
-  (define-local pattern (item atom (slice -2 0 -1)))
-  (macro atom
-	 (lambda (value)
-	   (reduce (lambda (cell atom-char)
-		     (cons (if (eq "a" atom-char) 'car 'cdr) cell nil))
-		   (iter pattern)
-		   value))))
+;; (defmacro c__r (atom)
+;;   (unless (is str (type atom))
+;;     (raise (Exception (% "what happened in c__r: %r" atom))))
+
+;;   (define-local calls (reduce (lambda (cell atom-char)
+;; 				(cons (if (eq "a" atom-char) 'car 'cdr)
+;; 				      cell))
+;; 			      (item atom (slice -2 1 -1))
+;; 			      nil))
+;;   (macro atom
+;; 	 (lambda (value)
+;; 	   `(,(if (eq "a" (item atom 1)) 'car 'cdr)
+;; 	     (reduce (lambda (x y) (y x)) (make-tuple ,@calls) ,value)))))
 
 
-(set-atom-regex 'c__r "c[ad]{2,}r" (lambda (atom) `(c__r ,atom)))
+;; (set-atom-regex 'c__r "c[ad]{2,}r" (lambda (atom) `(c__r ,atom)))
+
+;; (defmacrolet first 'car)
+;; (defmacrolet second 'cadr)
+;; (defmacrolet third 'caddr)
+;; (defmacrolet fourth 'cadddr)
+;; (defmacrolet fifth 'caddddr)
+;; (defmacrolet sixth 'cadddddr)
+;; (defmacrolet seventh 'caddddddr)
 
 
 ;; === local variable definitions ===
