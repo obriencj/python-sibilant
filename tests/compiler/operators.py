@@ -465,6 +465,76 @@ class BinaryOperators(TestCase):
         self.assertEqual(stmt(), "TACOS TACOS ")
 
 
+    def test_div(self):
+
+        src = "(operator? /)"
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), True)
+
+        src = """
+        (/ 2)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 0.5)
+
+        src = """
+        (/ 10 2)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 5)
+
+        src = """
+        (/ -10 2)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), -5)
+
+        src = """
+        (/ -10 -2)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 5)
+
+        src = """
+        (/ -24 4 2)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), -3)
+
+
+    def test_apply_div(self):
+
+        src = """
+        (apply / '(2))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 0.5)
+
+        src = """
+        (apply / '(10 2))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 5)
+
+        src = """
+        (apply / '(-10 2))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), -5)
+
+        src = """
+        (apply / '(-10 -2))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 5)
+
+        src = """
+        (apply / '(-24 4 2))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), -3)
+
+
     def test_power(self):
 
         src = "(operator? **)"
