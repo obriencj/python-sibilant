@@ -41,8 +41,28 @@
   `(define ,name (class ,name ,bases ,@&body)))
 
 
-(defmacro set-macro-character args
-  `(__reader__.set_macro_character ,@args))
+;; === reader macros and atom matchers ===
+
+
+(defmacrolet set-event-macro `__reader__.set_event_macro)
+
+(defmacrolet get-event-macro `__reader__.get_event_macro)
+
+(defmacrolet clear-event-macro `__reader__.clear_event_macro)
+
+(defmacrolet temp-event-macro `__reader__.temporary_event_macro)
+
+(defmacrolet set-macro-character `__reader__.set_macro_character)
+
+(defmacrolet temp-macro-character `__reader__.temporary_macro_character)
+
+(defmacrolet set-atom-pattern `__reader__.set_atom_pattern)
+
+(defmacrolet get-atom-pattern `__reader__.get_atom_pattern)
+
+(defmacrolet clear-atom-pattern `__reader__.clear_atom_pattern)
+
+(defmacrolet set-atom-regex `__reader__.set_atom_regex)
 
 
 ;; === conditionals ===
@@ -68,10 +88,10 @@
 (defmacro incr (dest . by)
   (cond
    ((nil? by)
-    (set-var by 1))
+    (setq by 1))
 
    ((nil? (cdr by))
-    (set-var by (car by)))
+    (setq by (car by)))
 
    (else
     (raise (Exception "too many argument to incr"))))
@@ -82,10 +102,10 @@
 (defmacro decr (dest . by)
   (cond
    ((nil? by)
-    (set-var by 1))
+    (setq by 1))
 
    ((nil? (cdr by))
-    (set-var by (car by)))
+    (setq by (car by)))
 
    (else
     (raise (Exception "too many argument to decr"))))
@@ -103,7 +123,7 @@
 			 modulename))))
 
   (unless (or (nil? &as_name) (== 1 (&as_name.count)))
-    (raise (Exception ("unexpected additional arguments to defimport"))))
+    (raise (Exception "unexpected additional arguments to defimport")))
 
   (setq &as_name
 	(if (nil? &as_name) (item (modulename.split "." 1) 0)
@@ -181,6 +201,24 @@
   (gv-define-setter caar (val x) `(set-car (car ,x) ,val))
 
   None)
+
+
+;; === c_r magic ===
+
+(defmacro c__r (atom)
+  (unless (is str (type atom))
+    (raise (Exception (% "what happened in c__r: %r" atom))))
+
+  (define-local pattern (item atom (slice -2 0 -1)))
+  (macro atom
+	 (lambda (value)
+	   (reduce (lambda (cell atom-char)
+		     (cons (if (eq "a" atom-char) 'car 'cdr) cell nil))
+		   (iter pattern)
+		   value))))
+
+
+(set-atom-regex 'c__r "c[ad]{2,}r" (lambda (atom) `(c__r ,atom)))
 
 
 ;; === local variable definitions ===
