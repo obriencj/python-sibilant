@@ -1037,6 +1037,9 @@ class ExpressionCodeSpace(CodeSpace):
                 # constant, the end.
                 expr = self.pseudop_const(expr)
 
+            if is_compiled(expr):
+                raise Exception("leftover higher-order macro %r" % expr)
+
         return None
 
 
