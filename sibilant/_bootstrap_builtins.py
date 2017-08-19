@@ -63,12 +63,11 @@ def _val(value, name):
 
 # === standard operators ===
 
-_op(_operator.or_, "|")
-_op(_operator.and_, "&")
-_op(_operator.xor, "^")
-
-_op(_operator.delitem, "del-item")
+# TODO: move these into operator
 _op(_operator.setitem, "set-item")
+_op(_operator.delitem, "del-item")
+
+# TODO: do we need a delf like setf, but for deleting?
 
 
 # === useful stuff from functools ===
@@ -78,7 +77,7 @@ _op(_functools.partial)
 
 # == sibilant data types ===
 
-_op(_sibilant.cons)
+_op(_sibilant.cons, "cons")
 _op(_sibilant.car, "car")
 _op(_sibilant.setcar, "set-car")
 _op(_sibilant.cdr, "cdr")
@@ -243,6 +242,8 @@ _op(lambda value: hasattr(value, "__iter__"), "iterable?", rename=True)
 _op(callable)
 _op(callable, "function?")
 _op(next, "next")
+_op(slice)
+_op(len)
 _op(format)
 _op(getattr)
 _op(setattr)
