@@ -102,6 +102,13 @@ _op(_sibilant.second, "second", rename=True)
 _op(_sibilant.third, "third", rename=True)
 _op(_sibilant.fourth, "fourth", rename=True)
 _op(_sibilant.fifth, "fifth", rename=True)
+_op(_sibilant.sixth, "sixth", rename=True)
+_op(_sibilant.seventh, "seventh", rename=True)
+_op(_sibilant.eighth, "eighth", rename=True)
+_op(_sibilant.ninth, "ninth", rename=True)
+_op(_sibilant.tenth, "tenth", rename=True)
+
+
 _op(_sibilant.last, "last")
 
 _op(_sibilant.is_undefined, "undefined?")
