@@ -1091,6 +1091,23 @@ class BinaryOperators(TestCase):
 class UnaryOperators(TestCase):
 
     def test_not(self):
+
+        src = """
+        (operator? not)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), True)
+
+        src = """
+        (not)
+        """
+        self.assertRaises(SyntaxError, compile_expr, src)
+
+        src = """
+        (not 1 2)
+        """
+        self.assertRaises(SyntaxError, compile_expr, src)
+
         src = """
         (not True)
         """
@@ -1141,6 +1158,7 @@ class UnaryOperators(TestCase):
 
 
     def test_apply_not(self):
+
         src = """
         (apply not '(,True))
         """
@@ -1191,6 +1209,23 @@ class UnaryOperators(TestCase):
 
 
     def test_invert(self):
+
+        src = """
+        (operator? ~)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), True)
+
+        src = """
+        (~)
+        """
+        self.assertRaises(SyntaxError, compile_expr, src)
+
+        src = """
+        (~ 1 2)
+        """
+        self.assertRaises(SyntaxError, compile_expr, src)
+
         src = """
         (~ 0)
         """
@@ -1229,6 +1264,23 @@ class UnaryOperators(TestCase):
 
 
     def test_iter(self):
+
+        src = """
+        (operator? iter)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), True)
+
+        src = """
+        (iter)
+        """
+        self.assertRaises(SyntaxError, compile_expr, src)
+
+        src = """
+        (iter 1 2)
+        """
+        self.assertRaises(SyntaxError, compile_expr, src)
+
         src = """
         (iter X)
         """
