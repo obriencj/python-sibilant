@@ -1100,11 +1100,11 @@ def _special_macroexpand_1(code, source):
 
         if not is_symbol(namesym):
             msg = "cannot expand: %r" % namesym
-            raise comp.error(msg, source)
+            raise code.error(msg, source)
 
     else:
         msg = "invalid parameter to %s: %r" % (called_by, body)
-        raise comp.error(msg, source)
+        raise code.error(msg, source)
 
     found = code.find_compiled(namesym)
     if not is_macro(found):
