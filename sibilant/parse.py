@@ -166,6 +166,10 @@ class Reader(object):
 
 
     def set_event_macro(self, char, macro_fn, terminating=False):
+        """
+        Adds a character event macro to parser
+        """
+
         for c in char:
             self.reader_macros[c] = macro_fn
             if terminating:
@@ -175,6 +179,10 @@ class Reader(object):
 
 
     def get_event_macro(self, char):
+        """
+        Gets a character event macro from parser
+        """
+
         try:
             return (self.reader_macros[char], char in self.terminating)
         except KeyError:
@@ -182,6 +190,10 @@ class Reader(object):
 
 
     def clear_event_macro(self, char):
+        """
+        Removes a character event macro from parser
+        """
+
         if char in self.reader_macros:
             self.terminating.remove(char)
             self._terms = "".join(self.terminating)
@@ -190,6 +202,11 @@ class Reader(object):
 
     @contextmanager
     def temporary_event_macro(self, char, macro_fn, terminating=False):
+        """
+        Context manager which applies a character event macro to the
+        parser and clears is after the context exits.
+        """
+
         old = self.get_event_macro(char)
         self.set_event_macro(char, macro_fn, terminating)
 
@@ -202,9 +219,26 @@ class Reader(object):
 
 
     def set_macro_character(self, char, macro_fn, terminating=False):
+        """
+        Adds a reader macro to the parser
+        """
+
         def macro_adapter(stream, char):
             return VALUE, macro_fn(stream, char)
+
         self.set_event_macro(char, macro_adapter, terminating)
+
+
+    def temporary_macro_character(self, char, macro_fn, terminating=False):
+        """
+        Context manager which applies a character macro to the
+        parser and clears is after the context exits.
+        """
+
+        def macro_adapter(stream, char):
+            return VALUE, macro_fn(stream, char)
+
+        return temporary_event_macro(char, macro_adapter, terminating)
 
 
     def _add_default_macros(self):
@@ -215,8 +249,6 @@ class Reader(object):
         sm('"', self._read_string, True)
         sm("'", self._read_quote, True)
         sm("`", self._read_quasiquote, True)
-        # sm(",", self._read_unquote, True)
-        # sm("@", self._read_splice, True)
         sm(";", self._read_comment, True)
 
 
@@ -236,6 +268,18 @@ class Reader(object):
                 return patt
         else:
             return None
+
+
+    def clear_atom_pattern(self, namesym):
+        for index, patt in self.atom_patterns:
+            if patt[0] is namesym:
+                del patt[0]
+                break
+
+
+    def set_atom_regex(self, namesym, regexstr, conversion_fn):
+        match = partial(regex(regexstr).match)
+        self.set_atom_pattern(namesym, match, conversion_fn)
 
 
     def _add_default_atoms(self):
