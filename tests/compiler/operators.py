@@ -247,6 +247,11 @@ class BinaryOperators(TestCase):
         self.assertEqual(stmt(), True)
 
         src = """
+        (+)
+        """
+        self.assertRaises(SyntaxError, compile_expr, src)
+
+        src = """
         (+ 1)
         """
         stmt, env = compile_expr(src)
@@ -319,6 +324,11 @@ class BinaryOperators(TestCase):
         self.assertEqual(stmt(), True)
 
         src = """
+        (-)
+        """
+        self.assertRaises(SyntaxError, compile_expr, src)
+
+        src = """
         (- 1)
         """
         stmt, env = compile_expr(src)
@@ -388,6 +398,11 @@ class BinaryOperators(TestCase):
         src = "(operator? *)"
         stmt, env = compile_expr(src)
         self.assertEqual(stmt(), True)
+
+        src = """
+        (*)
+        """
+        self.assertRaises(SyntaxError, compile_expr, src)
 
         src = """
         (* 999)
@@ -472,6 +487,11 @@ class BinaryOperators(TestCase):
         self.assertEqual(stmt(), True)
 
         src = """
+        (/)
+        """
+        self.assertRaises(SyntaxError, compile_expr, src)
+
+        src = """
         (/ 2)
         """
         stmt, env = compile_expr(src)
@@ -540,6 +560,11 @@ class BinaryOperators(TestCase):
         src = "(operator? //)"
         stmt, env = compile_expr(src)
         self.assertEqual(stmt(), True)
+
+        src = """
+        (//)
+        """
+        self.assertRaises(SyntaxError, compile_expr, src)
 
         src = """
         (// 2)

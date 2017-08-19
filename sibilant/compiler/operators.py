@@ -219,7 +219,7 @@ def _operator_add(code, source):
 
     called_by, rest = source
     if is_nil(rest):
-        code.error("too few arguments to %s" % called_by, source)
+        raise code.error("too few arguments to %s" % called_by, source)
 
     code.pseudop_position_of(source)
 
@@ -259,7 +259,7 @@ def _operator_subtract(code, source):
 
     called_by, rest = source
     if is_nil(rest):
-        code.error("too few arguments to %s" % called_by, source)
+        raise code.error("too few arguments to %s" % called_by, source)
 
     code.pseudop_position_of(source)
 
@@ -297,7 +297,7 @@ def _operator_multiply(code, source):
 
     called_by, rest = source
     if is_nil(rest):
-        code.error("too few arguments to %s" % called_by, source)
+        raise code.error("too few arguments to %s" % called_by, source)
 
     code.pseudop_position_of(source)
 
@@ -337,7 +337,7 @@ def _operator_divide(code, source):
 
     called_by, rest = source
     if is_nil(rest):
-        code.error("too few arguments to %s" % called_by, source)
+        raise code.error("too few arguments to %s" % called_by, source)
 
     code.pseudop_position_of(source)
 
@@ -377,7 +377,7 @@ def _operator_floor_divide(code, source):
 
     called_by, rest = source
     if is_nil(rest):
-        code.error("too few arguments to %s" % called_by, source)
+        raise code.error("too few arguments to %s" % called_by, source)
 
     code.pseudop_position_of(source)
 
