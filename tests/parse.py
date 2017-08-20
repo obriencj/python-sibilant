@@ -131,6 +131,9 @@ class TestParse(TestCase):
         col = parse_source(src)
         self.assertEqual(col, 1.5)
 
+
+    def test_complex(self):
+
         src = "1+5i"
         col = parse_source(src)
         self.assertEqual(col, complex("1+5j"))
@@ -139,15 +142,21 @@ class TestParse(TestCase):
         col = parse_source(src)
         self.assertEqual(col, complex("1+5j"))
 
+
+    def test_fraction(self):
+
+        src = "1/2/3"
+        self.assertRaises(SyntaxError, parse_source, src)
+
         src = "1/2"
         col = parse_source(src)
         self.assertEqual(col, cons(symbol("fraction"),
-                                   "1/2", nil))
+                                   1, 2, nil))
 
         src = "-1/2"
         col = parse_source(src)
         self.assertEqual(col, cons(symbol("fraction"),
-                                   "-1/2", nil))
+                                   -1, 2, nil))
 
 
     def test_string(self):
