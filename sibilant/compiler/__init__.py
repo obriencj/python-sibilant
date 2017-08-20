@@ -33,7 +33,8 @@ from .. import (
 
 from ..parse import (
     SibilantSyntaxError,
-    default_reader, source_str, source_stream,
+    default_reader, source_str,
+    source_stream, SourceStream,
 )
 
 
@@ -49,6 +50,10 @@ __all__ = (
     "Operator", "is_operator",
     "iter_compile",
 )
+
+
+class CompilerException(Exception):
+    pass
 
 
 class CompilerSyntaxError(SibilantSyntaxError):
@@ -1387,10 +1392,14 @@ def max_stack(pseudops):
 def iter_compile(source, env, filename=None, reader=None):
 
     if isinstance(source, str):
-        source = source_str(source)
+        source = source_str(source, filename)
 
     elif isinstance(source, IOBase):
-        source = source_stream(source)
+        source = source_stream(source, filename)
+
+    if not isinstance(source, SourceStream):
+        raise CompilerException("iter_compile source must be str, stream,"
+                                " or SourceStream")
 
     if reader is None:
         reader = default_reader

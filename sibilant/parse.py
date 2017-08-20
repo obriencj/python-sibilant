@@ -24,6 +24,7 @@ license: LGPL v.3
 from . import symbol, keyword, cons, nil, is_pair
 
 from contextlib import contextmanager
+from fractions import Fraction as fraction
 from functools import partial
 from io import StringIO, IOBase
 from re import compile as regex
@@ -72,7 +73,20 @@ _as_bin = partial(int, base=2)
 
 
 def _as_fraction(s):
-    return cons(_fraction_sym, s, nil)
+
+    # this will raise a type error if s cannot be parsed into a
+    # fraction
+    s = fraction(s)
+
+    # the fraction type cannot be stored in a const pool, so we have
+    # to turn it into a source form of (fraction NUMERATOR
+    # DENOMINATOR) instead. We take the integer values from the
+    # parsing attempt above, so that we end up with integers in the
+    # const pool rather than the literal string, which should make for
+    # faster instantiation of the fraction (parsing once at compile
+    # rather than parsing over and over every time we evaluate this
+    # code)
+    return cons(_fraction_sym, s.numerator, s.denominator, nil)
 
 
 def _as_complex(s):
@@ -91,10 +105,12 @@ EOF = keyword("eof")
 
 class SibilantSyntaxError(SyntaxError):
     def __init__(self, message, location=None, filename=None):
-        self.message = message
-        self.filename = filename
-        if location:
-            self.lineno, self.offset = location
+        if filename:
+            if not location:
+                location = (1, 0)
+            super().__init__(message, (filename, *location, None))
+        else:
+            super().__init__(message)
 
 
 class ReaderSyntaxError(SibilantSyntaxError):
@@ -149,9 +165,14 @@ class Reader(object):
 
             macro = self.reader_macros.get(c, self._read_atom)
 
-            event, value = macro(stream, c)
+            try:
+                event, value = macro(stream, c)
 
-            # print("_read:", event, position, value)
+            except ValueError as ve:
+                # this indicates a conversion issue occurred in the
+                # reader macro, most likely in the default reader
+                # macro of _read_atom
+                raise stream.error(ve.args[0], position)
 
             if event is SKIP:
                 continue
@@ -308,12 +329,11 @@ class Reader(object):
 
         for name, match, conv in self.atom_patterns:
             if match(atom):
-                value = conv(atom)
                 break
         else:
-            value = symbol(atom)
+            conv = symbol
 
-        return VALUE, value
+        return VALUE, conv(atom)
 
 
     def _read_pair(self, stream, char):
@@ -490,11 +510,11 @@ def source_open(filename):
 
 
 def source_str(source_str, filename=None):
-    return SourceStream(StringIO(source_str))
+    return SourceStream(StringIO(source_str), filename)
 
 
 def source_stream(source_stream, filename=None):
-    return SourceStream(source_stream)
+    return SourceStream(source_stream, filename)
 
 
 class SourceStream(object):
