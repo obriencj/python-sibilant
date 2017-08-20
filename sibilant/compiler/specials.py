@@ -19,7 +19,7 @@ The built-in compile-time special forms
 
 
 from .. import (
-    symbol, is_symbol, is_keyword,
+    symbol, is_symbol, keyword, is_keyword,
     nil, is_nil, cons, cdr, is_pair, is_proper,
 )
 
@@ -28,6 +28,9 @@ from . import is_macro
 
 __all__ = []
 
+
+_keyword_star = keyword("*")
+_keyword_starstar = keyword("**")
 
 _symbol_nil = symbol("nil")
 
@@ -562,7 +565,7 @@ def _special_function(code, source):
         subc.pseudop_return()
         kid_code = subc.complete()
 
-    code.pseudop_lambda(kid_code)
+    code.pseudop_lambda(kid_code, 0)
     code.pseudop_call(0)
 
     # no additional transform needed
@@ -608,9 +611,19 @@ def _special_let(code, source):
 
 
 def _helper_formals(code, args):
+    """
+    parses formals pair args into five values:
+    (positional, keywords, defaults, stararg, starstararg)
+
+    - positional is a list of symbols defining positional arguments
+    - keywords is a list of keywords defining keyword arguments
+    - defaults is a list of expressions defining default values for keywords
+    - stararg is a symbol for variadic positional arguments
+    - starstararg is a symbol for variadic keyword arguments
+    """
 
     if is_symbol(args):
-        return (None, None, args, None)
+        return ((), (), (), args, None)
 
     elif isinstance(args, (list, tuple)):
         improper = False
@@ -623,7 +636,7 @@ def _helper_formals(code, args):
         improper = True
 
     else:
-        msg = "formals must be symbol or pair, not %r" % type(args)
+        msg = "formals must be symbol or pair, not %r" % args
         raise code.error(msg, args)
 
     positional = []
@@ -635,23 +648,23 @@ def _helper_formals(code, args):
         elif is_symbol(arg):
             positional.append(arg)
         else:
-            msg = "positional formals must be symbols, nor %r" % type(arg)
+            msg = "positional formals must be symbols, nor %r" % arg
             raise code.error(msg, args)
     else:
         # handled all if args, done deal.
         if improper:
-            return (positional[:-1], None, positional[-1], None)
+            return (positional[:-1], (), (), positional[-1], None)
         else:
-            return (positional, None, None, None)
+            return (positional, (), (), None, None)
 
     keywords = []
     defaults = []
 
-    while arg not in (_keyword_star or _keyword_starstar):
+    while arg not in (_keyword_star, _keyword_starstar):
         keywords.append(arg)
         defaults.append(next(iargs))
 
-        arg = next(iargs)
+        arg = next(iargs, None)
 
         if is_keyword(arg):
             continue
@@ -664,46 +677,74 @@ def _helper_formals(code, args):
     starstar = None
 
     if arg is None:
-        return (positional, tuple(zip(keywords, defaults)), None, None)
+        return (positional, keywords, defaults, None, None)
 
     if arg is _keyword_star:
-        star = next(iargs)
+        star = next(iargs, None)
         if star is None:
             raise code.error("* keyword formal requires binding", args)
 
+        arg = next(iargs, None)
+
     if arg is _keyword_starstar:
-        starstar = next(iargs)
+        starstar = next(iargs, None)
         if starstar is None:
             raise code.error("** keyword formal requires binding", args)
 
-    return (positional, tuple(zip(keywords, defaults)), star, starstar)
+        arg = next(iargs, None)
+
+    if arg:
+        raise code.error(("leftover formals %r" % arg), args)
+
+    return (positional, keywords, defaults, star, starstar)
 
 
 def _helper_function(code, name, args, body, declared_at=None):
 
-    positional, keyword, star, starstar = _helper_formals(code, args)
+    if not (is_symbol(name) or isinstance(name, str)):
+        msg = "function names must be symbol or str, not %r" % name
+        raise code.error(msg, declared_at)
 
-    positional = list(map(str, positional))
+
+    formals = _helper_formals(code, args)
+    # print("=== helper_function ===")
+    # print("formals:", formals)
+
+    pos, keys, defaults, star, starstar = formals
+
+    argnames = list(map(str, pos))
+
+    if keys:
+        argnames.extend(map(str, keys))
 
     if star:
         varargs = True
-        positional.append(str(star))
+        argnames.append(str(star))
     else:
         varargs = False
+
+    if starstar:
+        varkeywords = True
+        argnames.append(str(starstar))
+    else:
+        varkeywords = False
 
     if declared_at is None:
         declared_at = code.position_of(body)
 
-    kid = code.child_context(args=positional, varargs=varargs,
+    for expr in defaults:
+        code.add_expression(expr)
+
+    kid = code.child_context(args=argnames,
+                             varargs=varargs,
+                             varkeywords=varkeywords,
                              name=name,
                              declared_at=declared_at)
 
     with kid as subc:
         _helper_begin(subc, body)
         subc.pseudop_return()
-        kid_code = subc.complete()
-
-    code.pseudop_lambda(kid_code)
+        code.pseudop_lambda(subc.complete(), len(defaults))
 
 
 @special(_symbol_while)

@@ -348,7 +348,8 @@ class CodeSpace(metaclass=ABCMeta):
     scope, and nested sub-scopes.
     """
 
-    def __init__(self, args=(), kwargs=None, varargs=False,
+    def __init__(self, args=(),
+                 varargs=False, varkeywords=False,
                  parent=None, name=None,
                  filename=None, positions=None, declared_at=None):
 
@@ -380,9 +381,8 @@ class CodeSpace(metaclass=ABCMeta):
             _list_unique_append(self.args, n)
             _list_unique_append(self.fast_vars, n)
 
-        self.kwargs = kwargs
-
         self.varargs = varargs
+        self.varkeywords = varkeywords
 
         self.names = []
 
@@ -451,7 +451,7 @@ class CodeSpace(metaclass=ABCMeta):
             self.env = None
 
 
-    def child(self, args=(), kwargs=None, varargs=False,
+    def child(self, args=(), varargs=False, varkeywords=False,
               name=None, declared_at=None):
 
         """
@@ -462,8 +462,9 @@ class CodeSpace(metaclass=ABCMeta):
             declared_at = self.declared_at
 
         cs = type(self)(parent=self,
-                        args=args, kwargs=kwargs,
+                        args=args,
                         varargs=varargs,
+                        varkeywords=varkeywords,
                         name=name,
                         filename=self.filename,
                         positions=self.positions,
@@ -670,13 +671,14 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop(Pseudop.GET_GLOBAL, name)
 
 
-    def pseudop_lambda(self, code):
+    def pseudop_lambda(self, code, default_count):
         """
         Pushes a pseudo op to load a lambda from code
         """
+
         self.declare_const(code)
         self.declare_const(code.co_name)
-        self.pseudop(Pseudop.LAMBDA, code)
+        self.pseudop(Pseudop.LAMBDA, code, default_count)
 
 
     def pseudop_pop(self):
@@ -929,6 +931,10 @@ class CodeSpace(metaclass=ABCMeta):
         if self.varargs:
             argcount -= 1
             flags |= CodeFlag.VARARGS.value
+
+        if self.varkeywords:
+            argcount -= 1
+            flags |= CodeFlag.VARKEYWORDS.value
 
         if not (self.free_vars or self.cell_vars):
             flags |= CodeFlag.NOFREE.value
@@ -1302,6 +1308,7 @@ def max_stack(pseudops):
             pop()
 
         elif op is pseu.LAMBDA:
+            pop(args[1])
             a = len(args[0].co_freevars)
             if a:
                 push(a)

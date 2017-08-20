@@ -325,13 +325,19 @@ class CPython36(ExpressionCodeSpace):
                 assert False, "Unknown Pseudop %r" % op
 
 
-    def helper_gen_lambda(self, code):
+    def helper_gen_lambda(self, code, default_count=0):
         """
         Helper to _gen_code that handles just lambda definitions
         """
 
         ci = self.consts.index(code)
         ni = self.consts.index(code.co_name)
+
+        flags = 0x00
+
+        if default_count:
+            yield Opcode.BUILD_TUPLE, default_count
+            flags |= 0x01
 
         if code.co_freevars:
             # code is a closure, so we'll need to find the matching
@@ -348,15 +354,12 @@ class CPython36(ExpressionCodeSpace):
                 yield Opcode.LOAD_CLOSURE, fi
 
             yield Opcode.BUILD_TUPLE, len(code.co_freevars)
-            yield Opcode.LOAD_CONST, ci
-            yield Opcode.LOAD_CONST, ni
-            yield Opcode.MAKE_FUNCTION, 0x08
+            flags |= 0x08
 
-        else:
-            # not a closure, so just a pain ol' function
-            yield Opcode.LOAD_CONST, ci
-            yield Opcode.LOAD_CONST, ni
-            yield Opcode.MAKE_FUNCTION, 0
+        # not a closure, so just a pain ol' function
+        yield Opcode.LOAD_CONST, ci
+        yield Opcode.LOAD_CONST, ni
+        yield Opcode.MAKE_FUNCTION, flags
 
 
     def lnt_compile(self, lnt, firstline=None):
