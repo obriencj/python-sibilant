@@ -27,7 +27,7 @@ from types import CodeType
 
 from .. import (
     SibilantException,
-    symbol, is_symbol, is_keyword,
+    symbol, is_symbol, keyword, is_keyword,
     cons, nil, is_pair, is_proper,
 )
 
@@ -49,7 +49,12 @@ __all__ = (
     "Macrolet", "is_macrolet",
     "Operator", "is_operator",
     "iter_compile",
+    "gather_formals", "gather_parameters",
 )
+
+
+_keyword_star = keyword("*")
+_keyword_starstar = keyword("**")
 
 
 class CompilerException(Exception):
@@ -157,6 +162,7 @@ def is_macro(obj):
 
 
 class Macrolet(Macro):
+    __objname__ = "macrolet"
 
 
     def compile(self, compiler, source_obj):
@@ -242,7 +248,9 @@ class Pseudop(Enum):
     ROT_THREE = _auto()
     RAISE = _auto()
     CALL = _auto()
-    CALL_VARARGS = _auto()
+    CALL_KW = _auto()
+    CALL_VAR = _auto()
+    CALL_VAR_KW = _auto()
     CONST = _auto()
     GET_VAR = _auto()
     SET_VAR = _auto()
@@ -395,8 +403,7 @@ class CodeSpace(metaclass=ABCMeta):
         self.gen_label = _label_generator()
         self._gen_sym = _label_generator("gensym_" + str(id(self)) + "_%04i")
 
-        if varargs:
-            self._prep_varargs()
+        self._prep_varargs()
 
 
     def gen_sym(self):
@@ -565,13 +572,29 @@ class CodeSpace(metaclass=ABCMeta):
         # initial step which will convert the pythonic varargs tuple
         # into a proper cons list
 
+        if not self.varargs:
+            # nothing to do.
+            return
+
+        if self.varkeywords:
+            # if it's varargs and also varkeywords, the var will be
+            # the second-to-last one.
+            offset = -2
+
+        else:
+            # if it's a varargs, but not varkeywords, the var will be
+            # the last one.
+            offset = -1
+
+        varname = self.args[offset]
+
         if self.declared_at:
             self.pseudop_position(*self.declared_at)
 
         self.pseudop_get_var("make-proper")
-        self.pseudop_get_var(self.args[-1])
-        self.pseudop_call_varargs(0)
-        self.pseudop_set_var(self.args[-1])
+        self.pseudop_get_var(varname)
+        self.pseudop_call_var(0, 0)
+        self.pseudop_set_var(varname)
 
 
     def position_of(self, source):
@@ -630,12 +653,20 @@ class CodeSpace(metaclass=ABCMeta):
             pass
 
 
-    def pseudop_call(self, argc):
-        self.pseudop(Pseudop.CALL, argc)
+    def pseudop_call(self, argc, kwdc=0):
+        self.pseudop(Pseudop.CALL, argc, kwdc)
 
 
-    def pseudop_call_varargs(self, argc):
-        self.pseudop(Pseudop.CALL_VARARGS, argc)
+    def pseudop_call_var(self, argc, kwdc=0):
+        self.pseudop(Pseudop.CALL_VAR, argc, kwdc)
+
+
+    def pseudop_call_kw(self, argc, kwdc=0):
+        self.pseudop(Pseudop.CALL_KW, argc, kwdc)
+
+
+    def pseudop_call_var_kw(self, argc, kwdc=0):
+        self.pseudop(Pseudop.CALL_VAR_KW, argc, kwdc)
 
 
     def pseudop_const(self, val):
@@ -924,7 +955,7 @@ class CodeSpace(metaclass=ABCMeta):
         # converted to cells for child scope usage
         # nlocals = len(self.fast_vars) + len(self.cell_vars)
 
-        stacksize = max_stack(self.pseudops)
+        stacksize = self.max_stack()
 
         flags = CodeFlag.OPTIMIZED.value | CodeFlag.NEWLOCALS.value
 
@@ -1070,6 +1101,7 @@ class ExpressionCodeSpace(CodeSpace):
             raise self.error("cannot evaluate improper lists as expressions",
                              expr)
 
+        position = self.position_of(expr)
         head, tail = expr
 
         if is_symbol(head):
@@ -1109,12 +1141,31 @@ class ExpressionCodeSpace(CodeSpace):
         # if we made it this far, head has already been compiled and
         # returned None (meaning it was just a plain-ol expression),
         # so we can proceed with normal apply semantics
-        for cl in tail.unpack():
-            self.add_expression(cl)
 
-        self.pseudop_position_of(expr)
-        self.pseudop_call(tail.count())
+        # --- new ---
+
+        self.helper_compile_call(tail, position)
+
+        # --- old ---
+        # for cl in tail.unpack():
+        #     self.add_expression(cl)
+        #
+        # self.pseudop_position_of(expr)
+        # self.pseudop_call(tail.count())
+
         return None
+
+
+    @abstractmethod
+    def helper_compile_call(self, args):
+        """
+        The function to be called is presumed to already be on the stack
+        before this is helper is invoked. The helper should assemble the
+        arguments as necessary on the stack, and then push the pseudops
+        to evaluate them and finally to call the function.
+        """
+
+        pass
 
 
     def compile_symbol(self, sym):
@@ -1192,6 +1243,174 @@ class ExpressionCodeSpace(CodeSpace):
             return None
 
 
+    def helper_max_stack(self, op, args, push, pop):
+
+        _Pseudop = Pseudop
+
+        if op is _Pseudop.CONST:
+            push()
+
+        elif op in (_Pseudop.GET_VAR,
+                    _Pseudop.GET_GLOBAL):
+            push()
+
+        elif op is _Pseudop.SET_VAR:
+            pop()
+
+        elif op is _Pseudop.DELETE_VAR:
+            pass
+
+        elif op in (_Pseudop.GET_ATTR,
+                    _Pseudop.UNARY_POSITIVE,
+                    _Pseudop.UNARY_NEGATIVE,
+                    _Pseudop.UNARY_NOT,
+                    _Pseudop.UNARY_INVERT,
+                    _Pseudop.ITER):
+            pop()
+            push()
+
+        elif op is _Pseudop.SET_ATTR:
+            pop(2)
+
+        elif op is _Pseudop.DUP:
+            push()
+
+        elif op in (_Pseudop.DEFINE_GLOBAL,
+                    _Pseudop.DEFINE_LOCAL):
+            pop()
+
+        elif op is _Pseudop.POP:
+            pop()
+
+        elif op is _Pseudop.LAMBDA:
+            pop(args[1])
+            a = len(args[0].co_freevars)
+            if a:
+                push(a)
+                pop(a)
+            push(2)
+            pop(2)
+            push()
+
+        elif op is _Pseudop.RET_VAL:
+            pop()
+
+        elif op in (_Pseudop.BUILD_TUPLE,
+                    _Pseudop.BUILD_TUPLE_UNPACK):
+            pop(args[0])
+            push()
+
+        elif op in (_Pseudop.SETUP_EXCEPT,
+                    _Pseudop.SETUP_WITH,
+                    _Pseudop.SETUP_FINALLY):
+            push(4)
+
+        elif op in (_Pseudop.POP_BLOCK,
+                    _Pseudop.POP_EXCEPT):
+
+            pop(4)
+
+        elif op is _Pseudop.WITH_CLEANUP_START:
+            push(4)
+
+        elif op is _Pseudop.WITH_CLEANUP_FINISH:
+            pop(4)
+
+        elif op is _Pseudop.END_FINALLY:
+            pop(1)
+
+        elif op in (_Pseudop.COMPARE_OP,
+                    _Pseudop.ITEM,
+                    _Pseudop.BINARY_ADD,
+                    _Pseudop.BINARY_SUBTRACT,
+                    _Pseudop.BINARY_MULTIPLY,
+                    _Pseudop.BINARY_MATRIX_MULTIPLY,
+                    _Pseudop.BINARY_TRUE_DIVIDE,
+                    _Pseudop.BINARY_FLOOR_DIVIDE,
+                    _Pseudop.BINARY_POWER,
+                    _Pseudop.BINARY_MODULO,
+                    _Pseudop.BINARY_LSHIFT,
+                    _Pseudop.BINARY_RSHIFT,
+                    _Pseudop.BINARY_AND,
+                    _Pseudop.BINARY_XOR,
+                    _Pseudop.BINARY_OR, ):
+            pop(2)
+            push()
+
+        elif op is _Pseudop.RAISE:
+            pop(args[0])
+
+        elif op is _Pseudop.FAUX_PUSH:
+            push(args[0])
+
+        elif op in (_Pseudop.ROT_THREE,
+                    _Pseudop.ROT_TWO):
+            pass
+
+        else:
+            assert False, "unknown pseudop %r" % op
+
+
+    def max_stack(self):
+        """
+        Calculates the maximum stack size from the pseudo operations. This
+        function is total crap, but it's good enough for now.
+        """
+
+        maxc = 0
+        stac = 0
+        labels = {}
+
+        _Pseudop = Pseudop
+
+        def push(by=1):
+            nonlocal maxc, stac
+            stac += by
+            if stac > maxc:
+                maxc = stac
+
+        def pop(by=1):
+            nonlocal stac
+            stac -= by
+            if stac < 0:
+                print("SHIT BROKE")
+                print("\n\t".join(self.pseudops))
+            assert (stac >= 0), "max_stack counter underrun"
+
+        # print("max_stack()")
+        for op, *args in self.pseudops:
+            # print(op, args, stac, maxc)
+
+            if op is _Pseudop.POSITION:
+                continue
+
+            elif op is _Pseudop.DEBUG_STACK:
+                print(" ".join(map(str, args)),
+                      "max:", maxc, "current:", stac)
+
+            elif op is _Pseudop.LABEL:
+                stac = labels.get(args[0], stac)
+
+            # These ops have to be here so they can see the stac
+            # counter value
+            elif op in (_Pseudop.JUMP,
+                        _Pseudop.JUMP_FORWARD):
+                labels[args[0]] = stac
+
+            elif op in (_Pseudop.POP_JUMP_IF_TRUE,
+                        _Pseudop.POP_JUMP_IF_FALSE):
+                pop()
+                labels[args[0]] = stac
+
+            else:
+                # defer everything else so it can be overridden
+                # depending on Python version
+                self.helper_max_stack(op, args, push, pop)
+
+        assert (stac == 0), "%i left-over stack items" % stac
+        return maxc
+
+
 def _list_unique_append(onto_list, value):
     # we have to manually loop and use the `is` operator, because the
     # list.index method will match False with 0 and True with 1, which
@@ -1230,170 +1449,6 @@ def _list_unique_append(onto_list, value):
 #                 jump_points[label] = point
 
 #             current_point = point
-
-
-def max_stack(pseudops):
-    """
-    Calculates the maximum stack size from the pseudo operations. This
-    function is total crap, but it's good enough for now.
-    """
-
-    # save ourselves one bazillion global lookups of the same value
-    pseu = Pseudop
-
-    maxc = 0
-    stac = 0
-    at_label = {}
-
-    def push(by=1):
-        nonlocal maxc, stac
-        stac += by
-        if stac > maxc:
-            maxc = stac
-
-    def pop(by=1):
-        nonlocal stac
-        stac -= by
-        if stac < 0:
-            print("SHIT BROKE")
-            print(pseudops)
-        assert (stac >= 0), "max_stack counter underrun"
-
-    # print("max_stack()")
-    for op, *args in pseudops:
-        # print(op, args, stac, maxc)
-
-        if op is pseu.POSITION:
-            pass
-
-        elif op is pseu.DEBUG_STACK:
-            print(" ".join(map(str, args)), "max:", maxc, "current:", stac)
-
-        elif op is pseu.CALL:
-            pop(args[0])
-
-        elif op is pseu.CONST:
-            push()
-
-        elif op in (pseu.GET_VAR,
-                    pseu.GET_GLOBAL):
-            push()
-
-        elif op is pseu.SET_VAR:
-            pop()
-
-        elif op is pseu.DELETE_VAR:
-            pass
-
-        elif op in (pseu.GET_ATTR,
-                    pseu.UNARY_POSITIVE,
-                    pseu.UNARY_NEGATIVE,
-                    pseu.UNARY_NOT,
-                    pseu.UNARY_INVERT,
-                    pseu.ITER):
-            pop()
-            push()
-
-        elif op is pseu.SET_ATTR:
-            pop(2)
-
-        elif op is pseu.DUP:
-            push()
-
-        elif op in (pseu.DEFINE_GLOBAL,
-                    pseu.DEFINE_LOCAL):
-            pop()
-
-        elif op is pseu.POP:
-            pop()
-
-        elif op is pseu.LAMBDA:
-            pop(args[1])
-            a = len(args[0].co_freevars)
-            if a:
-                push(a)
-                pop(a)
-            push(2)
-            pop(2)
-            push()
-
-        elif op is pseu.RET_VAL:
-            pop()
-
-        elif op in (pseu.JUMP,
-                    pseu.JUMP_FORWARD):
-            at_label[args[0]] = stac
-
-        elif op is pseu.LABEL:
-            stac = at_label.get(args[0], stac)
-
-        elif op in (pseu.POP_JUMP_IF_TRUE,
-                    pseu.POP_JUMP_IF_FALSE):
-            pop()
-            at_label[args[0]] = stac
-
-        elif op is pseu.CALL_VARARGS:
-            # TODO: need to revamp CALL_VARARGS to act on an optional
-            # kwargs as well
-            pop()
-
-        elif op in (pseu.BUILD_TUPLE,
-                    pseu.BUILD_TUPLE_UNPACK):
-            pop(args[0])
-            push()
-
-        elif op in (pseu.SETUP_EXCEPT,
-                    pseu.SETUP_WITH,
-                    pseu.SETUP_FINALLY):
-            push(4)
-
-        elif op in (pseu.POP_BLOCK,
-                    pseu.POP_EXCEPT):
-
-            pop(4)
-
-        elif op is pseu.WITH_CLEANUP_START:
-            push(4)
-
-        elif op is pseu.WITH_CLEANUP_FINISH:
-            pop(4)
-
-        elif op is pseu.END_FINALLY:
-            pop(1)
-
-        elif op in (pseu.COMPARE_OP,
-                    pseu.ITEM,
-                    pseu.BINARY_ADD,
-                    pseu.BINARY_SUBTRACT,
-                    pseu.BINARY_MULTIPLY,
-                    pseu.BINARY_MATRIX_MULTIPLY,
-                    pseu.BINARY_TRUE_DIVIDE,
-                    pseu.BINARY_FLOOR_DIVIDE,
-                    pseu.BINARY_POWER,
-                    pseu.BINARY_MODULO,
-                    pseu.BINARY_LSHIFT,
-                    pseu.BINARY_RSHIFT,
-                    pseu.BINARY_AND,
-                    pseu.BINARY_XOR,
-                    pseu.BINARY_OR, ):
-            pop(2)
-            push()
-
-        elif op is pseu.RAISE:
-            pop(args[0])
-
-        elif op is pseu.FAUX_PUSH:
-            push(args[0])
-
-        elif op in (pseu.ROT_THREE,
-                    pseu.ROT_TWO):
-            pass
-
-        else:
-            assert False, "unknown pseudop %r" % op
-
-    assert (stac == 0), "%i left-over stack items" % stac
-    return maxc
 
 
 def iter_compile(source, env, filename=None, reader=None):
@@ -1435,6 +1490,183 @@ def iter_compile(source, env, filename=None, reader=None):
             codespace.add_expression_with_return(expr)
             code = codespace.complete()
         yield code
+
+
+def gather_formals(args, declared_at=None):
+    """
+    parses formals pair args into five values:
+    (positional, keywords, defaults, stararg, starstararg)
+
+    - positional is a list of symbols defining positional arguments
+    - keywords is a list of keywords defining keyword arguments
+    - defaults is a list of expressions defining default values for keywords
+    - stararg is a symbol for variadic positional arguments
+    - starstararg is a symbol for variadic keyword arguments
+    """
+
+    def err(msg):
+        return SibilantSyntaxError(msg, declared_at)
+
+    if is_symbol(args):
+        return ((), (), (), args, None)
+
+    elif isinstance(args, (list, tuple)):
+        improper = False
+        args = cons(*args, nil)
+
+    elif is_proper(args):
+        improper = False
+
+    elif is_pair(args):
+        improper = True
+
+    else:
+        raise err("formals must be symbol or pair, not %r" % args)
+
+    positional = []
+
+    iargs = iter(args.unpack())
+    for arg in iargs:
+        if is_keyword(arg):
+            break
+        elif is_symbol(arg):
+            positional.append(arg)
+        else:
+            raise err("positional formals must be symbols, nor %r" % arg)
+    else:
+        # handled all if args, done deal.
+        if improper:
+            return (positional[:-1], (), (), positional[-1], None)
+        else:
+            return (positional, (), (), None, None)
+
+    keywords = []
+    defaults = []
+
+    while arg not in (_keyword_star, _keyword_starstar):
+        keywords.append(arg)
+        defaults.append(next(iargs))
+
+        arg = next(iargs, None)
+
+        if is_keyword(arg):
+            continue
+        elif arg is None:
+            break
+        else:
+            raise err("keyword formals must be alternating keywords and"
+                      " values, not %r" % arg)
+
+    star = None
+    starstar = None
+
+    if arg is None:
+        return (positional, keywords, defaults, None, None)
+
+    if arg is _keyword_star:
+        star = next(iargs, None)
+        if not is_symbol(star):
+            raise err("* keyword requires symbol binding, not %r" % star)
+        arg = next(iargs, None)
+
+    if arg is _keyword_starstar:
+        starstar = next(iargs, None)
+        if not is_symbol(starstar):
+            raise err("** keyword requires symbol binding, not %r" % star)
+        arg = next(iargs, None)
+
+    if arg:
+        raise err(("leftover formals %r" % arg))
+
+    return (positional, keywords, defaults, star, starstar)
+
+
+def gather_parameters(args, declared_at=None):
+    """
+    parses parameter args into five values:
+    (positional, keywords, values, stararg, starstararg)
+
+    - positional is a list of expressions for positional arguments
+    - keywords is a list of keywords defining keyword arguments
+    - values is a list of expressions defining values for keywords
+    - stararg is a symbol for variadic positional expression
+    - starstararg is a symbol for variadic keyword expression
+    """
+
+    def err(msg):
+        return SibilantSyntaxError(msg, declared_at)
+
+    if is_symbol(args):
+        return ((), (), (), args, None)
+
+    elif isinstance(args, (list, tuple)):
+        improper = False
+        args = cons(*args, nil)
+
+    elif is_proper(args):
+        improper = False
+
+    elif is_pair(args):
+        improper = True
+
+    else:
+        raise err("parameters must be symbol or pair, not %r" % args)
+
+    positional = []
+
+    iargs = iter(args.unpack())
+    for arg in iargs:
+        if is_keyword(arg):
+            break
+        else:
+            positional.append(arg)
+    else:
+        # handled all if args, done deal.
+        if improper:
+            return (positional[:-1], (), (), positional[-1], None)
+        else:
+            return (positional, (), (), None, None)
+
+    keywords = []
+    defaults = []
+
+    while arg not in (_keyword_star, _keyword_starstar):
+        keywords.append(arg)
+        defaults.append(next(iargs, None))
+
+        arg = next(iargs, None)
+
+        if is_keyword(arg):
+            continue
+        elif arg is None:
+            break
+        else:
+            raise err("keyword parameters must be alternating keywords and"
+                      " values, not %r" % arg)
+
+    star = None
+    starstar = None
+
+    if arg is None:
+        return (positional, keywords, defaults, None, None)
+
+    if arg is _keyword_star:
+        star = next(iargs, None)
+        if star is None:
+            raise err("* keyword parameter needs value")
+
+        arg = next(iargs, None)
+
+    if arg is _keyword_starstar:
+        starstar = next(iargs, None)
+        if starstar is None:
+            raise err("** keyword parameter needs value")
+        arg = next(iargs, None)
+
+    if arg:
+        raise err("leftover parameters %r" % arg)
+
+    return (positional, keywords, defaults, star, starstar)
 
 
 #

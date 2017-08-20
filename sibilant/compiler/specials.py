@@ -19,18 +19,15 @@ The built-in compile-time special forms
 
 
 from .. import (
-    symbol, is_symbol, keyword, is_keyword,
+    symbol, is_symbol, is_keyword,
     nil, is_nil, cons, cdr, is_pair, is_proper,
 )
 
-from . import is_macro
+from . import is_macro, gather_formals
 
 
 __all__ = []
 
-
-_keyword_star = keyword("*")
-_keyword_starstar = keyword("**")
 
 _symbol_nil = symbol("nil")
 
@@ -294,7 +291,7 @@ def _helper_quasiquote(code, marked, level=0):
                     code.pseudop_get_var("to-tuple")
                     code.add_expression(tail)
                     code.pseudop_call(1)
-                    code.pseudop_call_varargs(0)
+                    code.pseudop_call_var(0)
                     return
                 else:
                     code.pseudop_get_var("make-proper")
@@ -412,7 +409,7 @@ def _helper_quasiquote(code, marked, level=0):
 
         assert coll_tup, "no members accumulated"
         code.pseudop_build_tuple_unpack(coll_tup)
-        code.pseudop_call_varargs(0)
+        code.pseudop_call_var(0)
 
     else:
         # some... other thing.
@@ -610,106 +607,13 @@ def _special_let(code, source):
     return None
 
 
-def _helper_formals(code, args):
-    """
-    parses formals pair args into five values:
-    (positional, keywords, defaults, stararg, starstararg)
-
-    - positional is a list of symbols defining positional arguments
-    - keywords is a list of keywords defining keyword arguments
-    - defaults is a list of expressions defining default values for keywords
-    - stararg is a symbol for variadic positional arguments
-    - starstararg is a symbol for variadic keyword arguments
-    """
-
-    if is_symbol(args):
-        return ((), (), (), args, None)
-
-    elif isinstance(args, (list, tuple)):
-        improper = False
-        args = cons(*args, nil)
-
-    elif is_proper(args):
-        improper = False
-
-    elif is_pair(args):
-        improper = True
-
-    else:
-        msg = "formals must be symbol or pair, not %r" % args
-        raise code.error(msg, args)
-
-    positional = []
-
-    iargs = iter(args.unpack())
-    for arg in iargs:
-        if is_keyword(arg):
-            break
-        elif is_symbol(arg):
-            positional.append(arg)
-        else:
-            msg = "positional formals must be symbols, nor %r" % arg
-            raise code.error(msg, args)
-    else:
-        # handled all if args, done deal.
-        if improper:
-            return (positional[:-1], (), (), positional[-1], None)
-        else:
-            return (positional, (), (), None, None)
-
-    keywords = []
-    defaults = []
-
-    while arg not in (_keyword_star, _keyword_starstar):
-        keywords.append(arg)
-        defaults.append(next(iargs))
-
-        arg = next(iargs, None)
-
-        if is_keyword(arg):
-            continue
-        else:
-            msg = ("keyword formals must be alternating keywords and"
-                   " values, not %r" % arg)
-            raise code.error(msg, args)
-
-    star = None
-    starstar = None
-
-    if arg is None:
-        return (positional, keywords, defaults, None, None)
-
-    if arg is _keyword_star:
-        star = next(iargs, None)
-        if star is None:
-            raise code.error("* keyword formal requires binding", args)
-
-        arg = next(iargs, None)
-
-    if arg is _keyword_starstar:
-        starstar = next(iargs, None)
-        if starstar is None:
-            raise code.error("** keyword formal requires binding", args)
-
-        arg = next(iargs, None)
-
-    if arg:
-        raise code.error(("leftover formals %r" % arg), args)
-
-    return (positional, keywords, defaults, star, starstar)
-
-
 def _helper_function(code, name, args, body, declared_at=None):
 
     if not (is_symbol(name) or isinstance(name, str)):
         msg = "function names must be symbol or str, not %r" % name
         raise code.error(msg, declared_at)
 
-
-    formals = _helper_formals(code, args)
-    # print("=== helper_function ===")
-    # print("formals:", formals)
-
+    formals = gather_formals(args, code.position_of(args) or declared_at)
     pos, keys, defaults, star, starstar = formals
 
     argnames = list(map(str, pos))
