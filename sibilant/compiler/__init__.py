@@ -1389,7 +1389,7 @@ class ExpressionCodeSpace(CodeSpace):
             stac -= by
             if stac < 0:
                 print("SHIT BROKE")
-                print("\n\t".join(self.pseudops))
+                print("\n\t".join(map(repr, self.pseudops)))
             assert (stac >= 0), "max_stack counter underrun"
 
         # print("max_stack()")
@@ -1608,6 +1608,8 @@ def gather_parameters(args, declared_at=None):
     - starstararg is a symbol for variadic keyword expression
     """
 
+    undefined = object()
+
     def err(msg):
         return SibilantSyntaxError(msg, declared_at)
 
@@ -1647,14 +1649,18 @@ def gather_parameters(args, declared_at=None):
 
     while arg not in (_keyword_star, _keyword_starstar):
         keywords.append(arg)
-        defaults.append(next(iargs, None))
 
-        arg = next(iargs, None)
+        value = next(iargs, undefined)
+        if value is undefined:
+            raise err("missing value for keyword parameter %s" % arg)
+        else:
+            defaults.append(value)
 
-        if is_keyword(arg):
-            continue
-        elif arg is None:
+        arg = next(iargs, undefined)
+        if arg is undefined:
             break
+        elif is_keyword(arg):
+            continue
         else:
             raise err("keyword parameters must be alternating keywords and"
                       " values, not %r" % arg)
@@ -1666,19 +1672,18 @@ def gather_parameters(args, declared_at=None):
         return (positional, keywords, defaults, None, None)
 
     if arg is _keyword_star:
-        star = next(iargs, None)
-        if star is None:
+        star = next(iargs, undefined)
+        if star is undefined:
             raise err("* keyword parameter needs value")
-
-        arg = next(iargs, None)
+        arg = next(iargs, undefined)
 
     if arg is _keyword_starstar:
-        starstar = next(iargs, None)
-        if starstar is None:
+        starstar = next(iargs, undefined)
+        if starstar is undefined:
             raise err("** keyword parameter needs value")
-        arg = next(iargs, None)
+        arg = next(iargs, undefined)
 
-    if arg:
+    if arg is not undefined:
         raise err("leftover parameters %r" % arg)
 
     return (positional, keywords, defaults, star, starstar)
