@@ -1082,6 +1082,9 @@ class ExpressionCodeSpace(CodeSpace):
             elif is_symbol(expr):
                 expr = self.compile_symbol(expr)
 
+            elif is_keyword(expr):
+                expr = self.compile_keyword(expr)
+
             else:
                 # TODO there are some literal types that can't be used
                 # as constants, will need to fill those in here. For
@@ -1189,16 +1192,6 @@ class ExpressionCodeSpace(CodeSpace):
         if comp and is_macrolet(comp):
             return comp.compile(self, sym)
 
-        elif is_keyword(sym):
-            # it should be fairly rare that a keyword is actually
-            # passed anywhere at runtime -- it's mostly meant for use
-            # as a marker in source expressions for specials.
-
-            self.pseudop_get_var("keyword")
-            self.pseudop_const(str(sym))
-            self.pseudop_call(1)
-            return None
-
         elif sym is _symbol_None:
             return self.pseudop_const(None)
 
@@ -1217,6 +1210,17 @@ class ExpressionCodeSpace(CodeSpace):
                 return self.pseudop_get_var(str(sym))
             else:
                 return cons(_symbol_attr, *ex, nil)
+
+
+    def compile_keyword(self, kwd):
+        # it should be fairly rare that a keyword is actually
+        # passed anywhere at runtime -- it's mostly meant for use
+        # as a marker in source expressions for specials.
+
+        self.pseudop_get_var("keyword")
+        self.pseudop_const(str(kwd))
+        self.pseudop_call(1)
+        return None
 
 
     def error(self, message, source):
