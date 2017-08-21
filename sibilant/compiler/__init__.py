@@ -288,6 +288,8 @@ class Pseudop(Enum):
     BINARY_OR = _auto()
     BUILD_TUPLE = _auto()
     BUILD_TUPLE_UNPACK = _auto()
+    BUILD_MAP = _auto()
+    BUILD_MAP_UNPACK = _auto()
     SETUP_WITH = _auto()
     WITH_CLEANUP_START = _auto()
     WITH_CLEANUP_FINISH = _auto()
@@ -403,7 +405,7 @@ class CodeSpace(metaclass=ABCMeta):
         self.gen_label = _label_generator()
         self._gen_sym = _label_generator("gensym_" + str(id(self)) + "_%04i")
 
-        self._prep_varargs()
+        self.helper_prep_varargs()
 
 
     def gen_sym(self):
@@ -568,7 +570,7 @@ class CodeSpace(metaclass=ABCMeta):
         _list_unique_append(self.names, name)
 
 
-    def _prep_varargs(self):
+    def helper_prep_varargs(self):
         # initial step which will convert the pythonic varargs tuple
         # into a proper cons list
 
@@ -778,6 +780,14 @@ class CodeSpace(metaclass=ABCMeta):
 
     def pseudop_build_tuple_unpack(self, count):
         self.pseudop(Pseudop.BUILD_TUPLE_UNPACK, count)
+
+
+    def pseudop_build_map(self, count):
+        self.pseudop(Pseudop.BUILD_MAP, count)
+
+
+    def pseudop_build_map_unpack(self, count):
+        self.pseudop(Pseudop.BUILD_MAP_UNPACK, count)
 
 
     def pseudop_setup_loop(self, done_label):
@@ -1295,8 +1305,13 @@ class ExpressionCodeSpace(CodeSpace):
         elif op is _Pseudop.RET_VAL:
             pop()
 
+        elif op is _Pseudop.BUILD_MAP:
+            pop(args[0] * 2)
+            push()
+
         elif op in (_Pseudop.BUILD_TUPLE,
-                    _Pseudop.BUILD_TUPLE_UNPACK):
+                    _Pseudop.BUILD_TUPLE_UNPACK,
+                    _Pseudop.BUILD_MAP_UNPACK):
             pop(args[0])
             push()
 

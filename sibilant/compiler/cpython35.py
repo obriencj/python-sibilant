@@ -237,6 +237,12 @@ class CPython35(ExpressionCodeSpace):
             elif op is _Pseudop.BUILD_TUPLE_UNPACK:
                 yield _Opcode.BUILD_TUPLE_UNPACK, args[0], 0
 
+            elif op is _Pseudop.BUILD_MAP:
+                yield _Opcode.BUILD_MAP, args[0], 0
+
+            elif op is _Pseudop.BUILD_MAP_UNPACK:
+                yield _Opcode.BUILD_MAP_UNPACK, args[0], 0
+
             elif op is _Pseudop.SETUP_WITH:
                 yield _Opcode.SETUP_WITH, args[0], 0
 
@@ -457,23 +463,28 @@ class CPython35(ExpressionCodeSpace):
         _Pseudop = Pseudop
 
         if op is _Pseudop.CALL:
-            pop(args[0])
-            pop(args[1] * 2)
+            pop(args[0])      # positionals
+            pop(args[1] * 2)  # kw:val pairs
+            pop()             # function
+            push()            # result
 
         elif op is _Pseudop.CALL_KW:
-            pop(args[0])
-            pop(args[1] * 2)
-            pop()
+            pop(args[0])      # positionals
+            pop(args[1] * 2)  # kw:val pairs
+            pop(2)            # kwds, function
+            push()            # result
 
         elif op is _Pseudop.CALL_VAR:
-            pop(args[0])
-            pop(args[1] * 2)
-            pop()
+            pop(args[0])      # positionals
+            pop(args[1] * 2)  # kw:val pairs
+            pop(2)            # args, function
+            push()            # result
 
         elif op is _Pseudop.CALL_VAR_KW:
-            pop(args[0])
-            pop(args[1] * 2)
-            pop(2)
+            pop(args[0])      # positionals
+            pop(args[1] * 2)  # kw:val pairs
+            pop(3)            # args, kwds, function
+            push()            # result
 
         else:
             return super().helper_max_stack(op, args, push, pop)
