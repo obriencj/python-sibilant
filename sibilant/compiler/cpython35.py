@@ -228,9 +228,6 @@ class CPython35(ExpressionCodeSpace):
             elif op is _Pseudop.POP_JUMP_IF_FALSE:
                 yield _Opcode.POP_JUMP_IF_FALSE, args[0]
 
-            elif op is _Pseudop.CALL_VAR:
-                yield _Opcode.CALL_FUNCTION_VAR, args[0], 0
-
             elif op is _Pseudop.BUILD_TUPLE:
                 yield _Opcode.BUILD_TUPLE, args[0], 0
 
