@@ -91,46 +91,9 @@ def is_undefined(value):
     return value is undefined
 
 
-class Symbol(object):
-    """
-    symbol type.
-
-    Symbol instances are automatically interned. Symbols are equal
-    only to themselves. Symbols hash the same as their str
-    representation.
-    """
+class SingletonAtom(object):
 
     __slots__ = ("_name", "__weakref__", )
-
-    __intern = WeakValueDictionary()
-
-
-    def __new__(cls, name):
-        # applying str auto-interns
-        name = str(name)
-
-        s = cls.__intern.get(name)
-        if s is None:
-            s = object.__new__(cls)
-            s._name = name
-            cls.__intern[name] = s
-        return s
-
-
-    def __eq__(self, other):
-        return self is other
-
-
-    def __ne__(self, other):
-        return self is not other
-
-
-    def __hash__(self):
-        return self._name.__hash__()
-
-
-    def __repr__(self):
-        return "".join(("symbol(", repr(self._name), ")"))
 
 
     def __str__(self):
@@ -147,6 +110,34 @@ class Symbol(object):
         return [cls(s) for s in self._name.rsplit(sep, maxsplit)]
 
 
+class Symbol(SingletonAtom):
+    """
+    symbol type.
+
+    Symbol instances are automatically interned. Symbols are equal
+    only to themselves. Symbols hash the same as their str
+    representation.
+    """
+
+    __intern = WeakValueDictionary()
+
+
+    def __new__(cls, name):
+        # applying str auto-interns
+        name = str(name)
+
+        s = cls.__intern.get(name)
+        if s is None:
+            s = object.__new__(cls)
+            s._name = name
+            cls.__intern[name] = s
+        return s
+
+
+    def __repr__(self):
+        return "".join(("symbol(", repr(self._name), ")"))
+
+
 def symbol(name):
     if isinstance(name, Symbol):
         return name
@@ -158,7 +149,7 @@ def is_symbol(value):
     return isinstance(value, Symbol)
 
 
-class Keyword(Symbol):
+class Keyword(SingletonAtom):
     """
     keyword type.
 
