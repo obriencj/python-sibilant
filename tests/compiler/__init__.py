@@ -37,6 +37,7 @@ from sibilant.compiler import (
     is_macro, Macro,
     is_special, Special,
     iter_compile,
+    CodeFlag,
 )
 
 import dis
@@ -333,6 +334,122 @@ class TestCompiler(TestCase):
         res = stmt()
         self.assertEqual(res, None)
         self.assertEqual(o.foo.bar.baz, 888)
+
+
+class KeywordArgs(TestCase):
+
+    def test_gather_formals(self):
+
+        pass
+
+
+    def test_gather_parameters(self):
+
+        pass
+
+
+    def test_formals(self):
+        src = """
+        (lambda (a b c) (make-tuple a b c))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        code = res.__code__
+        self.assertTrue(callable(res))
+        self.assertEqual(code.co_argcount, 3)
+        self.assertEqual(code.co_varnames, ('a', 'b', 'c'))
+        self.assertFalse(code.co_flags & CodeFlag.VARARGS.value)
+        self.assertFalse(code.co_flags & CodeFlag.VARKEYWORDS.value)
+        self.assertEqual(res(1, 2, 3), (1, 2, 3))
+
+        src = """
+        (lambda (a b: 0 c: 1) (make-tuple a b c))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        code = res.__code__
+        self.assertTrue(callable(res))
+        self.assertEqual(code.co_argcount, 3)
+        self.assertEqual(code.co_varnames, ('a', 'b', 'c'))
+        self.assertEqual(res.__defaults__, (0, 1))
+        self.assertFalse(code.co_flags & CodeFlag.VARARGS.value)
+        self.assertFalse(code.co_flags & CodeFlag.VARKEYWORDS.value)
+        self.assertEqual(res(1), (1, 0, 1))
+        self.assertEqual(res(1, 2), (1, 2, 1))
+        self.assertEqual(res(1, 2, 3), (1, 2, 3))
+        self.assertEqual(res(9, b=8, c=7), (9, 8, 7))
+        self.assertEqual(res(9, c=7, b=8), (9, 8, 7))
+
+        src = """
+        (lambda (a *: rest) (make-tuple a (to-tuple rest)))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        code = res.__code__
+        self.assertTrue(callable(res))
+        self.assertEqual(code.co_argcount, 1)
+        self.assertEqual(code.co_varnames, ('a', 'rest'))
+        self.assertTrue(code.co_flags & CodeFlag.VARARGS.value)
+        self.assertFalse(code.co_flags & CodeFlag.VARKEYWORDS.value)
+        self.assertEqual(res(1), (1, ()))
+        self.assertEqual(res(1, 2), (1, (2,)))
+        self.assertEqual(res(1, 2, 3), (1, (2, 3)))
+        self.assertEqual(res(1, 2, 3, 4), (1, (2, 3, 4)))
+
+        src = """
+        (lambda (a . rest) (make-tuple a (to-tuple rest)))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        code = res.__code__
+        self.assertTrue(callable(res))
+        self.assertEqual(code.co_argcount, 1)
+        self.assertEqual(code.co_varnames, ('a', 'rest'))
+        self.assertTrue(code.co_flags & CodeFlag.VARARGS.value)
+        self.assertFalse(code.co_flags & CodeFlag.VARKEYWORDS.value)
+        self.assertEqual(res(1), (1, ()))
+        self.assertEqual(res(1, 2), (1, (2,)))
+        self.assertEqual(res(1, 2, 3), (1, (2, 3)))
+        self.assertEqual(res(1, 2, 3, 4), (1, (2, 3, 4)))
+
+
+        src = """
+        (lambda (a **: rest) True)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        code = res.__code__
+        self.assertTrue(callable(res))
+        self.assertEqual(code.co_argcount, 1)
+        self.assertEqual(code.co_varnames, ('a', 'rest'))
+        self.assertFalse(code.co_flags & CodeFlag.VARARGS.value)
+        self.assertTrue(code.co_flags & CodeFlag.VARKEYWORDS.value)
+
+        src = """
+        (lambda (a: 0 *: rest) True)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        code = res.__code__
+        self.assertTrue(callable(res))
+        self.assertEqual(code.co_argcount, 1)
+        self.assertEqual(code.co_varnames, ('a', 'rest'))
+        self.assertEqual(res.__defaults__, (0,))
+        self.assertTrue(code.co_flags & CodeFlag.VARARGS.value)
+        self.assertFalse(code.co_flags & CodeFlag.VARKEYWORDS.value)
+
+        src = """
+        (lambda (a: 0 **: rest) True)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        code = res.__code__
+        self.assertTrue(callable(res))
+        self.assertEqual(code.co_argcount, 1)
+        self.assertEqual(code.co_varnames, ('a', 'rest'))
+        self.assertEqual(res.__defaults__, (0,))
+        self.assertFalse(code.co_flags & CodeFlag.VARARGS.value)
+        self.assertTrue(code.co_flags & CodeFlag.VARKEYWORDS.value)
 
 
 #
