@@ -15,6 +15,7 @@
 
 from . import (
     ExpressionCodeSpace, Pseudop, Opcode,
+    gather_parameters,
 )
 
 
@@ -88,250 +89,272 @@ class CPython36(ExpressionCodeSpace):
         and arguments to represent this code.
         """
 
+        _Pseudop = Pseudop
+        _Opcode = Opcode
+
         for op, *args in self.pseudops:
-            if op is Pseudop.POSITION:
+            if op is _Pseudop.POSITION:
                 declare_position(*args)
 
-            elif op is Pseudop.CALL:
-                n = args[0]
-                yield Opcode.CALL_FUNCTION, n
+            elif op is _Pseudop.CALL:
+                yield _Opcode.CALL_FUNCTION, args[0]
 
-            elif op is Pseudop.CONST:
+            elif op is _Pseudop.CALL_KW:
+                yield _Opcode.CALL_FUNCTION_KW, args[0]
+
+            elif op is _Pseudop.CALL_VAR:
+                yield _Opcode.CALL_FUNCTION_EX, 0x00
+
+            elif op is _Pseudop.CALL_VAR_KW:
+                yield _Opcode.CALL_FUNCTION_EX, 0x01
+
+            elif op is _Pseudop.CONST:
                 i = _const_index(self.consts, args[0])
-                yield Opcode.LOAD_CONST, i
+                yield _Opcode.LOAD_CONST, i
 
-            elif op is Pseudop.GET_VAR:
+            elif op is _Pseudop.GET_VAR:
                 n = args[0]
                 if n in self.cell_vars:
                     i = self.cell_vars.index(n)
-                    yield Opcode.LOAD_DEREF, i
+                    yield _Opcode.LOAD_DEREF, i
                 elif n in self.free_vars:
                     i = self.free_vars.index(n) + len(self.cell_vars)
-                    yield Opcode.LOAD_DEREF, i
+                    yield _Opcode.LOAD_DEREF, i
                 elif n in self.fast_vars:
                     i = self.fast_vars.index(n)
-                    yield Opcode.LOAD_FAST, i
+                    yield _Opcode.LOAD_FAST, i
                 elif n in self.global_vars:
                     i = self.names.index(n)
-                    yield Opcode.LOAD_GLOBAL, i
+                    yield _Opcode.LOAD_GLOBAL, i
                 else:
                     assert False, "missing var %r" % n
 
-            elif op is Pseudop.SET_VAR:
+            elif op is _Pseudop.SET_VAR:
                 n = args[0]
                 if n in self.cell_vars:
                     i = self.cell_vars.index(n)
-                    yield Opcode.STORE_DEREF, i
+                    yield _Opcode.STORE_DEREF, i
                 elif n in self.free_vars:
                     i = self.free_vars.index(n) + len(self.cell_vars)
-                    yield Opcode.STORE_DEREF, i
+                    yield _Opcode.STORE_DEREF, i
                 elif n in self.fast_vars:
                     i = self.fast_vars.index(n)
-                    yield Opcode.STORE_FAST, i
+                    yield _Opcode.STORE_FAST, i
                 elif n in self.global_vars:
                     i = self.names.index(n)
-                    yield Opcode.STORE_GLOBAL, i
+                    yield _Opcode.STORE_GLOBAL, i
                 else:
                     assert False, "missing var %r" % n
 
-            elif op is Pseudop.DELETE_VAR:
+            elif op is _Pseudop.DELETE_VAR:
                 n = args[0]
                 if n in self.cell_vars:
                     i = self.cell_vars.index(n)
-                    yield Opcode.DELETE_DEREF, i
+                    yield _Opcode.DELETE_DEREF, i
                 elif n in self.free_vars:
                     i = self.free_vars.index(n) + len(self.cell_vars)
-                    yield Opcode.DELETE_DEREF, i
+                    yield _Opcode.DELETE_DEREF, i
                 elif n in self.fast_vars:
                     i = self.fast_vars.index(n)
-                    yield Opcode.DELETE_FAST, i
+                    yield _Opcode.DELETE_FAST, i
                 elif n in self.global_vars:
                     i = self.names.index(n)
-                    yield Opcode.DELETE_GLOBAL, i
+                    yield _Opcode.DELETE_GLOBAL, i
                 else:
                     assert False, "missing var %r" % n
 
-            elif op is Pseudop.GET_GLOBAL:
+            elif op is _Pseudop.GET_GLOBAL:
                 n = args[0]
                 i = self.names.index(n)
-                yield Opcode.LOAD_GLOBAL, i
+                yield _Opcode.LOAD_GLOBAL, i
 
-            elif op is Pseudop.GET_ATTR:
+            elif op is _Pseudop.GET_ATTR:
                 n = args[0]
                 i = self.names.index(n)
-                yield Opcode.LOAD_ATTR, i
+                yield _Opcode.LOAD_ATTR, i
 
-            elif op is Pseudop.SET_ATTR:
+            elif op is _Pseudop.SET_ATTR:
                 n = args[0]
                 i = self.names.index(n)
-                yield Opcode.STORE_ATTR, i
+                yield _Opcode.STORE_ATTR, i
 
-            elif op is Pseudop.DEFINE_GLOBAL:
+            elif op is _Pseudop.DEFINE_GLOBAL:
                 n = args[0]
                 if n in self.global_vars:
                     i = self.names.index(n)
-                    yield Opcode.STORE_GLOBAL, i
+                    yield _Opcode.STORE_GLOBAL, i
                 else:
                     assert False, "missing global name %r" % n
 
-            elif op is Pseudop.DEFINE_LOCAL:
+            elif op is _Pseudop.DEFINE_LOCAL:
                 n = args[0]
                 if n in self.cell_vars:
                     i = self.cell_vars.index(n)
-                    yield Opcode.STORE_DEREF, i
+                    yield _Opcode.STORE_DEREF, i
                 elif n in self.free_vars:
                     i = self.free_vars.index(n) + len(self.cell_vars)
-                    yield Opcode.STORE_DEREF, i
+                    yield _Opcode.STORE_DEREF, i
                 elif n in self.fast_vars:
                     i = self.fast_vars.index(n)
-                    yield Opcode.STORE_FAST, i
+                    yield _Opcode.STORE_FAST, i
                 else:
                     assert False, "missing local name %r" % n
 
-            elif op is Pseudop.POP:
-                yield Opcode.POP_TOP, 0
+            elif op is _Pseudop.POP:
+                yield _Opcode.POP_TOP, 0
 
-            elif op is Pseudop.LAMBDA:
+            elif op is _Pseudop.LAMBDA:
                 yield from self.helper_gen_lambda(*args)
 
-            elif op is Pseudop.RET_VAL:
-                yield Opcode.RETURN_VALUE, 0
+            elif op is _Pseudop.RET_VAL:
+                yield _Opcode.RETURN_VALUE, 0
 
-            elif op is Pseudop.DUP:
-                yield Opcode.DUP_TOP, 0
+            elif op is _Pseudop.DUP:
+                yield _Opcode.DUP_TOP, 0
 
-            elif op is Pseudop.LABEL:
+            elif op is _Pseudop.LABEL:
                 declare_label(args[0])
 
-            elif op in (Pseudop.FAUX_PUSH,
-                        Pseudop.DEBUG_STACK):
+            elif op in (_Pseudop.FAUX_PUSH,
+                        _Pseudop.DEBUG_STACK):
                 pass
 
-            elif op is Pseudop.JUMP:
-                yield Opcode.JUMP_ABSOLUTE, args[0]
+            elif op is _Pseudop.JUMP:
+                yield _Opcode.JUMP_ABSOLUTE, args[0]
 
-            elif op is Pseudop.JUMP_FORWARD:
-                yield Opcode.JUMP_FORWARD, args[0]
+            elif op is _Pseudop.JUMP_FORWARD:
+                yield _Opcode.JUMP_FORWARD, args[0]
 
-            elif op is Pseudop.POP_JUMP_IF_TRUE:
-                yield Opcode.POP_JUMP_IF_TRUE, args[0]
+            elif op is _Pseudop.POP_JUMP_IF_TRUE:
+                yield _Opcode.POP_JUMP_IF_TRUE, args[0]
 
-            elif op is Pseudop.POP_JUMP_IF_FALSE:
-                yield Opcode.POP_JUMP_IF_FALSE, args[0]
+            elif op is _Pseudop.POP_JUMP_IF_FALSE:
+                yield _Opcode.POP_JUMP_IF_FALSE, args[0]
 
-            elif op is Pseudop.CALL_VARARGS:
-                yield Opcode.CALL_FUNCTION_EX, 0
+            elif op is _Pseudop.BUILD_TUPLE:
+                yield _Opcode.BUILD_TUPLE, args[0]
 
-            elif op is Pseudop.BUILD_TUPLE:
-                yield Opcode.BUILD_TUPLE, args[0]
+            elif op is _Pseudop.BUILD_TUPLE_UNPACK:
+                yield _Opcode.BUILD_TUPLE_UNPACK, args[0]
 
-            elif op is Pseudop.BUILD_TUPLE_UNPACK:
-                yield Opcode.BUILD_TUPLE_UNPACK, args[0]
+            elif op is _Pseudop.BUILD_MAP:
+                yield _Opcode.BUILD_MAP, args[0]
 
-            elif op is Pseudop.SETUP_WITH:
-                yield Opcode.SETUP_WITH, args[0]
+            elif op is _Pseudop.BUILD_MAP_UNPACK:
+                yield _Opcode.BUILD_MAP_UNPACK, args[0]
 
-            elif op is Pseudop.WITH_CLEANUP_START:
-                yield Opcode.WITH_CLEANUP_START, 0
+            elif op is _Pseudop.SETUP_WITH:
+                yield _Opcode.SETUP_WITH, args[0]
 
-            elif op is Pseudop.WITH_CLEANUP_FINISH:
-                yield Opcode.WITH_CLEANUP_FINISH, 0
+            elif op is _Pseudop.WITH_CLEANUP_START:
+                yield _Opcode.WITH_CLEANUP_START, 0
 
-            elif op is Pseudop.SETUP_EXCEPT:
-                yield Opcode.SETUP_EXCEPT, args[0]
+            elif op is _Pseudop.WITH_CLEANUP_FINISH:
+                yield _Opcode.WITH_CLEANUP_FINISH, 0
 
-            elif op is Pseudop.SETUP_FINALLY:
-                yield Opcode.SETUP_FINALLY, args[0]
+            elif op is _Pseudop.SETUP_EXCEPT:
+                yield _Opcode.SETUP_EXCEPT, args[0]
 
-            elif op is Pseudop.POP_BLOCK:
-                yield Opcode.POP_BLOCK, 0
+            elif op is _Pseudop.SETUP_FINALLY:
+                yield _Opcode.SETUP_FINALLY, args[0]
 
-            elif op is Pseudop.POP_EXCEPT:
-                yield Opcode.POP_EXCEPT, 0
+            elif op is _Pseudop.POP_BLOCK:
+                yield _Opcode.POP_BLOCK, 0
 
-            elif op is Pseudop.END_FINALLY:
-                yield Opcode.END_FINALLY, 0
+            elif op is _Pseudop.POP_EXCEPT:
+                yield _Opcode.POP_EXCEPT, 0
 
-            elif op is Pseudop.UNARY_POSITIVE:
-                yield Opcode.UNARY_POSITIVE, 0
+            elif op is _Pseudop.END_FINALLY:
+                yield _Opcode.END_FINALLY, 0
 
-            elif op is Pseudop.UNARY_NEGATIVE:
-                yield Opcode.UNARY_NEGATIVE, 0
+            elif op is _Pseudop.UNARY_POSITIVE:
+                yield _Opcode.UNARY_POSITIVE, 0
 
-            elif op is Pseudop.UNARY_NOT:
-                yield Opcode.UNARY_NOT, 0
+            elif op is _Pseudop.UNARY_NEGATIVE:
+                yield _Opcode.UNARY_NEGATIVE, 0
 
-            elif op is Pseudop.UNARY_INVERT:
-                yield Opcode.UNARY_INVERT, 0
+            elif op is _Pseudop.UNARY_NOT:
+                yield _Opcode.UNARY_NOT, 0
 
-            elif op is Pseudop.ITER:
-                yield Opcode.GET_ITER, 0
+            elif op is _Pseudop.UNARY_INVERT:
+                yield _Opcode.UNARY_INVERT, 0
 
-            elif op is Pseudop.COMPARE_OP:
-                yield Opcode.COMPARE_OP, args[0]
+            elif op is _Pseudop.ITER:
+                yield _Opcode.GET_ITER, 0
 
-            elif op is Pseudop.ITEM:
-                yield Opcode.BINARY_SUBSCR, 0
+            elif op is _Pseudop.COMPARE_OP:
+                yield _Opcode.COMPARE_OP, args[0]
 
-            elif op is Pseudop.BINARY_ADD:
-                yield Opcode.BINARY_ADD, 0
+            elif op is _Pseudop.ITEM:
+                yield _Opcode.BINARY_SUBSCR, 0
 
-            elif op is Pseudop.BINARY_SUBTRACT:
-                yield Opcode.BINARY_SUBTRACT, 0
+            elif op is _Pseudop.BINARY_ADD:
+                yield _Opcode.BINARY_ADD, 0
 
-            elif op is Pseudop.BINARY_MULTIPLY:
-                yield Opcode.BINARY_MULTIPLY, 0
+            elif op is _Pseudop.BINARY_SUBTRACT:
+                yield _Opcode.BINARY_SUBTRACT, 0
 
-            elif op is Pseudop.BINARY_MATRIX_MULTIPLY:
-                yield Opcode.BINARY_MATRIX_MULTIPLY, 0
+            elif op is _Pseudop.BINARY_MULTIPLY:
+                yield _Opcode.BINARY_MULTIPLY, 0
 
-            elif op is Pseudop.BINARY_TRUE_DIVIDE:
-                yield Opcode.BINARY_TRUE_DIVIDE, 0
+            elif op is _Pseudop.BINARY_MATRIX_MULTIPLY:
+                yield _Opcode.BINARY_MATRIX_MULTIPLY, 0
 
-            elif op is Pseudop.BINARY_FLOOR_DIVIDE:
-                yield Opcode.BINARY_FLOOR_DIVIDE, 0
+            elif op is _Pseudop.BINARY_TRUE_DIVIDE:
+                yield _Opcode.BINARY_TRUE_DIVIDE, 0
 
-            elif op is Pseudop.BINARY_POWER:
-                yield Opcode.BINARY_POWER, 0
+            elif op is _Pseudop.BINARY_FLOOR_DIVIDE:
+                yield _Opcode.BINARY_FLOOR_DIVIDE, 0
 
-            elif op is Pseudop.BINARY_MODULO:
-                yield Opcode.BINARY_MODULO, 0
+            elif op is _Pseudop.BINARY_POWER:
+                yield _Opcode.BINARY_POWER, 0
 
-            elif op is Pseudop.BINARY_LSHIFT:
-                yield Opcode.BINARY_LSHIFT, 0
+            elif op is _Pseudop.BINARY_MODULO:
+                yield _Opcode.BINARY_MODULO, 0
 
-            elif op is Pseudop.BINARY_RSHIFT:
-                yield Opcode.BINARY_RSHIFT, 0
+            elif op is _Pseudop.BINARY_LSHIFT:
+                yield _Opcode.BINARY_LSHIFT, 0
 
-            elif op is Pseudop.BINARY_AND:
-                yield Opcode.BINARY_AND, 0
+            elif op is _Pseudop.BINARY_RSHIFT:
+                yield _Opcode.BINARY_RSHIFT, 0
 
-            elif op is Pseudop.BINARY_XOR:
-                yield Opcode.BINARY_XOR, 0
+            elif op is _Pseudop.BINARY_AND:
+                yield _Opcode.BINARY_AND, 0
 
-            elif op is Pseudop.BINARY_OR:
-                yield Opcode.BINARY_OR, 0
+            elif op is _Pseudop.BINARY_XOR:
+                yield _Opcode.BINARY_XOR, 0
 
-            elif op is Pseudop.RAISE:
-                yield Opcode.RAISE_VARARGS, args[0]
+            elif op is _Pseudop.BINARY_OR:
+                yield _Opcode.BINARY_OR, 0
 
-            elif op is Pseudop.ROT_TWO:
-                yield Opcode.ROT_TWO, 0
+            elif op is _Pseudop.RAISE:
+                yield _Opcode.RAISE_VARARGS, args[0]
 
-            elif op is Pseudop.ROT_THREE:
-                yield Opcode.ROT_THREE, 0
+            elif op is _Pseudop.ROT_TWO:
+                yield _Opcode.ROT_TWO, 0
+
+            elif op is _Pseudop.ROT_THREE:
+                yield _Opcode.ROT_THREE, 0
 
             else:
                 assert False, "Unknown Pseudop %r" % op
 
 
-    def helper_gen_lambda(self, code):
+    def helper_gen_lambda(self, code, default_count=0):
         """
         Helper to _gen_code that handles just lambda definitions
         """
 
         ci = self.consts.index(code)
         ni = self.consts.index(code.co_name)
+
+        _Opcode = Opcode
+
+        flags = 0x00
+
+        if default_count:
+            yield Opcode.BUILD_TUPLE, default_count
+            flags |= 0x01
 
         if code.co_freevars:
             # code is a closure, so we'll need to find the matching
@@ -345,18 +368,79 @@ class CPython36(ExpressionCodeSpace):
                     fi += self.free_vars.index(f)
                 else:
                     assert False, "missing local var %r" % f
-                yield Opcode.LOAD_CLOSURE, fi
+                yield _Opcode.LOAD_CLOSURE, fi
 
-            yield Opcode.BUILD_TUPLE, len(code.co_freevars)
-            yield Opcode.LOAD_CONST, ci
-            yield Opcode.LOAD_CONST, ni
-            yield Opcode.MAKE_FUNCTION, 0x08
+            yield _Opcode.BUILD_TUPLE, len(code.co_freevars)
+            flags |= 0x08
 
+        # not a closure, so just a pain ol' function
+        yield _Opcode.LOAD_CONST, ci
+        yield _Opcode.LOAD_CONST, ni
+        yield _Opcode.MAKE_FUNCTION, flags
+
+
+    def helper_compile_call(self, args, declared_at):
+        params = gather_parameters(args)
+
+        pos, keywords, values, vargs, vkwds = params
+
+        assert (len(keywords) == len(values)), "mismatched keyword, values"
+
+        arg_tuple = 0
+
+        # step one, evaluate the positionals that we have
+        for expr in pos:
+            self.add_expression(expr)
+
+        if not (vargs or keywords or vkwds):
+            # easy mode, nothing fancy, just a plain 'ol call
+            self.pseudop_call(len(pos))
+            return
+
+        elif pos:
+            # it's going to get complicated. collect the positionals
+            # we've got into a tuple for later.
+            self.pseudop_build_tuple(len(pos))
+            arg_tuple += 1
+
+        if vargs:
+            # another tuple of positional arguments onto the pile
+            self.add_expression(vargs)
+            arg_tuple += 1
+
+        if arg_tuple != 1:
+            # if we have more than one positional tuple, join them
+            # together into a single tuple (or if we have none, create
+            # an empty tuple)
+            self.pseudop_build_tuple_unpack(arg_tuple)
+
+        kwd_tuple = 0
+        if keywords:
+            # build a map out of all the keyword:value entries
+            for key, val in zip(keywords, values):
+                self.pseudop_const(str(key))
+                self.add_expression(val)
+            self.pseudop_build_map(len(keywords))
+            kwd_tuple += 1
+
+        if vkwds:
+            # if we also have a variadic kwd, grab that.
+            self.add_expression(vkwds)
+            kwd_tuple += 1
+
+        if kwd_tuple > 1:
+            # if we have both keywords and variadic kwds, join' em together
+            self.pseudop_build_map_unpack(kwd_tuple)
+
+        if declared_at:
+            self.pseudop_position(*declared_at)
+
+        if kwd_tuple:
+            # if we have a kwds map, invoke this way
+            self.pseudop_call_var_kw()
         else:
-            # not a closure, so just a pain ol' function
-            yield Opcode.LOAD_CONST, ci
-            yield Opcode.LOAD_CONST, ni
-            yield Opcode.MAKE_FUNCTION, 0
+            # otherwise, just invoke with the collected positionals
+            self.pseudop_call_var()
 
 
     def lnt_compile(self, lnt, firstline=None):
@@ -397,6 +481,26 @@ class CPython36(ExpressionCodeSpace):
 
         res = firstline, b''.join(gathered)
         return res
+
+
+    def helper_max_stack(self, op, args, push, pop):
+
+        _Pseudop = Pseudop
+
+        if op is _Pseudop.CALL:
+            pop(args[0] + 1)  # positionals, function
+            push()  # result
+
+        elif op is _Pseudop.CALL_VAR:
+            pop(2)  # args, function
+            push()  # result
+
+        elif op is _Pseudop.CALL_VAR_KW:
+            pop(3)  # kwargs, args, function
+            push()  # result
+
+        else:
+            return super().helper_max_stack(op, args, push, pop)
 
 
 def _const_index(of_list, value):

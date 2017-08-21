@@ -20,10 +20,10 @@ The built-in compile-time special forms
 
 from .. import (
     symbol, is_symbol, is_keyword,
-    nil, is_nil, cdr, is_pair, is_proper,
+    nil, is_nil, cons, cdr, is_pair, is_proper,
 )
 
-from . import is_macro
+from . import is_macro, gather_formals
 
 
 __all__ = []
@@ -291,7 +291,7 @@ def _helper_quasiquote(code, marked, level=0):
                     code.pseudop_get_var("to-tuple")
                     code.add_expression(tail)
                     code.pseudop_call(1)
-                    code.pseudop_call_varargs(0)
+                    code.pseudop_call_var(0)
                     return
                 else:
                     code.pseudop_get_var("make-proper")
@@ -409,7 +409,7 @@ def _helper_quasiquote(code, marked, level=0):
 
         assert coll_tup, "no members accumulated"
         code.pseudop_build_tuple_unpack(coll_tup)
-        code.pseudop_call_varargs(0)
+        code.pseudop_call_var(0)
 
     else:
         # some... other thing.
@@ -562,7 +562,7 @@ def _special_function(code, source):
         subc.pseudop_return()
         kid_code = subc.complete()
 
-    code.pseudop_lambda(kid_code)
+    code.pseudop_lambda(kid_code, 0)
     code.pseudop_call(0)
 
     # no additional transform needed
@@ -585,8 +585,13 @@ def _special_let(code, source):
     vals = []
     for arg in bindings.unpack():
         name, val = arg.unpack()
-        args.append(str(name))
+        args.append(name)
         vals.append(val)
+
+    if args:
+        args = cons(*args, nil)
+    else:
+        args = nil
 
     code.pseudop_position_of(source)
 
@@ -603,35 +608,47 @@ def _special_let(code, source):
 
 
 def _helper_function(code, name, args, body, declared_at=None):
-    if is_symbol(args):
+
+    if not (is_symbol(name) or isinstance(name, str)):
+        msg = "function names must be symbol or str, not %r" % name
+        raise code.error(msg, declared_at)
+
+    formals = gather_formals(args, code.position_of(args) or declared_at)
+    pos, keys, defaults, star, starstar = formals
+
+    argnames = list(map(str, pos))
+
+    if keys:
+        argnames.extend(map(str, keys))
+
+    if star:
         varargs = True
-        args = [str(args)]
-
-    elif is_pair(args):
-        varargs = not is_proper(args)
-        args = map(str, args.unpack())
-
-    elif isinstance(args, (list, tuple)):
-        varargs = False
-        args = map(str, args)
-
+        argnames.append(str(star))
     else:
-        msg = "formals must be symbol or pair, not %r" % type(args)
-        raise code.error(msg, args)
+        varargs = False
+
+    if starstar:
+        varkeywords = True
+        argnames.append(str(starstar))
+    else:
+        varkeywords = False
 
     if declared_at is None:
         declared_at = code.position_of(body)
 
-    kid = code.child_context(args=args, varargs=varargs,
+    for expr in defaults:
+        code.add_expression(expr)
+
+    kid = code.child_context(args=argnames,
+                             varargs=varargs,
+                             varkeywords=varkeywords,
                              name=name,
                              declared_at=declared_at)
 
     with kid as subc:
         _helper_begin(subc, body)
         subc.pseudop_return()
-        kid_code = subc.complete()
-
-    code.pseudop_lambda(kid_code)
+        code.pseudop_lambda(subc.complete(), len(defaults))
 
 
 @special(_symbol_while)
