@@ -1047,6 +1047,11 @@ def code_space_for_version(ver=version_info,
             from .cpython35 import CPython35
             return CPython35
 
+    elif impl == 'PyPy':
+        if (3, 5) <= ver <= (3, 6):
+            from .pypy35 import PyPy35
+            return PyPy35
+
     return None
 
 
