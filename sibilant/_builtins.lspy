@@ -21,24 +21,24 @@
 (define-global defmacro
   (macro
    "defmacro"
-   (function defmacro (name formals . &body)
+   (function defmacro (name formals . body)
 	     (doc "Defines a Macro instance in the current module")
 	     `(define-global ,name
-		(macro ,(str name) (function ,name ,formals ,@&body))))))
+		(macro ,(str name) (function ,name ,formals ,@body))))))
 
 
-(defmacro defmacrolet (name . &body)
+(defmacro defmacrolet (name . body)
   (doc "Defined a Macrolet in the current module")
   `(define-global ,name
-     (macrolet ,(str name) (function ,name () ,@&body))))
+     (macrolet ,(str name) (function ,name () ,@body))))
 
 
-(defmacro defun (name params . &body)
-  `(define ,name (function ,name ,params ,@&body)))
+(defmacro defun (name params . body)
+  `(define ,name (function ,name ,params ,@body)))
 
 
-(defmacro defclass (name bases . &body)
-  `(define ,name (class ,name ,bases ,@&body)))
+(defmacro defclass (name bases . body)
+  `(define ,name (class ,name ,bases ,@body)))
 
 
 ;; === reader macros and atom matchers ===
@@ -67,69 +67,47 @@
 
 ;; === conditionals ===
 
-(defmacro if (condition true_body . &false_body)
+(defmacro if (condition true_body false_body: None)
   `(cond (,condition ,true_body)
-	 (else ,(cond (&false_body (car &false_body))
-		      (else None)))))
+	 (else ,false_body)))
 
 
-(defmacro when (condition . &body)
-  `(cond (,condition ,@&body)
+(defmacro when (condition . body)
+  `(cond (,condition ,@body)
 	 (else None)))
 
 
-(defmacro unless (condition . &body)
+(defmacro unless (condition . body)
   `(cond (,condition None)
-	 (else ,@&body)))
+	 (else ,@body)))
 
 
 ;; === math shortcuts ===
 
-(defmacro incr (dest . by)
-  (cond
-   ((nil? by)
-    (setq by 1))
-
-   ((nil? (cdr by))
-    (setq by (car by)))
-
-   (else
-    (raise (Exception "too many argument to incr"))))
-
+(defmacro incr (dest by: 1)
   `(setf ,dest (+ ,dest ,by)))
 
 
-(defmacro decr (dest . by)
-  (cond
-   ((nil? by)
-    (setq by 1))
-
-   ((nil? (cdr by))
-    (setq by (car by)))
-
-   (else
-    (raise (Exception "too many argument to decr"))))
-
+(defmacro decr (dest by: 1)
   `(setf ,dest (- ,dest ,by)))
 
 
 ;; === imports ===
 
-(defmacro defimport (modulename . &as_name)
+(defmacro defimport (modulename as-name: None)
   (doc "Import a module and bind it to the global scope")
 
   (unless (symbol? modulename)
     (raise (Exception (% "defimport module name must be a symbol, not %r"
 			 modulename))))
 
-  (unless (or (nil? &as_name) (== 1 (&as_name.count)))
-    (raise (Exception "unexpected additional arguments to defimport")))
+  (unless (or (is None as-name) (symbol? as-name))
+    (raise (Exception "defimpoy as-name: must be a symbol")))
 
-  (setq &as_name
-	(if (nil? &as_name) (item (modulename.split "." 1) 0)
-	  (car &as_name)))
+  (when (is None as-name)
+    (setq as-name (item (modulename.split "." 1) 0)))
 
-  `(define ,&as_name (import ,(str modulename) (globals))))
+  `(define ,as-name (import ,(str modulename) (globals))))
 
 
 (defmacro defimportfrom (modulename . &bindings)
@@ -169,10 +147,10 @@
     (set-item *gv-forms* name fn)
     None)
 
-  (defmacro gv-define-setter (name formals . &body)
+  (defmacro gv-define-setter (name formals . body)
     `(gv-define-setter-fn
       ',name
-      (lambda ,formals ,@&body)))
+      (lambda ,formals ,@body)))
 
   (defmacro gv-define-simple-setter (name setter)
     `(gv-define-setter
@@ -244,34 +222,34 @@
 
 ;; === local variable definitions ===
 
-(defmacro local (name . &dfn)
-  (let ((target (first &dfn)))
+(defmacro local (name . dfn)
+  (let ((target (first dfn)))
     (cond ((or (eq target 'function) (eq target 'class))
-	   `(define-local ,(second &dfn) ,&dfn))
+	   `(define-local ,(second dfn) ,dfn))
 	  (else
 	   (raise (Exception (% "invalid local definition %" target)))))))
 
 
 ;; === python object system classes ==
 
-(defmacro method (name params . &body)
-  `(let ((*method* (lambda ,params ,@&body))
+(defmacro method (name params . body)
+  `(let ((*method* (lambda ,params ,@body))
 	 (*name* ,(str name)))
      (set-attr *method* __name__ *name*)
      (set-item *members* *name* *method*)))
 
 
-(defmacro class (name bases . &body)
+(defmacro class (name bases . body)
   `(let ((*name* ,(str name))
 	 (*flds* None)
 	 (*body* (lambda (*members*)
-		   (begin ,@&body)
+		   (begin ,@body)
 		   *members*)))
 
      (setq *flds* (*body* (dict)))
      (set-item *flds* "__doc__" *body*.__doc__)
      (type *name*
-	   (make-tuple ,@bases)
+	   (make-tuple ,bases)
 	   *flds*)))
 
 
