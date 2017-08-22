@@ -4,6 +4,17 @@
 
 Sibilant is a dialect of LISP which compiles to [Python] bytecode.
 
+Sibilant is not done. It's still being organically grown in bars and
+coffee shops whenever I get a chance to sit alone. I will eventually
+get to the point where it seems like a 1.0.0 is sane. Until then, this
+is version 0.9.0 and every commit or pull-request could introduce
+dramatic changes.
+
+I suspect that 1.0.0 will have approximately one user (myself). The
+purpose of version 1 will be to gather my own feedback on how I use
+sibilant, how it falters and fails, how it shines, etc. Then one day,
+version 2.0.0 will happen, and that's going to be some good stuff!
+
 
 ## But Why?
 
@@ -47,9 +58,6 @@ and continuation-passing style.
 Then suddenly in July of 2017 I went nuts and threw together the
 compiler in a week while drinking at a barcade.
 
-It's still a work-in-progress, but it's able to compile nested lambdas
-directly into python bytecode
-
 
 ## Python Version Support
 
@@ -86,10 +94,10 @@ and ending in `.lspy` or `.sibilant`) as packages or modules.
 
 In other words, to enable loading of sibilant code at runtime, you
 just need to have `import sibilant.importer` at the beginning of your
-modules.
+top-level module.
 
 From within a sibilant module the `import` function allows fetching a
-module from the importere. `defimport` and `defimport-from` will bind
+module from the importer. `defimport` and `defimportfrom` will bind
 modules or their contents to the global namespace.
 
 
@@ -114,7 +122,7 @@ debugging purposes.
 ### try/except/else/finally as an Expression
 
 The `try` special form can be used as an expression, evaluating to the
-block that runs last.
+block that runs last. That's like, my favorite feature.
 
 
 ### Future Feature: Generators

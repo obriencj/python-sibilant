@@ -238,6 +238,8 @@ class Opcode(Enum):
 Opcode = Opcode("Opcode", dis.opmap)
 
 
+# Python 3.6 has this in the enum module, but I support 3.5 so I'll
+# just make my own.
 _auto = partial(next, count())
 
 
@@ -437,14 +439,17 @@ class CodeSpace(metaclass=ABCMeta):
 
     def require_active(self):
         if self.env is None:
-            raise Exception("compiler code space is not active")
+            raise CompilerException("compiler code space is not active")
 
 
     @contextmanager
     def activate(self, env):
+        """
+        Sets the __compiler__ attribute temporarily in env, and resets
+        it when the context exits.
+        """
 
         self.env = env
-
         old = env.get("__compiler__", None)
         env["__compiler__"] = self
 
@@ -452,11 +457,9 @@ class CodeSpace(metaclass=ABCMeta):
             yield self
 
         finally:
+            env["__compiler__"] = old
             if old is None:
                 del env["__compiler__"]
-            else:
-                env["__compiler__"] = old
-
             self.env = None
 
 
@@ -469,6 +472,9 @@ class CodeSpace(metaclass=ABCMeta):
 
         if declared_at is None:
             declared_at = self.declared_at
+
+        if name is None:
+            name = "%s.<child>" % self.name
 
         cs = type(self)(parent=self,
                         args=args,
@@ -1093,7 +1099,8 @@ class ExpressionCodeSpace(CodeSpace):
                 expr = self.pseudop_const(expr)
 
             if is_compiled(expr):
-                raise Exception("leftover higher-order macro %r" % expr)
+                msg = "leftover higher-order macro %r" % expr
+                raise CompilerException(msg)
 
         return None
 
