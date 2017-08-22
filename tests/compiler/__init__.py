@@ -349,8 +349,10 @@ class KeywordArgs(TestCase):
 
 
     def test_formals(self):
+
         src = """
-        (lambda (a b c) (make-tuple a b c))
+        (lambda (a b c)
+          (make-tuple a b c))
         """
         stmt, env = compile_expr(src)
         res = stmt()
@@ -361,9 +363,13 @@ class KeywordArgs(TestCase):
         self.assertFalse(code.co_flags & CodeFlag.VARARGS.value)
         self.assertFalse(code.co_flags & CodeFlag.VARKEYWORDS.value)
         self.assertEqual(res(1, 2, 3), (1, 2, 3))
+        self.assertEqual(res(c=3, b=2, a=1), (1, 2, 3))
+        self.assertRaises(TypeError, res, 1, 2, 3, 4)
+        self.assertRaises(TypeError, res, 1)
 
         src = """
-        (lambda (a b: 0 c: 1) (make-tuple a b c))
+        (lambda (a b: 0 c: 1)
+          (make-tuple a b c))
         """
         stmt, env = compile_expr(src)
         res = stmt()
@@ -379,9 +385,14 @@ class KeywordArgs(TestCase):
         self.assertEqual(res(1, 2, 3), (1, 2, 3))
         self.assertEqual(res(9, b=8, c=7), (9, 8, 7))
         self.assertEqual(res(9, c=7, b=8), (9, 8, 7))
+        self.assertEqual(res(a=9, c=7, b=8), (9, 8, 7))
+        self.assertEqual(res(c=7, b=8, a=9), (9, 8, 7))
+        self.assertRaises(TypeError, res, 1, 2, 3, 4)
+        self.assertRaises(TypeError, res)
 
         src = """
-        (lambda (a *: rest) (make-tuple a (to-tuple rest)))
+        (lambda (a *: rest)
+          (make-tuple a (to-tuple rest)))
         """
         stmt, env = compile_expr(src)
         res = stmt()
@@ -395,9 +406,12 @@ class KeywordArgs(TestCase):
         self.assertEqual(res(1, 2), (1, (2,)))
         self.assertEqual(res(1, 2, 3), (1, (2, 3)))
         self.assertEqual(res(1, 2, 3, 4), (1, (2, 3, 4)))
+        self.assertRaises(TypeError, res, a=1, b=2)
+        self.assertRaises(TypeError, res)
 
         src = """
-        (lambda (a . rest) (make-tuple a (to-tuple rest)))
+        (lambda (a . rest)
+          (make-tuple a (to-tuple rest)))
         """
         stmt, env = compile_expr(src)
         res = stmt()
@@ -411,10 +425,12 @@ class KeywordArgs(TestCase):
         self.assertEqual(res(1, 2), (1, (2,)))
         self.assertEqual(res(1, 2, 3), (1, (2, 3)))
         self.assertEqual(res(1, 2, 3, 4), (1, (2, 3, 4)))
-
+        self.assertRaises(TypeError, res, a=1, b=2)
+        self.assertRaises(TypeError, res)
 
         src = """
-        (lambda (a **: rest) True)
+        (lambda (a **: rest)
+          (make-tuple a rest))
         """
         stmt, env = compile_expr(src)
         res = stmt()
@@ -424,9 +440,12 @@ class KeywordArgs(TestCase):
         self.assertEqual(code.co_varnames, ('a', 'rest'))
         self.assertFalse(code.co_flags & CodeFlag.VARARGS.value)
         self.assertTrue(code.co_flags & CodeFlag.VARKEYWORDS.value)
+        self.assertEqual(res(a=1, b=2, c=3), (1, dict(b=2, c=3)))
+        self.assertRaises(TypeError, res, 1, 2, 3)
 
         src = """
-        (lambda (a: 0 *: rest) True)
+        (lambda (a: 0 *: rest)
+          (make-tuple a rest))
         """
         stmt, env = compile_expr(src)
         res = stmt()
@@ -439,7 +458,8 @@ class KeywordArgs(TestCase):
         self.assertFalse(code.co_flags & CodeFlag.VARKEYWORDS.value)
 
         src = """
-        (lambda (a: 0 **: rest) True)
+        (lambda (a: 0 **: rest)
+          (make-tuple a rest))
         """
         stmt, env = compile_expr(src)
         res = stmt()
