@@ -338,13 +338,13 @@ class TestCompiler(TestCase):
 
 class KeywordArgs(TestCase):
 
-    def test_gather_formals(self):
-
+    def _test_gather_formals(self):
+        # todo: test calling gather_formals directly
         pass
 
 
-    def test_gather_parameters(self):
-
+    def _test_gather_parameters(self):
+        # todo: test calling gather_parameters directly
         pass
 
 
@@ -445,7 +445,7 @@ class KeywordArgs(TestCase):
 
         src = """
         (lambda (a: 0 *: rest)
-          (make-tuple a rest))
+          (make-tuple a (to-tuple rest)))
         """
         stmt, env = compile_expr(src)
         res = stmt()
@@ -456,6 +456,28 @@ class KeywordArgs(TestCase):
         self.assertEqual(res.__defaults__, (0,))
         self.assertTrue(code.co_flags & CodeFlag.VARARGS.value)
         self.assertFalse(code.co_flags & CodeFlag.VARKEYWORDS.value)
+        self.assertEqual(res(), (0, ()))
+        self.assertEqual(res(1), (1, ()))
+        self.assertEqual(res(1, 2, 3), (1, (2, 3)))
+        self.assertRaises(TypeError, res, 1, 2, 3, a=9)
+
+        # src = """
+        # (lambda (a: 0 . rest)
+        #   (make-tuple a (to-tuple rest)))
+        # """
+        # stmt, env = compile_expr(src)
+        # res = stmt()
+        # code = res.__code__
+        # self.assertTrue(callable(res))
+        # self.assertEqual(code.co_argcount, 1)
+        # self.assertEqual(code.co_varnames, ('a', 'rest'))
+        # self.assertEqual(res.__defaults__, (0,))
+        # self.assertTrue(code.co_flags & CodeFlag.VARARGS.value)
+        # self.assertFalse(code.co_flags & CodeFlag.VARKEYWORDS.value)
+        # self.assertEqual(res(), (0, ()))
+        # self.assertEqual(res(1), (1, ()))
+        # self.assertEqual(res(1, 2, 3), (1, (2, 3)))
+        # self.assertRaises(TypeError, res, 1, 2, 3, a=9)
 
         src = """
         (lambda (a: 0 **: rest)
@@ -470,6 +492,10 @@ class KeywordArgs(TestCase):
         self.assertEqual(res.__defaults__, (0,))
         self.assertFalse(code.co_flags & CodeFlag.VARARGS.value)
         self.assertTrue(code.co_flags & CodeFlag.VARKEYWORDS.value)
+        self.assertEqual(res(b=2, c=3), (0, dict(b=2, c=3)))
+        self.assertEqual(res(1, b=2, c=3), (1, dict(b=2, c=3)))
+        self.assertEqual(res(a=1, b=2, c=3), (1, dict(b=2, c=3)))
+        self.assertRaises(TypeError, res, 1, 2, 3)
 
 
 #
