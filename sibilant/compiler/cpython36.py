@@ -408,11 +408,22 @@ class CPython36(ExpressionCodeSpace):
             self.add_expression(vargs)
             arg_tuple += 1
 
-        if arg_tuple != 1:
+        if arg_tuple > 1:
             # if we have more than one positional tuple, join them
             # together into a single tuple (or if we have none, create
             # an empty tuple)
             self.pseudop_build_tuple_unpack(arg_tuple)
+
+        if not (keywords or vkwds):
+            # just positionals, so invoke CALL_FUNCTION_EX 0x00
+            self.pseudop_call_var(0)
+            return
+
+        elif not arg_tuple:
+            # in order to support CALL_FUNCTION_EX later on, we're
+            # going to push an empty tuple on, to represent our lack
+            # of positionals
+            self.pseudop_build_tuple(0)
 
         kwd_tuple = 0
         if keywords:
@@ -435,12 +446,9 @@ class CPython36(ExpressionCodeSpace):
         if declared_at:
             self.pseudop_position(*declared_at)
 
-        if kwd_tuple:
-            # if we have a kwds map, invoke this way
-            self.pseudop_call_var_kw()
-        else:
-            # otherwise, just invoke with the collected positionals
-            self.pseudop_call_var()
+        # even if we had no positionals, we've created an empty
+        # positionals tuple, and now we can CALL_FUNCTION_EX 0x01
+        self.pseudop_call_var_kw(0)
 
 
     def lnt_compile(self, lnt, firstline=None):
