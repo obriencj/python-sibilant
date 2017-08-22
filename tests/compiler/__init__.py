@@ -515,21 +515,77 @@ class KeywordArgs(TestCase):
         def tst(a, b=0, c=0):
             return (a, b, c)
 
+        src = """
+        (lambda (self)
+          (self.assertEqual (tst 1) (make-tuple 1 0 0))
+          (self.assertEqual (tst 1 2) (make-tuple 1 2 0))
+          (self.assertEqual (tst 1 2 3) (make-tuple 1 2 3))
+          (self.assertEqual (tst 9 b: 8 c: 7) (make-tuple 9 8 7))
+          (self.assertEqual (tst 9 c: 7 b: 8) (make-tuple 9 8 7))
+          (self.assertEqual (tst a: 9 c: 7 b: 8) (make-tuple 9 8 7))
+          (self.assertEqual (tst c: 7 b: 8 a: 9) (make-tuple 9 8 7))
+          (self.assertRaises TypeError tst 1 2 3 4)
+          (self.assertRaises TypeError tst))
+        """
+        stmt, env = compile_expr(src, tst=tst)
+        stmt()(self)
 
         def tst(a, *rest):
             return (a, rest)
 
+        src = """
+        (lambda (self)
+          (self.assertEqual (tst 1) (make-tuple 1 (tuple)))
+          (self.assertEqual (tst 1 2) (make-tuple 1 (make-tuple 2)))
+          (self.assertEqual (tst 1 2 3) (make-tuple 1 (make-tuple 2 3)))
+          (self.assertEqual (tst 1 2 3 4) (make-tuple 1 (make-tuple 2 3 4)))
+          (self.assertRaises TypeError tst a: 1 b: 2)
+          (self.assertRaises TypeError tst))
+        """
+        stmt, env = compile_expr(src, tst=tst)
+        stmt()(self)
 
         def tst(a, **rest):
             return (a, rest)
 
+        src = """
+        (lambda (self)
+          (self.assertEqual (tst 1 b: 2 c: 3) (make-tuple 1 (dict b: 2 c: 3)))
+          (self.assertEqual (tst a: 1 b: 2 c: 3)
+                            (make-tuple 1 (dict b: 2 c: 3)))
+          (self.assertRaises TypeError tst 1 2 3))
+        """
+        stmt, env = compile_expr(src, tst=tst)
+        stmt()(self)
 
         def tst(a=0, *rest):
             return (a, rest)
 
+        src = """
+        (lambda (self)
+          (self.assertEqual (tst) (make-tuple 0 (tuple)))
+          (self.assertEqual (tst 1) (make-tuple 1 (tuple)))
+          (self.assertEqual (tst 1 2 3) (make-tuple 1 (make-tuple 2 3)))
+          (self.assertRaises TypeError tst 1 2 3 a: 9))
+        """
+        stmt, env = compile_expr(src, tst=tst)
+        stmt()(self)
 
         def tst(a=0, **rest):
             return (a, rest)
+
+        src = """
+        (lambda (self)
+          (self.assertEqual (tst b: 2 c: 3)
+                            (make-tuple 0 (dict b: 2 c: 3)))
+          (self.assertEqual (tst 1 b: 2 c: 3)
+                            (make-tuple 1 (dict b: 2 c: 3)))
+          (self.assertEqual (tst a: 1 b: 2 c: 3)
+                            (make-tuple 1 (dict b: 2 c: 3)))
+          (self.assertRaises TypeError tst 1 2 3))
+        """
+        stmt, env = compile_expr(src, tst=tst)
+        stmt()(self)
 
 
 #
