@@ -498,5 +498,39 @@ class KeywordArgs(TestCase):
         self.assertRaises(TypeError, res, 1, 2, 3)
 
 
+    def test_parameters(self):
+        def tst(a, b, c):
+            return (a, b, c)
+
+        src = """
+        (lambda (self)
+          (self.assertEqual (tst 1 2 3) (make-tuple 1 2 3))
+          (self.assertEqual (tst c: 3 b: 2 a: 1) (make-tuple 1 2 3))
+          (self.assertRaises TypeError tst 1 2 3 4)
+          (self.assertRaises TypeError tst 1))
+        """
+        stmt, env = compile_expr(src, tst=tst)
+        stmt()(self)
+
+        def tst(a, b=0, c=0):
+            return (a, b, c)
+
+
+        def tst(a, *rest):
+            return (a, rest)
+
+
+        def tst(a, **rest):
+            return (a, rest)
+
+
+        def tst(a=0, *rest):
+            return (a, rest)
+
+
+        def tst(a=0, **rest):
+            return (a, rest)
+
+
 #
 # The end.
