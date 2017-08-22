@@ -348,6 +348,17 @@ class KeywordArgs(TestCase):
         pass
 
 
+    def test_macro_formals(self):
+        src = """
+        (defmacro test (work for: '_ in: () when: True unless: True)
+          `(make-tuple work for in when unless))
+
+        (test (+ a 5) a in seq))
+        """
+        stmt, env = compile_expr(src, seq=(1, 2, 3))
+        res = stmt()
+
+
     def test_formals(self):
 
         src = """
