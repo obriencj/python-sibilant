@@ -146,7 +146,10 @@ class Macro(Compiled):
 
     def compile(self, compiler, source_obj):
         called_by, source = source_obj
-        expr = self.expand(*source.unpack())
+
+        position = compiler.position_of(source_obj)
+        args, kwargs = simple_parameters(source, position)
+        expr = self.expand(*args, **kwargs)
 
         # a Macro should always evaluate to some kind of non-None. If
         # all the work of the macro was performed in the environment
@@ -1605,6 +1608,21 @@ def gather_formals(args, declared_at=None):
         raise err(("leftover formals %r" % arg))
 
     return (positional, keywords, defaults, star, starstar)
+
+
+def simple_parameters(source_args, declared_at=None):
+    parameters = gather_parameters(source_args, declared_at)
+    pos, kwds, vals, star, starstar = parameters
+
+    args = list(pos)
+    if star:
+        args.extend(star)
+
+    kwargs = dict(zip(map(str, kwds), vals))
+    if starstar:
+        kwargs.update(starstar)
+
+    return args, kwargs
 
 
 def gather_parameters(args, declared_at=None):
