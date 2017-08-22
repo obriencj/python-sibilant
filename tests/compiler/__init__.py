@@ -37,6 +37,7 @@ from sibilant.compiler import (
     is_macro, Macro,
     is_special, Special,
     iter_compile,
+    CodeFlag,
 )
 
 import dis
@@ -333,6 +334,258 @@ class TestCompiler(TestCase):
         res = stmt()
         self.assertEqual(res, None)
         self.assertEqual(o.foo.bar.baz, 888)
+
+
+class KeywordArgs(TestCase):
+
+    def _test_gather_formals(self):
+        # todo: test calling gather_formals directly
+        pass
+
+
+    def _test_gather_parameters(self):
+        # todo: test calling gather_parameters directly
+        pass
+
+
+    def test_formals(self):
+
+        src = """
+        (lambda (a b c)
+          (make-tuple a b c))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        code = res.__code__
+        self.assertTrue(callable(res))
+        self.assertEqual(code.co_argcount, 3)
+        self.assertEqual(code.co_varnames, ('a', 'b', 'c'))
+        self.assertFalse(code.co_flags & CodeFlag.VARARGS.value)
+        self.assertFalse(code.co_flags & CodeFlag.VARKEYWORDS.value)
+        self.assertEqual(res(1, 2, 3), (1, 2, 3))
+        self.assertEqual(res(c=3, b=2, a=1), (1, 2, 3))
+        self.assertRaises(TypeError, res, 1, 2, 3, 4)
+        self.assertRaises(TypeError, res, 1)
+
+        src = """
+        (lambda (a b: 0 c: 1)
+          (make-tuple a b c))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        code = res.__code__
+        self.assertTrue(callable(res))
+        self.assertEqual(code.co_argcount, 3)
+        self.assertEqual(code.co_varnames, ('a', 'b', 'c'))
+        self.assertEqual(res.__defaults__, (0, 1))
+        self.assertFalse(code.co_flags & CodeFlag.VARARGS.value)
+        self.assertFalse(code.co_flags & CodeFlag.VARKEYWORDS.value)
+        self.assertEqual(res(1), (1, 0, 1))
+        self.assertEqual(res(1, 2), (1, 2, 1))
+        self.assertEqual(res(1, 2, 3), (1, 2, 3))
+        self.assertEqual(res(9, b=8, c=7), (9, 8, 7))
+        self.assertEqual(res(9, c=7, b=8), (9, 8, 7))
+        self.assertEqual(res(a=9, c=7, b=8), (9, 8, 7))
+        self.assertEqual(res(c=7, b=8, a=9), (9, 8, 7))
+        self.assertRaises(TypeError, res, 1, 2, 3, 4)
+        self.assertRaises(TypeError, res)
+
+        src = """
+        (lambda (a *: rest)
+          (make-tuple a (to-tuple rest)))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        code = res.__code__
+        self.assertTrue(callable(res))
+        self.assertEqual(code.co_argcount, 1)
+        self.assertEqual(code.co_varnames, ('a', 'rest'))
+        self.assertTrue(code.co_flags & CodeFlag.VARARGS.value)
+        self.assertFalse(code.co_flags & CodeFlag.VARKEYWORDS.value)
+        self.assertEqual(res(1), (1, ()))
+        self.assertEqual(res(1, 2), (1, (2,)))
+        self.assertEqual(res(1, 2, 3), (1, (2, 3)))
+        self.assertEqual(res(1, 2, 3, 4), (1, (2, 3, 4)))
+        self.assertRaises(TypeError, res, a=1, b=2)
+        self.assertRaises(TypeError, res)
+
+        src = """
+        (lambda (a . rest)
+          (make-tuple a (to-tuple rest)))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        code = res.__code__
+        self.assertTrue(callable(res))
+        self.assertEqual(code.co_argcount, 1)
+        self.assertEqual(code.co_varnames, ('a', 'rest'))
+        self.assertTrue(code.co_flags & CodeFlag.VARARGS.value)
+        self.assertFalse(code.co_flags & CodeFlag.VARKEYWORDS.value)
+        self.assertEqual(res(1), (1, ()))
+        self.assertEqual(res(1, 2), (1, (2,)))
+        self.assertEqual(res(1, 2, 3), (1, (2, 3)))
+        self.assertEqual(res(1, 2, 3, 4), (1, (2, 3, 4)))
+        self.assertRaises(TypeError, res, a=1, b=2)
+        self.assertRaises(TypeError, res)
+
+        src = """
+        (lambda (a **: rest)
+          (make-tuple a rest))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        code = res.__code__
+        self.assertTrue(callable(res))
+        self.assertEqual(code.co_argcount, 1)
+        self.assertEqual(code.co_varnames, ('a', 'rest'))
+        self.assertFalse(code.co_flags & CodeFlag.VARARGS.value)
+        self.assertTrue(code.co_flags & CodeFlag.VARKEYWORDS.value)
+        self.assertEqual(res(a=1, b=2, c=3), (1, dict(b=2, c=3)))
+        self.assertRaises(TypeError, res, 1, 2, 3)
+
+        src = """
+        (lambda (a: 0 *: rest)
+          (make-tuple a (to-tuple rest)))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        code = res.__code__
+        self.assertTrue(callable(res))
+        self.assertEqual(code.co_argcount, 1)
+        self.assertEqual(code.co_varnames, ('a', 'rest'))
+        self.assertEqual(res.__defaults__, (0,))
+        self.assertTrue(code.co_flags & CodeFlag.VARARGS.value)
+        self.assertFalse(code.co_flags & CodeFlag.VARKEYWORDS.value)
+        self.assertEqual(res(), (0, ()))
+        self.assertEqual(res(1), (1, ()))
+        self.assertEqual(res(1, 2, 3), (1, (2, 3)))
+        self.assertRaises(TypeError, res, 1, 2, 3, a=9)
+
+        # src = """
+        # (lambda (a: 0 . rest)
+        #   (make-tuple a (to-tuple rest)))
+        # """
+        # stmt, env = compile_expr(src)
+        # res = stmt()
+        # code = res.__code__
+        # self.assertTrue(callable(res))
+        # self.assertEqual(code.co_argcount, 1)
+        # self.assertEqual(code.co_varnames, ('a', 'rest'))
+        # self.assertEqual(res.__defaults__, (0,))
+        # self.assertTrue(code.co_flags & CodeFlag.VARARGS.value)
+        # self.assertFalse(code.co_flags & CodeFlag.VARKEYWORDS.value)
+        # self.assertEqual(res(), (0, ()))
+        # self.assertEqual(res(1), (1, ()))
+        # self.assertEqual(res(1, 2, 3), (1, (2, 3)))
+        # self.assertRaises(TypeError, res, 1, 2, 3, a=9)
+
+        src = """
+        (lambda (a: 0 **: rest)
+          (make-tuple a rest))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        code = res.__code__
+        self.assertTrue(callable(res))
+        self.assertEqual(code.co_argcount, 1)
+        self.assertEqual(code.co_varnames, ('a', 'rest'))
+        self.assertEqual(res.__defaults__, (0,))
+        self.assertFalse(code.co_flags & CodeFlag.VARARGS.value)
+        self.assertTrue(code.co_flags & CodeFlag.VARKEYWORDS.value)
+        self.assertEqual(res(b=2, c=3), (0, dict(b=2, c=3)))
+        self.assertEqual(res(1, b=2, c=3), (1, dict(b=2, c=3)))
+        self.assertEqual(res(a=1, b=2, c=3), (1, dict(b=2, c=3)))
+        self.assertRaises(TypeError, res, 1, 2, 3)
+
+
+    def test_parameters(self):
+        def tst(a, b, c):
+            return (a, b, c)
+
+        src = """
+        (lambda (self)
+          (self.assertEqual (tst 1 2 3) (make-tuple 1 2 3))
+          (self.assertEqual (tst c: 3 b: 2 a: 1) (make-tuple 1 2 3))
+          (self.assertRaises TypeError tst 1 2 3 4)
+          (self.assertRaises TypeError tst 1))
+        """
+        stmt, env = compile_expr(src, tst=tst)
+        stmt()(self)
+
+        def tst(a, b=0, c=0):
+            return (a, b, c)
+
+        src = """
+        (lambda (self)
+          (self.assertEqual (tst 1) (make-tuple 1 0 0))
+          (self.assertEqual (tst 1 2) (make-tuple 1 2 0))
+          (self.assertEqual (tst 1 2 3) (make-tuple 1 2 3))
+          (self.assertEqual (tst 9 b: 8 c: 7) (make-tuple 9 8 7))
+          (self.assertEqual (tst 9 c: 7 b: 8) (make-tuple 9 8 7))
+          (self.assertEqual (tst a: 9 c: 7 b: 8) (make-tuple 9 8 7))
+          (self.assertEqual (tst c: 7 b: 8 a: 9) (make-tuple 9 8 7))
+          (self.assertRaises TypeError tst 1 2 3 4)
+          (self.assertRaises TypeError tst))
+        """
+        stmt, env = compile_expr(src, tst=tst)
+        stmt()(self)
+
+        def tst(a, *rest):
+            return (a, rest)
+
+        src = """
+        (lambda (self)
+          (self.assertEqual (tst 1) (make-tuple 1 (tuple)))
+          (self.assertEqual (tst 1 2) (make-tuple 1 (make-tuple 2)))
+          (self.assertEqual (tst 1 2 3) (make-tuple 1 (make-tuple 2 3)))
+          (self.assertEqual (tst 1 2 3 4) (make-tuple 1 (make-tuple 2 3 4)))
+          (self.assertRaises TypeError tst a: 1 b: 2)
+          (self.assertRaises TypeError tst))
+        """
+        stmt, env = compile_expr(src, tst=tst)
+        stmt()(self)
+
+        def tst(a, **rest):
+            return (a, rest)
+
+        src = """
+        (lambda (self)
+          (self.assertEqual (tst 1 b: 2 c: 3) (make-tuple 1 (dict b: 2 c: 3)))
+          (self.assertEqual (tst a: 1 b: 2 c: 3)
+                            (make-tuple 1 (dict b: 2 c: 3)))
+          (self.assertRaises TypeError tst 1 2 3))
+        """
+        stmt, env = compile_expr(src, tst=tst)
+        stmt()(self)
+
+        def tst(a=0, *rest):
+            return (a, rest)
+
+        src = """
+        (lambda (self)
+          (self.assertEqual (tst) (make-tuple 0 (tuple)))
+          (self.assertEqual (tst 1) (make-tuple 1 (tuple)))
+          (self.assertEqual (tst 1 2 3) (make-tuple 1 (make-tuple 2 3)))
+          (self.assertRaises TypeError tst 1 2 3 a: 9))
+        """
+        stmt, env = compile_expr(src, tst=tst)
+        stmt()(self)
+
+        def tst(a=0, **rest):
+            return (a, rest)
+
+        src = """
+        (lambda (self)
+          (self.assertEqual (tst b: 2 c: 3)
+                            (make-tuple 0 (dict b: 2 c: 3)))
+          (self.assertEqual (tst 1 b: 2 c: 3)
+                            (make-tuple 1 (dict b: 2 c: 3)))
+          (self.assertEqual (tst a: 1 b: 2 c: 3)
+                            (make-tuple 1 (dict b: 2 c: 3)))
+          (self.assertRaises TypeError tst 1 2 3))
+        """
+        stmt, env = compile_expr(src, tst=tst)
+        stmt()(self)
 
 
 #

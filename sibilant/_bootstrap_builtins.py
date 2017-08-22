@@ -260,6 +260,7 @@ _op(str)
 _op(repr)
 _op(type)
 _op(int)
+_op(bool)
 _op(float)
 _op(complex)
 _op(range)
@@ -272,9 +273,11 @@ _op(globals)
 _op(locals)
 
 _val(object, "object")
-_val(BaseException, "BaseException")
-_val(Exception, "Exception")
-_val(KeyboardInterrupt, "KeyboardInterrupt")
+
+# all the exceptions from builtins
+for key, val in __builtins__.items():
+    if isinstance(val, type) and issubclass(val, BaseException):
+        _val(val, key)
 
 
 # === Export 'em ===
