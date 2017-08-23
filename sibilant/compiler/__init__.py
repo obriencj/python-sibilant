@@ -132,6 +132,7 @@ class Macro(Compiled):
 
     def __init__(self, name, macrofn):
         super().__init__(name)
+        self._formals = None
 
 
     def __new__(cls, name, expandfn):
@@ -147,9 +148,13 @@ class Macro(Compiled):
     def compile(self, compiler, source_obj):
         called_by, source = source_obj
 
-        position = compiler.position_of(source_obj)
-        args, kwargs = simple_parameters(source, position)
-        expr = self.expand(*args, **kwargs)
+        if is_proper(self._formals):
+            position = compiler.position_of(source_obj)
+            args, kwargs = simple_parameters(source, position)
+            expr = self.expand(*args, **kwargs)
+
+        else:
+            expr = self.expand(*source.unpack())
 
         # a Macro should always evaluate to some kind of non-None. If
         # all the work of the macro was performed in the environment
