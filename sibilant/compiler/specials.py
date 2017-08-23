@@ -1,3 +1,4 @@
+
 # This library is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Lesser General Public License as
 # published by the Free Software Foundation; either version 3 of the
@@ -615,6 +616,7 @@ def _helper_function(code, name, args, body, declared_at=None):
 
     formals = gather_formals(args, code.position_of(args) or declared_at)
     pos, keys, defaults, star, starstar = formals
+    proper = is_proper(args)
 
     argnames = list(map(str, pos))
 
@@ -643,7 +645,8 @@ def _helper_function(code, name, args, body, declared_at=None):
                              varargs=varargs,
                              varkeywords=varkeywords,
                              name=name,
-                             declared_at=declared_at)
+                             declared_at=declared_at,
+                             proper_varargs=proper)
 
     with kid as subc:
         _helper_begin(subc, body)
