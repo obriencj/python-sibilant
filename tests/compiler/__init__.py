@@ -404,7 +404,7 @@ class KeywordArgs(TestCase):
 
         src = """
         (lambda (a *: rest)
-          (make-tuple a (to-tuple rest)))
+          (make-tuple a rest))
         """
         stmt, env = compile_expr(src)
         res = stmt()
@@ -423,7 +423,7 @@ class KeywordArgs(TestCase):
 
         src = """
         (lambda (a . rest)
-          (make-tuple a (to-tuple rest)))
+          (make-tuple a rest))
         """
         stmt, env = compile_expr(src)
         res = stmt()
@@ -433,12 +433,48 @@ class KeywordArgs(TestCase):
         self.assertEqual(code.co_varnames, ('a', 'rest'))
         self.assertTrue(code.co_flags & CodeFlag.VARARGS.value)
         self.assertFalse(code.co_flags & CodeFlag.VARKEYWORDS.value)
-        self.assertEqual(res(1), (1, ()))
-        self.assertEqual(res(1, 2), (1, (2,)))
-        self.assertEqual(res(1, 2, 3), (1, (2, 3)))
-        self.assertEqual(res(1, 2, 3, 4), (1, (2, 3, 4)))
+        self.assertEqual(res(1), (1, nil))
+        self.assertEqual(res(1, 2), (1, cons(2, nil)))
+        self.assertEqual(res(1, 2, 3), (1, cons(2, 3, nil)))
+        self.assertEqual(res(1, 2, 3, 4), (1, cons(2, 3, 4, nil)))
         self.assertRaises(TypeError, res, a=1, b=2)
         self.assertRaises(TypeError, res)
+
+        src = """
+        (lambda rest
+          rest)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        code = res.__code__
+        self.assertTrue(callable(res))
+        self.assertEqual(code.co_argcount, 0)
+        self.assertEqual(code.co_varnames, ('rest',))
+        self.assertTrue(code.co_flags & CodeFlag.VARARGS.value)
+        self.assertFalse(code.co_flags & CodeFlag.VARKEYWORDS.value)
+        self.assertEqual(res(), nil)
+        self.assertEqual(res(1), cons(1, nil))
+        self.assertEqual(res(1, 2), cons(1, 2, nil))
+        self.assertEqual(res(1, 2, 3), cons(1, 2, 3, nil))
+        self.assertRaises(TypeError, res, a=1, b=2)
+
+        src = """
+        (lambda (*: rest)
+          rest)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        code = res.__code__
+        self.assertTrue(callable(res))
+        self.assertEqual(code.co_argcount, 0)
+        self.assertEqual(code.co_varnames, ('rest',))
+        self.assertTrue(code.co_flags & CodeFlag.VARARGS.value)
+        self.assertFalse(code.co_flags & CodeFlag.VARKEYWORDS.value)
+        self.assertEqual(res(), ())
+        self.assertEqual(res(1), (1,))
+        self.assertEqual(res(1, 2), (1, 2))
+        self.assertEqual(res(1, 2, 3), (1, 2, 3))
+        self.assertRaises(TypeError, res, a=1, b=2)
 
         src = """
         (lambda (a **: rest)
@@ -457,7 +493,7 @@ class KeywordArgs(TestCase):
 
         src = """
         (lambda (a: 0 *: rest)
-          (make-tuple a (to-tuple rest)))
+          (make-tuple a rest))
         """
         stmt, env = compile_expr(src)
         res = stmt()
@@ -473,23 +509,12 @@ class KeywordArgs(TestCase):
         self.assertEqual(res(1, 2, 3), (1, (2, 3)))
         self.assertRaises(TypeError, res, 1, 2, 3, a=9)
 
-        # src = """
-        # (lambda (a: 0 . rest)
-        #   (make-tuple a (to-tuple rest)))
-        # """
-        # stmt, env = compile_expr(src)
-        # res = stmt()
-        # code = res.__code__
-        # self.assertTrue(callable(res))
-        # self.assertEqual(code.co_argcount, 1)
-        # self.assertEqual(code.co_varnames, ('a', 'rest'))
-        # self.assertEqual(res.__defaults__, (0,))
-        # self.assertTrue(code.co_flags & CodeFlag.VARARGS.value)
-        # self.assertFalse(code.co_flags & CodeFlag.VARKEYWORDS.value)
-        # self.assertEqual(res(), (0, ()))
-        # self.assertEqual(res(1), (1, ()))
-        # self.assertEqual(res(1, 2, 3), (1, (2, 3)))
-        # self.assertRaises(TypeError, res, 1, 2, 3, a=9)
+        src = """
+        (lambda (a: 0 . rest)
+          (make-tuple a rest))
+        """
+        # don't mix keywords and improper varargs, it's too weird.
+        self.assertRaises(SyntaxError, compile_expr, src)
 
         src = """
         (lambda (a: 0 **: rest)

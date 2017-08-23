@@ -132,6 +132,7 @@ class Macro(Compiled):
 
     def __init__(self, name, macrofn):
         super().__init__(name)
+        self._proper = True
 
 
     def __new__(cls, name, expandfn):
@@ -147,9 +148,13 @@ class Macro(Compiled):
     def compile(self, compiler, source_obj):
         called_by, source = source_obj
 
-        position = compiler.position_of(source_obj)
-        args, kwargs = simple_parameters(source, position)
-        expr = self.expand(*args, **kwargs)
+        if self._proper:
+            position = compiler.position_of(source_obj)
+            args, kwargs = simple_parameters(source, position)
+            expr = self.expand(*args, **kwargs)
+
+        else:
+            expr = self.expand(*source.unpack())
 
         # a Macro should always evaluate to some kind of non-None. If
         # all the work of the macro was performed in the environment
@@ -364,7 +369,7 @@ class CodeSpace(metaclass=ABCMeta):
     """
 
     def __init__(self, args=(),
-                 varargs=False, varkeywords=False,
+                 varargs=False, varkeywords=False, proper_varargs=True,
                  parent=None, name=None,
                  filename=None, positions=None, declared_at=None):
 
@@ -410,7 +415,12 @@ class CodeSpace(metaclass=ABCMeta):
         self.gen_label = _label_generator()
         self._gen_sym = _label_generator("gensym_" + str(id(self)) + "_%04i")
 
-        self.helper_prep_varargs()
+        if not proper_varargs:
+            # if our argument formals are an improper list, then the
+            # varargs are expected to be a cons list, not a pythonic
+            # tuple, and we'll need to perform a translation step at
+            # the beginning of the function.
+            self.helper_prep_varargs()
 
 
     def gen_sym(self):
@@ -467,7 +477,7 @@ class CodeSpace(metaclass=ABCMeta):
 
 
     def child(self, args=(), varargs=False, varkeywords=False,
-              name=None, declared_at=None):
+              name=None, declared_at=None, **addtl):
 
         """
         Returns a child codespace
@@ -486,7 +496,8 @@ class CodeSpace(metaclass=ABCMeta):
                         name=name,
                         filename=self.filename,
                         positions=self.positions,
-                        declared_at=declared_at)
+                        declared_at=declared_at,
+                        **addtl)
 
         return cs
 
@@ -1557,13 +1568,16 @@ def gather_formals(args, declared_at=None):
     iargs = iter(args.unpack())
     for arg in iargs:
         if is_keyword(arg):
-            break
+            if improper:
+                raise err("cannot mix improper formal with keywords")
+            else:
+                break
         elif is_symbol(arg):
             positional.append(arg)
         else:
             raise err("positional formals must be symbols, nor %r" % arg)
     else:
-        # handled all if args, done deal.
+        # handled all of args, done deal.
         if improper:
             return (positional[:-1], (), (), positional[-1], None)
         else:
