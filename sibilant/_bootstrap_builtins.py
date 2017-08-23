@@ -135,6 +135,7 @@ def _converters():
     _unset = object()
     is_pair = _sibilant.is_pair
     reduce = _functools.reduce
+    wraps = _functools.wraps
 
     def _as_tuple(value):
         if is_pair(value):
@@ -177,6 +178,7 @@ def _converters():
 
     map_ = map
 
+    @wraps(map)
     def _map(fun, arglist):
         if is_pair(arglist):
             arglist = arglist.unpack()
@@ -186,6 +188,7 @@ def _converters():
 
     zip_ = zip
 
+    @wraps(zip)
     def _zip(left, right):
         if is_pair(left):
             left = left.unpack()
@@ -193,7 +196,17 @@ def _converters():
             right = right.unpack()
         return zip_(left, right)
 
-    _op(_map, "zip", rename=True)
+    _op(_zip, "zip", rename=True)
+
+    filter_ = filter
+
+    @wraps(filter)
+    def _filter(test, seq):
+        if is_pair(seq):
+            seq = seq.unpack()
+        return filter_(test, seq)
+
+    _op(_filter, "filter", rename=True)
 
     enumerate_ = enumerate
 
