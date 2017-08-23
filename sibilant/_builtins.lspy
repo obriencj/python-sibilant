@@ -23,8 +23,10 @@
    "defmacro"
    (function defmacro (name formals . body)
 	     (doc "Defines a Macro instance in the current module")
+
 	     `(define-global ,name
-		(macro ,(str name) (function ,name ,formals ,@body))))))
+		((lambda (M) (set-attr M _formals ',formals) M)
+		 (macro ,(str name) (function ,name ,formals ,@body)))))))
 
 
 (defmacro defmacrolet (name . body)
