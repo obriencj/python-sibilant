@@ -21,6 +21,7 @@ Sibilant, a Scheme for Python
 """
 
 
+from abc import ABCMeta
 from functools import reduce
 from itertools import islice
 from weakref import WeakValueDictionary
@@ -58,7 +59,7 @@ class NotYetImplemented(SibilantException):
     pass
 
 
-class UndefinedType(object):
+class UndefinedType():
     """
     an undefined value. singleton indicating a value has not been
     assigned to a ref yet.
@@ -91,13 +92,32 @@ def is_undefined(value):
     return value is undefined
 
 
-class SingletonAtom(object):
+class InternedAtom():
 
     __slots__ = ("_name", "__weakref__", )
+
+    _intern = WeakValueDictionary()
+
+    _reprf = "<atom %r>"
+
+
+    def __new__(cls, name):
+        name = str(name)
+
+        s = cls._intern.get(name)
+        if s is None:
+            s = super().__new__(cls)
+            s._name = name
+            cls._intern[name] = s
+        return s
 
 
     def __str__(self):
         return self._name
+
+
+    def __repr__(self):
+        return self._reprf % self._name
 
 
     def split(self, sep=None, maxsplit=-1):
@@ -110,7 +130,7 @@ class SingletonAtom(object):
         return [cls(s) for s in self._name.rsplit(sep, maxsplit)]
 
 
-class Symbol(SingletonAtom):
+class Symbol(InternedAtom):
     """
     symbol type.
 
@@ -119,37 +139,19 @@ class Symbol(SingletonAtom):
     representation.
     """
 
-    __intern = WeakValueDictionary()
+    _intern = WeakValueDictionary()
+
+    _reprf = "<symbol %r>"
 
 
-    def __new__(cls, name):
-        # applying str auto-interns
-        name = str(name)
-
-        s = cls.__intern.get(name)
-        if s is None:
-            s = object.__new__(cls)
-            s._name = name
-            cls.__intern[name] = s
-        return s
-
-
-    def __repr__(self):
-        return "".join(("symbol(", repr(self._name), ")"))
-
-
-def symbol(name):
-    if isinstance(name, Symbol):
-        return name
-    else:
-        return Symbol(name)
+symbol = Symbol
 
 
 def is_symbol(value):
-    return isinstance(value, Symbol)
+    return type(value) is Symbol
 
 
-class Keyword(SingletonAtom):
+class Keyword(InternedAtom):
     """
     keyword type.
 
@@ -157,110 +159,20 @@ class Keyword(SingletonAtom):
     of a keyword as an expression only ever results in the keyword.
     """
 
-    __intern = WeakValueDictionary()
+    _intern = WeakValueDictionary()
+
+    _reprf = "<keyword %r>"
 
 
     def __new__(cls, name):
-        # applying str auto-interns
-        name = str(name).strip(":")
-
-        s = cls.__intern.get(name)
-        if s is None:
-            s = object.__new__(cls)
-            s._name = name
-            cls.__intern[name] = s
-        return s
+        return super().__new__(cls, str(name).strip(":"))
 
 
-    def __repr__(self):
-        return "".join(("keyword(", repr(self._name), ")"))
-
-
-def keyword(name):
-    if isinstance(name, Keyword):
-        return name
-    else:
-        return Keyword(name)
+keyword = Keyword
 
 
 def is_keyword(value):
-    return isinstance(value, Keyword)
-
-
-class RefType(object):
-    """
-    mutable reference
-    """
-
-    __slots__ = ("sym", "_value", )
-
-
-    def __init__(self, sym, value):
-        if not is_symbol(sym):
-            raise TypeError("sym must be a symbol")
-
-        self.sym = sym
-        self._value = value
-
-
-    def _get_value_k(self, k):
-        return k(self._value)
-
-
-    def _get_value(self):
-        return self._value
-
-
-    def _set_value_k(self, k, value):
-        self._value = value
-        return k(value)
-
-
-    def _set_value(self, value):
-        self._value = value
-        return value
-
-
-    def __repr__(self):
-        return "".join(("ref(", repr(self.sym), ")"))
-
-
-def ref(sym, value=undefined):
-    return RefType(sym, value)
-
-
-class AttrType(RefType):
-    """
-    computed attribute references
-    """
-
-    __slots__ = ("sym", "_get_value", "_set_value", )
-
-
-    def __init__(self, sym, getter, setter):
-        self.sym = sym
-        self._get_value = getter
-        self._set_value = setter or self._ro_value
-
-
-    def _ro_value(self, value):
-        raise AttributeError("%s is read-only" % str(self.sym))
-
-
-    def __repr__(self):
-        return "".join(("attr(", repr(self.sym), ")"))
-
-
-def attr(sym, getter, setter=None):
-    return AttrType(sym, getter, setter)
-
-
-def deref(r):
-    return r._get_value()
-
-
-def setref(r, value):
-    return r._set_value(value)
+    return type(value) is Keyword
 
 
 class Pair(object):
@@ -276,9 +188,26 @@ class Pair(object):
     __slots__ = ("_car", "_cdr", )
 
 
-    def __init__(self, car, cdr):
-        self._car = car
-        self._cdr = cdr
+    def __init__(self, head, *tail, recursive=False):
+        ltype = type(self)
+
+        if tail:
+            flip = lambda t, h: ltype(h, t)
+
+            if recursive:
+                tail = reduce(flip, reversed(tail), self)
+            else:
+                tail = reduce(flip, reversed(tail))
+
+        elif recursive:
+            tail = self
+
+        else:
+            raise TypeError("Pair requires at least one tail, or must"
+                            " be recursive")
+
+        self._car = head
+        self._cdr = tail
 
 
     def __getitem__(self, index):
@@ -477,9 +406,11 @@ class Pair(object):
         false if this is an improper list, or terminates with a nil
         """
 
+        _Pair = type(self)
+
         found = set()
         current = self
-        while type(current) is Pair:
+        while type(current) is _Pair:
             if id(current) in found:
                 return True
             else:
@@ -492,11 +423,16 @@ class Pair(object):
     def is_proper(self):
         """
         proper lists have a trailing nil, or are recursive.
+
+        note that because a Pair is mutable, this value cannot be
+        safely cached, and must be rechecked every time.
         """
+
+        _Pair = type(self)
 
         found = set()
         current = self
-        while type(current) is Pair:
+        while type(current) is _Pair:
             if id(current) in found:
                 return True
             else:
@@ -511,14 +447,15 @@ def is_pair(value):
 
 
 def is_proper(value):
-    return isinstance(value, Pair) and value.is_proper()
+    return isinstance(value, Pair) and  value.is_proper()
 
 
 def make_proper(*values):
-    if values:
-        return cons(*values, nil)
-    else:
-        return nil
+    """
+    Create a proper cons pair from values
+    """
+
+    return cons(*values, nil) if values else nil
 
 
 def unpack(pair):
@@ -528,23 +465,28 @@ def unpack(pair):
         return iter(pair)
 
 
-def cons(a, *b, recursive=False, ltype=Pair):
-    """
-    Construct a singly-linked list from arguments. If final argument
-    is not `nil`, the list will be considered improper. If recursive
-    is True, the final link in the list will reference the start of
-    the list.
-    """
+# def cons(a, *b, recursive=False):
+#     """
+#     Construct a singly-linked list from arguments. If final argument
+#     is not `nil`, the list will be considered improper. If recursive
+#     is True, the final link in the list will reference the start of
+#     the list.
+#     """
 
-    if recursive:
-        a = ltype(a, nil)
-        setcdr(a, reduce(lambda x, y: ltype(y, x), b[::-1], a))
-        return a
-    else:
-        b, *c = b
-        if c:
-            b = ltype(b, reduce(lambda x, y: ltype(y, x), c[::-1]))
-        return ltype(a, b)
+#     ltype = Pair
+
+#     if recursive:
+#         a = ltype(a, nil)
+#         setcdr(a, reduce(lambda x, y: ltype(y, x), b[::-1], a))
+#         return a
+#     else:
+#         b, *c = b
+#         if c:
+#             b = ltype(b, reduce(lambda x, y: ltype(y, x), c[::-1]))
+#         return ltype(a, b)
+
+
+cons = Pair
 
 
 class Nil(Pair):
@@ -608,6 +550,11 @@ class Nil(Pair):
 
     def __repr__(self):
         return "nil"
+
+
+    def unpack(self):
+        if False:
+            yield None
 
 
     def is_recursive(self):

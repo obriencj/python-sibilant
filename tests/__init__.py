@@ -27,7 +27,6 @@ from unittest import TestCase
 from sibilant import (
     cons, nil, is_pair, is_proper, is_nil,
     car, cdr, setcar, setcdr, last,
-    ref, attr, undefined, deref, setref,
     symbol, is_symbol, keyword, is_keyword,
     Pair, Nil, Symbol, Keyword,
 )
@@ -275,7 +274,7 @@ class SymbolTest(TestCase):
 
     def test_repr_str(self):
         x = symbol('x')
-        self.assertEqual(repr(x), "symbol('x')")
+        self.assertEqual(repr(x), "<symbol 'x'>")
         self.assertEqual(str(x), 'x')
 
 
@@ -375,7 +374,7 @@ class KeywordTest(TestCase):
 
     def test_repr_str(self):
         x = keyword('x')
-        self.assertEqual(repr(x), "keyword('x')")
+        self.assertEqual(repr(x), "<keyword 'x'>")
         self.assertEqual(str(x), 'x')
 
 
@@ -386,43 +385,6 @@ class KeywordTest(TestCase):
 
         self.assertNotEqual(x, 'x')
         self.assertNotEqual('x', x)
-
-
-class RefTest(TestCase):
-
-    def test_ref(self):
-        a = ref(symbol('a'))
-        self.assertEqual(deref(a), undefined)
-        self.assertEqual(setref(a, 100), 100)
-        self.assertEqual(deref(a), 100)
-
-        self.assertEqual(repr(a), "ref(symbol('a'))")
-
-        b = ref(symbol('b'), 101)
-        self.assertEqual(deref(b), 101)
-
-
-    def test_attr(self):
-        a = ref(symbol('a'))
-        b = attr(symbol('b'), partial(deref, a), partial(setref, a))
-
-        self.assertEqual(deref(a), deref(b))
-        self.assertEqual(deref(b), undefined)
-
-        self.assertEqual(setref(b, 101), 101)
-        self.assertEqual(deref(b), 101)
-        self.assertEqual(deref(a), 101)
-
-        self.assertEqual(setref(a, 102), 102)
-        self.assertEqual(deref(b), 102)
-        self.assertEqual(deref(a), 102)
-
-        c = attr(symbol('c'), partial(deref, a))
-
-        self.assertEqual(deref(c), 102)
-
-        with self.assertRaises(AttributeError):
-            setref(c, 999)
 
 
 #

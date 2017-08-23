@@ -169,10 +169,10 @@ def _converters():
 
     _op(_count, "count")
 
-    def _apply(fun, arglist=()):
+    def _apply(fun, arglist=(), kwargs={}):
         if is_pair(arglist):
             arglist = arglist.unpack()
-        return fun(*arglist)
+        return fun(*arglist, **kwargs)
 
     _op(_apply, "apply", rename=True)
 
