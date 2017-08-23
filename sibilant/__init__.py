@@ -21,7 +21,6 @@ Sibilant, a Scheme for Python
 """
 
 
-from abc import ABCMeta
 from functools import reduce
 from itertools import islice
 from weakref import WeakValueDictionary
@@ -192,12 +191,13 @@ class Pair(object):
         ltype = type(self)
 
         if tail:
-            flip = lambda t, h: ltype(h, t)
+            def cons(t, h):
+                return ltype(h, t)
 
             if recursive:
-                tail = reduce(flip, reversed(tail), self)
+                tail = reduce(cons, reversed(tail), self)
             else:
-                tail = reduce(flip, reversed(tail))
+                tail = reduce(cons, reversed(tail))
 
         elif recursive:
             tail = self
@@ -447,7 +447,7 @@ def is_pair(value):
 
 
 def is_proper(value):
-    return isinstance(value, Pair) and  value.is_proper()
+    return isinstance(value, Pair) and value.is_proper()
 
 
 def make_proper(*values):
