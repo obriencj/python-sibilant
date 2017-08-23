@@ -23,11 +23,13 @@ Sibilant, a Scheme for Python
 
 from functools import reduce
 from itertools import islice
+from weakref import WeakValueDictionary
 
 
 __all__ = (
     "SibilantException", "NotYetImplemented",
     "symbol", "is_symbol",
+    "keyword", "is_keyword",
 
     "cons", "car", "cdr", "nil",
     "setcar", "setcdr",
@@ -38,8 +40,6 @@ __all__ = (
     "undefined", "is_undefined",
 
     "reapply", "repeat",
-    "first", "second", "third", "fourth",
-    "fifth", "last",
 )
 
 
@@ -58,7 +58,7 @@ class NotYetImplemented(SibilantException):
     pass
 
 
-class UndefinedType(object):
+class UndefinedType():
     """
     an undefined value. singleton indicating a value has not been
     assigned to a ref yet.
@@ -91,80 +91,87 @@ def is_undefined(value):
     return value is undefined
 
 
-class RefType(object):
-    """
-    mutable reference
-    """
+class InternedAtom():
 
-    __slots__ = ("sym", "_value", )
+    __slots__ = ("_name", "__weakref__", )
 
+    _intern = WeakValueDictionary()
 
-    def __init__(self, sym, value):
-        if not is_symbol(sym):
-            raise TypeError("sym must be a symbol")
-
-        self.sym = sym
-        self._value = value
+    _reprf = "<atom %r>"
 
 
-    def _get_value_k(self, k):
-        return k(self._value)
+    def __new__(cls, name):
+        name = str(name)
+
+        s = cls._intern.get(name)
+        if s is None:
+            s = super().__new__(cls)
+            s._name = name
+            cls._intern[name] = s
+        return s
 
 
-    def _get_value(self):
-        return self._value
-
-
-    def _set_value_k(self, k, value):
-        self._value = value
-        return k(value)
-
-
-    def _set_value(self, value):
-        self._value = value
-        return value
+    def __str__(self):
+        return self._name
 
 
     def __repr__(self):
-        return "".join(("ref(", repr(self.sym), ")"))
+        return self._reprf % self._name
 
 
-def ref(sym, value=undefined):
-    return RefType(sym, value)
+    def split(self, sep=None, maxsplit=-1):
+        cls = type(self)
+        return [cls(s) for s in self._name.split(sep, maxsplit)]
 
 
-class AttrType(RefType):
+    def rsplit(self, sep=None, maxsplit=-1):
+        cls = type(self)
+        return [cls(s) for s in self._name.rsplit(sep, maxsplit)]
+
+
+class Symbol(InternedAtom):
     """
-    computed attribute references
+    symbol type.
+
+    Symbol instances are automatically interned. Symbols are equal
+    only to themselves. Symbols hash the same as their str
+    representation.
     """
 
-    __slots__ = ("sym", "_get_value", "_set_value", )
+    _intern = WeakValueDictionary()
+
+    _reprf = "<symbol %r>"
 
 
-    def __init__(self, sym, getter, setter):
-        self.sym = sym
-        self._get_value = getter
-        self._set_value = setter or self._ro_value
+symbol = Symbol
 
 
-    def _ro_value(self, value):
-        raise AttributeError("%s is read-only" % str(self.sym))
+def is_symbol(value):
+    return type(value) is Symbol
 
 
-    def __repr__(self):
-        return "".join(("attr(", repr(self.sym), ")"))
+class Keyword(InternedAtom):
+    """
+    keyword type.
+
+    keywords are symbols used only as delimeters or markup. evaluation
+    of a keyword as an expression only ever results in the keyword.
+    """
+
+    _intern = WeakValueDictionary()
+
+    _reprf = "<keyword %r>"
 
 
-def attr(sym, getter, setter=None):
-    return AttrType(sym, getter, setter)
+    def __new__(cls, name):
+        return super().__new__(cls, str(name).strip(":"))
 
 
-def deref(r):
-    return r._get_value()
+keyword = Keyword
 
 
-def setref(r, value):
-    return r._set_value(value)
+def is_keyword(value):
+    return type(value) is Keyword
 
 
 class Pair(object):
@@ -180,9 +187,27 @@ class Pair(object):
     __slots__ = ("_car", "_cdr", )
 
 
-    def __init__(self, car, cdr):
-        self._car = car
-        self._cdr = cdr
+    def __init__(self, head, *tail, recursive=False):
+        ltype = type(self)
+
+        if tail:
+            def cons(t, h):
+                return ltype(h, t)
+
+            if recursive:
+                tail = reduce(cons, reversed(tail), self)
+            else:
+                tail = reduce(cons, reversed(tail))
+
+        elif recursive:
+            tail = self
+
+        else:
+            raise TypeError("Pair requires at least one tail, or must"
+                            " be recursive")
+
+        self._car = head
+        self._cdr = tail
 
 
     def __getitem__(self, index):
@@ -272,7 +297,11 @@ class Pair(object):
                     found.add(id(rest))
                     val, rest = rest
                     col.append(" ")
-                    col.append(str(val))
+                    if isinstance(val, str):
+                        val = '"%s"' % val.replace('"', r'\"')
+                    else:
+                        val = str(val)
+                    col.append(val)
             else:
                 # end of improper list
                 col.append(" . ")
@@ -377,9 +406,11 @@ class Pair(object):
         false if this is an improper list, or terminates with a nil
         """
 
+        _Pair = type(self)
+
         found = set()
         current = self
-        while type(current) is Pair:
+        while type(current) is _Pair:
             if id(current) in found:
                 return True
             else:
@@ -392,11 +423,16 @@ class Pair(object):
     def is_proper(self):
         """
         proper lists have a trailing nil, or are recursive.
+
+        note that because a Pair is mutable, this value cannot be
+        safely cached, and must be rechecked every time.
         """
+
+        _Pair = type(self)
 
         found = set()
         current = self
-        while type(current) is Pair:
+        while type(current) is _Pair:
             if id(current) in found:
                 return True
             else:
@@ -415,10 +451,11 @@ def is_proper(value):
 
 
 def make_proper(*values):
-    if values:
-        return cons(*values, nil)
-    else:
-        return nil
+    """
+    Create a proper cons pair from values
+    """
+
+    return cons(*values, nil) if values else nil
 
 
 def unpack(pair):
@@ -428,23 +465,28 @@ def unpack(pair):
         return iter(pair)
 
 
-def cons(a, *b, recursive=False, ltype=Pair):
-    """
-    Construct a singly-linked list from arguments. If final argument
-    is not `nil`, the list will be considered improper. If recursive
-    is True, the final link in the list will reference the start of
-    the list.
-    """
+# def cons(a, *b, recursive=False):
+#     """
+#     Construct a singly-linked list from arguments. If final argument
+#     is not `nil`, the list will be considered improper. If recursive
+#     is True, the final link in the list will reference the start of
+#     the list.
+#     """
 
-    if recursive:
-        a = ltype(a, nil)
-        setcdr(a, reduce(lambda x, y: ltype(y, x), b[::-1], a))
-        return a
-    else:
-        b, *c = b
-        if c:
-            b = ltype(b, reduce(lambda x, y: ltype(y, x), c[::-1]))
-        return ltype(a, b)
+#     ltype = Pair
+
+#     if recursive:
+#         a = ltype(a, nil)
+#         setcdr(a, reduce(lambda x, y: ltype(y, x), b[::-1], a))
+#         return a
+#     else:
+#         b, *c = b
+#         if c:
+#             b = ltype(b, reduce(lambda x, y: ltype(y, x), c[::-1]))
+#         return ltype(a, b)
+
+
+cons = Pair
 
 
 class Nil(Pair):
@@ -508,6 +550,11 @@ class Nil(Pair):
 
     def __repr__(self):
         return "nil"
+
+
+    def unpack(self):
+        if False:
+            yield None
 
 
     def is_recursive(self):
@@ -589,12 +636,23 @@ cadr = lambda c: car(cdr(c))  # noqa
 caddr = lambda c: car(reapply(cdr, c, 2))  # noqa
 cadddr = lambda c: car(reapply(cdr, c, 3))  # noqa
 caddddr = lambda c: car(repply(cdr, c, 4))  # noqa
+cadddddr = lambda c: car(repply(cdr, c, 5))  # noqa
+caddddddr = lambda c: car(repply(cdr, c, 6))  # noqa
+cadddddddr = lambda c: car(repply(cdr, c, 7))  # noqa
+caddddddddr = lambda c: car(repply(cdr, c, 8))  # noqa
+cadddddddddr = lambda c: car(repply(cdr, c, 9))  # noqa
+caddddddddddr = lambda c: car(repply(cdr, c, 10))  # noqa
 
 first = car
 second = cadr
 third = caddr
 fourth = cadddr
 fifth = caddddr
+sixth = cadddddr
+seventh = caddddddr
+eighth = cadddddddr
+ninth = caddddddddr
+tenth = cadddddddddr
 
 
 def last(seq):
@@ -610,71 +668,6 @@ def last(seq):
     for val in iter(seq):
         pass
     return val
-
-
-class Symbol(object):
-    """
-    symbol type.
-
-    Symbol instances are automatically interned. Symbols are equal
-    only to themselves. Symbols hash the same as their str
-    representation.
-    """
-
-    __slots__ = ("_name", )
-
-    __intern = {}
-
-
-    def __new__(cls, name):
-        # applying str auto-interns
-        name = str(name)
-
-        s = cls.__intern.get(name)
-        if s is None:
-            s = super().__new__(cls)
-            s._name = name
-            cls.__intern[name] = s
-        return s
-
-
-    def __eq__(self, other):
-        return self is other
-
-
-    def __ne__(self, other):
-        return self is not other
-
-
-    def __hash__(self):
-        return self._name.__hash__()
-
-
-    def __repr__(self):
-        return "".join(("symbol(", repr(self._name), ")"))
-
-
-    def __str__(self):
-        return self._name
-
-
-    def split(self, sep=None, maxsplit=-1):
-        return [symbol(s) for s in self._name.split(sep, maxsplit)]
-
-
-    def rsplit(self, sep=None, maxsplit=-1):
-        return [symbol(s) for s in self._name.rsplit(sep, maxsplit)]
-
-
-def symbol(name):
-    if isinstance(name, Symbol):
-        return name
-    else:
-        return Symbol(name)
-
-
-def is_symbol(value):
-    return isinstance(value, Symbol)
 
 
 #

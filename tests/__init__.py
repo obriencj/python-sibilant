@@ -27,9 +27,8 @@ from unittest import TestCase
 from sibilant import (
     cons, nil, is_pair, is_proper, is_nil,
     car, cdr, setcar, setcdr, last,
-    ref, attr, undefined, deref, setref,
-    symbol, is_symbol,
-    Pair, Nil, Symbol,
+    symbol, is_symbol, keyword, is_keyword,
+    Pair, Nil, Symbol, Keyword,
 )
 
 
@@ -275,7 +274,7 @@ class SymbolTest(TestCase):
 
     def test_repr_str(self):
         x = symbol('x')
-        self.assertEqual(repr(x), "symbol('x')")
+        self.assertEqual(repr(x), "<symbol 'x'>")
         self.assertEqual(str(x), 'x')
 
 
@@ -288,41 +287,104 @@ class SymbolTest(TestCase):
         self.assertNotEqual('x', x)
 
 
-class RefTest(TestCase):
+class KeywordTest(TestCase):
 
-    def test_ref(self):
-        a = ref(symbol('a'))
-        self.assertEqual(deref(a), undefined)
-        self.assertEqual(setref(a, 100), 100)
-        self.assertEqual(deref(a), 100)
+    def test_keyword(self):
+        x = keyword('x')
+        y = keyword('x')
+        z = keyword(x)
 
-        self.assertEqual(repr(a), "ref(symbol('a'))")
+        self.assertTrue(is_keyword(x))
+        self.assertIsInstance(x, Keyword)
 
-        b = ref(symbol('b'), 101)
-        self.assertEqual(deref(b), 101)
+        self.assertEqual(x, x)
+        self.assertEqual(x, y)
+        self.assertEqual(x, z)
+        self.assertEqual(y, x)
+        self.assertEqual(y, y)
+        self.assertEqual(y, z)
+        self.assertEqual(z, x)
+        self.assertEqual(z, y)
+        self.assertEqual(z, z)
+
+        self.assertEqual(id(x), id(y))
+        self.assertEqual(id(y), id(z))
+
+        self.assertTrue(x is y)
+        self.assertTrue(y is z)
+
+        w = keyword('w')
+
+        self.assertNotEqual(x, w)
+        self.assertNotEqual(w, x)
+        self.assertFalse(x is w)
 
 
-    def test_attr(self):
-        a = ref(symbol('a'))
-        b = attr(symbol('b'), partial(deref, a), partial(setref, a))
+    def test_keyword_2(self):
+        w = "X"
+        x = keyword(w)
+        y = keyword(str(x))
+        z = keyword(str(y))
 
-        self.assertEqual(deref(a), deref(b))
-        self.assertEqual(deref(b), undefined)
+        self.assertEqual(x, x)
+        self.assertEqual(x, y)
+        self.assertEqual(x, z)
+        self.assertEqual(y, x)
+        self.assertEqual(y, y)
+        self.assertEqual(y, z)
+        self.assertEqual(z, x)
+        self.assertEqual(z, y)
+        self.assertEqual(z, z)
 
-        self.assertEqual(setref(b, 101), 101)
-        self.assertEqual(deref(b), 101)
-        self.assertEqual(deref(a), 101)
+        self.assertEqual(id(x), id(y))
+        self.assertEqual(id(y), id(z))
 
-        self.assertEqual(setref(a, 102), 102)
-        self.assertEqual(deref(b), 102)
-        self.assertEqual(deref(a), 102)
+        self.assertTrue(x is y)
+        self.assertTrue(y is z)
 
-        c = attr(symbol('c'), partial(deref, a))
+        self.assertEqual(id(w), id(str(x)))
+        self.assertEqual(id(w), id(str(y)))
+        self.assertEqual(id(w), id(str(z)))
 
-        self.assertEqual(deref(c), 102)
 
-        with self.assertRaises(AttributeError):
-            setref(c, 999)
+    def test_dict(self):
+        x = keyword('x')
+        y = keyword('y')
+
+        d = dict()
+        d[x] = "cookies"
+        d[y] = "cake"
+        d['x'] = "chicken"
+        d['y'] = "tuna"
+
+        self.assertEqual(d[x], "cookies")
+        self.assertEqual(d[y], "cake")
+        self.assertEqual(d['x'], "chicken")
+        self.assertEqual(d['y'], "tuna")
+
+
+    def test_against_symbol(self):
+        xk = keyword("x")
+        xs = symbol("x")
+
+        self.assertFalse(xk is xs)
+        self.assertNotEqual(xk, xs)
+        self.assertNotEqual(xs, xk)
+
+
+    def test_repr_str(self):
+        x = keyword('x')
+        self.assertEqual(repr(x), "<keyword 'x'>")
+        self.assertEqual(str(x), 'x')
+
+
+    def test_against_str(self):
+        x = keyword('x')
+
+        self.assertFalse(x is 'x')
+
+        self.assertNotEqual(x, 'x')
+        self.assertNotEqual('x', x)
 
 
 #

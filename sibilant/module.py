@@ -15,11 +15,9 @@
 
 import types
 
-from io import IOBase
 from os.path import split
 
-from sibilant.ast import Node, compose_all_from_str, compose_all_from_stream
-from sibilant.compiler import compile_from_ast
+from sibilant.compiler import iter_compile
 
 
 __all__ = (
@@ -47,31 +45,23 @@ def prep_module(module, builtins=None, defaults=None, filename=None):
         glbls.update(defaults)
 
     if builtins is None:
-        import sibilant.builtins
-        builtins = sibilant.builtins
+        builtins = __import__("sibilant.builtins").builtins
 
     glbls["__builtins__"] = builtins
+
+    return None
 
 
 def exec_module(module, thing, filename=None):
 
-    if isinstance(thing, str):
-        thing = tuple(compose_all_from_str(thing))
-    elif isinstance(thing, IOBase):
-        thing = tuple(compose_all_from_stream(thing))
-    elif isinstance(thing, Node):
-        thing = (thing,)
-    else:
-        raise TypeError("Expected thing type of str, IOBase,"
-                        " sibilant.ast.Node, not %r" % type(thing))
-
     consumed = []
     glbls = module.__dict__
 
-    for astree in thing:
-        code = compile_from_ast(astree, glbls, filename=filename)
+    for code in iter_compile(thing, glbls, filename=filename):
         eval(code, glbls)
         consumed.append(code)
+
+    return None
 
 
 # TODO

@@ -1,0 +1,99 @@
+
+These are compiler features that I need to implement, and then a
+special form that can be used to invoke them.
+
+
+Builtin
+  Special
+    these are the actual special forms (try, lambda, begin)
+    .compile  --> pushes bytecode into compiler
+    .expand --> expands sub-expressions
+    .__call__  --> error
+  Operator
+    these are combination compile-time and run-time operators, can be
+    referenced at either time and should have very similar results
+    .compile  --> pushes bytecode into compiler
+    .expand --> expands sub-expressions
+    .__call__  --> runtime version
+  Macro
+    .compile --> calls .expand1
+    .expand_1  --> expands macro form once
+    .expand --> repeatedly expands macro and then expands sub-expressions
+    .__call__ --> error
+
+
+(make-special name
+  (compile (source)
+    ...)
+  (expand (source)
+    ...))
+
+(make-operator name
+  (compile (source)
+    ...)
+  (runtime (formals)
+    ...)
+
+(make-macro name (formals)
+  ...)
+
+
+
+== gen ===
+
+(gen ((bindings) . &body) expr)
+
+similar to pythonic
+
+(&body for bindings in expr)
+
+only implement the generator version, and if you need a list, call
+list on it.
+
+
+=== defgen ===
+
+(defgen name (formals)
+  ...
+  (yield x))
+
+similar to pythonic
+
+def name(formals):
+   ...
+   yield x
+
+
+=== binary operands ===
+
+** * @ // / % + - << >> & ^ | and or
+
+All of the binary built-in operands should be converted from function
+calls to operator invocations in special forms that reduce from left
+to right
+
+see BINARY_*
+
+
+=== unary operands ===
+
+not ~ + - iter
+
+The unary conversions:
+UNARY_NOT UNARY_INVERT UNARY_POSITIVE UNARY_NEGATIVE
+
+
+=== item ===
+
+Should become BINARY_SUBSCR
+
+
+=== comparators ===
+
+< <= == != > >= in not-in is is-not
+
+All of the comparisons built into the COMPARE_OP should be converted from
+function calls o operator invocations in special forms
+
+
+# The end.
