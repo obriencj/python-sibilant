@@ -24,8 +24,9 @@
    (function defmacro (name formals . body)
 	     (doc "Defines a Macro instance in the current module")
 
+	     (define-local proper (proper? formals))
 	     `(define-global ,name
-		((lambda (M) (set-attr M _formals ',formals) M)
+		((lambda (M) (set-attr M _proper ,proper) M)
 		 (macro ,(str name) (function ,name ,formals ,@body)))))))
 
 

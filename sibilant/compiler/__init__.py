@@ -132,7 +132,7 @@ class Macro(Compiled):
 
     def __init__(self, name, macrofn):
         super().__init__(name)
-        self._formals = None
+        self._proper = True
 
 
     def __new__(cls, name, expandfn):
@@ -148,7 +148,7 @@ class Macro(Compiled):
     def compile(self, compiler, source_obj):
         called_by, source = source_obj
 
-        if is_proper(self._formals):
+        if self._proper:
             position = compiler.position_of(source_obj)
             args, kwargs = simple_parameters(source, position)
             expr = self.expand(*args, **kwargs)
