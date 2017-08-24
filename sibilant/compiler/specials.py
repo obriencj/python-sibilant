@@ -454,7 +454,7 @@ def _helper_begin(code, body, tc=False):
                 code.add_expression(expr, tc=tc)
                 break
             else:
-                code.add_expression(expr)
+                code.add_expression(expr, False)
                 code.pseudop_pop()
 
     return None
@@ -600,6 +600,14 @@ def _special_let(code, source, tc=False):
     _helper_function(code, "<let>", args, body,
                      declared_at=code.position_of(source))
 
+    if tc:
+        # we'll wrap up the function we're going to call in a tailcall
+        # so that it'll get evaluated in our parent trampoline instead
+        # of recurring
+        code.pseudop_get_var("tailcall")
+        code.pseudop_rot_two()
+        code.pseudop_call(1)
+
     for val in vals:
         code.add_expression(val)
 
@@ -609,7 +617,10 @@ def _special_let(code, source, tc=False):
     return None
 
 
-def _helper_function(code, name, args, body, declared_at=None):
+def _helper_function(code, name, args, body,
+                     declared_at=None):
+
+    tco = code.enable_tco
 
     if not (is_symbol(name) or isinstance(name, str)):
         msg = "function names must be symbol or str, not %r" % name
@@ -647,17 +658,18 @@ def _helper_function(code, name, args, body, declared_at=None):
                              varkeywords=varkeywords,
                              name=name,
                              declared_at=declared_at,
-                             proper_varargs=proper)
+                             proper_varargs=proper,
+                             enable_tco=tco)
 
     with kid as subc:
-        _helper_begin(subc, body)
+        _helper_begin(subc, body, tco)
         subc.pseudop_return()
+        code.pseudop_lambda(subc.complete(), len(defaults))
 
-    code.pseudop_lambda(subc.complete(), len(defaults))
-
-    code.pseudop_get_var("trampoline")
-    code.pseudop_rot()
-    code.pseudop_call(1)
+    if tco:
+        code.pseudop_get_var("trampoline")
+        code.pseudop_rot_two()
+        code.pseudop_call(1)
 
 
 @special(_symbol_while)
@@ -1036,8 +1048,8 @@ def _special_global(code, source, tc=False):
     return None
 
 
-@special(_symbol_define_global, _symbol_define, tc=False)
-def _special_define_global(code, source):
+@special(_symbol_define_global, _symbol_define)
+def _special_define_global(code, source, tc=False):
 
     called_by, (binding, body) = source
 
@@ -1088,14 +1100,14 @@ def _special_cond(code, source, tc=False):
 
         if test is _symbol_else:
             # print(repr(body))
-            _helper_begin(code, body)
+            _helper_begin(code, body, tc)
             code.pseudop_jump_forward(done)
             break
 
         else:
             code.add_expression(test)
             code.pseudop_pop_jump_if_false(label)
-            _helper_begin(code, body)
+            _helper_begin(code, body, tc)
             code.pseudop_jump_forward(done)
 
     else:

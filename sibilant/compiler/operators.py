@@ -141,7 +141,7 @@ def _helper_and(code, exprs):
 
 
 @operator(_symbol_and, _runtime_and)
-def _operator_and(code, source):
+def _operator_and(code, source, tc=False):
     """
     (and EXPR...)
     Evaluates expressions in order until one returns a false-ish
@@ -181,7 +181,7 @@ def _helper_or(code, exprs):
 
 
 @operator(_symbol_or, runtime=_runtime_or)
-def _operator_or(code, source):
+def _operator_or(code, source, tc=False):
     """
     (or EXPR...)
     Evaluates expressions in order until one returns a true-ish
@@ -207,7 +207,7 @@ def _runtime_add(val, *vals):
 
 
 @operator(_symbol_add, _runtime_add, _symbol_add_)
-def _operator_add(code, source):
+def _operator_add(code, source, tc=False):
     """
     (+ VAL)
     applies unary_positive to VAL
@@ -246,7 +246,7 @@ def _runtime_subtract(val, *vals):
 
 
 @operator(_symbol_sub, _runtime_subtract, _symbol_sub_)
-def _operator_subtract(code, source):
+def _operator_subtract(code, source, tc=False):
     """
     (- VAL)
     applies unary_negative to VAL
@@ -286,7 +286,7 @@ def _runtime_multiply(val, *vals):
 
 
 @operator(_symbol_mult, _runtime_multiply, _symbol_mult_)
-def _operator_multiply(code, source):
+def _operator_multiply(code, source, tc=False):
     """
     (* VAL)
     same as (* 1 VAL)
@@ -325,7 +325,7 @@ def _runtime_divide(val, *vals):
 
 
 @operator(_symbol_div, _runtime_divide, _symbol_div_)
-def _operator_divide(code, source):
+def _operator_divide(code, source, tc=False):
     """
     (/ VAL)
     same as (/ 1 VAL)
@@ -365,7 +365,7 @@ def _runtime_floor_divide(val, *vals):
 
 
 @operator(_symbol_floordiv, _runtime_floor_divide, _symbol_floordiv_)
-def _operator_floor_divide(code, source):
+def _operator_floor_divide(code, source, tc=False):
     """
     (// VAL)
     same as (// 1 VAL)
@@ -426,7 +426,7 @@ def _helper_binary(code, source, opfun, flip=False):
 
 
 @operator(_symbol_item, pyop.getitem)
-def _operator_item(code, source):
+def _operator_item(code, source, tc=False):
     """
     (item OBJ KEY)
     gets item from OBJ by key KEY
@@ -436,7 +436,7 @@ def _operator_item(code, source):
 
 
 @operator(_symbol_pow, pyop.pow, _symbol_pow_)
-def _operator_power(code, source):
+def _operator_power(code, source, tc=False):
     """
     (** VAL EXPONENT)
     raises VAL to the EXPONENT
@@ -446,7 +446,7 @@ def _operator_power(code, source):
 
 
 @operator(_symbol_mod, pyop.mod, _symbol_mod_)
-def _operator_modulo(code, source):
+def _operator_modulo(code, source, tc=False):
     """
     (% VAL MOD)
     VAL modulo MOD. If VAL is a string, Pythonic string
@@ -457,7 +457,7 @@ def _operator_modulo(code, source):
 
 
 @operator(_symbol_matrix_mult, pyop.matmul, _symbol_matrix_mult_)
-def _operator_matmul(code, source):
+def _operator_matmul(code, source, tc=False):
     """
     (matrix-multiply MATRIX MATRIX)
     Multiply two matrices, return the result
@@ -467,7 +467,7 @@ def _operator_matmul(code, source):
 
 
 @operator(_symbol_lshift, pyop.lshift, _symbol_lshift_)
-def _operator_lshift(code, source):
+def _operator_lshift(code, source, tc=False):
     """
     (<< VALUE COUNT)
     Bitshift VALUE left by COUNT bits
@@ -477,7 +477,7 @@ def _operator_lshift(code, source):
 
 
 @operator(_symbol_rshift, pyop.rshift, _symbol_rshift_)
-def _operator_rshift(code, source):
+def _operator_rshift(code, source, tc=False):
     """
     (>> VALUE COUNT)
     Bitshift VALUE right by COUNT bits
@@ -487,7 +487,7 @@ def _operator_rshift(code, source):
 
 
 @operator(_symbol_bit_and, pyop.and_, _symbol_bit_and_)
-def _operator_bit_and(code, source):
+def _operator_bit_and(code, source, tc=False):
     """
     (& VALUE MASK)
     Applies bitwise-and MASK to VALUE
@@ -497,7 +497,7 @@ def _operator_bit_and(code, source):
 
 
 @operator(_symbol_bit_or, pyop.or_, _symbol_bit_or_)
-def _operator_bit_or(code, source):
+def _operator_bit_or(code, source, tc=False):
     """
     (| VALUE SETMASK)
     Applies bitwise-or SETMASK to VALUE
@@ -507,7 +507,7 @@ def _operator_bit_or(code, source):
 
 
 @operator(_symbol_bit_xor, pyop.xor, _symbol_bit_xor_)
-def _operator_bit_xor(code, source):
+def _operator_bit_xor(code, source, tc=False):
     """
     (^ VALUE FLIPMASK)
     Applies bitwise-xor FLIPMASK to VALUE
@@ -517,7 +517,7 @@ def _operator_bit_xor(code, source):
 
 
 @operator(_symbol_ge, pyop.ge, _symbol_ge_)
-def _operator_gte(code, source):
+def _operator_gte(code, source, tc=False):
     """
     (>= VAL1 VAL2)
     True if VAL1 is greater-than, or equal-to VAL2
@@ -527,7 +527,7 @@ def _operator_gte(code, source):
 
 
 @operator(_symbol_in, pyop.contains)
-def _operator_in(code, source):
+def _operator_in(code, source, tc=False):
     """
     (in SEQ VALUE)
     True if SEQ contains VALUE
@@ -537,7 +537,7 @@ def _operator_in(code, source):
 
 
 @operator(_symbol_not_in, (lambda seq, value: value not in seq))
-def _operator_not_in(code, source):
+def _operator_not_in(code, source, tc=False):
     """
     (not-in SEQ VALUE)
     False if SEQ contains VALUE
@@ -547,7 +547,7 @@ def _operator_not_in(code, source):
 
 
 @operator(_symbol_is, pyop.is_)
-def _operator_is(code, source):
+def _operator_is(code, source, tc=False):
     """
     (is OBJ1 OBJ2)
     True if OBJ1 and OBJ2 are the same object
@@ -557,7 +557,7 @@ def _operator_is(code, source):
 
 
 @operator(_symbol_is_not, pyop.is_not)
-def _operator_is_not(code, source):
+def _operator_is_not(code, source, tc=False):
     """
     (is-not OBJ1 OBJ2)
     True if OBJ1 and OBJ2 are different objects
@@ -567,7 +567,7 @@ def _operator_is_not(code, source):
 
 
 @operator(_symbol_lt, pyop.lt, _symbol_lt_)
-def _operator_lt(code, source):
+def _operator_lt(code, source, tc=False):
     """
     (< VAL1 VAL2)
     True if VAL1 is less-than VAL2
@@ -576,7 +576,7 @@ def _operator_lt(code, source):
 
 
 @operator(_symbol_le, pyop.le, _symbol_le_)
-def _operator_lte(code, source):
+def _operator_lte(code, source, tc=False):
     """
     (<= VAL1 VAL2)
     True if VAL1 is less-than, or equal-to VAL2
@@ -586,7 +586,7 @@ def _operator_lte(code, source):
 
 
 @operator(_symbol_eq, pyop.eq, _symbol_eq_)
-def _operator_eq(code, source):
+def _operator_eq(code, source, tc=False):
     """
     (== VAL1 VAL2)
     True if VAL1 and VAL2 are equal
@@ -596,7 +596,7 @@ def _operator_eq(code, source):
 
 
 @operator(_symbol_not_eq, pyop.ne, _symbol_not_eq_)
-def _operator_not_eq(code, source):
+def _operator_not_eq(code, source, tc=False):
     """
     (!= VAL1 VAL2)
     True if VAL1 and VAL2 are not equal
@@ -606,7 +606,7 @@ def _operator_not_eq(code, source):
 
 
 @operator(_symbol_gt, pyop.gt, _symbol_gt_)
-def _operator_gt(code, source):
+def _operator_gt(code, source, tc=False):
     """
     (>= VAL1 VAL2)
     True if VAL1 is greater-than VAL2
@@ -633,7 +633,7 @@ def _helper_unary(code, source, opfun):
 
 
 @operator(_symbol_not, pyop.not_)
-def _operator_not(code, source):
+def _operator_not(code, source, tc=False):
     """
     (not VAL)
     Boolean inversion of VAL. If VAL is true-like, returns
@@ -644,7 +644,7 @@ def _operator_not(code, source):
 
 
 @operator(_symbol_invert, pyop.invert)
-def _operator_invert(code, source):
+def _operator_invert(code, source, tc=False):
     """
     (~ VAL)
     Binary inversion of VAL
@@ -654,7 +654,7 @@ def _operator_invert(code, source):
 
 
 @operator(_symbol_iter, iter)
-def _operator_iter(code, source):
+def _operator_iter(code, source, tc=False):
     """
     (iter OBJ)
     Produces an iterator over the contents of OBJ

@@ -156,7 +156,7 @@ class Macro(Compiled):
         return object.__new__(cls)
 
 
-    def compile(self, compiler, source_obj):
+    def compile(self, compiler, source_obj, tc=False):
         called_by, source = source_obj
 
         if self._proper:
@@ -184,7 +184,7 @@ class Macrolet(Macro):
     __objname__ = "macrolet"
 
 
-    def compile(self, compiler, source_obj):
+    def compile(self, compiler, source_obj, tc=False):
         expanded = self.expand()
         expanded = _symbol_None if expanded is None else expanded
 
@@ -391,11 +391,14 @@ class CodeSpace(metaclass=ABCMeta):
     def __init__(self, args=(),
                  varargs=False, varkeywords=False, proper_varargs=True,
                  parent=None, name=None,
-                 filename=None, positions=None, declared_at=None):
+                 filename=None, positions=None, declared_at=None,
+                 enable_tco=True):
 
         self.env = None
         self.parent = parent
         self.name = name
+
+        self.enable_tco = enable_tco
 
         self.filename = filename
         self.positions = {} if positions is None else positions
@@ -1104,6 +1107,8 @@ class ExpressionCodeSpace(CodeSpace):
         and compiled to pseudo ops.
         """
 
+        tc = tc and self.enable_tco
+
         self.require_active()
 
         if expr is None:
@@ -1182,7 +1187,8 @@ class ExpressionCodeSpace(CodeSpace):
                 pass
             elif is_compiled(head):
                 # head evaluated at compile-time to a higher-order macro
-                return head.compile(self, cons(symbol(head.__name__), tail), tc)
+                namesym = symbol(head.__name__)
+                return head.compile(self, cons(namesym, tail), tc)
             else:
                 return cons(head, tail)
 
@@ -1193,7 +1199,8 @@ class ExpressionCodeSpace(CodeSpace):
                 pass
             elif is_compiled(head):
                 # head evaluated at compile-time to a higher-order macro
-                return head.compile(self, cons(symbol(head.__name__), tail), tc)
+                namesym = symbol(head.__name__)
+                return head.compile(self, cons(namesym, tail), tc)
             else:
                 return cons(head, tail)
 
@@ -1209,7 +1216,13 @@ class ExpressionCodeSpace(CodeSpace):
 
         # --- new ---
 
-        self.helper_compile_call(tail, position, tc)
+        if tc:
+            # wrap head up as a tailcall instead
+            self.pseudop_get_var("tailcall")
+            self.pseudop_rot_two()
+            self.pseudop_call(1)
+
+        self.helper_compile_call(tail, position)
 
         # --- old ---
         # for cl in tail.unpack():
@@ -1233,7 +1246,7 @@ class ExpressionCodeSpace(CodeSpace):
         pass
 
 
-    def compile_symbol(self, sym):
+    def compile_symbol(self, sym, tc=False):
         """
         The various ways that a symbol on its own can evaluate.
         """
@@ -1242,7 +1255,7 @@ class ExpressionCodeSpace(CodeSpace):
 
         comp = self.find_compiled(sym)
         if comp and is_macrolet(comp):
-            return comp.compile(self, sym)
+            return comp.compile(self, sym, tc)
 
         elif sym is _symbol_None:
             return self.pseudop_const(None)
@@ -1536,7 +1549,8 @@ def _list_unique_append(onto_list, value):
 #             current_point = point
 
 
-def iter_compile(source, env, filename=None, reader=None):
+def iter_compile(source, env, filename=None, reader=None,
+                 **codespace_args):
 
     if isinstance(source, str):
         source = source_str(source, filename)
@@ -1562,7 +1576,8 @@ def iter_compile(source, env, filename=None, reader=None):
     env["read"] = reader.read
 
     while True:
-        codespace = factory(filename=filename, positions=positions)
+        codespace = factory(filename=filename, positions=positions,
+                            **codespace_args)
         with codespace.activate(env):
             assert(env.get("__compiler__") == codespace)
 
