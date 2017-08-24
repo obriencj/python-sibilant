@@ -60,6 +60,13 @@ def compile_expr(src_str, **base):
     return partial(eval, code, env), env
 
 
+def compile_expr_no_tco(src_str, **base):
+    env = basic_env(**base)
+    icode = iter_compile(src_str, env, enable_tco=False)
+    code = next(icode)
+    return partial(eval, code, env), env
+
+
 def compile_dis_expr(src_str, **base):
     env = basic_env(**base)
     icode = iter_compile(src_str, env)
@@ -361,6 +368,8 @@ class KeywordArgs(TestCase):
 
 
     def test_formals(self):
+
+        compile_expr = compile_expr_no_tco
 
         src = """
         (lambda (a b c)
