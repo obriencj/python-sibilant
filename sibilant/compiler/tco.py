@@ -13,6 +13,7 @@
 # <http://www.gnu.org/licenses/>.
 
 
+# from collections import OrderedDict
 from functools import wraps
 from traceback import clear_frames
 
@@ -38,32 +39,45 @@ def trampoline(fun):
         # so that in the event of a real exception we can produce
         # a more meaningful traceback?
 
+        # frames = OrderedDict()
         work = fun
 
         while True:
             try:
                 work = work(*args, **kwds)
-            except TailCall as tc:
-                work = tc.work
-                args = tc.args
-                kwds = tc.kwds
-                _cf(tc.__traceback__)
+
+            except TailCall as tailc:
+                work = tailc.work
+                args = tailc.args
+                kwds = tailc.kwds
+
+                # tb = tailc.__traceback__.tb_next
+                # tc = tb.tb_frame.f_code
+
+                # key = (tc.co_filename, tc.co_name, tb.tb_lineno)
+                # frames[key] = frames.get(key, 0) + 1
+
+                _cf(tailc.__traceback__)
+
             else:
                 break
 
         return work
 
-    tco_trampoline._tco_trampoline = fun
+    tco_trampoline._tco_original = fun
     return tco_trampoline
 
 
 def tailcall(fun):
-    work = getattr(fun, "_tco_trampoline", fun)
+    # if fun is already a wrapped tailcall, or it's a wrapped
+    # trampoline, we'll unwrap it first.
+    fun = getattr(fun, "_tco_original", fun)
 
-    @wraps(work)
+    @wraps(fun)
     def tco_bounce(*args, **kwds):
-        raise TailCall(work, args, kwds).with_traceback(None)
+        raise TailCall(fun, args, kwds).with_traceback(None)
 
+    tco_bounce._tco_original = fun
     return tco_bounce
 
 
