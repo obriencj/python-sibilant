@@ -252,7 +252,7 @@
      (setq *flds* (*body* (dict)))
      (set-item *flds* "__doc__" *body*.__doc__)
      (type *name*
-	   (make-tuple ,bases)
+	   (make-tuple ,@bases)
 	   *flds*)))
 
 

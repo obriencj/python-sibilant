@@ -57,6 +57,9 @@ _keyword_star = keyword("*")
 _keyword_starstar = keyword("**")
 
 
+COMPILE_DEBUG = False
+
+
 class CompilerException(Exception):
     pass
 
@@ -104,6 +107,10 @@ class Special(Compiled):
 
 
     def __new__(cls, name, compilefn):
+        if not callable(compilefn):
+            msg = "compilefn must be callable, not %r" % compilefn
+            raise SibilantException(msg)
+
         nom = str(name or compilefn.__name__)
         mbs = {
             "__doc__": compilefn.__doc__,
@@ -136,6 +143,10 @@ class Macro(Compiled):
 
 
     def __new__(cls, name, expandfn):
+        if not callable(expandfn):
+            msg = "expandfn must be callable, not %r" % expandfn
+            raise SibilantException(msg)
+
         nom = str(name or expandfn.__name__)
         mbs = {
             "__doc__": expandfn.__doc__,
@@ -205,6 +216,15 @@ class Operator(Compiled):
     def __new__(cls, name, compilefn, runtimefn):
         assert(compilefn is not None)
         assert(runtimefn is not None)
+
+        if not callable(compilefn):
+            msg = "compilefn must be callable, not %r" % compilefn
+            raise SibilantException(msg)
+
+        if not callable(runtimefn):
+            msg = "runtimefn must be callable, not %r" % runtimefn
+            raise SibilantException(msg)
+
         nom = str(name or runtimefn.__name__ or compilefn.__name__)
         mbs = {
             "__doc__": compilefn.__doc__,
@@ -634,7 +654,7 @@ class CodeSpace(metaclass=ABCMeta):
 
 
     def pseudop_debug(self, *op_args):
-        if False:
+        if COMPILE_DEBUG:
             self.pseudop(Pseudop.DEBUG_STACK, *op_args)
 
 
@@ -968,7 +988,6 @@ class CodeSpace(metaclass=ABCMeta):
 
     def pseudop_raise(self, count):
         self.pseudop(Pseudop.RAISE, count)
-        self.pseudop(Pseudop.FAUX_PUSH, 1)
 
 
     def complete(self):
@@ -1089,6 +1108,16 @@ class ExpressionCodeSpace(CodeSpace):
 
         self.pseudop_position_of(expr)
 
+        if expr is None:
+            # in some macros, we might default a value to None, and if
+            # that then gets unquoted into place, we'll just treat it
+            # as if it were a literal value. No other value needs to
+            # be special-cased like this, it's just that None is our
+            # sentinel value for other types of expansion to indicate
+            # the compilation work is completed.
+            self.pseudop_const(None)
+            return
+
         while expr is not None:
 
             if expr is nil:
@@ -1097,10 +1126,18 @@ class ExpressionCodeSpace(CodeSpace):
                 expr = None
 
             elif is_pair(expr):
-                expr = self.compile_pair(expr)
+                try:
+                    expr = self.compile_pair(expr)
+                except TypeError:
+                    print(expr)
+                    raise
 
             elif is_symbol(expr):
-                expr = self.compile_symbol(expr)
+                try:
+                    expr = self.compile_symbol(expr)
+                except TypeError:
+                    print(expr)
+                    raise
 
             elif is_keyword(expr):
                 expr = self.compile_keyword(expr)
@@ -1379,6 +1416,9 @@ class ExpressionCodeSpace(CodeSpace):
 
         elif op is _Pseudop.RAISE:
             pop(args[0])
+            # for the sake of counting, let's just pretend that raise
+            # evaluates to something.
+            push()
 
         elif op is _Pseudop.FAUX_PUSH:
             push(args[0])
@@ -1401,6 +1441,8 @@ class ExpressionCodeSpace(CodeSpace):
         stac = 0
         labels = {}
 
+        index = 0
+
         _Pseudop = Pseudop
 
         def push(by=1):
@@ -1411,11 +1453,18 @@ class ExpressionCodeSpace(CodeSpace):
 
         def pop(by=1):
             nonlocal stac
+            nonlocal index
             stac -= by
             if stac < 0:
                 print("SHIT BROKE")
-                print("\n\t".join(map(repr, self.pseudops)))
-            assert (stac >= 0), "max_stack counter underrun"
+
+                for i, o in enumerate(self.pseudops):
+                    if i == index:
+                        print(" -->\t", repr(o))
+                    else:
+                        print("\t", repr(o))
+
+            assert (stac >= 0), "max_stack counter underrun at %i" % index
 
         # print("max_stack()")
         for op, *args in self.pseudops:
@@ -1446,6 +1495,8 @@ class ExpressionCodeSpace(CodeSpace):
                 # defer everything else so it can be overridden
                 # depending on Python version
                 self.helper_max_stack(op, args, push, pop)
+
+            index += 1
 
         assert (stac == 0), "%i left-over stack items" % stac
         return maxc
