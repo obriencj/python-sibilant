@@ -37,6 +37,7 @@ def recursionlimit(limit=(getrecursionlimit() // 2)):
     original = getrecursionlimit()
     yield setrecursionlimit(limit)
     setrecursionlimit(original)
+    assert getrecursionlimit() == original, "could not reset recursion limit"
 
 
 def basic_env(**base):
@@ -82,6 +83,24 @@ def fibonacci(num, accu=0):
         return fibonacci(num - 1, accu + num)
 
 
+@trampoline
+def tco_even(num):
+    return True if num == 2 else tailcall(tco_odd)(num - 1)
+
+
+@trampoline
+def tco_odd(num):
+    return True if num == 1 else tailcall(tco_even)(num - 1)
+
+
+def even(num):
+    return True if num == 2 else odd(num - 1)
+
+
+def odd(num):
+    return True if num == 1 else even(num - 1)
+
+
 class TestTailcall(TestCase):
 
     def test_factorial(self):
@@ -118,6 +137,20 @@ class TestTailcall(TestCase):
 
         for i in range(100):
             self.assertEqual(fibonacci(i), tco_fibonacci(i))
+
+
+    def test_even_odd(self):
+        count = getrecursionlimit()
+
+        self.assertTrue(even(8))
+        self.assertTrue(odd(13))
+
+        num = count * 2
+        self.assertRaises(RecursionError, even, num)
+        self.assertRaises(RecursionError, odd, num - 1)
+
+        self.assertTrue(tco_even(num))
+        self.assertTrue(tco_odd(num - 1))
 
 
 class TestTCOCompiler(TestCase):
@@ -164,6 +197,27 @@ class TestTCOCompiler(TestCase):
         with recursionlimit(200):
             self.assertTrue(res(400))
             self.assertTrue(res(count * 10))
+
+
+    def test_even_odd(self):
+        src = """
+        (begin
+          (defun even (val)
+             (if (== val 2) True (odd (- val 1))))
+          (defun odd (val)
+             (if (== val 1) True (even (- val 1))))
+          (values even odd))
+        """
+        stmt, env = compile_expr(src)
+        even, odd = stmt()
+
+        self.assertTrue(even(8))
+        self.assertTrue(odd(13))
+
+        count = getrecursionlimit() * 2
+
+        self.assertTrue(even(count))
+        self.assertTrue(odd(count - 1))
 
 
 #

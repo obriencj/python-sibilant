@@ -241,6 +241,8 @@ _op((lambda *vals: vals), "make-tuple", rename=True)
 _op((lambda value: isinstance(value, tuple)),
     "tuple?", rename=True)
 
+_op((lambda *vals: vals), "values", rename=True)
+
 _val(list, "list")
 _op((lambda *vals: list(vals)), "make-list", rename=True)
 _op((lambda value: isinstance(value, list)),
