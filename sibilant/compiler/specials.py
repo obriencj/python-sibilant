@@ -110,7 +110,7 @@ def _helper_symbol(code, sym):
 
 
 @special(_symbol_doc)
-def _special_doc(code, source):
+def _special_doc(code, source, tc=False):
     """
     (doc STR STR...)
     joins STR together and sets it as the docstr for the parent scope
@@ -127,7 +127,7 @@ def _special_doc(code, source):
 
 
 @special(_symbol_attr)
-def _special_get_attr(code, source):
+def _special_get_attr(code, source, tc=False):
     try:
         called_by, (obj, (member, rest)) = source
     except ValueError:
@@ -145,7 +145,7 @@ def _special_get_attr(code, source):
 
 
 @special(_symbol_set_attr)
-def _special_set_attr(code, source):
+def _special_set_attr(code, source, tc=False):
     try:
         called_by, (obj, (member, (value, rest))) = source
     except ValueError:
@@ -167,7 +167,7 @@ def _special_set_attr(code, source):
 
 
 @special(_symbol_quote)
-def _special_quote(code, source):
+def _special_quote(code, source, tc=False):
     """
     Special form for quote
     """
@@ -189,7 +189,7 @@ def _special_quote(code, source):
     return None
 
 
-def _helper_quote(code, body):
+def _helper_quote(code, body, tc=False):
     if body is nil:
         code.pseudop_get_var("nil")
 
@@ -214,7 +214,7 @@ def _helper_quote(code, body):
 
 
 @special(_symbol_unquote)
-def _special_unquote(code, source):
+def _special_unquote(code, source, tc=False):
     """
     (quote EXPR)
 
@@ -229,12 +229,12 @@ def _special_unquote(code, source):
 
 
 @special(_symbol_splice)
-def _special_splice(code, source):
+def _special_splice(code, source, tc=False):
     raise code.error("splice outside of quasiquote", source)
 
 
 @special(_symbol_quasiquote)
-def _special_quasiquote(code, source):
+def _special_quasiquote(code, source, tc=False):
     """
     (quasiquote EXPR)
     Special form for quasiquote
@@ -418,7 +418,7 @@ def _helper_quasiquote(code, marked, level=0):
 
 
 @special(_symbol_begin)
-def _special_begin(code, source):
+def _special_begin(code, source, tc=False):
     """
     (begin EXPR EXPR...)
 
@@ -431,13 +431,13 @@ def _special_begin(code, source):
 
     called_by, body = source
 
-    _helper_begin(code, body)
+    _helper_begin(code, body, tc=tc)
 
     # no additional transform needed
     return None
 
 
-def _helper_begin(code, body):
+def _helper_begin(code, body, tc=False):
     code.pseudop_position_of(body)
 
     if not body:
@@ -450,17 +450,18 @@ def _helper_begin(code, body):
         # expressions, but only keep the last one on the stack.
         while True:
             expr, body = body
-            code.add_expression(expr)
             if body is nil:
+                code.add_expression(expr, tc=tc)
                 break
             else:
+                code.add_expression(expr)
                 code.pseudop_pop()
 
     return None
 
 
 @special(_symbol_with)
-def _special_with(code, source):
+def _special_with(code, source, tc=False):
     """
     Special form for managed context via with
     """
@@ -511,7 +512,7 @@ def _special_with(code, source):
 
 
 @special(_symbol_lambda)
-def _special_lambda(code, source):
+def _special_lambda(code, source, tc=False):
     """
     (lambda (FORMAL...) BODY...)
 
@@ -532,7 +533,7 @@ def _special_lambda(code, source):
 
 
 @special(_symbol_function)
-def _special_function(code, source):
+def _special_function(code, source, tc=False):
     """
     (function NAME (FORMAL...) BODY...)
 
@@ -571,7 +572,7 @@ def _special_function(code, source):
 
 
 @special(_symbol_let)
-def _special_let(code, source):
+def _special_let(code, source, tc=False):
     """
     (let ((BINDING EXPR) ...) BODY...)
 
@@ -651,11 +652,16 @@ def _helper_function(code, name, args, body, declared_at=None):
     with kid as subc:
         _helper_begin(subc, body)
         subc.pseudop_return()
-        code.pseudop_lambda(subc.complete(), len(defaults))
+
+    code.pseudop_lambda(subc.complete(), len(defaults))
+
+    code.pseudop_get_var("trampoline")
+    code.pseudop_rot()
+    code.pseudop_call(1)
 
 
 @special(_symbol_while)
-def _special_while(code, source):
+def _special_while(code, source, tc=False):
     """
     (while TEST_EXPR BODY...)
 
@@ -690,7 +696,7 @@ def _special_while(code, source):
 
 
 @special(_symbol_raise)
-def _special_raise(code, source):
+def _special_raise(code, source, tc=False):
     """
     (raise EXCEPTION_EXPR)
 
@@ -720,7 +726,7 @@ def _special_raise(code, source):
 
 
 @special(_symbol_try)
-def _special_try(code, source):
+def _special_try(code, source, tc=False):
     """
     (try EXPR
       (EXCEPTION_TYPE EXC_BODY...)
@@ -764,7 +770,7 @@ def _special_try(code, source):
     return None
 
 
-def _helper_special_try(code, source):
+def _helper_special_try(code, source, tc=False):
 
     called_by, (expr, catches) = source
 
@@ -987,7 +993,7 @@ def _helper_special_try(code, source):
 
 
 @special(_symbol_setq)
-def _special_setq(code, source):
+def _special_setq(code, source, tc=False):
     """
     (setq SYM EXPR)
 
@@ -1018,7 +1024,7 @@ def _special_setq(code, source):
 
 
 @special(_symbol_global)
-def _special_global(code, source):
+def _special_global(code, source, tc=False):
 
     called_by, (binding, rest) = source
     if not is_nil(rest):
@@ -1030,7 +1036,7 @@ def _special_global(code, source):
     return None
 
 
-@special(_symbol_define_global, _symbol_define)
+@special(_symbol_define_global, _symbol_define, tc=False)
 def _special_define_global(code, source):
 
     called_by, (binding, body) = source
@@ -1050,7 +1056,7 @@ def _special_define_global(code, source):
 
 
 @special(_symbol_define_local)
-def _special_define_local(code, source):
+def _special_define_local(code, source, tc=False):
 
     called_by, (binding, body) = source
 
@@ -1069,7 +1075,7 @@ def _special_define_local(code, source):
 
 
 @special(_symbol_cond)
-def _special_cond(code, source):
+def _special_cond(code, source, tc=False):
 
     called_by, cl = source
 
@@ -1103,7 +1109,7 @@ def _special_cond(code, source):
 
 
 @special(_symbol_macroexpand_1)
-def _special_macroexpand_1(code, source):
+def _special_macroexpand_1(code, source, tc=False):
     called_by, body = source
 
     if is_symbol(body):
@@ -1126,6 +1132,7 @@ def _special_macroexpand_1(code, source):
         msg = "%s is not a macro: %r" % (namesym, found)
         raise code.error(msg, source)
 
+    # TODO: emulate macro expansion better
     return _helper_quote(code, found.expand(*args))
 
 

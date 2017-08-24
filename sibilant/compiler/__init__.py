@@ -1095,7 +1095,7 @@ class ExpressionCodeSpace(CodeSpace):
     """
 
 
-    def add_expression(self, expr):
+    def add_expression(self, expr, tc=False):
         """
         Insert an expression into the code space. expr should be a cons
         cell representing the expression. If the expression appears to
@@ -1105,8 +1105,6 @@ class ExpressionCodeSpace(CodeSpace):
         """
 
         self.require_active()
-
-        self.pseudop_position_of(expr)
 
         if expr is None:
             # in some macros, we might default a value to None, and if
@@ -1118,6 +1116,8 @@ class ExpressionCodeSpace(CodeSpace):
             self.pseudop_const(None)
             return
 
+        self.pseudop_position_of(expr)
+
         while expr is not None:
 
             if expr is nil:
@@ -1126,15 +1126,16 @@ class ExpressionCodeSpace(CodeSpace):
                 expr = None
 
             elif is_pair(expr):
+
                 try:
-                    expr = self.compile_pair(expr)
+                    expr = self.compile_pair(expr, tc)
                 except TypeError:
                     print(expr)
                     raise
 
             elif is_symbol(expr):
                 try:
-                    expr = self.compile_symbol(expr)
+                    expr = self.compile_symbol(expr, tc)
                 except TypeError:
                     print(expr)
                     raise
@@ -1165,7 +1166,7 @@ class ExpressionCodeSpace(CodeSpace):
         self.pseudop_return()
 
 
-    def compile_pair(self, expr):
+    def compile_pair(self, expr, tc=False):
         self.require_active()
 
         if not is_proper(expr):
@@ -1180,7 +1181,7 @@ class ExpressionCodeSpace(CodeSpace):
             comp = self.find_compiled(head)
             if comp:
                 # yup. We'll just report that we've expanded to that
-                return comp.compile(self, expr)
+                return comp.compile(self, expr, tc)
 
             head = self.compile_symbol(head)
             if head is None:
@@ -1188,7 +1189,7 @@ class ExpressionCodeSpace(CodeSpace):
                 pass
             elif is_compiled(head):
                 # head evaluated at compile-time to a higher-order macro
-                return head.compile(self, cons(symbol(head.__name__), tail))
+                return head.compile(self, cons(symbol(head.__name__), tail), tc)
             else:
                 return cons(head, tail)
 
@@ -1199,7 +1200,7 @@ class ExpressionCodeSpace(CodeSpace):
                 pass
             elif is_compiled(head):
                 # head evaluated at compile-time to a higher-order macro
-                return head.compile(self, cons(symbol(head.__name__), tail))
+                return head.compile(self, cons(symbol(head.__name__), tail), tc)
             else:
                 return cons(head, tail)
 
@@ -1207,7 +1208,7 @@ class ExpressionCodeSpace(CodeSpace):
             # head was neither a proper nor a symbol... wtf was it?
             # probably an error, so let's try and actually add it as
             # an expression and let it blow up.
-            self.add_expression(head)
+            self.add_expression(head, tc)
 
         # if we made it this far, head has already been compiled and
         # returned None (meaning it was just a plain-ol expression),
@@ -1215,7 +1216,7 @@ class ExpressionCodeSpace(CodeSpace):
 
         # --- new ---
 
-        self.helper_compile_call(tail, position)
+        self.helper_compile_call(tail, position, tc)
 
         # --- old ---
         # for cl in tail.unpack():
