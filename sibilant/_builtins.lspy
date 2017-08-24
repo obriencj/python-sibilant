@@ -46,7 +46,6 @@
 
 ;; === reader macros and atom matchers ===
 
-
 (defmacrolet set-event-macro `__reader__.set_event_macro)
 
 (defmacrolet get-event-macro `__reader__.get_event_macro)
@@ -113,7 +112,7 @@
   `(define ,as-name (import ,(str modulename) (globals))))
 
 
-(defmacro defimportfrom (modulename . &bindings)
+(defmacro defimportfrom (modulename . bindings)
   (doc "Import definitions from a module and bind them to the"
        "global scope")
 
@@ -121,25 +120,28 @@
     (raise (Exception (% "defimportfrom module name must be a symbol, not %r"
 			 modulename))))
 
-  (let ((coll (list))
-	(current None)
-	(member None)
-	(byname None))
+  (unless (proper? bindings)
+    (raise (Exception "defimportfrom bindings must be a proper list")))
 
-    (while &bindings
-      (setq current (car &bindings))
+  (define-local coll (list))
+  (define-local current None)
+  (define-local member None)
+  (define-local byname None)
 
-      (setq member (if (pair? current) (first current) current))
-      (setq byname (if (pair? current) (second current) member))
+  (while bindings
+    (setq current (car bindings))
 
-      (coll.append
-       `(define ,byname (attr (import ,(str modulename) (globals) None
-				      (make-list ,(str member)))
-			      ,member)))
+    (setq member (if (pair? current) (first current) current))
+    (setq byname (if (pair? current) (second current) member))
 
-      (setq &bindings (cdr &bindings)))
+    (coll.append
+     `(define ,byname (attr (import ,(str modulename) (globals) None
+				    (make-list ,(str member)))
+			    ,member)))
 
-    `(begin ,@coll)))
+    (setq bindings (cdr bindings)))
+
+  `(begin ,@coll))
 
 
 ;; === setf and general variables ===
@@ -225,12 +227,12 @@
 
 ;; === local variable definitions ===
 
-(defmacro local (name . dfn)
-  (let ((target (first dfn)))
-    (cond ((or (eq target 'function) (eq target 'class))
-	   `(define-local ,(second dfn) ,dfn))
-	  (else
-	   (raise (Exception (% "invalid local definition %" target)))))))
+(defmacro local (name target . definition)
+  (cond ((or (eq target 'function)
+	     (eq target 'class))
+	 `(define-local ,(car definition) (,target ,@definition)))
+	(else
+	 (raise (Exception (% "invalid local definition %r" target))))))
 
 
 ;; === python object system classes ==
