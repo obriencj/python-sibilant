@@ -1107,12 +1107,6 @@ class ExpressionCodeSpace(CodeSpace):
         self.require_active()
 
         if expr is None:
-            # in some macros, we might default a value to None, and if
-            # that then gets unquoted into place, we'll just treat it
-            # as if it were a literal value. No other value needs to
-            # be special-cased like this, it's just that None is our
-            # sentinel value for other types of expansion to indicate
-            # the compilation work is completed.
             self.pseudop_const(None)
             return
 
@@ -1126,7 +1120,6 @@ class ExpressionCodeSpace(CodeSpace):
                 expr = None
 
             elif is_pair(expr):
-
                 try:
                     expr = self.compile_pair(expr, tc)
                 except TypeError:
