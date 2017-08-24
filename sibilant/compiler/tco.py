@@ -13,8 +13,11 @@
 # <http://www.gnu.org/licenses/>.
 
 
+from functools import wraps
+
+
 __all__ = (
-    "trampoline", "tailcall",
+    "TailCall", "trampoline", "tailcall",
 )
 
 
@@ -45,8 +48,10 @@ def trampoline(fun):
 def tailcall(fun):
     work = getattr(fun, "_tco_trampoline", fun)
     @wraps(work)
-    def tco_jump(*args, **kwds):
+    def tco_bounce(*args, **kwds):
         raise TailCall(work, args, kwds).with_traceback(None)
+
+    return tco_bounce
 
 
 #
