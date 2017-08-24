@@ -600,13 +600,7 @@ def _special_let(code, source, tc=False):
     _helper_function(code, "<let>", args, body,
                      declared_at=code.position_of(source))
 
-    if tc:
-        # we'll wrap up the function we're going to call in a tailcall
-        # so that it'll get evaluated in our parent trampoline instead
-        # of recurring
-        code.pseudop_get_var("tailcall")
-        code.pseudop_rot_two()
-        code.pseudop_call(1)
+    code.helper_tailcall_tos(tc)
 
     for val in vals:
         code.add_expression(val)
@@ -617,10 +611,9 @@ def _special_let(code, source, tc=False):
     return None
 
 
-def _helper_function(code, name, args, body,
-                     declared_at=None):
+def _helper_function(code, name, args, body, declared_at=None):
 
-    tco = code.enable_tco
+    tco = code.tco_enabled
 
     if not (is_symbol(name) or isinstance(name, str)):
         msg = "function names must be symbol or str, not %r" % name
@@ -659,17 +652,17 @@ def _helper_function(code, name, args, body,
                              name=name,
                              declared_at=declared_at,
                              proper_varargs=proper,
-                             enable_tco=tco)
+                             tco_enabled=tco)
 
     with kid as subc:
         _helper_begin(subc, body, tco)
         subc.pseudop_return()
         code.pseudop_lambda(subc.complete(), len(defaults))
 
-    if tco:
-        code.pseudop_get_var("trampoline")
-        code.pseudop_rot_two()
-        code.pseudop_call(1)
+        if tco and subc.tailcalls > 0:
+            code.pseudop_get_var("trampoline")
+            code.pseudop_rot_two()
+            code.pseudop_call(1)
 
 
 @special(_symbol_while)

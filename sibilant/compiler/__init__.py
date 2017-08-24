@@ -392,13 +392,14 @@ class CodeSpace(metaclass=ABCMeta):
                  varargs=False, varkeywords=False, proper_varargs=True,
                  parent=None, name=None,
                  filename=None, positions=None, declared_at=None,
-                 enable_tco=True):
+                 tco_enabled=True):
 
         self.env = None
         self.parent = parent
         self.name = name
 
-        self.enable_tco = enable_tco
+        self.tco_enabled = tco_enabled
+        self.tailcalls = 0
 
         self.filename = filename
         self.positions = {} if positions is None else positions
@@ -444,6 +445,11 @@ class CodeSpace(metaclass=ABCMeta):
             # tuple, and we'll need to perform a translation step at
             # the beginning of the function.
             self.helper_prep_varargs()
+
+
+    def declare_tailcall(self):
+        assert self.tco_enabled, "declare_tailcall without tco_enabled"
+        self.tailcalls += 1
 
 
     def gen_sym(self):
@@ -1107,7 +1113,7 @@ class ExpressionCodeSpace(CodeSpace):
         and compiled to pseudo ops.
         """
 
-        tc = tc and self.enable_tco
+        tc = tc and self.tco_enabled
 
         self.require_active()
 
@@ -1216,12 +1222,7 @@ class ExpressionCodeSpace(CodeSpace):
 
         # --- new ---
 
-        if tc:
-            # wrap head up as a tailcall instead
-            self.pseudop_get_var("tailcall")
-            self.pseudop_rot_two()
-            self.pseudop_call(1)
-
+        self.helper_tailcall_tos(tc)
         self.helper_compile_call(tail, position)
 
         # --- old ---
@@ -1232,6 +1233,20 @@ class ExpressionCodeSpace(CodeSpace):
         # self.pseudop_call(tail.count())
 
         return None
+
+
+    def helper_tailcall_tos(self, tc):
+        """
+        Should be invoked upon TOS functions objects that could
+        potentially recur. tc indicates whether the TOS is in a valid
+        tailcall position.
+        """
+
+        if self.tco_enabled and tc:
+            self.pseudop_get_var("tailcall")
+            self.pseudop_rot_two()
+            self.pseudop_call(1)
+            self.declare_tailcall()
 
 
     @abstractmethod
