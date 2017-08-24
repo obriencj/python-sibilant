@@ -29,6 +29,7 @@ class TailCall(BaseException):
 
 
 def trampoline(fun):
+
     @wraps(fun)
     def tco_trampoline(*args, **kwds):
         work = fun
@@ -47,6 +48,7 @@ def trampoline(fun):
 
 def tailcall(fun):
     work = getattr(fun, "_tco_trampoline", fun)
+
     @wraps(work)
     def tco_bounce(*args, **kwds):
         raise TailCall(work, args, kwds).with_traceback(None)

@@ -20,14 +20,23 @@ author: Christopher O'Brien  <obriencj@gmail.com>
 license: LGPL v.3
 """
 
-from sys import getrecursionlimit
+
+from contextlib import contextmanager
 from functools import partial
+from sys import getrecursionlimit, setrecursionlimit
 from unittest import TestCase
 
 import sibilant.builtins
 
 from sibilant.compiler import iter_compile
 from sibilant.compiler.tco import trampoline, tailcall
+
+
+@contextmanager
+def recursionlimit(limit=(getrecursionlimit() // 2)):
+    original = getrecursionlimit()
+    yield setrecursionlimit(limit)
+    setrecursionlimit(original)
 
 
 def basic_env(**base):
@@ -84,6 +93,11 @@ class TestTailcall(TestCase):
         self.assertTrue(tco_factorial, count)
         self.assertTrue(tco_factorial, count * 10)
 
+        with recursionlimit(200):
+            self.assertRaises(RecursionError, factorial, 400)
+            self.assertTrue(tco_factorial, 400)
+            self.assertTrue(tco_factorial, count * 10)
+
         for i in range(100):
             self.assertEqual(factorial(i), tco_factorial(i))
 
@@ -96,6 +110,11 @@ class TestTailcall(TestCase):
         self.assertRaises(RecursionError, fibonacci, count)
         self.assertTrue(tco_fibonacci, count)
         self.assertTrue(tco_fibonacci, count * 10)
+
+        with recursionlimit(200):
+            self.assertRaises(RecursionError, fibonacci, 400)
+            self.assertTrue(tco_fibonacci, 400)
+            self.assertTrue(tco_fibonacci, count * 10)
 
         for i in range(100):
             self.assertEqual(fibonacci(i), tco_fibonacci(i))
@@ -120,6 +139,10 @@ class TestTCOCompiler(TestCase):
         for i in range(100):
             self.assertEqual(factorial(i), res(i))
 
+        with recursionlimit(200):
+            self.assertTrue(res(400))
+            self.assertTrue(res(count * 10))
+
 
     def test_fibonacci(self):
         count = getrecursionlimit()
@@ -137,6 +160,10 @@ class TestTCOCompiler(TestCase):
 
         for i in range(100):
             self.assertEqual(fibonacci(i), res(i))
+
+        with recursionlimit(200):
+            self.assertTrue(res(400))
+            self.assertTrue(res(count * 10))
 
 
 #
