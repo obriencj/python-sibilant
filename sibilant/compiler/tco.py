@@ -14,6 +14,7 @@
 
 
 from functools import wraps
+from traceback import clear_frames
 
 
 __all__ = (
@@ -29,18 +30,28 @@ class TailCall(BaseException):
 
 
 def trampoline(fun):
+    _cf = clear_frames
 
     @wraps(fun)
     def tco_trampoline(*args, **kwds):
+        # TODO: should we gather the call frames that bounce out
+        # so that in the event of a real exception we can produce
+        # a more meaningful traceback?
+
         work = fun
 
         while True:
             try:
-                return work(*args, **kwds)
+                work = work(*args, **kwds)
             except TailCall as tc:
                 work = tc.work
                 args = tc.args
                 kwds = tc.kwds
+                _cf(tc.__traceback__)
+            else:
+                break
+
+        return work
 
     tco_trampoline._tco_trampoline = fun
     return tco_trampoline
