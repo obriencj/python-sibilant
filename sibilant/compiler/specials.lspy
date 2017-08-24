@@ -25,7 +25,7 @@
 
 
 (defmacro defspecial (name args . &body)
-  `(define ,name (special (lambda ,args ,@&body) ,(str name))))
+  `(define ,name (special ,(str name) (lambda ,args ,@&body))))
 
 
 (defspecial push-symbol (env &body)
@@ -44,51 +44,40 @@
   None)
 
 
-(defspecial begin (env &body)
-  (let ((called_as (car &body))
-	(members (cdr &body)))
-
-    (emit_const None)
-    (while (not (nil? members))
-      (emit_pop)
-      (emit_expression (car members))
-      (set-var members (cdr members))))
-
-  None)
-
-
 ;; we're going to redefine our crappy version of while, but we need to
 ;; be able to use the old version as well, just to get the looping
 ;; capability.
 (define _limited_while while)
 
+
 (defclass ContinueSignal (BaseException))
+
 
 (defclass BreakSignal (BaseException)
   (method __init__ (self)
-	  (set! self.value None)
+	  (setf self.value None)
 	  (BaseException.__init__ self)))
 
 
-(defmacro while/cc (cont-cc break-cc condition . &body)
+(defmacro while/cc (cont-cc break-cc condition . body)
   (cond
    ((not (symbol? cont-cc))
     (raise (Exception (% "cont-cc must be a symbol, not %r" cont-cc))))
    ((not (symbol? break-cc))
     (raise (Exception (% "break-cc must be a symbol, not %r" break-cc)))))
 
-  `(let ((work (lambda (,cont-cc ,break-cc) ,@&body))
+  `(let ((work (lambda (,cont-cc ,break-cc) ,@body))
 	 (cont-ex (ContinueSignal))
 	 (break-ex (BreakSignal))
 	 (cont-fn None)
 	 (break-fn None)
 	 (keep-going True))
 
-     (set! cont-fn (lambda ()
+     (setf cont-fn (lambda ()
 		     (raise (cont-ex.with_traceback None))))
 
-     (set! break-fn (lambda (value)
-		      (set! break-ex.value value)
+     (setf break-fn (lambda (value)
+		      (setf break-ex.value value)
 		      (raise (break-ex.with_traceback None))))
 
      (_limited_while
@@ -98,82 +87,84 @@
        (work cont-fn break-fn)
 
        ((ContinueSignal cs)
-	(if (is-not cs cont-ex) (raise))))
+	(unless (is cs cont-ex) (raise)))
 
-      ((BreakSignal bs)
-       (if (is-not bs break-ex) (raise))
-       (set-var keep-going False)
-       bs.value ))))
+       ((BreakSignal bs)
+	(unless (is bs break-ex) (raise))
+	(setq keep-going False)
+	bs.value)))))
 
 
-(defmacro while (condition . &body)
-  `(while/cc continue break ,condition ,@&body))
+(defmacro while (condition . body)
+  `(while/cc continue break ,condition ,@body))
 
 
 ;; TODO: move the stuff below into a test case file
 
-;; (defun test_1 (x)
-;;   (print "test_1")
-;;   (while True
-;;     (decr x)
-;;     (if (< x 90)
-;; 	(break 99)))
-;;   (print "done with test_1"))
+(defun test_1 (x)
+  (print "test_1")
+  (while True
+    (decr x)
+    (if (< x 90)
+	(break 99)))
+  (print "done with test_1"))
 
-;; (defun test_2 (x)
-;;   (while (> x 90)
-;;     (decr x)
-;;     (when (& 1 x) (continue))
-;;     (print "loop 2 says" x))
+;; (print (macroexpand-1 (test_1 5)))
 
-;;   (print "done with test_2"))
+(defun test_2 (x)
+  (while (> x 90)
+    (decr x)
+    (when (& 1 x) (continue))
+    (print "loop 2 says" x))
 
-;; (defun test_3 (x)
-;;   (print "test_3")
-;;   (while (or False True)
-;;     (print "loop 3 says" x)
-;;     (decr x)
-;;     (cond
-;;      ((& 1 x)
-;;       (continue))
-;;      ((< x 990)
-;;       (break 100))))
+  (print "done with test_2"))
 
-;;   (print "done with test_3"))
+(defun test_3 (x)
+  (print "test_3")
+  (while (or False True)
+    (print "loop 3 says" x)
+    (decr x)
+    (cond
+     ((& 1 x)
+      (continue))
+     ((< x 990)
+      (break 100))))
 
-;; (defun test_4 ()
-;;   (print "test_4")
-;;   (let ((x 100))
-;;     (while/cc beer whisky (> x 0)
-;; 	      (decr x)
-;; 	      (if (& x 1)
-;; 		  None  ; (print "loop 4 says" x)
-;; 		(beer))
-;; 	      (when (< x 90)
-;; 		(whisky 99))))
+  (print "done with test_3"))
 
-;;   (print "done with test_4"))
+(defun test_4 ()
+  (print "test_4")
+  (let ((x 100))
+    (while/cc beer whisky (> x 0)
+	      (decr x)
+	      (if (& x 1)
+		  None  ; (print "loop 4 says" x)
+		(beer))
+	      (when (< x 90)
+		(whisky 99))))
+
+  (print "done with test_4"))
 
 
-;; (test_1 10)
-;; (test_1 100)
-;; (test_1 1000)
-;; (test_1 10000)
-;; (test_1 100000)
+(test_1 10)
+(test_1 100)
+(test_1 1000)
+(test_1 10000)
+(test_1 100000)
 
-;; (test_2 10)
-;; (test_2 100)
-;; (test_2 1000)
-;; (test_2 10000)
+(test_2 10)
+(test_2 100)
+(test_2 1000)
+(test_2 10000)
 
-;; (test_3 10)
-;; (test_3 100)
-;; (test_3 1000)
-;; (test_3 10000)
+(test_3 10)
+(test_3 100)
+(test_3 1000)
+(test_3 10000)
 
-;; (test_4)
-;; (test_4)
-;; (test_4)
+(test_4)
+(test_4)
+(test_4)
 
 
 ;; The end.
