@@ -777,7 +777,7 @@ def _special_try(code, source, tc=False):
     not return. Otherwise, the final value of BODY is returned.
     """
 
-    _helper_special_try(code, source)
+    _helper_special_try(code, source, tc)
 
     return None
 
@@ -909,8 +909,8 @@ def _helper_special_try(code, source, tc=False):
             # namespace afterwards
             code.pseudop_setup_finally(cleanup)
 
-            # handle the exception, return the result
-            _helper_begin(code, act)
+            # handle the exception, store the result
+            _helper_begin(code, act, tc and not has_finally)
             code.pseudop_set_var(storage)
             code.pseudop_pop_block()
             code.pseudop_pop_except()
@@ -942,7 +942,7 @@ def _helper_special_try(code, source, tc=False):
             code.pseudop_pop()
             code.pseudop_pop()
 
-            _helper_begin(code, act)
+            _helper_begin(code, act, tc and not has_finally)
             code.pseudop_set_var(storage)
 
             code.pseudop_pop_except()
@@ -963,7 +963,7 @@ def _helper_special_try(code, source, tc=False):
         # and store that value
         code.pseudop_label(label_else)
         code.pseudop_debug("start of else handler")
-        _helper_begin(code, act_else)
+        _helper_begin(code, act_else, tc and not has_finally)
 
         # if there is a finally registered, this will trigger it
         # to run (and possibly overwrite the return value)
@@ -981,7 +981,7 @@ def _helper_special_try(code, source, tc=False):
         code.pseudop_const(None)
         code.pseudop_label(label_finally)
 
-        _helper_begin(code, act_finally)
+        _helper_begin(code, act_finally, tc)
         code.pseudop_set_var(storage)
 
         # and close off the finally block
