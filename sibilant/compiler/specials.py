@@ -20,7 +20,7 @@ The built-in compile-time special forms
 
 
 from .. import (
-    symbol, is_symbol, is_keyword,
+    symbol, is_symbol, keyword, is_keyword,
     nil, is_nil, cons, cdr, is_pair, is_proper,
 )
 
@@ -54,10 +54,13 @@ _symbol_let = symbol("let")
 _symbol_while = symbol("while")
 _symbol_raise = symbol("raise")
 _symbol_try = symbol("try")
-_symbol_else = symbol("else")
-_symbol_finally = symbol("finally")
 
 _symbol_macroexpand_1 = symbol("macroexpand-1")
+
+_keyword_else = keyword("else")
+_keyword_except = keyword("except")
+_keyword_as = keyword("as")
+_keyword_finally = keyword("finally")
 
 
 def special():
@@ -463,7 +466,11 @@ def _helper_begin(code, body, tc=False):
 @special(_symbol_with)
 def _special_with(code, source, tc=False):
     """
-    Special form for managed context via with
+    (with (BINDING EXPRESSION) BODY)
+
+    Enters the context manager from EXPRESSION, binding it to BINDING,
+    and evaluates the expressions of BODY. The final value of BODY is
+    the result.
     """
 
     called_by, (args, body) = source
@@ -492,7 +499,7 @@ def _special_with(code, source, tc=False):
     code.pseudop_faux_push(4)
     code.pseudop_set_var(binding)
 
-    _helper_begin(code, body)
+    _helper_begin(code, body, tc)
     code.pseudop_set_var(storage)
 
     code.pseudop_pop_block()
@@ -734,7 +741,7 @@ def _special_raise(code, source, tc=False):
 def _special_try(code, source, tc=False):
     """
     (try EXPR
-      (EXCEPTION_TYPE EXC_BODY...)
+      (except: EXCEPTION_TYPE EXC_BODY...)
       ...)
 
     Attempts evaluation of EXPR. If an exception is raised, and it
@@ -745,7 +752,7 @@ def _special_try(code, source, tc=False):
     not return.
 
     (try EXPR
-      ((EXCEPTION_TYPE BINDING) EXC_BODY...)
+      (except: EXCEPTION_TYPE as: BINDING EXC_BODY...)
       ...)
 
     As above, but binds the exception to BINDING before evaluating
@@ -753,7 +760,7 @@ def _special_try(code, source, tc=False):
 
     (try EXPR
       EXC_HANDLERS...
-      (else BODY...))
+      (else: BODY...))
 
     As above, but if no exception was raised by EXPR, the expressions of
     BODY are evaluated in order and the last value is returned. Note that
@@ -761,7 +768,7 @@ def _special_try(code, source, tc=False):
 
     (try EXPR
       EXC_HANDLERS...
-      (finally BODY...))
+      (finally: BODY...))
 
     As above, but the expressions of BODY are evaluated in order
     whether an exception was or was not raised or caught. If an
@@ -794,30 +801,51 @@ def _helper_special_try(code, source, tc=False):
     # first, filter our catches down into normal exception
     # matches, finally, and else
     for ca in catches.unpack():
-        ex, act = ca
-
-        if not act:
+        if not ca:
             raise code.error("clause with no body in try", ca)
 
-        if ex is _symbol_finally:
+        ex, act = ca
+
+        if ex is _keyword_except:
+            ex_expr, act = act
+            _as, rest = act
+
+            if _as is _keyword_as:
+                binding, act = rest
+                if not is_symbol(binding):
+                    msg = "exception binding must be a symbol," \
+                          " not: %r" % binding
+                    raise code.error(msg, ca)
+
+                ca = cons([ex_expr, binding], act)
+            else:
+                ca = cons([ex_expr, None], act)
+
+            code.dup_position_of(ex, ca)
+
+            # this is a normal catch, where ex is a thing to
+            # match, and act is the body to execute if it matches.
+            normal_catches.append(ca)
+
+        elif ex is _keyword_finally:
             if has_finally:
-                raise code.error("duplicate finally clause in try", ca)
+                raise code.error("duplicate finally: clause in try", ca)
 
             has_finally = True
             act_finally = act
             label_finally = code.gen_label()
 
-        elif ex is _symbol_else:
+        elif ex is _keyword_else:
             if has_else:
-                raise code.error("duplicate else clause in try", ca)
+                raise code.error("duplicate else: clause in try", ca)
             has_else = True
             act_else = act
             label_else = code.gen_label()
 
         else:
-            # this is a normal catch, where ex is a thing to
-            # match, and act is the body to execute if it matches.
-            normal_catches.append(ca)
+            print("ex is ", repr(ex))
+            raise code.error("missing keyword label in"
+                             " try/except/else/finally", ca)
 
     label_next = code.gen_label()
 
@@ -850,7 +878,7 @@ def _helper_special_try(code, source, tc=False):
 
     # TOS exception type, TOS-1 exception, TOS-2 backtrace
     for ca in normal_catches:
-        ex, act = ca
+        (match, key), act = ca
 
         # each attempt to match the exception should have us at
         # the TOS,TOS-1,TOS-2 setup
@@ -864,19 +892,11 @@ def _helper_special_try(code, source, tc=False):
 
         code.pseudop_debug("beginning of declared handler")
 
-        if is_pair(ex):
+        if key:
             # The exception is intended to be bound to a local
             # variable. To achieve that, we're going to set up
             # a lambda with that single binding, and stuff out
             # handler code inside of it.
-
-            if not is_proper(ex):
-                raise code.error("non-proper biding in try", ex)
-
-            match, (key, rest) = ex
-            if rest:
-                # leftover arguments
-                raise code.error("too many bindings", ex)
 
             key = str(key)
             code.declare_var(key)
@@ -926,7 +946,7 @@ def _helper_special_try(code, source, tc=False):
         else:
             # this is an exception match without a binding
             code.pseudop_dup()
-            code.add_expression(ex)
+            code.add_expression(match)
             code.pseudop_compare_exception()
             code.pseudop_pop_jump_if_false(label_next)
 
@@ -1091,7 +1111,7 @@ def _special_cond(code, source, tc=False):
         code.pseudop_label(label)
         label = code.gen_label()
 
-        if test is _symbol_else:
+        if test is _keyword_else:
             # print(repr(body))
             _helper_begin(code, body, tc)
             code.pseudop_jump_forward(done)
