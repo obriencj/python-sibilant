@@ -22,11 +22,8 @@ __all__ = (
 )
 
 
-class TailCall():
-    def __init__(self, work, *args, **kwds):
-        self.work = work
-        self.args = args
-        self.kwds = kwds
+class TailCall(partial):
+    pass
 
 
 def trampoline(fun):
@@ -42,7 +39,7 @@ def trampoline(fun):
         # frames = OrderedDict()
         work = fun(*args, **kwds)
         while _ty(work) is _tc:
-            work = work.work(*work.args, **work.kwds)
+            work = work()
         return work
 
     tco_trampoline._tco_original = fun
