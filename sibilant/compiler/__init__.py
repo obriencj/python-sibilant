@@ -156,7 +156,7 @@ class Macro(Compiled):
         return object.__new__(cls)
 
 
-    def compile(self, compiler, source_obj):
+    def compile(self, compiler, source_obj, tc=False):
         called_by, source = source_obj
 
         if self._proper:
@@ -184,7 +184,7 @@ class Macrolet(Macro):
     __objname__ = "macrolet"
 
 
-    def compile(self, compiler, source_obj):
+    def compile(self, compiler, source_obj, tc=False):
         expanded = self.expand()
         expanded = _symbol_None if expanded is None else expanded
 
@@ -391,11 +391,15 @@ class CodeSpace(metaclass=ABCMeta):
     def __init__(self, args=(),
                  varargs=False, varkeywords=False, proper_varargs=True,
                  parent=None, name=None,
-                 filename=None, positions=None, declared_at=None):
+                 filename=None, positions=None, declared_at=None,
+                 tco_enabled=True):
 
         self.env = None
         self.parent = parent
         self.name = name
+
+        self.tco_enabled = tco_enabled
+        self.tailcalls = 0
 
         self.filename = filename
         self.positions = {} if positions is None else positions
@@ -441,6 +445,11 @@ class CodeSpace(metaclass=ABCMeta):
             # tuple, and we'll need to perform a translation step at
             # the beginning of the function.
             self.helper_prep_varargs()
+
+
+    def declare_tailcall(self):
+        assert self.tco_enabled, "declare_tailcall without tco_enabled"
+        self.tailcalls += 1
 
 
     def gen_sym(self):
@@ -1095,7 +1104,7 @@ class ExpressionCodeSpace(CodeSpace):
     """
 
 
-    def add_expression(self, expr):
+    def add_expression(self, expr, tc=False):
         """
         Insert an expression into the code space. expr should be a cons
         cell representing the expression. If the expression appears to
@@ -1104,19 +1113,15 @@ class ExpressionCodeSpace(CodeSpace):
         and compiled to pseudo ops.
         """
 
+        tc = tc and self.tco_enabled
+
         self.require_active()
 
-        self.pseudop_position_of(expr)
-
         if expr is None:
-            # in some macros, we might default a value to None, and if
-            # that then gets unquoted into place, we'll just treat it
-            # as if it were a literal value. No other value needs to
-            # be special-cased like this, it's just that None is our
-            # sentinel value for other types of expansion to indicate
-            # the compilation work is completed.
             self.pseudop_const(None)
             return
+
+        self.pseudop_position_of(expr)
 
         while expr is not None:
 
@@ -1127,14 +1132,14 @@ class ExpressionCodeSpace(CodeSpace):
 
             elif is_pair(expr):
                 try:
-                    expr = self.compile_pair(expr)
+                    expr = self.compile_pair(expr, tc)
                 except TypeError:
                     print(expr)
                     raise
 
             elif is_symbol(expr):
                 try:
-                    expr = self.compile_symbol(expr)
+                    expr = self.compile_symbol(expr, tc)
                 except TypeError:
                     print(expr)
                     raise
@@ -1165,7 +1170,7 @@ class ExpressionCodeSpace(CodeSpace):
         self.pseudop_return()
 
 
-    def compile_pair(self, expr):
+    def compile_pair(self, expr, tc=False):
         self.require_active()
 
         if not is_proper(expr):
@@ -1180,7 +1185,7 @@ class ExpressionCodeSpace(CodeSpace):
             comp = self.find_compiled(head)
             if comp:
                 # yup. We'll just report that we've expanded to that
-                return comp.compile(self, expr)
+                return comp.compile(self, expr, tc)
 
             head = self.compile_symbol(head)
             if head is None:
@@ -1188,7 +1193,8 @@ class ExpressionCodeSpace(CodeSpace):
                 pass
             elif is_compiled(head):
                 # head evaluated at compile-time to a higher-order macro
-                return head.compile(self, cons(symbol(head.__name__), tail))
+                namesym = symbol(head.__name__)
+                return head.compile(self, cons(namesym, tail), tc)
             else:
                 return cons(head, tail)
 
@@ -1199,7 +1205,8 @@ class ExpressionCodeSpace(CodeSpace):
                 pass
             elif is_compiled(head):
                 # head evaluated at compile-time to a higher-order macro
-                return head.compile(self, cons(symbol(head.__name__), tail))
+                namesym = symbol(head.__name__)
+                return head.compile(self, cons(namesym, tail), tc)
             else:
                 return cons(head, tail)
 
@@ -1207,7 +1214,7 @@ class ExpressionCodeSpace(CodeSpace):
             # head was neither a proper nor a symbol... wtf was it?
             # probably an error, so let's try and actually add it as
             # an expression and let it blow up.
-            self.add_expression(head)
+            self.add_expression(head, tc)
 
         # if we made it this far, head has already been compiled and
         # returned None (meaning it was just a plain-ol expression),
@@ -1215,6 +1222,7 @@ class ExpressionCodeSpace(CodeSpace):
 
         # --- new ---
 
+        self.helper_tailcall_tos(tc)
         self.helper_compile_call(tail, position)
 
         # --- old ---
@@ -1225,6 +1233,20 @@ class ExpressionCodeSpace(CodeSpace):
         # self.pseudop_call(tail.count())
 
         return None
+
+
+    def helper_tailcall_tos(self, tc):
+        """
+        Should be invoked upon TOS functions objects that could
+        potentially recur. tc indicates whether the TOS is in a valid
+        tailcall position.
+        """
+
+        if self.tco_enabled and tc:
+            self.pseudop_get_var("tailcall")
+            self.pseudop_rot_two()
+            self.pseudop_call(1)
+            self.declare_tailcall()
 
 
     @abstractmethod
@@ -1239,7 +1261,7 @@ class ExpressionCodeSpace(CodeSpace):
         pass
 
 
-    def compile_symbol(self, sym):
+    def compile_symbol(self, sym, tc=False):
         """
         The various ways that a symbol on its own can evaluate.
         """
@@ -1248,7 +1270,7 @@ class ExpressionCodeSpace(CodeSpace):
 
         comp = self.find_compiled(sym)
         if comp and is_macrolet(comp):
-            return comp.compile(self, sym)
+            return comp.compile(self, sym, tc)
 
         elif sym is _symbol_None:
             return self.pseudop_const(None)
@@ -1542,7 +1564,8 @@ def _list_unique_append(onto_list, value):
 #             current_point = point
 
 
-def iter_compile(source, env, filename=None, reader=None):
+def iter_compile(source, env, filename=None, reader=None,
+                 **codespace_args):
 
     if isinstance(source, str):
         source = source_str(source, filename)
@@ -1568,7 +1591,8 @@ def iter_compile(source, env, filename=None, reader=None):
     env["read"] = reader.read
 
     while True:
-        codespace = factory(filename=filename, positions=positions)
+        codespace = factory(filename=filename, positions=positions,
+                            **codespace_args)
         with codespace.activate(env):
             assert(env.get("__compiler__") == codespace)
 

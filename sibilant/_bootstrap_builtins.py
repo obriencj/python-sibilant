@@ -38,6 +38,7 @@ import operator as _operator
 
 import sibilant as _sibilant
 import sibilant.compiler as _compiler
+import sibilant.compiler.tco as _tco
 import sibilant.compiler.specials as _specials
 import sibilant.compiler.operators as _operators
 
@@ -127,6 +128,9 @@ _op(_compiler.is_macrolet, "macrolet?")
 
 _val(_compiler.Operator, "operator")
 _op(_compiler.is_operator, "operator?")
+
+_op(_tco.trampoline, "trampoline")
+_op(_tco.tailcall, "tailcall")
 
 
 # === some python builtin types ===
@@ -236,6 +240,8 @@ _val(tuple, "tuple")
 _op((lambda *vals: vals), "make-tuple", rename=True)
 _op((lambda value: isinstance(value, tuple)),
     "tuple?", rename=True)
+
+_op((lambda *vals: vals), "values", rename=True)
 
 _val(list, "list")
 _op((lambda *vals: list(vals)), "make-list", rename=True)

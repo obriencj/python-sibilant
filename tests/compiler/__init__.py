@@ -60,6 +60,13 @@ def compile_expr(src_str, **base):
     return partial(eval, code, env), env
 
 
+def compile_expr_no_tco(src_str, **base):
+    env = basic_env(**base)
+    icode = iter_compile(src_str, env, tco_enabled=False)
+    code = next(icode)
+    return partial(eval, code, env), env
+
+
 def compile_dis_expr(src_str, **base):
     env = basic_env(**base)
     icode = iter_compile(src_str, env)
@@ -351,7 +358,7 @@ class KeywordArgs(TestCase):
     def test_macro_formals(self):
         src = """
         (defmacro test (work for: '_ in: () when: True unless: True)
-          `(make-tuple work for in when unless))
+          `(values work for in when unless))
 
         (test (+ a 5) a in seq))
         """
@@ -362,9 +369,11 @@ class KeywordArgs(TestCase):
 
     def test_formals(self):
 
+        compile_expr = compile_expr_no_tco
+
         src = """
         (lambda (a b c)
-          (make-tuple a b c))
+          (values a b c))
         """
         stmt, env = compile_expr(src)
         res = stmt()
@@ -381,7 +390,7 @@ class KeywordArgs(TestCase):
 
         src = """
         (lambda (a b: 0 c: 1)
-          (make-tuple a b c))
+          (values a b c))
         """
         stmt, env = compile_expr(src)
         res = stmt()
@@ -404,7 +413,7 @@ class KeywordArgs(TestCase):
 
         src = """
         (lambda (a *: rest)
-          (make-tuple a rest))
+          (values a rest))
         """
         stmt, env = compile_expr(src)
         res = stmt()
@@ -423,7 +432,7 @@ class KeywordArgs(TestCase):
 
         src = """
         (lambda (a . rest)
-          (make-tuple a rest))
+          (values a rest))
         """
         stmt, env = compile_expr(src)
         res = stmt()
@@ -478,7 +487,7 @@ class KeywordArgs(TestCase):
 
         src = """
         (lambda (a **: rest)
-          (make-tuple a rest))
+          (values a rest))
         """
         stmt, env = compile_expr(src)
         res = stmt()
@@ -493,7 +502,7 @@ class KeywordArgs(TestCase):
 
         src = """
         (lambda (a: 0 *: rest)
-          (make-tuple a rest))
+          (values a rest))
         """
         stmt, env = compile_expr(src)
         res = stmt()
@@ -511,14 +520,14 @@ class KeywordArgs(TestCase):
 
         src = """
         (lambda (a: 0 . rest)
-          (make-tuple a rest))
+          (values a rest))
         """
         # don't mix keywords and improper varargs, it's too weird.
         self.assertRaises(SyntaxError, compile_expr, src)
 
         src = """
         (lambda (a: 0 **: rest)
-          (make-tuple a rest))
+          (values a rest))
         """
         stmt, env = compile_expr(src)
         res = stmt()
@@ -541,8 +550,8 @@ class KeywordArgs(TestCase):
 
         src = """
         (lambda (self)
-          (self.assertEqual (tst 1 2 3) (make-tuple 1 2 3))
-          (self.assertEqual (tst c: 3 b: 2 a: 1) (make-tuple 1 2 3))
+          (self.assertEqual (tst 1 2 3) (values 1 2 3))
+          (self.assertEqual (tst c: 3 b: 2 a: 1) (values 1 2 3))
           (self.assertRaises TypeError tst 1 2 3 4)
           (self.assertRaises TypeError tst 1))
         """
@@ -554,13 +563,13 @@ class KeywordArgs(TestCase):
 
         src = """
         (lambda (self)
-          (self.assertEqual (tst 1) (make-tuple 1 0 0))
-          (self.assertEqual (tst 1 2) (make-tuple 1 2 0))
-          (self.assertEqual (tst 1 2 3) (make-tuple 1 2 3))
-          (self.assertEqual (tst 9 b: 8 c: 7) (make-tuple 9 8 7))
-          (self.assertEqual (tst 9 c: 7 b: 8) (make-tuple 9 8 7))
-          (self.assertEqual (tst a: 9 c: 7 b: 8) (make-tuple 9 8 7))
-          (self.assertEqual (tst c: 7 b: 8 a: 9) (make-tuple 9 8 7))
+          (self.assertEqual (tst 1) (values 1 0 0))
+          (self.assertEqual (tst 1 2) (values 1 2 0))
+          (self.assertEqual (tst 1 2 3) (values 1 2 3))
+          (self.assertEqual (tst 9 b: 8 c: 7) (values 9 8 7))
+          (self.assertEqual (tst 9 c: 7 b: 8) (values 9 8 7))
+          (self.assertEqual (tst a: 9 c: 7 b: 8) (values 9 8 7))
+          (self.assertEqual (tst c: 7 b: 8 a: 9) (values 9 8 7))
           (self.assertRaises TypeError tst 1 2 3 4)
           (self.assertRaises TypeError tst))
         """
@@ -572,10 +581,10 @@ class KeywordArgs(TestCase):
 
         src = """
         (lambda (self)
-          (self.assertEqual (tst 1) (make-tuple 1 (tuple)))
-          (self.assertEqual (tst 1 2) (make-tuple 1 (make-tuple 2)))
-          (self.assertEqual (tst 1 2 3) (make-tuple 1 (make-tuple 2 3)))
-          (self.assertEqual (tst 1 2 3 4) (make-tuple 1 (make-tuple 2 3 4)))
+          (self.assertEqual (tst 1) (values 1 (tuple)))
+          (self.assertEqual (tst 1 2) (values 1 (values 2)))
+          (self.assertEqual (tst 1 2 3) (values 1 (values 2 3)))
+          (self.assertEqual (tst 1 2 3 4) (values 1 (values 2 3 4)))
           (self.assertRaises TypeError tst a: 1 b: 2)
           (self.assertRaises TypeError tst))
         """
@@ -587,9 +596,9 @@ class KeywordArgs(TestCase):
 
         src = """
         (lambda (self)
-          (self.assertEqual (tst 1 b: 2 c: 3) (make-tuple 1 (dict b: 2 c: 3)))
+          (self.assertEqual (tst 1 b: 2 c: 3) (values 1 (dict b: 2 c: 3)))
           (self.assertEqual (tst a: 1 b: 2 c: 3)
-                            (make-tuple 1 (dict b: 2 c: 3)))
+                            (values 1 (dict b: 2 c: 3)))
           (self.assertRaises TypeError tst 1 2 3))
         """
         stmt, env = compile_expr(src, tst=tst)
@@ -600,9 +609,9 @@ class KeywordArgs(TestCase):
 
         src = """
         (lambda (self)
-          (self.assertEqual (tst) (make-tuple 0 (tuple)))
-          (self.assertEqual (tst 1) (make-tuple 1 (tuple)))
-          (self.assertEqual (tst 1 2 3) (make-tuple 1 (make-tuple 2 3)))
+          (self.assertEqual (tst) (values 0 (tuple)))
+          (self.assertEqual (tst 1) (values 1 (tuple)))
+          (self.assertEqual (tst 1 2 3) (values 1 (values 2 3)))
           (self.assertRaises TypeError tst 1 2 3 a: 9))
         """
         stmt, env = compile_expr(src, tst=tst)
@@ -614,11 +623,11 @@ class KeywordArgs(TestCase):
         src = """
         (lambda (self)
           (self.assertEqual (tst b: 2 c: 3)
-                            (make-tuple 0 (dict b: 2 c: 3)))
+                            (values 0 (dict b: 2 c: 3)))
           (self.assertEqual (tst 1 b: 2 c: 3)
-                            (make-tuple 1 (dict b: 2 c: 3)))
+                            (values 1 (dict b: 2 c: 3)))
           (self.assertEqual (tst a: 1 b: 2 c: 3)
-                            (make-tuple 1 (dict b: 2 c: 3)))
+                            (values 1 (dict b: 2 c: 3)))
           (self.assertRaises TypeError tst 1 2 3))
         """
         stmt, env = compile_expr(src, tst=tst)
