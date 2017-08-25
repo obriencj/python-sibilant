@@ -655,6 +655,14 @@ class CodeSpace(metaclass=ABCMeta):
             return None
 
 
+    def dup_position_of(self, source, copy):
+        try:
+            sp = self.positions
+            sp[id(copy)] = sp[id(source)]
+        except KeyError:
+            pass
+
+
     def pseudop(self, *op_args):
         """
         Pushes a pseudo op and arguments into the code

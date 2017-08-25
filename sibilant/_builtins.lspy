@@ -70,19 +70,19 @@
 
 ;; === conditionals ===
 
-(defmacro if (condition true_body false_body: None)
-  `(cond (,condition ,true_body)
-	 (else ,false_body)))
+(defmacro if (condition then: True else: False)
+  `(cond (,condition ,then)
+	 (else: ,else)))
 
 
 (defmacro when (condition . body)
   `(cond (,condition ,@body)
-	 (else None)))
+	 (else: None)))
 
 
 (defmacro unless (condition . body)
   `(cond (,condition None)
-	 (else ,@body)))
+	 (else: ,@body)))
 
 
 ;; === math shortcuts ===
@@ -95,6 +95,12 @@
   `(setf ,dest (- ,dest ,by)))
 
 
+;; === simple checks ===
+
+(defmacro none? (value)
+  `(is None ,value))
+
+
 ;; === imports ===
 
 (defmacro defimport (modulename as-name: None)
@@ -104,10 +110,10 @@
     (raise (Exception (% "defimport module name must be a symbol, not %r"
 			 modulename))))
 
-  (unless (or (is None as-name) (symbol? as-name))
+  (unless (or (none? as-name) (symbol? as-name))
     (raise (Exception "defimpoy as-name: must be a symbol")))
 
-  (when (is None as-name)
+  (when (none? as-name)
     (setq as-name (item (modulename.split "." 1) 0)))
 
   `(define ,as-name (import ,(str modulename) (globals))))
@@ -170,7 +176,7 @@
      ((and (proper? target) (in *gv-forms* (car target)))
       ((item *gv-forms* (car target)) (cdr target) value))
 
-     (else
+     (else:
       (raise (Exception (% "invalid setf target %s" target)))))))
 
 (begin
@@ -229,7 +235,7 @@
   (let ((target (first dfn)))
     (cond ((or (eq target 'function) (eq target 'class))
 	   `(define-local ,(second dfn) ,dfn))
-	  (else
+	  (else:
 	   (raise (Exception (% "invalid local definition %" target)))))))
 
 
