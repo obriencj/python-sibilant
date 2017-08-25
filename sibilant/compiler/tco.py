@@ -14,24 +14,23 @@
 
 
 # from collections import OrderedDict
-from functools import wraps
-from traceback import clear_frames
+from functools import partial, wraps
 
 
 __all__ = (
-    "TailCall", "trampoline", "tailcall",
+    "trampoline", "tailcall",
 )
 
 
-class TailCall(BaseException):
-    def __init__(self, work, args, kwds):
+class TailCall():
+    def __init__(self, work, *args, **kwds):
         self.work = work
         self.args = args
         self.kwds = kwds
 
 
 def trampoline(fun):
-    _cf = clear_frames
+    _tc = TailCall
 
     @wraps(fun)
     def tco_trampoline(*args, **kwds):
@@ -43,26 +42,13 @@ def trampoline(fun):
         work = fun
 
         while True:
-            try:
-                work = work(*args, **kwds)
-
-            except TailCall as tailc:
-                work = tailc.work
-                args = tailc.args
-                kwds = tailc.kwds
-
-                # tb = tailc.__traceback__.tb_next
-                # tc = tb.tb_frame.f_code
-
-                # key = (tc.co_filename, tc.co_name, tb.tb_lineno)
-                # frames[key] = frames.get(key, 0) + 1
-
-                _cf(tailc.__traceback__)
-
-            else:
-                break
-
-        return work
+            work = work(*args, **kwds)
+            if type(work) is _tc:
+                args = work.args
+                kwds = work.kwds
+                work = work.work
+                continue
+            return work
 
     tco_trampoline._tco_original = fun
     return tco_trampoline
@@ -73,11 +59,9 @@ def tailcall(fun):
     # trampoline, we'll unwrap it first.
     fun = getattr(fun, "_tco_original", fun)
 
-    @wraps(fun)
-    def tco_bounce(*args, **kwds):
-        raise TailCall(fun, args, kwds).with_traceback(None)
-
+    tco_bounce = partial(TailCall, fun)
     tco_bounce._tco_original = fun
+
     return tco_bounce
 
 
