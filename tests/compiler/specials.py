@@ -27,7 +27,8 @@ from functools import partial
 from unittest import TestCase
 
 from . import (
-    compile_expr, make_accumulator, make_raise_accumulator,
+    compile_expr, compile_dis_expr,
+    make_accumulator, make_raise_accumulator,
     make_manager,
 )
 
@@ -659,7 +660,6 @@ class SpecialTry(TestCase):
           (finally: (good_guy 999)))
         """
         stmt, env = compile_expr(src, good_guy=good_guy)
-        dis.dis(stmt)
         res = stmt()
         self.assertEqual(res, 999)
         self.assertEqual(accu, [567, 888, 999])
@@ -686,7 +686,7 @@ class SpecialTry(TestCase):
         src = """
         (try
           (bad_guy 567)
-          (except: Exception (good_guy -111)))
+          ((Exception) (good_guy -111)))
         """
         stmt, env = compile_expr(src, **locals())
         res = stmt()
@@ -703,7 +703,7 @@ class SpecialTry(TestCase):
         src = """
         (try
           (bad_guy 567)
-          (except: Exception as: e (good_guy -111)))
+          ((e Exception) (good_guy -111)))
         """
         stmt, env = compile_expr(src, **locals())
         res = stmt()
@@ -719,7 +719,7 @@ class SpecialTry(TestCase):
         src = """
         (try
           (bad_guy 567)
-          (except: Exception (good_guy -111)))
+          ((Exception) (good_guy -111)))
         """
         stmt, env = compile_expr(src, **locals())
         self.assertRaises(BaseException, stmt)
@@ -734,7 +734,7 @@ class SpecialTry(TestCase):
         src = """
         (try
           (bad_guy 567)
-          (except: Exception as: e (good_guy -111)))
+          ((Exception as: e) (good_guy -111)))
         """
         stmt, env = compile_expr(src, **locals())
         self.assertRaises(BaseException, stmt)
@@ -750,7 +750,7 @@ class SpecialTry(TestCase):
         src = """
         (try
           (bad_guy 567)
-          (except: Exception (good_guy -111))
+          ((Exception) (good_guy -111))
           (else: (good_guy 987)))
         """
         stmt, env = compile_expr(src, **locals())
@@ -768,7 +768,7 @@ class SpecialTry(TestCase):
         src = """
         (try
           (bad_guy 567)
-          (except: Exception as: e (good_guy -111))
+          ((Exception as: e) (good_guy -111))
           (else: (good_guy 987)))
         """
         stmt, env = compile_expr(src, **locals())
@@ -786,7 +786,7 @@ class SpecialTry(TestCase):
         src = """
         (try
           (bad_guy 567)
-          (except: Exception (good_guy -111))
+          ((Exception) (good_guy -111))
           (finally: (good_guy 789)))
         """
         stmt, env = compile_expr(src, **locals())
@@ -804,7 +804,7 @@ class SpecialTry(TestCase):
         src = """
         (try
           (bad_guy 567)
-          (except: Exception as: e (good_guy -111))
+          ((e Exception) (good_guy -111))
           (finally: (good_guy 789)))
         """
         stmt, env = compile_expr(src, **locals())
@@ -822,7 +822,7 @@ class SpecialTry(TestCase):
         src = """
         (try
           (bad_guy 567)
-          (except: Exception (good_guy -111))
+          ((Exception) (good_guy -111))
           (else: (good_guy 456))
           (finally: (good_guy 789)))
         """
@@ -841,7 +841,7 @@ class SpecialTry(TestCase):
         src = """
         (try
           (bad_guy 567)
-          (except: Exception as: e (good_guy -111))
+          ((Exception as: e) (good_guy -111))
           (else: (good_guy 456))
           (finally: (good_guy 789)))
         """
@@ -863,7 +863,7 @@ class SpecialTry(TestCase):
           (decr counter)
           (try
             (bad_guy 567)
-            (except: Exception as: e (good_guy -111))
+            ((Exception as: e) (good_guy -111))
             (else: (good_guy 456))
             (finally: (good_guy 789))))
         """
@@ -882,7 +882,7 @@ class SpecialTry(TestCase):
           (decr counter)
           (try
             (bad_guy 567)
-            (except: Exception (good_guy -111))
+            ((Exception) (good_guy -111))
             (else: (good_guy 456))
             (finally: (good_guy 789))))
         """

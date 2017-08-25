@@ -58,7 +58,6 @@ _symbol_try = symbol("try")
 _symbol_macroexpand_1 = symbol("macroexpand-1")
 
 _keyword_else = keyword("else")
-_keyword_except = keyword("except")
 _keyword_as = keyword("as")
 _keyword_finally = keyword("finally")
 
@@ -90,6 +89,35 @@ special = special()
 
 
 # --- special forms ---
+
+
+def _helper_binding(code, source, required=True):
+    if not is_proper(source):
+        raise code.error("binding must be (SYM EXPR) or (EXPR as: SYM)",
+                         source)
+
+    sc = source.count()
+    if sc == 3:
+        expr, (_as, (sym, _rest)) = source
+        if not (_as is _keyword_as and is_symbol(sym)):
+            raise code.error("binding must be (SYM EXPR) or (EXPR as: SYM)",
+                             source)
+
+    elif sc == 2:
+        sym, (expr, _rest) = source
+        if not is_symbol(sym):
+            raise code.error("binding must be (SYM EXPR) or (EXPR as: SYM)",
+                             source)
+
+    elif sc == 1 and not required:
+        expr, _rest = source
+        sym = required
+
+    else:
+        raise code.error("binding must be (SYM EXPR) or (EXPR as: SYM)",
+                         source)
+
+    return sym, expr
 
 
 def _helper_keyword(code, kwd):
@@ -475,16 +503,7 @@ def _special_with(code, source, tc=False):
 
     called_by, (args, body) = source
 
-    if args.count() != 2:
-        msg = "with context must be binding and expression," \
-              " not %r" % args
-        raise code.error(msg, cdr(source))
-
-    binding, (expr, _rest) = args
-
-    if not is_symbol(binding):
-        msg = "binding must be a symbol, not %r" % binding
-        raise code.error(msg, args)
+    binding, expr = _helper_binding(code, args)
 
     binding = str(binding)
     code.declare_var(str(binding))
@@ -593,7 +612,7 @@ def _special_let(code, source, tc=False):
     args = []
     vals = []
     for arg in bindings.unpack():
-        name, val = arg.unpack()
+        name, val = _helper_binding(code, arg)
         args.append(name)
         vals.append(val)
 
@@ -752,7 +771,7 @@ def _special_try(code, source, tc=False):
     not return.
 
     (try EXPR
-      (except: EXCEPTION_TYPE as: BINDING EXC_BODY...)
+      ((BINDING EXCEPTION_TYPE) EXC_BODY...)
       ...)
 
     As above, but binds the exception to BINDING before evaluating
@@ -784,7 +803,7 @@ def _special_try(code, source, tc=False):
 
 def _helper_special_try(code, source, tc=False):
 
-    called_by, (expr, catches) = source
+    called_by, (try_expr, catches) = source
 
     storage = code.gen_sym()
     code.declare_var(storage)
@@ -805,27 +824,12 @@ def _helper_special_try(code, source, tc=False):
             raise code.error("clause with no body in try", ca)
 
         ex, act = ca
+        if is_proper(ex):
+            ex_binding, ex_expr = _helper_binding(code, ex, None)
 
-        if ex is _keyword_except:
-            ex_expr, act = act
-            _as, rest = act
-
-            if _as is _keyword_as:
-                binding, act = rest
-                if not is_symbol(binding):
-                    msg = "exception binding must be a symbol," \
-                          " not: %r" % binding
-                    raise code.error(msg, ca)
-
-                ca = cons([ex_expr, binding], act)
-            else:
-                ca = cons([ex_expr, None], act)
-
-            code.dup_position_of(ex, ca)
-
-            # this is a normal catch, where ex is a thing to
-            # match, and act is the body to execute if it matches.
-            normal_catches.append(ca)
+            ex = cons([ex_binding, ex_expr], act)
+            code.dup_position_of(ca, ex)
+            normal_catches.append(ex)
 
         elif ex is _keyword_finally:
             if has_finally:
@@ -843,9 +847,7 @@ def _helper_special_try(code, source, tc=False):
             label_else = code.gen_label()
 
         else:
-            print("ex is ", repr(ex))
-            raise code.error("missing keyword label in"
-                             " try/except/else/finally", ca)
+            raise code.error("missing keyword label in else/finally", ca)
 
     label_next = code.gen_label()
 
@@ -855,7 +857,7 @@ def _helper_special_try(code, source, tc=False):
 
     # here's our actual try block
     code.pseudop_setup_except(label_next)
-    code.add_expression(expr)
+    code.add_expression(try_expr)
     code.pseudop_debug("after try expression")
 
     if has_else:
@@ -878,7 +880,7 @@ def _helper_special_try(code, source, tc=False):
 
     # TOS exception type, TOS-1 exception, TOS-2 backtrace
     for ca in normal_catches:
-        (match, key), act = ca
+        (key, match), act = ca
 
         # each attempt to match the exception should have us at
         # the TOS,TOS-1,TOS-2 setup
