@@ -31,6 +31,7 @@ class TailCall():
 
 def trampoline(fun):
     _tc = TailCall
+    _ty = type
 
     @wraps(fun)
     def tco_trampoline(*args, **kwds):
@@ -39,16 +40,10 @@ def trampoline(fun):
         # a more meaningful traceback?
 
         # frames = OrderedDict()
-        work = fun
-
-        while True:
-            work = work(*args, **kwds)
-            if type(work) is _tc:
-                args = work.args
-                kwds = work.kwds
-                work = work.work
-                continue
-            return work
+        work = fun(*args, **kwds)
+        while _ty(work) is _tc:
+            work = work.work(*work.args, **work.kwds)
+        return work
 
     tco_trampoline._tco_original = fun
     return tco_trampoline
