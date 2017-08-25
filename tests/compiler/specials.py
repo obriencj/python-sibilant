@@ -520,7 +520,7 @@ class CompilerSpecials(TestCase):
 
         src = """
         (cond
-          (else 100))
+          (else: 100))
         """
         stmt, env = compile_expr(src)
         res = stmt()
@@ -530,7 +530,7 @@ class CompilerSpecials(TestCase):
         (cond
           (False 100)
           (True 101)
-          (else 102))
+          (else: 102))
         """
         stmt, env = compile_expr(src)
         res = stmt()
@@ -540,7 +540,7 @@ class CompilerSpecials(TestCase):
         (cond
           (False 100)
           (False 101)
-          (else 102))
+          (else: 102))
         """
         stmt, env = compile_expr(src)
         res = stmt()
@@ -550,7 +550,7 @@ class CompilerSpecials(TestCase):
         (+ (cond
              (False 100)
              (nil 101)
-             (else 102)) 100)
+             (else: 102)) 100)
         """
         stmt, env = compile_expr(src)
         res = stmt()
@@ -560,8 +560,8 @@ class CompilerSpecials(TestCase):
         (cond
           (False 100)
           (False 101)
-          (else (cond (False 102)
-                      (else 103))))
+          (else: (cond (False 102)
+                       (else: 103))))
         """
         stmt, env = compile_expr(src)
         res = stmt()
@@ -625,7 +625,7 @@ class SpecialTry(TestCase):
         src = """
         (try
           (good_guy 567)
-          (else (good_guy 888)))
+          (else: (good_guy 888)))
         """
         stmt, env = compile_expr(src, good_guy=good_guy)
         res = stmt()
@@ -640,7 +640,7 @@ class SpecialTry(TestCase):
         src = """
         (try
           (good_guy 567)
-          (finally (good_guy 999)))
+          (finally: (good_guy 999)))
         """
         stmt, env = compile_expr(src, good_guy=good_guy)
         res = stmt()
@@ -655,8 +655,8 @@ class SpecialTry(TestCase):
         src = """
         (try
           (good_guy 567)
-          (else (good_guy 888))
-          (finally (good_guy 999)))
+          (else: (good_guy 888))
+          (finally: (good_guy 999)))
         """
         stmt, env = compile_expr(src, good_guy=good_guy)
         dis.dis(stmt)
@@ -686,7 +686,7 @@ class SpecialTry(TestCase):
         src = """
         (try
           (bad_guy 567)
-          (Exception (good_guy -111)))
+          (except: Exception (good_guy -111)))
         """
         stmt, env = compile_expr(src, **locals())
         res = stmt()
@@ -703,7 +703,7 @@ class SpecialTry(TestCase):
         src = """
         (try
           (bad_guy 567)
-          ((Exception e) (good_guy -111)))
+          (except: Exception as: e (good_guy -111)))
         """
         stmt, env = compile_expr(src, **locals())
         res = stmt()
@@ -719,7 +719,7 @@ class SpecialTry(TestCase):
         src = """
         (try
           (bad_guy 567)
-          (Exception (good_guy -111)))
+          (except: Exception (good_guy -111)))
         """
         stmt, env = compile_expr(src, **locals())
         self.assertRaises(BaseException, stmt)
@@ -734,7 +734,7 @@ class SpecialTry(TestCase):
         src = """
         (try
           (bad_guy 567)
-          ((Exception e) (good_guy -111)))
+          (except: Exception as: e (good_guy -111)))
         """
         stmt, env = compile_expr(src, **locals())
         self.assertRaises(BaseException, stmt)
@@ -750,8 +750,8 @@ class SpecialTry(TestCase):
         src = """
         (try
           (bad_guy 567)
-          (Exception (good_guy -111))
-          (else (good_guy 987)))
+          (except: Exception (good_guy -111))
+          (else: (good_guy 987)))
         """
         stmt, env = compile_expr(src, **locals())
         res = stmt()
@@ -768,8 +768,8 @@ class SpecialTry(TestCase):
         src = """
         (try
           (bad_guy 567)
-          ((Exception e) (good_guy -111))
-          (else (good_guy 987)))
+          (except: Exception as: e (good_guy -111))
+          (else: (good_guy 987)))
         """
         stmt, env = compile_expr(src, **locals())
         res = stmt()
@@ -786,8 +786,8 @@ class SpecialTry(TestCase):
         src = """
         (try
           (bad_guy 567)
-          (Exception (good_guy -111))
-          (finally (good_guy 789)))
+          (except: Exception (good_guy -111))
+          (finally: (good_guy 789)))
         """
         stmt, env = compile_expr(src, **locals())
         res = stmt()
@@ -804,8 +804,8 @@ class SpecialTry(TestCase):
         src = """
         (try
           (bad_guy 567)
-          ((Exception e) (good_guy -111))
-          (finally (good_guy 789)))
+          (except: Exception as: e (good_guy -111))
+          (finally: (good_guy 789)))
         """
         stmt, env = compile_expr(src, **locals())
         res = stmt()
@@ -822,9 +822,9 @@ class SpecialTry(TestCase):
         src = """
         (try
           (bad_guy 567)
-          (Exception (good_guy -111))
-          (else (good_guy 456))
-          (finally (good_guy 789)))
+          (except: Exception (good_guy -111))
+          (else: (good_guy 456))
+          (finally: (good_guy 789)))
         """
         stmt, env = compile_expr(src, **locals())
         res = stmt()
@@ -841,9 +841,9 @@ class SpecialTry(TestCase):
         src = """
         (try
           (bad_guy 567)
-          ((Exception e) (good_guy -111))
-          (else (good_guy 456))
-          (finally (good_guy 789)))
+          (except: Exception as: e (good_guy -111))
+          (else: (good_guy 456))
+          (finally: (good_guy 789)))
         """
         stmt, env = compile_expr(src, **locals())
         res = stmt()
@@ -863,9 +863,9 @@ class SpecialTry(TestCase):
           (decr counter)
           (try
             (bad_guy 567)
-            ((Exception e) (good_guy -111))
-            (else (good_guy 456))
-            (finally (good_guy 789))))
+            (except: Exception as: e (good_guy -111))
+            (else: (good_guy 456))
+            (finally: (good_guy 789))))
         """
         stmt, env = compile_expr(src, **locals())
         res = stmt()
@@ -882,9 +882,9 @@ class SpecialTry(TestCase):
           (decr counter)
           (try
             (bad_guy 567)
-            (Exception (good_guy -111))
-            (else (good_guy 456))
-            (finally (good_guy 789))))
+            (except: Exception (good_guy -111))
+            (else: (good_guy 456))
+            (finally: (good_guy 789))))
         """
         stmt, env = compile_expr(src, **locals())
         res = stmt()
