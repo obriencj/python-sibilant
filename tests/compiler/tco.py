@@ -85,7 +85,7 @@ def fibonacci(num, accu=0):
 
 @trampoline
 def tco_even(num):
-    return True if num == 2 else tailcall(tco_odd)(num - 1)
+    return True if num == 0 else tailcall(tco_odd)(num - 1)
 
 
 @trampoline
@@ -94,7 +94,7 @@ def tco_odd(num):
 
 
 def even(num):
-    return True if num == 2 else odd(num - 1)
+    return True if num == 0 else odd(num - 1)
 
 
 def odd(num):
