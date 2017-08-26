@@ -1,4 +1,3 @@
-
 # This library is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Lesser General Public License as
 # published by the Free Software Foundation; either version 3 of the
@@ -52,7 +51,6 @@ _symbol_function = symbol("function")
 _symbol_with = symbol("with")
 _symbol_let = symbol("let")
 _symbol_while = symbol("while")
-_symbol_raise = symbol("raise")
 _symbol_try = symbol("try")
 
 _symbol_macroexpand_1 = symbol("macroexpand-1")
@@ -723,36 +721,6 @@ def _special_while(code, source, tc=False):
     code.pseudop_label(done)
 
     # no additional transform needed
-    return None
-
-
-@special(_symbol_raise)
-def _special_raise(code, source, tc=False):
-    """
-    (raise EXCEPTION_EXPR)
-
-    evaluates EXCEPTION_EXPR and raises it in the Python interpreter.
-    This function does not return, and execution will jump to whatever
-    outer exception handlers exist (if any).
-
-    (raise)
-
-    re-raises the most recently raised exception
-    """
-
-    called_by, cl = source
-
-    c = cl.count()
-    if c > 3:
-        msg = "too many arguments to raise %r" % cl
-        raise code.error(msg, source)
-
-    for rx in cl.unpack():
-        code.add_expression(rx)
-
-    code.pseudop_position_of(source)
-    code.pseudop_raise(c)
-
     return None
 
 
