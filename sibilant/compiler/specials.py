@@ -509,28 +509,14 @@ def _special_with(code, source, tc=False):
     storage = code.gen_sym()
     code.declare_var(storage)
 
-    label_cleanup = code.gen_label()
+    with code.block_with(expr):
+        code.pseudop_set_var(binding)
+        _helper_begin(code, body, False)
+        code.pseudop_set_var(storage)
 
-    code.add_expression(expr)
-    code.pseudop_setup_with(label_cleanup)
-    code.pseudop_faux_push(4)
-    code.pseudop_set_var(binding)
-
-    _helper_begin(code, body, False)
-    code.pseudop_set_var(storage)
-
-    code.pseudop_pop_block()
-    code.pseudop_const(None)
-    code.pseudop_faux_pop()
-
-    code.pseudop_label(label_cleanup)
-    code.pseudop_with_cleanup_start()
-    code.pseudop_with_cleanup_finish()
-    code.pseudop_end_finally()
-
+    code.pseudop_debug("before fetching storage in special_with")
     code.pseudop_get_var(storage)
     code.pseudop_del_var(storage)
-    code.pseudop_faux_pop(3)
 
     return None
 

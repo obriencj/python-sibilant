@@ -262,6 +262,9 @@ class Opcode(Enum):
     def hasnargs(self):
         return self.value in dis.hasnargs
 
+    def stack_effect(self, arg=None):
+        return dis.stack_effect(self.value, arg)
+
 
 Opcode = Opcode("Opcode", dis.opmap)
 
@@ -341,12 +344,15 @@ _auto = partial(next, count())
 
 class Block(Enum):
     BASE = _auto()
+    BEGIN = _auto()
     LOOP = _auto()
-    FINALLY = _auto()
-    FINALLY_CLEANUP = _auto()
+    WITH = _auto()
+    WITH_CLEANUP = _auto()
     TRY = _auto()
     EXCEPT = _auto()
     EXCEPT_MATCH = _auto()
+    FINALLY = _auto()
+    FINALLY_CLEANUP = _auto()
 
 
 class CodeFlag(Enum):
@@ -615,6 +621,7 @@ class CodeSpace(metaclass=ABCMeta):
         yield self
         self.pseudop_debug(" == exit finally ==")
         self.pseudop_pop_block()
+        self.pseudop_faux_pop(2)
         self.pop_block()
 
 
@@ -638,6 +645,7 @@ class CodeSpace(metaclass=ABCMeta):
         yield self
         self.pseudop_debug(" == exit try ==")
         self.pseudop_pop_block()
+        self.pseudop_faux_pop(2)
         self.pop_block()
 
 
@@ -665,10 +673,31 @@ class CodeSpace(metaclass=ABCMeta):
 
     @contextmanager
     def block_begin(self):
-        self.push_block(Block.BASE, 0, 1)
+        self.push_block(Block.BEGIN, 0, 1)
         self.pseudop_debug(" == enter begin ==")
         yield self
         self.pseudop_debug(" == exit begin ==")
+        self.pop_block()
+
+
+    @contextmanager
+    def block_with(self, expr):
+        cleanup_label = self.gen_label()
+        self.push_block(Block.WITH, 0, 0)
+        self.add_expression(expr)
+        self.pseudop_setup_with(cleanup_label)
+        self.pseudop_debug(" == enter with ==")
+        yield self
+        self.pseudop_debug(" == exit with ==")
+        self.pseudop_debug(" == enter with_cleanup ==")
+        self.pseudop_pop_block()
+        self.pseudop_const(None)
+        self.pseudop_label(cleanup_label)
+        self.pseudop_with_cleanup_start()
+        self.pseudop_with_cleanup_finish()
+        self.pseudop_end_finally()
+        self.pseudop_debug(" == exit with_cleanup ==")
+        self.pseudop_faux_pop(3)
         self.pop_block()
 
 
@@ -1580,6 +1609,7 @@ class ExpressionCodeSpace(CodeSpace):
     def helper_max_stack(self, op, args, push, pop):
 
         _Pseudop = Pseudop
+        _Opcode = Opcode
 
         if op is _Pseudop.CONST:
             push()
@@ -1639,10 +1669,14 @@ class ExpressionCodeSpace(CodeSpace):
             pop(args[0])
             push()
 
-        elif op in (_Pseudop.SETUP_EXCEPT,
-                    _Pseudop.SETUP_WITH,
-                    _Pseudop.SETUP_FINALLY):
-            push(4)
+        elif op is _Pseudop.SETUP_EXCEPT:
+            push(_Opcode.SETUP_EXCEPT.stack_effect(1))
+
+        elif op is _Pseudop.SETUP_WITH:
+            push(_Opcode.SETUP_WITH.stack_effect(1))
+
+        elif op is _Pseudop.SETUP_FINALLY:
+            push(_Opcode.SETUP_FINALLY.stack_effect(1))
 
         elif op in (_Pseudop.POP_BLOCK,
                     _Pseudop.POP_EXCEPT):
@@ -1650,10 +1684,10 @@ class ExpressionCodeSpace(CodeSpace):
             pop(4)
 
         elif op is _Pseudop.WITH_CLEANUP_START:
-            push(4)
+            push(_Opcode.WITH_CLEANUP_START.stack_effect())
 
         elif op is _Pseudop.WITH_CLEANUP_FINISH:
-            pop(4)
+            push(_Opcode.WITH_CLEANUP_FINISH.stack_effect())
 
         elif op is _Pseudop.END_FINALLY:
             pop(1)
