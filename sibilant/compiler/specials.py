@@ -1,4 +1,3 @@
-
 # This library is free software; you can redistribute it and/or modify
 # it under the terms of the GNU Lesser General Public License as
 # published by the Free Software Foundation; either version 3 of the
@@ -52,7 +51,6 @@ _symbol_function = symbol("function")
 _symbol_with = symbol("with")
 _symbol_let = symbol("let")
 _symbol_while = symbol("while")
-_symbol_raise = symbol("raise")
 _symbol_try = symbol("try")
 
 _symbol_macroexpand_1 = symbol("macroexpand-1")
@@ -462,13 +460,13 @@ def _special_begin(code, source, tc=False):
 
     called_by, body = source
 
-    _helper_begin(code, body, tc=tc)
+    _helper_begin(code, body, tc)
 
     # no additional transform needed
     return None
 
 
-def _helper_begin(code, body, tc=False):
+def _helper_begin(code, body, tc):
     code.pseudop_position_of(body)
 
     if not body:
@@ -518,7 +516,7 @@ def _special_with(code, source, tc=False):
     code.pseudop_faux_push(4)
     code.pseudop_set_var(binding)
 
-    _helper_begin(code, body, tc)
+    _helper_begin(code, body, False)
     code.pseudop_set_var(storage)
 
     code.pseudop_pop_block()
@@ -717,42 +715,12 @@ def _special_while(code, source, tc=False):
 
     # throw away previous value in favor of evaluating the body
     code.pseudop_pop()
-    _helper_begin(code, body)
+    _helper_begin(code, body, False)
 
     code.pseudop_jump(top)
     code.pseudop_label(done)
 
     # no additional transform needed
-    return None
-
-
-@special(_symbol_raise)
-def _special_raise(code, source, tc=False):
-    """
-    (raise EXCEPTION_EXPR)
-
-    evaluates EXCEPTION_EXPR and raises it in the Python interpreter.
-    This function does not return, and execution will jump to whatever
-    outer exception handlers exist (if any).
-
-    (raise)
-
-    re-raises the most recently raised exception
-    """
-
-    called_by, cl = source
-
-    c = cl.count()
-    if c > 3:
-        msg = "too many arguments to raise %r" % cl
-        raise code.error(msg, source)
-
-    for rx in cl.unpack():
-        code.add_expression(rx)
-
-    code.pseudop_position_of(source)
-    code.pseudop_raise(c)
-
     return None
 
 
@@ -795,13 +763,6 @@ def _special_try(code, source, tc=False):
     the exception will be propagated upwards and this function does
     not return. Otherwise, the final value of BODY is returned.
     """
-
-    _helper_special_try(code, source, tc)
-
-    return None
-
-
-def _helper_special_try(code, source, tc=False):
 
     called_by, (try_expr, catches) = source
 
@@ -1068,7 +1029,7 @@ def _special_define_global(code, source, tc=False):
 
     called_by, (binding, body) = source
 
-    _helper_begin(code, body)
+    _helper_begin(code, body, False)
 
     if not is_symbol(binding):
         raise code.error("define-global with non-symbol binding", source)
@@ -1087,7 +1048,7 @@ def _special_define_local(code, source, tc=False):
 
     called_by, (binding, body) = source
 
-    _helper_begin(code, body)
+    _helper_begin(code, body, False)
 
     if not is_symbol(binding):
         raise code.error("define-local with non-symbol binding", source)
@@ -1114,7 +1075,6 @@ def _special_cond(code, source, tc=False):
         label = code.gen_label()
 
         if test is _keyword_else:
-            # print(repr(body))
             _helper_begin(code, body, tc)
             code.pseudop_jump_forward(done)
             break

@@ -81,6 +81,8 @@ _symbol_not = symbol("not")
 _symbol_invert = symbol("~")
 _symbol_iter = symbol("iter")
 
+_symbol_raise = symbol("raise")
+
 
 def operator():
     from . import Operator
@@ -117,12 +119,11 @@ operator = operator()
 
 
 def _runtime_and(*vals):
-    res = True
+    val = True
     for val in vals:
-        res = res and val
-        if not res:
+        if not val:
             break
-    return res
+    return val
 
 
 def _helper_and(code, exprs):
@@ -157,12 +158,11 @@ def _operator_and(code, source, tc=False):
 
 
 def _runtime_or(*vals):
-    res = False
+    val = False
     for val in vals:
-        res = res or val
-        if res:
+        if val:
             break
-    return res
+    return val
 
 
 def _helper_or(code, exprs):
@@ -661,6 +661,43 @@ def _operator_iter(code, source, tc=False):
     """
 
     _helper_unary(code, source, code.pseudop_iter)
+
+
+def _runtime_raise(exc=None):
+    if exc:
+        raise exc
+    else:
+        raise
+
+
+@operator(_symbol_raise, _runtime_raise)
+def _special_raise(code, source, tc=False):
+    """
+    (raise EXCEPTION_EXPR)
+
+    evaluates EXCEPTION_EXPR and raises it in the Python interpreter.
+    This function does not return, and execution will jump to whatever
+    outer exception handlers exist (if any).
+
+    (raise)
+
+    re-raises the most recently raised exception
+    """
+
+    called_by, cl = source
+
+    c = cl.count()
+    if c > 3:
+        msg = "too many arguments to raise %r" % cl
+        raise code.error(msg, source)
+
+    for rx in cl.unpack():
+        code.add_expression(rx)
+
+    code.pseudop_position_of(source)
+    code.pseudop_raise(c)
+
+    return None
 
 
 # --- and finally clean up ---
