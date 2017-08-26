@@ -980,6 +980,197 @@ def _special_try(code, source, tc=False):
     return None
 
 
+
+def _special_newtry(code, source, tc=False):
+
+    called_by, (try_expr, catches) = source
+
+    ca, act_else, act_finally = _collect_catches(code, catches)
+
+    storage = code.gen_sym()
+    code.declare_var(storage)
+
+    storage = code.gen_sym()
+    code.declare_var(storage)
+
+    if act_finally:
+        if act_else:
+            _try_else_finally(code, try_expr, ca, storage,
+                              act_else, act_finally, tc)
+        else:
+            _try_finally(code, try_expr, ca, storage,
+                         act_finally, tc)
+
+    elif act_else:
+        _try_else(code, try_expr, ca, storage,
+                  act_else, tc)
+
+    else:
+        _try(code, try_expr, ca, storage, tc)
+
+    code.pseudop_get_var(storage)
+    code.pseudop_const(None)
+    code.pseudop_set_var(storage)
+    code.pseudop_del_var(storage)
+
+
+def _collect_catches(code, catches):
+
+    act_else = None
+    act_finally = None
+    normal_catches = []
+
+    # first, filter our catches down into normal exception
+    # matches, finally, and else
+    for ca in catches.unpack():
+        if not ca:
+            raise code.error("clause with no body in try", ca)
+
+        ex, act = ca
+        if is_proper(ex):
+            ex_binding, ex_expr = _helper_binding(code, ex, None)
+
+            ex = cons([ex_binding, ex_expr], act)
+            code.dup_position_of(ca, ex)
+            normal_catches.append(ex)
+
+        elif ex is _keyword_finally:
+            if act_finally:
+                raise code.error("duplicate finally: clause in try", ca)
+
+            act_finally = act
+
+        elif ex is _keyword_else:
+            if act_else:
+                raise code.error("duplicate else: clause in try", ca)
+
+            act_else = act
+
+        else:
+            raise code.error("missing keyword label in else/finally", ca)
+
+
+def _try(code, try_expr, catches, storage, tc):
+    except_label = code.gen_label()
+    end_label = code.gen_label()
+
+    with code.block_try(except_label):
+        code.add_expression(try_expr, False)
+        code.pseudop_set_var(storage)
+
+    code.pseudop_jump_forward(end_label)
+
+    _except(code, catches, except_label, end_label, tc)
+
+    code.pseudop_label(end_label)
+
+
+def _try_else(code, try_expr, catches, storage,
+              else_exprs, tc):
+
+    except_label = code.gen_label()
+    end_label = code.gen_label()
+
+    with code.block_try(except_label):
+        code.add_expression(try_expr, False)
+        code.pseudop_pop()
+
+    _helper_begin(code, else_exprs, tc)
+    code.pseudop_set_var(storage)
+
+    code.pseudop_jump_forward(end_label)
+
+    _except(code, catches, except_label, end_label, tc)
+
+    code.pseudop_label(end_label)
+
+
+def _try_finally(code, try_expr, catches, storage,
+                 fin_exprs, tc):
+
+    cleanup = code.gen_label()
+    with code.block_finally(cleanup):
+        _try(code, try_expr, catches, storage, False)
+
+    with code.block_finally_cleanup(cleanup):
+        _helper_begin(fin_exprs, tc)
+        code.pseudop_set_var(storage)
+
+
+def _try_else_finally(code, try_expr, catches, storage,
+                      else_exprs, fin_exprs, tc):
+
+    cleanup = code.gen_label()
+    with code.block_finally(cleanup):
+        _try_else(code, try_expr, catches, storage, else_exprs, False)
+
+    with code.block_finally_cleanup(cleanup):
+        _helper_begin(fin_exprs, tc)
+        code.pseudop_set_var(storage)
+
+
+def _except(code, catches, except_label, end_label,
+            storage, tc=False):
+
+    with code.block_except(except_label):
+        curr_label = except_label
+        next_label = code.gen_label()
+
+        for ca in catches:
+            (key, match), act = ca
+
+            code.pseudop_position_of(ca)
+            _except_match(code, key, match,
+                          curr_label, next_label, end_label,
+                          act, storage, tc)
+
+            curr_label = next_label
+            next_label = code.gen_label()
+
+        # after the loop, drop a label for the fall-through.
+        code.pseudop_label(curr_label)
+
+    # block closes, anything that reached the fall-through is re-raised
+    pass
+
+
+def _except_match(code, key, match,
+                  match_label, next_label, end_label,
+                  act, storage, tc=False):
+
+    with code.block_except_match(match_label):
+        code.pseudop_dup()
+        code.add_expression(match, False)
+        code.pseudop_compare_exception()
+        code.pseudop_pop_jump_if_false(next_label)
+
+        if key:
+            key = str(key)
+            code.declare_var(key)
+
+            code.pseudop_pop()
+            code.pseudop_set_var(key)
+            code.pseudop_pop()
+
+            cleanup = code.gen_label()
+            with code.block_finally(cleanup):
+                _helper_begin(code, act, tc)
+                code.pseudop_set_var(storage)
+
+            with code.block_finally_cleanup(cleanup):
+                code.pseudop_const(None)
+                code.pseudop_set_var(key)
+                code.pseudop_del_var(key)
+
+        else:
+            code.pseudop_pop(3)
+            _helper_begin(code, act, tc)
+            code.pseudop_set_var(storage)
+
+    # post pop-except
+    code.pseudop_jump_forward(end_label)
+
+
 @special(_symbol_setq)
 def _special_setq(code, source, tc=False):
     """
