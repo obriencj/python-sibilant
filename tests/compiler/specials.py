@@ -911,15 +911,18 @@ class SpecialWith(TestCase):
     def test_raise_with(self):
         accu1, good_manager = make_manager()
         accu2, bad_guy = make_raise_accumulator()
+        accu3, good_guy = make_accumulator()
 
         src = """
         (with (foo (good_manager 123 456 789))
-          (foo (bad_guy 777)))
+          (foo 111)
+          (foo (bad_guy (good_guy (foo 777)))))
         """
         stmt, env = compile_expr(src, **locals())
         self.assertRaises(Exception, stmt)
-        self.assertEqual(accu1, [123, 456, 789])
+        self.assertEqual(accu1, [123, 456, 111, 777, 789])
         self.assertEqual(accu2, [777])
+        self.assertEqual(accu3, [777])
 
 
 #

@@ -460,13 +460,13 @@ def _special_begin(code, source, tc=False):
 
     called_by, body = source
 
-    _helper_begin(code, body, tc=tc)
+    _helper_begin(code, body, tc)
 
     # no additional transform needed
     return None
 
 
-def _helper_begin(code, body, tc=False):
+def _helper_begin(code, body, tc):
     code.pseudop_position_of(body)
 
     if not body:
@@ -516,7 +516,7 @@ def _special_with(code, source, tc=False):
     code.pseudop_faux_push(4)
     code.pseudop_set_var(binding)
 
-    _helper_begin(code, body, tc)
+    _helper_begin(code, body, False)
     code.pseudop_set_var(storage)
 
     code.pseudop_pop_block()
@@ -715,7 +715,7 @@ def _special_while(code, source, tc=False):
 
     # throw away previous value in favor of evaluating the body
     code.pseudop_pop()
-    _helper_begin(code, body)
+    _helper_begin(code, body, False)
 
     code.pseudop_jump(top)
     code.pseudop_label(done)
@@ -763,13 +763,6 @@ def _special_try(code, source, tc=False):
     the exception will be propagated upwards and this function does
     not return. Otherwise, the final value of BODY is returned.
     """
-
-    _helper_special_try(code, source, tc)
-
-    return None
-
-
-def _helper_special_try(code, source, tc=False):
 
     called_by, (try_expr, catches) = source
 
@@ -1036,7 +1029,7 @@ def _special_define_global(code, source, tc=False):
 
     called_by, (binding, body) = source
 
-    _helper_begin(code, body)
+    _helper_begin(code, body, False)
 
     if not is_symbol(binding):
         raise code.error("define-global with non-symbol binding", source)
@@ -1055,7 +1048,7 @@ def _special_define_local(code, source, tc=False):
 
     called_by, (binding, body) = source
 
-    _helper_begin(code, body)
+    _helper_begin(code, body, False)
 
     if not is_symbol(binding):
         raise code.error("define-local with non-symbol binding", source)
@@ -1082,7 +1075,6 @@ def _special_cond(code, source, tc=False):
         label = code.gen_label()
 
         if test is _keyword_else:
-            # print(repr(body))
             _helper_begin(code, body, tc)
             code.pseudop_jump_forward(done)
             break
