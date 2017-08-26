@@ -1611,15 +1611,11 @@ class ExpressionCodeSpace(CodeSpace):
         _Pseudop = Pseudop
         _Opcode = Opcode
 
-        if op is _Pseudop.CONST:
+        if op in (_Pseudop.CONST,
+                  _Pseudop.DUP,
+                  _Pseudop.GET_VAR,
+                  _Pseudop.GET_GLOBAL):
             push()
-
-        elif op in (_Pseudop.GET_VAR,
-                    _Pseudop.GET_GLOBAL):
-            push()
-
-        elif op is _Pseudop.SET_VAR:
-            pop()
 
         elif op is _Pseudop.DELETE_VAR:
             pass
@@ -1636,14 +1632,12 @@ class ExpressionCodeSpace(CodeSpace):
         elif op is _Pseudop.SET_ATTR:
             pop(2)
 
-        elif op is _Pseudop.DUP:
-            push()
 
         elif op in (_Pseudop.DEFINE_GLOBAL,
-                    _Pseudop.DEFINE_LOCAL):
-            pop()
-
-        elif op is _Pseudop.POP:
+                    _Pseudop.DEFINE_LOCAL,
+                    _Pseudop.SET_VAR,
+                    _Pseudop.RET_VAL,
+                    _Pseudop.POP):
             pop()
 
         elif op is _Pseudop.LAMBDA:
@@ -1655,9 +1649,6 @@ class ExpressionCodeSpace(CodeSpace):
             push(2)
             pop(2)
             push()
-
-        elif op is _Pseudop.RET_VAL:
-            pop()
 
         elif op is _Pseudop.BUILD_MAP:
             pop(args[0] * 2)
@@ -1690,7 +1681,7 @@ class ExpressionCodeSpace(CodeSpace):
             push(_Opcode.WITH_CLEANUP_FINISH.stack_effect())
 
         elif op is _Pseudop.END_FINALLY:
-            pop(1)
+            push(_Opcode.END_FINALLY.stack_effect())
 
         elif op in (_Pseudop.COMPARE_OP,
                     _Pseudop.ITEM,
