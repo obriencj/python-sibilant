@@ -331,8 +331,22 @@ class Pseudop(Enum):
     POP_EXCEPT = _auto()
     POSITION = _auto()
     LABEL = _auto()
+    BLOCK = _auto()
     FAUX_PUSH = _auto()
     DEBUG_STACK = _auto()
+
+
+_auto = partial(next, count())
+
+
+class Block(Enum):
+    BASE = _auto()
+    LOOP = _auto()
+    FINALLY = _auto()
+    FINALLY_CLEANUP = _auto()
+    TRY = _auto()
+    EXCEPT = _auto()
+    EXCEPT_MATCH = _auto()
 
 
 class CodeFlag(Enum):
@@ -380,6 +394,107 @@ def _label_generator(formatstr="label_%04i"):
         return formatstr % counter
 
     return gen_label
+
+
+class CodeBlock():
+    def __init__(self, block_type, init_stack=0):
+        self.pseudops = []
+        self.children = []
+        self.block_type = block_type
+        self.init_stack = init_stack
+
+
+    def child(self, block_type, init_stack=0):
+        child_block = type(self)(block_type, init_stack)
+        self.children.append(child_block)
+        self.pseudops.append((Pseudop.BLOCK, child_block))
+
+
+    def gen_pseudops(self):
+        pb = Pseudop.BLOCK
+
+        for op, *args in self.pseudops:
+            if op is pb:
+                yield from args[0].gen_pseudops()
+            else:
+                yield (op, *args)
+
+
+    def max_stack(self, code):
+        """
+        Calculates the maximum stack size from the pseudo operations. This
+        function is total crap, but it's good enough for now.
+        """
+
+        maxc = self.init_stack
+        stac = self.init_stack
+        labels = {}
+
+        index = 0
+
+        _Pseudop = Pseudop
+
+        def push(by=1):
+            nonlocal maxc, stac
+            stac += by
+            if stac > maxc:
+                maxc = stac
+
+        def pop(by=1):
+            nonlocal stac
+            nonlocal index
+            stac -= by
+            if stac < 0:
+                print("SHIT BROKE")
+
+                for i, o in enumerate(self.pseudops):
+                    if i == index:
+                        print(" -->\t", repr(o))
+                    else:
+                        print("\t", repr(o))
+
+            assert (stac >= 0), "max_stack counter underrun at %i" % index
+
+        # print("max_stack()")
+        for op, *args in self.pseudops:
+            # print(op, args, stac, maxc)
+
+            if op is _Pseudop.POSITION:
+                continue
+
+            elif op is _Pseudop.DEBUG_STACK:
+                print(" ".join(map(str, args)),
+                      "max:", maxc, "current:", stac)
+
+            elif op is _Pseudop.LABEL:
+                stac = labels.get(args[0], stac)
+
+            elif op is _Pseudop.BLOCK:
+                block = args[0]
+                block_max = block.max_stack()
+                push(block_max)
+                pop(block_max)
+
+            # These ops have to be here so they can see the stac
+            # counter value
+            elif op in (_Pseudop.JUMP,
+                        _Pseudop.JUMP_FORWARD):
+                labels[args[0]] = stac
+
+            elif op in (_Pseudop.POP_JUMP_IF_TRUE,
+                        _Pseudop.POP_JUMP_IF_FALSE):
+                pop()
+                labels[args[0]] = stac
+
+            else:
+                # defer everything else so it can be overridden
+                # depending on Python version
+                code.helper_max_stack(op, args, push, pop)
+
+            index += 1
+
+        assert (stac == 0), "%i left-over stack items" % stac
+        return maxc
 
 
 class CodeSpace(metaclass=ABCMeta):
@@ -434,7 +549,7 @@ class CodeSpace(metaclass=ABCMeta):
         # then None
         self.consts = [None]
 
-        self.pseudops = []
+        self.blocks = [CodeBlock(Block.BASE, 0)]
 
         self.gen_label = _label_generator()
         self._gen_sym = _label_generator("gensym_" + str(id(self)) + "_%04i")
@@ -445,6 +560,84 @@ class CodeSpace(metaclass=ABCMeta):
             # tuple, and we'll need to perform a translation step at
             # the beginning of the function.
             self.helper_prep_varargs()
+
+
+    def gen_pseudops(self):
+        assert self.blocks, "empty block stack"
+        base = self.blocks[0]
+        assert base.block_type is Block.BASE, "incorrect base block type"
+        yield from base.gen_pseudops()
+
+
+    def push_block(self, block_type, init_stack=0):
+        self.require_active()
+        assert self.blocks, "no code blocks in stack"
+
+        old = self.blocks[-1]
+        block = old.child(block_type, init_stack)
+        self.blocks.append(block)
+
+        return block
+
+
+    def pop_block(self):
+        return self.blocks.pop()
+
+
+    @contextmanager
+    def block_loop(self, test_label, bottom_label, end_label):
+        self.block_push(Block.LOOP)
+        self.pseudop_setup_loop(end_label)
+        self.pseudop_label(test_label)
+        yield self
+        self.pseudop_label(bottom_label)
+        self.pseudop_pop_block()
+        self.pseudop_label(end_label)
+        self.block_pop()
+
+
+    @contextmanager
+    def block_finally(self, cleanup_label):
+        self.block_push(Block.FINALLY)
+        self.pseudop_setup_finally(cleanup_label)
+        yield self
+        self.pseudop_pop_block()
+        self.block_pop()
+
+
+    @contextmanager
+    def block_finally_cleanup(self, cleanup_label):
+        self.block_push(Block.FINALLY_CLEANUP)
+        self.pseudop_const(None)
+        self.pseudop_label(cleanup_label)
+        yield self
+        self.pseudop_end_finally()
+        self.block_pop()
+
+
+    @contextmanager
+    def block_try(self, except_label):
+        self.block_push(Block.TRY)
+        self.pseudop_setup_except(except_label)
+        yield self
+        self.pseudop_pop_block()
+        self.block_pop()
+
+
+    @contextmanager
+    def block_except(self, except_label):
+        self.block_push(Block.EXCEPT, 4)
+        self.pseudop_label(except_label)
+        yield self
+        self.pseudop_pop_finally()
+
+
+    @contextmanager
+    def block_except_match(self, except_label):
+        self.block_push(Block.EXCEPT_MATCH, 3)
+        self.pseudop_label(except_label)
+        yield self
+        self.pseudop_pop_except()
 
 
     def declare_tailcall(self):
@@ -667,7 +860,9 @@ class CodeSpace(metaclass=ABCMeta):
         """
         Pushes a pseudo op and arguments into the code
         """
-        self.pseudops.append(op_args)
+
+        assert self.blocks, "no blocks on stack"
+        self.blocks[-1].pseudops.append(op_args)
 
 
     def pseudop_debug(self, *op_args):
@@ -1462,74 +1657,7 @@ class ExpressionCodeSpace(CodeSpace):
 
 
     def max_stack(self):
-        """
-        Calculates the maximum stack size from the pseudo operations. This
-        function is total crap, but it's good enough for now.
-        """
-
-        maxc = 0
-        stac = 0
-        labels = {}
-
-        index = 0
-
-        _Pseudop = Pseudop
-
-        def push(by=1):
-            nonlocal maxc, stac
-            stac += by
-            if stac > maxc:
-                maxc = stac
-
-        def pop(by=1):
-            nonlocal stac
-            nonlocal index
-            stac -= by
-            if stac < 0:
-                print("SHIT BROKE")
-
-                for i, o in enumerate(self.pseudops):
-                    if i == index:
-                        print(" -->\t", repr(o))
-                    else:
-                        print("\t", repr(o))
-
-            assert (stac >= 0), "max_stack counter underrun at %i" % index
-
-        # print("max_stack()")
-        for op, *args in self.pseudops:
-            # print(op, args, stac, maxc)
-
-            if op is _Pseudop.POSITION:
-                continue
-
-            elif op is _Pseudop.DEBUG_STACK:
-                print(" ".join(map(str, args)),
-                      "max:", maxc, "current:", stac)
-
-            elif op is _Pseudop.LABEL:
-                stac = labels.get(args[0], stac)
-
-            # These ops have to be here so they can see the stac
-            # counter value
-            elif op in (_Pseudop.JUMP,
-                        _Pseudop.JUMP_FORWARD):
-                labels[args[0]] = stac
-
-            elif op in (_Pseudop.POP_JUMP_IF_TRUE,
-                        _Pseudop.POP_JUMP_IF_FALSE):
-                pop()
-                labels[args[0]] = stac
-
-            else:
-                # defer everything else so it can be overridden
-                # depending on Python version
-                self.helper_max_stack(op, args, push, pop)
-
-            index += 1
-
-        assert (stac == 0), "%i left-over stack items" % stac
-        return maxc
+        return self.blocks[0].max_stack(self)
 
 
 def _list_unique_append(onto_list, value):
