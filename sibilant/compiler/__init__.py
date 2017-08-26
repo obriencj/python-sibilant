@@ -397,15 +397,16 @@ def _label_generator(formatstr="label_%04i"):
 
 
 class CodeBlock():
-    def __init__(self, block_type, init_stack=0):
+    def __init__(self, block_type, init_stack=0, leftovers=0):
         self.pseudops = []
         self.children = []
         self.block_type = block_type
         self.init_stack = init_stack
+        self.allow_leftovers = leftovers
 
 
-    def child(self, block_type, init_stack=0):
-        child_block = type(self)(block_type, init_stack)
+    def child(self, block_type, init_stack=0, leftovers=0):
+        child_block = type(self)(block_type, init_stack, leftovers)
         self.children.append(child_block)
         self.pseudops.append((Pseudop.BLOCK, child_block))
         return child_block
@@ -426,6 +427,8 @@ class CodeBlock():
         Calculates the maximum stack size from the pseudo operations. This
         function is total crap, but it's good enough for now.
         """
+
+        leftovers = self.allow_leftovers
 
         maxc = self.init_stack
         stac = self.init_stack
@@ -497,7 +500,9 @@ class CodeBlock():
                 code.helper_max_stack(op, args, push, pop)
 
         # print("leaving max_stack()", self.block_type, "with", stac)
-        assert (stac <= 1), "%i left-over stack items" % stac
+        assert (stac == leftovers), ("%i / %i left-over stack items"
+                                     % (stac, leftovers))
+
         return stac, maxc
 
 
@@ -553,7 +558,7 @@ class CodeSpace(metaclass=ABCMeta):
         # then None
         self.consts = [None]
 
-        self.blocks = [CodeBlock(Block.BASE, 0)]
+        self.blocks = [CodeBlock(Block.BASE, 0, 0)]
 
         self.gen_label = _label_generator()
         self._gen_sym = _label_generator("gensym_" + str(id(self)) + "_%04i")
@@ -573,12 +578,12 @@ class CodeSpace(metaclass=ABCMeta):
         yield from base.gen_pseudops()
 
 
-    def push_block(self, block_type, init_stack=0):
+    def push_block(self, block_type, init_stack=0, leftovers=0):
         self.require_active()
         assert self.blocks, "no code blocks in stack"
 
         old = self.blocks[-1]
-        block = old.child(block_type, init_stack)
+        block = old.child(block_type, init_stack, leftovers)
         self.blocks.append(block)
 
         return block
@@ -590,7 +595,7 @@ class CodeSpace(metaclass=ABCMeta):
 
     @contextmanager
     def block_loop(self, test_label, bottom_label, end_label):
-        self.push_block(Block.LOOP)
+        self.push_block(Block.LOOP, 0, 1)
         self.pseudop_setup_loop(end_label)
         self.pseudop_label(test_label)
         self.pseudop_debug(" == enter loop ==")
@@ -604,7 +609,7 @@ class CodeSpace(metaclass=ABCMeta):
 
     @contextmanager
     def block_finally(self, cleanup_label):
-        self.push_block(Block.FINALLY)
+        self.push_block(Block.FINALLY, 0, 0)
         self.pseudop_setup_finally(cleanup_label)
         self.pseudop_debug(" == enter finally ==")
         yield self
@@ -615,7 +620,7 @@ class CodeSpace(metaclass=ABCMeta):
 
     @contextmanager
     def block_finally_cleanup(self, cleanup_label):
-        self.push_block(Block.FINALLY_CLEANUP, 0)
+        self.push_block(Block.FINALLY_CLEANUP, 0, 0)
         self.pseudop_const(None)
         self.pseudop_label(cleanup_label)
         self.pseudop_debug(" == enter finally_cleanup ==")
@@ -627,7 +632,7 @@ class CodeSpace(metaclass=ABCMeta):
 
     @contextmanager
     def block_try(self, except_label):
-        self.push_block(Block.TRY)
+        self.push_block(Block.TRY, 0, 0)
         self.pseudop_setup_except(except_label)
         self.pseudop_debug(" == enter try ==")
         yield self
@@ -638,7 +643,7 @@ class CodeSpace(metaclass=ABCMeta):
 
     @contextmanager
     def block_except(self, except_label):
-        self.push_block(Block.EXCEPT, 1)
+        self.push_block(Block.EXCEPT, 1, 0)
         self.pseudop_label(except_label)
         self.pseudop_debug(" == enter except ==")
         yield self
@@ -649,7 +654,7 @@ class CodeSpace(metaclass=ABCMeta):
 
     @contextmanager
     def block_except_match(self, except_label):
-        self.push_block(Block.EXCEPT_MATCH, 7)
+        self.push_block(Block.EXCEPT_MATCH, 7, 0)
         self.pseudop_label(except_label)
         self.pseudop_debug(" == enter except_match ==")
         yield self
@@ -660,7 +665,7 @@ class CodeSpace(metaclass=ABCMeta):
 
     @contextmanager
     def block_begin(self):
-        self.push_block(Block.BASE, 0)
+        self.push_block(Block.BASE, 0, 1)
         self.pseudop_debug(" == enter begin ==")
         yield self
         self.pseudop_debug(" == exit begin ==")
