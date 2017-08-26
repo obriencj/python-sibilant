@@ -506,8 +506,8 @@ class CodeBlock():
                 code.helper_max_stack(op, args, push, pop)
 
         # print("leaving max_stack()", self.block_type, "with", stac)
-        assert (stac == leftovers), ("%i / %i left-over stack items"
-                                     % (stac, leftovers))
+        assert (stac == leftovers), ("%i / %i left-over stack items for %r"
+                                     % (stac, leftovers, self.block_type))
 
         return stac, maxc
 
@@ -601,7 +601,7 @@ class CodeSpace(metaclass=ABCMeta):
 
     @contextmanager
     def block_loop(self, test_label, bottom_label, end_label):
-        self.push_block(Block.LOOP, 0, 1)
+        self.push_block(Block.LOOP, 0, 0)
         self.pseudop_setup_loop(end_label)
         self.pseudop_label(test_label)
         self.pseudop_debug(" == enter loop ==")
@@ -621,7 +621,7 @@ class CodeSpace(metaclass=ABCMeta):
         yield self
         self.pseudop_debug(" == exit finally ==")
         self.pseudop_pop_block()
-        self.pseudop_faux_pop(2)
+        self.pseudop_faux_pop(6)
         self.pop_block()
 
 
@@ -645,7 +645,7 @@ class CodeSpace(metaclass=ABCMeta):
         yield self
         self.pseudop_debug(" == exit try ==")
         self.pseudop_pop_block()
-        self.pseudop_faux_pop(2)
+        self.pseudop_faux_pop(6)
         self.pop_block()
 
 
@@ -668,6 +668,7 @@ class CodeSpace(metaclass=ABCMeta):
         yield self
         self.pseudop_debug(" == exit except_match ==")
         self.pseudop_pop_except()
+        self.pseudop_faux_pop(4)
         self.pop_block()
 
 
@@ -697,7 +698,7 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop_with_cleanup_finish()
         self.pseudop_end_finally()
         self.pseudop_debug(" == exit with_cleanup ==")
-        self.pseudop_faux_pop(3)
+        self.pseudop_faux_pop(7)
         self.pop_block()
 
 
@@ -1632,7 +1633,6 @@ class ExpressionCodeSpace(CodeSpace):
         elif op is _Pseudop.SET_ATTR:
             pop(2)
 
-
         elif op in (_Pseudop.DEFINE_GLOBAL,
                     _Pseudop.DEFINE_LOCAL,
                     _Pseudop.SET_VAR,
@@ -1669,10 +1669,11 @@ class ExpressionCodeSpace(CodeSpace):
         elif op is _Pseudop.SETUP_FINALLY:
             push(_Opcode.SETUP_FINALLY.stack_effect(1))
 
-        elif op in (_Pseudop.POP_BLOCK,
-                    _Pseudop.POP_EXCEPT):
+        elif op is _Pseudop.POP_BLOCK:
+            push(_Opcode.POP_BLOCK.stack_effect())
 
-            pop(4)
+        elif op is _Pseudop.POP_EXCEPT:
+            push(_Opcode.POP_EXCEPT.stack_effect())
 
         elif op is _Pseudop.WITH_CLEANUP_START:
             push(_Opcode.WITH_CLEANUP_START.stack_effect())
