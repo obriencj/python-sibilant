@@ -23,6 +23,7 @@ license: LGPL v.3
 
 import sys
 
+from contextlib import contextmanager
 from importlib.abc import FileLoader
 from importlib.machinery import FileFinder, PathFinder
 from os import getcwd
@@ -41,6 +42,11 @@ _SOURCE_SUFFIXES = (".lspy", ".sibilant")
 
 _path_importer_cache = {}
 _path_hooks = []
+
+
+__all__ = (
+    "install", "is_installed", "import_module",
+)
 
 
 class SibilantPathFinder(PathFinder):
@@ -110,12 +116,10 @@ class SibilantSourceFileLoader(FileLoader):
         exec_module(module, source, filename=filename)
 
 
-def _get_lspy_file_loader():
-    return (SibilantSourceFileLoader, _SOURCE_SUFFIXES)
-
-
-def _get_lspy_path_hook():
-    return FileFinder.path_hook(_get_lspy_file_loader())
+# go ahead and setup the _path_hooks in advance. Even if we don't run
+# install, this lets us run import_module
+_path_hooks.append(FileFinder.path_hook((SibilantSourceFileLoader,
+                                         _SOURCE_SUFFIXES)))
 
 
 def _install():
@@ -124,7 +128,6 @@ def _install():
     def install():
         nonlocal done
         if not done:
-            _path_hooks.append(_get_lspy_path_hook())
             sys.meta_path.append(SibilantPathFinder)
             done = True
 
@@ -135,6 +138,21 @@ def _install():
 
 
 install, is_installed = _install()
+
+
+@contextmanager
+def temporary_install():
+    if is_installed():
+        yield None
+    else:
+        sys.meta_path.append(SibilantPathFinder)
+        yield None
+        sys.meta_path.remove(SibilantPathFinder)
+
+
+def import_module(name, globals_=None, locals_=None, fromlist=0, level=0):
+    with temporary_install():
+        return __import__(name, globals_, locals_, fromlist, level)
 
 
 #

@@ -1,0 +1,39 @@
+
+These are macros or functions that should definitely be in the
+standard library (ie. should be available in __builtins__ for any
+loaded module)
+
+
+=== setq ===
+
+(setq binding value ...)
+eg. (setq! a 1 b 2 c 3 ) => 3
+
+assigns each in order, result is the final assignment value. Simply
+run set! on each binding and value in order.
+
+
+=== psetq ===
+
+(psetq! binding value ...)
+
+evaluates all values first, then assigns each to binding. This means
+that reassignment of a value that's consumed by another value
+expression doesn't impact it.
+
+impl might rely on assign (see below)
+
+
+=== assign ===
+
+(assign bindings values)
+eg. (assign (a (b c) d) (foo))  => None
+same as Pythonic
+a, (b, c), d = foo()
+
+eg. (assign (a (b c) . d) (foo))  => None
+same as Pythonic
+a, (b, c), *d = foo()
+
+
+# The end.
