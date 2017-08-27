@@ -26,7 +26,7 @@ from . import symbol, keyword, cons, nil, is_pair
 from contextlib import contextmanager
 from fractions import Fraction as fraction
 from functools import partial
-from io import StringIO, IOBase
+from io import StringIO
 from re import compile as regex
 
 
@@ -136,12 +136,6 @@ class Reader(object):
         data left in stream. Raises ReaderSyntaxError to complain
         about syntactic difficulties in the stream.
         """
-
-        if isinstance(reader_stream, str):
-            reader_stream = StringIO(reader_stream)
-
-        if isinstance(reader_stream, IOBase):
-            reader_stream = SourceStream(reader_stream)
 
         event, pos, value = self._read(reader_stream)
 
