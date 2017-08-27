@@ -1312,7 +1312,7 @@ class CodeSpace(metaclass=ABCMeta):
         # converted to cells for child scope usage
         # nlocals = len(self.fast_vars) + len(self.cell_vars)
 
-        stacksize = self.max_stack()
+        stacksize = self.max_stack() + 1
 
         flags = CodeFlag.OPTIMIZED.value | CodeFlag.NEWLOCALS.value
 
