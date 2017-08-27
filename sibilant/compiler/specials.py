@@ -243,26 +243,6 @@ def _helper_quote(code, body, tc=False):
         code.pseudop_const(body)
 
 
-@special(_symbol_unquote)
-def _special_unquote(code, source, tc=False):
-    """
-    (quote EXPR)
-
-    Returns the raw form of EXPR, without evaluating it
-
-    'EXPR
-
-    Same as (quote EXPR)
-    """
-
-    raise code.error("unquote outside of quasiquote", source)
-
-
-@special(_symbol_splice)
-def _special_splice(code, source, tc=False):
-    raise code.error("splice outside of quasiquote", source)
-
-
 @special(_symbol_quasiquote)
 def _special_quasiquote(code, source, tc=False):
     """
@@ -339,9 +319,7 @@ def _helper_quasiquote(code, marked, level=0):
                 code.pseudop_call(2)
                 return
 
-            code.pseudop_get_var("make-proper")
-        else:
-            code.pseudop_get_var("cons")
+        code.pseudop_get_var("build-unpack-pair")
 
         coll_tup = 0  # the count of collected tuples
         curr_tup = 0  # the size of the current tuple
@@ -378,9 +356,6 @@ def _helper_quasiquote(code, marked, level=0):
                     elif head is _symbol_unquote:
                         u_expr, tail = tail
 
-                        # print("unquote level:", level)
-                        # print("expr:", u_expr)
-
                         if level == 0:
                             # either not proper or not splice
                             code.add_expression(u_expr)
@@ -405,9 +380,9 @@ def _helper_quasiquote(code, marked, level=0):
                                 curr_tup = 0
                                 coll_tup += 1
 
-                            code.pseudop_get_var("to-tuple")
+                            # code.pseudop_get_var("to-tuple")
                             code.add_expression(u_expr)
-                            code.pseudop_call(1)
+                            # code.pseudop_call(1)
                             coll_tup += 1
                             continue
 
@@ -439,8 +414,14 @@ def _helper_quasiquote(code, marked, level=0):
             coll_tup += 1
 
         assert coll_tup, "no members accumulated"
-        code.pseudop_build_tuple_unpack(coll_tup)
-        code.pseudop_call_var(0)
+        # code.pseudop_build_tuple_unpack(coll_tup)
+        # code.pseudop_call_var(0)
+
+        if is_proper(marked):
+            code.pseudop_get_var("nil")
+            coll_tup += 1
+
+        code.pseudop_call(coll_tup)
 
     else:
         # some... other thing.
