@@ -15,9 +15,11 @@
 
 import types
 
+from io import IOBase
 from os.path import split
 
 from sibilant.compiler import iter_compile
+from sibilant.parse import source_str, source_stream
 
 
 __all__ = (
@@ -56,6 +58,14 @@ def exec_module(module, thing, filename=None):
 
     consumed = []
     glbls = module.__dict__
+
+    if isinstance(thing, str):
+        thing = source_str(thing, filename)
+
+    elif isinstance(thing, IOBase):
+        thing = source_stream(thing, filename)
+
+    thing.skip_exec()
 
     for code in iter_compile(thing, glbls, filename=filename):
         eval(code, glbls)

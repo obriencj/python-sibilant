@@ -184,7 +184,7 @@ class Pair(object):
     end of a list.
     """
 
-    __slots__ = ("_car", "_cdr", )
+    __slots__ = ("_car", "_cdr", "_src_pos", )
 
 
     def __init__(self, head, *tail, recursive=False):
@@ -242,7 +242,9 @@ class Pair(object):
 
 
     def __eq__(self, other):
-        if type(other) is not Pair:
+        _Pair = type(self)
+
+        if type(other) is not _Pair:
             return False
 
         left = self
@@ -256,7 +258,7 @@ class Pair(object):
         while left is not right:
             if (left is nil) or (right is nil):
                 return False
-            elif (type(left) is not Pair):
+            elif (type(left) is not _Pair):
                 return left == right
 
             a, left = left
@@ -350,10 +352,10 @@ class Pair(object):
         lists. Stops counting if/when recursive cells are detected.
         """
 
-        i = -1
-        for i, _v in enumerate(self.unpack()):
+        i = 0
+        for i, _v in enumerate(self.follow(), 1):
             pass
-        return i + 1
+        return i
 
 
     def items(self):
@@ -362,8 +364,10 @@ class Pair(object):
         cons lists result in infinite items
         """
 
+        _Pair = type(self)
+
         current = self
-        while isinstance(current, Pair) and (current is not nil):
+        while isinstance(current, _Pair) and (current is not nil):
             yield current._car
             current = current._cdr
         yield current
@@ -386,19 +390,38 @@ class Pair(object):
         stops emiting items once recursion is detected.
         """
 
+        _Pair = type(self)
+
+        for item in self.follow():
+            if type(item) is _Pair:
+                yield item._car
+            else:
+                yield item
+
+
+    def follow(self):
+        """
+        iterator that emits cdr(self), stopping (and omitting) a trailing
+        nil or recursive link. If the pair is improper, the last
+        result will not be a pair
+        """
+
+        _Pair = type(self)
+
         found = set()
         current = self
 
-        while (type(current) is Pair):
+        while (type(current) is _Pair):
             if id(current) in found:
-                return
+                break
 
             found.add(id(current))
-            yield current._car
+            yield current
             current = current._cdr
 
-        if current is not nil:
-            yield current
+        else:
+            if current is not nil:
+                yield current
 
 
     def is_recursive(self):
@@ -442,6 +465,85 @@ class Pair(object):
         return current is nil
 
 
+    def clear_position(self, follow=False):
+        try:
+            del self._src_pos
+        except:
+            pass
+
+        if not follow:
+            return
+
+        _Pair = type(self)
+        clear_pos = _Pair.clear_position
+
+        for pair in self.follow():
+            if type(pair) is not _Pair:
+                break
+
+            try:
+                del pair._src_pos
+            except:
+                pass
+
+            value = pair._cdr
+            if type(value) is _Pair:
+                clear_pos(value, True)
+
+
+    def set_position(self, position, follow=False):
+        self._src_pos = position
+
+        if not follow:
+            return
+
+        _Pair = type(self)
+        set_pos = _Pair.set_position
+
+        for pair in self.follow():
+            if type(pair) is not _Pair:
+                break
+
+            pair._src_pos = position
+
+            value = pair._cdr
+            if type(value) is _Pair:
+                set_pos(value, position, True)
+
+
+    def fill_position(self, position, follow=True):
+        try:
+            self._src_pos
+        except:
+            self._src_pos = position
+
+        if not follow:
+            return
+
+        _Pair = type(self)
+        fill_pos = _Pair.fill_position
+
+        for pair in self.follow():
+            if type(pair) is not _Pair:
+                break
+
+            try:
+                position = pair._src_pos
+            except:
+                pair._src_pos = position
+
+            value = pair._cdr
+            if type(value) is _Pair:
+                fill_pos(value, position, True)
+
+
+    def get_position(self):
+        try:
+            return self._src_pos
+        except:
+            return None
+
+
 def is_pair(value):
     return isinstance(value, Pair)
 
@@ -456,6 +558,20 @@ def make_proper(*values):
     """
 
     return cons(*values, nil) if values else nil
+
+
+def get_position(value, default=None):
+    return (value.get_position() or default) if is_pair(value) else default
+
+
+def set_position(value, position, follow=False):
+    if position and is_pair(value):
+        value.set_position(position, follow)
+
+
+def fill_position(value, position, follow=True):
+    if position and is_pair(value):
+        value.fill_position(position, follow)
 
 
 def unpack(pair):
@@ -552,6 +668,11 @@ class Nil(Pair):
         return "nil"
 
 
+    def follow(self):
+        if False:
+            yield None
+
+
     def unpack(self):
         if False:
             yield None
@@ -564,6 +685,22 @@ class Nil(Pair):
     def is_proper(self):
         # according to the Scheme wiki, '() is a proper list
         return True
+
+
+    def get_position(self):
+        return None
+
+
+    def clear_position(self):
+        pass
+
+
+    def set_position(self, position, follow=False):
+        pass
+
+
+    def fill_position(self, position, follow=True):
+        pass
 
 
 # This is intended as a singleton

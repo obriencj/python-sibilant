@@ -21,6 +21,7 @@ The built-in compile-time special forms
 from .. import (
     symbol, is_symbol, keyword, is_keyword,
     nil, is_nil, cons, cdr, is_pair, is_proper,
+    get_position, fill_position,
 )
 
 from . import is_macro, gather_formals
@@ -536,7 +537,7 @@ def _special_lambda(code, source, tc=False):
     code.pseudop_position_of(source)
 
     _helper_function(code, "<lambda>", args, body,
-                     declared_at=code.position_of(source))
+                     declared_at=source.get_position())
 
     # no additional transform needed
     return None
@@ -561,7 +562,7 @@ def _special_function(code, source, tc=False):
     # that cell.
 
     name = str(namesym)
-    declared_at = code.position_of(source)
+    declared_at = source.get_position()
 
     code.pseudop_position_of(source)
 
@@ -608,7 +609,7 @@ def _special_let(code, source, tc=False):
     code.pseudop_position_of(source)
 
     _helper_function(code, "<let>", args, body,
-                     declared_at=code.position_of(source))
+                     declared_at=source.get_position())
 
     code.helper_tailcall_tos(tc)
 
@@ -629,7 +630,7 @@ def _helper_function(code, name, args, body, declared_at=None):
         msg = "function names must be symbol or str, not %r" % name
         raise code.error(msg, declared_at)
 
-    formals = gather_formals(args, code.position_of(args) or declared_at)
+    formals = gather_formals(args, get_position(args, declared_at))
     pos, keys, defaults, star, starstar = formals
     proper = is_proper(args)
 
@@ -651,7 +652,7 @@ def _helper_function(code, name, args, body, declared_at=None):
         varkeywords = False
 
     if declared_at is None:
-        declared_at = code.position_of(body)
+        declared_at = body.get_position()
 
     for expr in defaults:
         code.add_expression(expr)
@@ -803,7 +804,7 @@ def _collect_catches(code, catches):
             ex_binding, ex_expr = _helper_binding(code, ex, None)
 
             ex = cons([ex_binding, ex_expr], act)
-            code.dup_position_of(ca, ex)
+            fill_position(ex, ca.get_position())
             normal_catches.append(ex)
 
         elif ex is _keyword_finally:

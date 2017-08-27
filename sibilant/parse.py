@@ -26,7 +26,7 @@ from . import symbol, keyword, cons, nil, is_pair
 from contextlib import contextmanager
 from fractions import Fraction as fraction
 from functools import partial
-from io import StringIO, IOBase
+from io import StringIO
 from re import compile as regex
 
 
@@ -137,12 +137,6 @@ class Reader(object):
         about syntactic difficulties in the stream.
         """
 
-        if isinstance(reader_stream, str):
-            reader_stream = StringIO(reader_stream)
-
-        if isinstance(reader_stream, IOBase):
-            reader_stream = SourceStream(reader_stream)
-
         event, pos, value = self._read(reader_stream)
 
         if event is VALUE:
@@ -172,16 +166,15 @@ class Reader(object):
                 # this indicates a conversion issue occurred in the
                 # reader macro, most likely in the default reader
                 # macro of _read_atom
-                raise stream.error(ve.args[0], position)
+                raise stream.error(ve.args[0], position) from None
+
+            if is_pair(value):
+                value.set_position(position)
 
             if event is SKIP:
                 continue
             else:
                 break
-
-        # record cons cell locations in the positions map
-        if is_pair(value):
-            stream.record_position(value, position)
 
         return event, position, value
 
@@ -348,12 +341,7 @@ class Reader(object):
             event, position, value = self._read(stream)
 
             if event is CLOSE_PAREN:
-                if result is nil:
-                    return VALUE, nil
-                else:
-                    work[1] = nil
-                    return VALUE, result
-
+                break
 
             elif event is DOT:
                 if result is nil:
@@ -364,35 +352,37 @@ class Reader(object):
 
                 # improper list, the next item is the tail. Read it
                 # and be done.
-                event, tail_pos, tail = self._read(stream)
+                event, position, value = self._read(stream)
                 if event is not VALUE:
                     raise stream.error("invalid list syntax",
-                                       tail_pos)
+                                       position)
+                else:
+                    work._cdr = value
 
-                close_event, close_pos, _value = self._read(stream)
+                # make sure that the list ends immediately after the
+                # dotted value.
+                close_event, close_pos, value = self._read(stream)
                 if close_event is not CLOSE_PAREN:
                     raise stream.error("invalid use of dot in list",
                                        close_pos)
-
-                work[1] = tail
-                return VALUE, result
+                else:
+                    break
 
             elif event is EOF:
                 raise stream.error("unexpected EOF")
 
             elif result is nil:
-                # begin the list.
+                # begin the list. This position will get overwritten.
                 result = cons(value, nil)
+                result.set_position(position)
                 work = result
-                stream.record_position(work, position)
-                continue
 
             else:
                 # append to the current list
-                work[1] = cons(value, nil)
-                work = work[1]
-                stream.record_position(work, position)
-                continue
+                new_work = cons(value, nil)
+                new_work.set_position(position)
+                work._cdr = new_work
+                work = new_work
 
         return VALUE, result
 
@@ -524,19 +514,6 @@ class SourceStream(object):
         self.stream = stream
         self.lin = 1
         self.col = 0
-        self.positions = {}
-
-
-    def position_of(self, value):
-        return self.positions.get(id(value))
-
-
-    def record_position(self, value, position=None):
-        if position is None:
-            position = self.lin, self.col
-
-        self.positions[id(value)] = position
-        return position
 
 
     def position(self):

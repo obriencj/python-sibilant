@@ -29,6 +29,7 @@ from .. import (
     SibilantException,
     symbol, is_symbol, keyword, is_keyword,
     cons, nil, is_pair, is_proper,
+    get_position, fill_position
 )
 
 from ..parse import (
@@ -160,12 +161,14 @@ class Macro(Compiled):
         called_by, source = source_obj
 
         if self._proper:
-            position = compiler.position_of(source_obj)
+            position = source_obj.get_position()
             args, kwargs = simple_parameters(source, position)
             expr = self.expand(*args, **kwargs)
 
         else:
             expr = self.expand(*source.unpack())
+
+        fill_position(expr, source_obj.get_position())
 
         # a Macro should always evaluate to some kind of non-None. If
         # all the work of the macro was performed in the environment
@@ -534,7 +537,7 @@ class CodeSpace(metaclass=ABCMeta):
     def __init__(self, args=(),
                  varargs=False, varkeywords=False, proper_varargs=True,
                  parent=None, name=None,
-                 filename=None, positions=None, declared_at=None,
+                 filename=None, declared_at=None,
                  tco_enabled=True):
 
         self.env = None
@@ -545,7 +548,6 @@ class CodeSpace(metaclass=ABCMeta):
         self.tailcalls = 0
 
         self.filename = filename
-        self.positions = {} if positions is None else positions
         self.declared_at = declared_at
 
         # vars which are only ours
@@ -595,8 +597,6 @@ class CodeSpace(metaclass=ABCMeta):
     def __del__(self):
         del self.env
         del self.parent
-        self.positions.clear()
-        del self.positions
         if self.blocks:
             self.blocks[0].clear()
             self.blocks.clear()
@@ -808,7 +808,6 @@ class CodeSpace(metaclass=ABCMeta):
                         varkeywords=varkeywords,
                         name=name,
                         filename=self.filename,
-                        positions=self.positions,
                         declared_at=declared_at,
                         **addtl)
 
@@ -932,21 +931,6 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop_set_var(varname)
 
 
-    def position_of(self, source):
-        try:
-            return self.positions[id(source)]
-        except KeyError:
-            return None
-
-
-    def dup_position_of(self, source, copy):
-        try:
-            sp = self.positions
-            sp[id(copy)] = sp[id(source)]
-        except KeyError:
-            pass
-
-
     def pseudop(self, *op_args):
         """
         Pushes a pseudo op and arguments into the code
@@ -995,10 +979,10 @@ class CodeSpace(metaclass=ABCMeta):
 
 
     def pseudop_position_of(self, cl):
-        try:
-            self.pseudop(Pseudop.POSITION, *self.positions[id(cl)])
-        except KeyError:
-            pass
+        position = get_position(cl, None)
+        if position:
+            assert (type(position) is tuple), "non-tuple position"
+            self.pseudop(Pseudop.POSITION, *position)
 
 
     def pseudop_call(self, argc, kwdc=0):
@@ -1423,7 +1407,6 @@ class ExpressionCodeSpace(CodeSpace):
         self.pseudop_position_of(expr)
 
         while expr is not None:
-
             if expr is nil:
                 # convert nil expressions to a literal nil
                 self.pseudop_get_var("nil")
@@ -1476,7 +1459,8 @@ class ExpressionCodeSpace(CodeSpace):
             raise self.error("cannot evaluate improper lists as expressions",
                              expr)
 
-        position = self.position_of(expr)
+        self.pseudop_position_of(expr)
+        position = expr.get_position()
         head, tail = expr
 
         if is_symbol(head):
@@ -1603,7 +1587,7 @@ class ExpressionCodeSpace(CodeSpace):
 
 
     def error(self, message, source):
-        return CompilerSyntaxError(message, self.position_of(source),
+        return CompilerSyntaxError(message, source.get_position(),
                                    filename=self.filename)
 
 
@@ -1814,15 +1798,13 @@ def iter_compile(source, env, filename=None, reader=None,
     if not factory:
         raise UnsupportedVersion(version_info)
 
-    positions = source.positions
-
+    # this should probably be part of codespace.activate
     env["__stream__"] = source
     env["__reader__"] = reader
     env["read"] = reader.read
 
     while True:
-        codespace = factory(filename=filename, positions=positions,
-                            **codespace_args)
+        codespace = factory(filename=filename, **codespace_args)
         with codespace.activate(env):
             assert(env.get("__compiler__") == codespace)
 
@@ -1835,6 +1817,8 @@ def iter_compile(source, env, filename=None, reader=None,
             codespace.add_expression_with_return(expr)
             code = codespace.complete()
         yield code
+
+
 
 
 def gather_formals(args, declared_at=None):
