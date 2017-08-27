@@ -807,5 +807,57 @@ def last(seq):
     return val
 
 
+# === quasiquote magic ===
+
+def copy_pair(pair):
+    if pair is nil:
+        return nil
+
+    head, tail = pair
+    if is_pair(tail):
+        tail = copy_pair(tail)
+
+    result = cons(head, tail)
+    result.set_position(pair.get_position())
+    return result
+
+
+def join_pairs(pairs):
+    result = nil
+    work = result
+
+    for pair in pairs:
+        if result is nil:
+            result = pair
+            work = result
+
+        elif work._cdr is nil:
+            work._cdr = pair
+
+        else:
+            work._cdr = cons(work._cdr, pair)
+
+        for i in pair.follow():
+            if is_pair(i):
+                work = i
+
+    return result
+
+
+def build_unpack_pair(*seqs):
+    pairs = []
+
+    for seq in seqs:
+        if is_pair(seq):
+            seq = copy_pair(seq)
+        elif seq:
+            seq = cons(*seq, nil)
+        else:
+            continue
+        pairs.append(seq)
+
+    return join_pairs(pairs)
+
+
 #
 # The end.

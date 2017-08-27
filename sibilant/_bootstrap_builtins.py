@@ -98,6 +98,10 @@ _op(_sibilant.is_symbol, "symbol?")
 _val(_sibilant.keyword, "keyword")
 _op(_sibilant.is_keyword, "keyword?")
 
+_op(_sibilant.copy_pair, "copy-pair")
+_op(_sibilant.copy_pair, "join-pairs")
+_op(_sibilant.build_unpack_pair, "build-unpack-pair")
+
 _op(_sibilant.first, "first")
 _op(_sibilant.second, "second", rename=True)
 _op(_sibilant.third, "third", rename=True)
