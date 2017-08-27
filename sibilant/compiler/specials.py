@@ -843,18 +843,24 @@ def _try_else(code, try_expr, catches, storage,
               else_exprs, tc):
 
     except_label = code.gen_label()
+    else_label = code.gen_label()
     end_label = code.gen_label()
 
     with code.block_try(except_label):
         code.add_expression(try_expr, False)
         code.pseudop_pop()
 
-    _helper_begin(code, else_exprs, tc)
-    code.pseudop_set_var(storage)
-
-    code.pseudop_jump_forward(end_label)
+    # it would be nice to just handle the else here and then jump to
+    # the end but that would mean the bytecode line numbers wouldn't
+    # be linear anymore, and python3.5 doesn't support that sort of
+    # thing. So we have to jump past the catch code to the else block.
+    code.pseudop_jump_forward(else_label)
 
     _except(code, catches, except_label, end_label, storage, tc)
+
+    code.pseudop_label(else_label)
+    _helper_begin(code, else_exprs, tc)
+    code.pseudop_set_var(storage)
 
     code.pseudop_label(end_label)
 
