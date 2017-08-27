@@ -353,7 +353,7 @@ class Pair(object):
         """
 
         i = 0
-        for i, _v in enumerate(self.unpack(), 1):
+        for i, _v in enumerate(self.follow(), 1):
             pass
         return i
 
@@ -390,14 +390,21 @@ class Pair(object):
         stops emiting items once recursion is detected.
         """
 
-        for pair in self.follow():
-            yield pair._car
+        _Pair = type(self)
 
-        if pair._cdr is not nil:
-            yield pair._cdr
+        for item in self.follow():
+            if type(item) is _Pair:
+                yield item._car
+            else:
+                yield item
 
 
     def follow(self):
+        """
+        iterator that emits cdr(self), stopping (and omitting) a trailing
+        nil or recursive link.
+        """
+
         _Pair = type(self)
 
         found = set()
@@ -405,11 +412,15 @@ class Pair(object):
 
         while (type(current) is _Pair):
             if id(current) in found:
-                return
+                break
 
             found.add(id(current))
             yield current
             current = current._cdr
+
+        else:
+            if current is not nil:
+                yield current
 
 
     def is_recursive(self):
