@@ -89,7 +89,7 @@ class CPython35(ExpressionCodeSpace):
         _Pseudop = Pseudop
         _Opcode = Opcode
 
-        for op, *args in self.pseudops:
+        for op, *args in self.gen_pseudops():
             if op is _Pseudop.POSITION:
                 declare_position(*args)
 

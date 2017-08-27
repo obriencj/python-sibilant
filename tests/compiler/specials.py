@@ -503,6 +503,9 @@ class CompilerSpecials(TestCase):
         self.assertNotIn("nachos", env)
 
 
+class SpecialCond(TestCase):
+
+
     def test_cond(self):
         src = """
         (cond)

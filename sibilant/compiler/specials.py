@@ -509,28 +509,14 @@ def _special_with(code, source, tc=False):
     storage = code.gen_sym()
     code.declare_var(storage)
 
-    label_cleanup = code.gen_label()
+    with code.block_with(expr):
+        code.pseudop_set_var(binding)
+        _helper_begin(code, body, False)
+        code.pseudop_set_var(storage)
 
-    code.add_expression(expr)
-    code.pseudop_setup_with(label_cleanup)
-    code.pseudop_faux_push(4)
-    code.pseudop_set_var(binding)
-
-    _helper_begin(code, body, False)
-    code.pseudop_set_var(storage)
-
-    code.pseudop_pop_block()
-    code.pseudop_const(None)
-    code.pseudop_faux_pop()
-
-    code.pseudop_label(label_cleanup)
-    code.pseudop_with_cleanup_start()
-    code.pseudop_with_cleanup_finish()
-    code.pseudop_end_finally()
-
+    code.pseudop_debug("before fetching storage in special_with")
     code.pseudop_get_var(storage)
     code.pseudop_del_var(storage)
-    code.pseudop_faux_pop(3)
 
     return None
 
@@ -766,17 +752,45 @@ def _special_try(code, source, tc=False):
 
     called_by, (try_expr, catches) = source
 
+    ca, act_else, act_finally = _collect_catches(code, catches)
+
     storage = code.gen_sym()
     code.declare_var(storage)
 
-    the_end = code.gen_label()
+    storage = code.gen_sym()
+    code.declare_var(storage)
 
-    has_finally = False
-    has_else = False
+    if act_finally:
+        if act_else:
+            _try_else_finally(code, try_expr, ca, storage,
+                              act_else, act_finally, tc)
+        else:
+            _try_finally(code, try_expr, ca, storage,
+                         act_finally, tc)
+
+    elif act_else:
+        _try_else(code, try_expr, ca, storage,
+                  act_else, tc)
+
+    else:
+        _try(code, try_expr, ca, storage, tc)
+
+    code.pseudop_get_var(storage)
+    code.pseudop_const(None)
+    code.pseudop_set_var(storage)
+    code.pseudop_del_var(storage)
+
+
+def _collect_catches(code, catches):
+    # returns (normal_catches, act_else, act_finally)
+    #
+    # - normal_catches is a series of (cons (values SYMBOL EXPR), act, nil)
+    # - act_else is None or a cons that is the body of the else clause
+    # - act_finally is None or a cons that is the body of the finally clause
 
     normal_catches = []
-
-    code.pseudop_debug("top of _helper_special_try")
+    act_else = None
+    act_finally = None
 
     # first, filter our catches down into normal exception
     # matches, finally, and else
@@ -793,191 +807,153 @@ def _special_try(code, source, tc=False):
             normal_catches.append(ex)
 
         elif ex is _keyword_finally:
-            if has_finally:
+            if act_finally:
                 raise code.error("duplicate finally: clause in try", ca)
 
-            has_finally = True
             act_finally = act
-            label_finally = code.gen_label()
 
         elif ex is _keyword_else:
-            if has_else:
+            if act_else:
                 raise code.error("duplicate else: clause in try", ca)
-            has_else = True
+
             act_else = act
-            label_else = code.gen_label()
 
         else:
             raise code.error("missing keyword label in else/finally", ca)
 
-    label_next = code.gen_label()
+    return normal_catches, act_else, act_finally
 
-    if has_finally:
-        # setup that finally block if we need one
-        code.pseudop_setup_finally(label_finally)
 
-    # here's our actual try block
-    code.pseudop_setup_except(label_next)
-    code.add_expression(try_expr)
-    code.pseudop_debug("after try expression")
+def _try(code, try_expr, catches, storage, tc):
+    except_label = code.gen_label()
+    end_label = code.gen_label()
 
-    if has_else:
-        # the result of the expression is thrown away if we have
-        # an else clause. This should be redundant, due to the
-        # following pop_block, but let's be tidy
-        code.pseudop_pop()
-        code.pseudop_pop_block()
-        code.pseudop_jump_forward(label_else)
-
-    else:
-        # but if there isn't an else clause, then the result of
-        # the expression is the real deal. If there was a finally,
-        # that will be jumped to.
+    with code.block_try(except_label):
+        code.add_expression(try_expr, False)
         code.pseudop_set_var(storage)
-        code.pseudop_pop_block()
-        code.pseudop_jump_forward(the_end)
 
-    code.pseudop_debug("before handlers")
+    code.pseudop_jump_forward(end_label)
 
-    # TOS exception type, TOS-1 exception, TOS-2 backtrace
-    for ca in normal_catches:
-        (key, match), act = ca
+    _except(code, catches, except_label, end_label, storage, tc)
 
-        # each attempt to match the exception should have us at
-        # the TOS,TOS-1,TOS-2 setup
-        # PLUS the 3 from an exception block
-        code.pseudop_faux_push(7)
+    code.pseudop_label(end_label)
 
-        code.pseudop_position_of(ca)
-        code.pseudop_label(label_next)
 
-        label_next = code.gen_label()
+def _try_else(code, try_expr, catches, storage,
+              else_exprs, tc):
 
-        code.pseudop_debug("beginning of declared handler")
+    except_label = code.gen_label()
+    else_label = code.gen_label()
+    end_label = code.gen_label()
+
+    with code.block_try(except_label):
+        code.add_expression(try_expr, False)
+        code.pseudop_pop()
+
+    # it would be nice to just handle the else here and then jump to
+    # the end but that would mean the bytecode line numbers wouldn't
+    # be linear anymore, and python3.5 doesn't support that sort of
+    # thing. So we have to jump past the catch code to the else block.
+    code.pseudop_jump_forward(else_label)
+
+    _except(code, catches, except_label, end_label, storage, tc)
+
+    code.pseudop_label(else_label)
+    _helper_begin(code, else_exprs, tc)
+    code.pseudop_set_var(storage)
+
+    code.pseudop_label(end_label)
+
+
+def _try_finally(code, try_expr, catches, storage,
+                 fin_exprs, tc):
+
+    cleanup = code.gen_label()
+    with code.block_finally(cleanup):
+        _try(code, try_expr, catches, storage, False)
+
+    with code.block_finally_cleanup(cleanup):
+        _helper_begin(code, fin_exprs, tc)
+        code.pseudop_set_var(storage)
+
+
+def _try_else_finally(code, try_expr, catches, storage,
+                      else_exprs, fin_exprs, tc):
+
+    cleanup = code.gen_label()
+    with code.block_finally(cleanup):
+        _try_else(code, try_expr, catches, storage, else_exprs, False)
+
+    with code.block_finally_cleanup(cleanup):
+        _helper_begin(code, fin_exprs, tc)
+        code.pseudop_set_var(storage)
+
+
+def _except(code, catches, except_label, end_label,
+            storage, tc):
+
+    with code.block_except(except_label):
+        curr_label = except_label
+        next_label = code.gen_label()
+
+        for ca in catches:
+            (key, match), act = ca
+
+            code.pseudop_position_of(ca)
+            _except_match(code, key, match,
+                          curr_label, next_label, end_label,
+                          act, storage, tc)
+
+            curr_label = next_label
+            next_label = code.gen_label()
+
+        # after the loop, drop a label for the fall-through.
+        code.pseudop_label(curr_label)
+
+    # block closes, anything that reached the fall-through is re-raised
+    pass
+
+
+def _except_match(code, key, match,
+                  match_label, next_label, end_label,
+                  act, storage, tc=False):
+
+    with code.block_except_match(match_label):
+        code.pseudop_dup()
+        code.add_expression(match, False)
+        code.pseudop_compare_exception()
+        code.pseudop_pop_jump_if_false(next_label)
 
         if key:
-            # The exception is intended to be bound to a local
-            # variable. To achieve that, we're going to set up
-            # a lambda with that single binding, and stuff out
-            # handler code inside of it.
-
             key = str(key)
             code.declare_var(key)
 
-            cleanup = code.gen_label()
-
-            # check if we match. If not, jump to the next catch
-            # attempt
-            code.pseudop_dup()
-            code.add_expression(match)
-            code.pseudop_compare_exception()
-            code.pseudop_pop_jump_if_false(label_next)
-
-            # okay, we've matched, so we need to bind the
-            # exception instance to the key and clear the
-            # other exception members off of the stack
-            code.pseudop_pop()         # pops the dup'd exc type
-            code.pseudop_set_var(key)  # binds the exc instance
-            code.pseudop_pop()         # pops the traceback
-
-            # wrap our handler code in a finally block, so
-            # that we can delete the key from the local
-            # namespace afterwards
-            code.pseudop_setup_finally(cleanup)
-
-            # handle the exception, store the result
-            _helper_begin(code, act, tc and not has_finally)
-            code.pseudop_set_var(storage)
-            code.pseudop_pop_block()
-            code.pseudop_pop_except()
-
-            # no idea why this None needs to be on the stack, but it
-            # does.
-            code.pseudop_const(None)
-            code.pseudop_label(cleanup)
-
-            # kill off that exception binding
-            code.pseudop_const(None)
+            code.pseudop_pop()
             code.pseudop_set_var(key)
-            code.pseudop_del_var(key)
+            code.pseudop_pop()
+            code.pseudop_debug("exc with key, should be zero")
 
-            # end_finally pops our cleanup block and
-            # finishes returning
-            code.pseudop_end_finally()
-            code.pseudop_jump_forward(the_end)
+            cleanup = code.gen_label()
+            with code.block_finally(cleanup):
+                _helper_begin(code, act, tc)
+                code.pseudop_set_var(storage)
+
+            with code.block_finally_cleanup(cleanup):
+                code.pseudop_const(None)
+                code.pseudop_set_var(key)
+                code.pseudop_del_var(key)
 
         else:
-            # this is an exception match without a binding
-            code.pseudop_dup()
-            code.add_expression(match)
-            code.pseudop_compare_exception()
-            code.pseudop_pop_jump_if_false(label_next)
+            code.pseudop_pop(3)
+            code.pseudop_debug("exc, no key, should be zero")
 
-            # Now let's throw all that stuff away.
-            code.pseudop_pop()
-            code.pseudop_pop()
-            code.pseudop_pop()
-
-            _helper_begin(code, act, tc and not has_finally)
+            _helper_begin(code, act, tc)
             code.pseudop_set_var(storage)
 
-            code.pseudop_pop_except()
-            code.pseudop_jump_forward(the_end)
+        code.pseudop_debug("just propr to pop_except")
 
-    # after all the attempts at trying to match the exception, we
-    # land here. This is the catch-all fallback, that will
-    # re-raise the exception.
-    code.pseudop_label(label_next)
-    code.pseudop_faux_push(4)
-    code.pseudop_debug("restored stack in fall-through")
-    code.pseudop_faux_pop(3)
-    code.pseudop_end_finally()
-    code.pseudop_debug("fall-through exception")
-
-    if has_else:
-        # okay, we've arrived at the else handler. Let's run it,
-        # and store that value
-        code.pseudop_label(label_else)
-        code.pseudop_debug("start of else handler")
-        _helper_begin(code, act_else, tc and not has_finally)
-
-        # if there is a finally registered, this will trigger it
-        # to run (and possibly overwrite the return value)
-        code.pseudop_set_var(storage)
-        code.pseudop_debug("end of else handler")
-
-    if has_finally:
-        # here's the actual handling of the finally event. This will
-        # get jumped to from the pop_blocks above, if the finally
-        # block was registered.
-        code.pseudop_label(the_end)
-        code.pseudop_pop_block()
-
-        # run the handler and store the result
-        code.pseudop_const(None)
-        code.pseudop_label(label_finally)
-
-        _helper_begin(code, act_finally, tc)
-        code.pseudop_set_var(storage)
-
-        # and close off the finally block
-        code.pseudop_debug("closing off finally")
-        code.pseudop_end_finally()
-
-    else:
-        code.pseudop_label(the_end)
-
-    code.pseudop_get_var(storage)
-
-    # cleanup our storage var
-    code.pseudop_const(None)
-    code.pseudop_set_var(storage)
-    code.pseudop_del_var(storage)
-
-    code.pseudop_debug("at the end")
-
-    # no further transformations needed on the passed source code.
-    return None
+    # post pop-except
+    code.pseudop_jump_forward(end_label)
 
 
 @special(_symbol_setq)
@@ -1075,14 +1051,16 @@ def _special_cond(code, source, tc=False):
         label = code.gen_label()
 
         if test is _keyword_else:
-            _helper_begin(code, body, tc)
+            with code.block_begin():
+                _helper_begin(code, body, tc)
             code.pseudop_jump_forward(done)
             break
 
         else:
             code.add_expression(test)
             code.pseudop_pop_jump_if_false(label)
-            _helper_begin(code, body, tc)
+            with code.block_begin():
+                _helper_begin(code, body, tc)
             code.pseudop_jump_forward(done)
 
     else:
