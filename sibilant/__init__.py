@@ -184,7 +184,7 @@ class Pair(object):
     end of a list.
     """
 
-    __slots__ = ("_car", "_cdr", )
+    __slots__ = ("_car", "_cdr", "_src_pos", )
 
 
     def __init__(self, head, *tail, recursive=False):
@@ -242,7 +242,9 @@ class Pair(object):
 
 
     def __eq__(self, other):
-        if type(other) is not Pair:
+        _Pair = type(self)
+
+        if type(other) is not _Pair:
             return False
 
         left = self
@@ -256,7 +258,7 @@ class Pair(object):
         while left is not right:
             if (left is nil) or (right is nil):
                 return False
-            elif (type(left) is not Pair):
+            elif (type(left) is not _Pair):
                 return left == right
 
             a, left = left
@@ -350,10 +352,10 @@ class Pair(object):
         lists. Stops counting if/when recursive cells are detected.
         """
 
-        i = -1
-        for i, _v in enumerate(self.unpack()):
+        i = 0
+        for i, _v in enumerate(self.unpack(), 1):
             pass
-        return i + 1
+        return i
 
 
     def items(self):
@@ -362,8 +364,10 @@ class Pair(object):
         cons lists result in infinite items
         """
 
+        _Pair = type(self)
+
         current = self
-        while isinstance(current, Pair) and (current is not nil):
+        while isinstance(current, _Pair) and (current is not nil):
             yield current._car
             current = current._cdr
         yield current
@@ -386,19 +390,26 @@ class Pair(object):
         stops emiting items once recursion is detected.
         """
 
+        for pair in self.follow():
+            yield pair._car
+
+        if pair._cdr is not nil:
+            yield pair._cdr
+
+
+    def follow(self):
+        _Pair = type(self)
+
         found = set()
         current = self
 
-        while (type(current) is Pair):
+        while (type(current) is _Pair):
             if id(current) in found:
                 return
 
             found.add(id(current))
-            yield current._car
-            current = current._cdr
-
-        if current is not nil:
             yield current
+            current = current._cdr
 
 
     def is_recursive(self):
@@ -440,6 +451,73 @@ class Pair(object):
                 current = cdr(current)
 
         return current is nil
+
+
+    def clear_position(self, follow=False):
+        try:
+            del self._src_pos
+        except:
+            pass
+
+        if not follow:
+            return
+
+        _Pair = type(self)
+        clear_pos = _Pair.clear_position
+
+        for pair in self.follow():
+            try:
+                del pair._src_pos
+            except:
+                pass
+            value = pair._car
+            if type(value) is _Pair:
+                clear_pos(value, position, True)
+
+
+    def set_position(self, position, follow=False):
+        cons._src_pos = position
+
+        if not follow:
+            return
+
+        _Pair = type(self)
+        set_pos = _Pair.set_position
+
+        for pair in self.follow():
+            pair._src_pos = position
+            value = pair._car
+            if type(value) is _Pair:
+                set_pos(value, position, True)
+
+
+    def fill_position(self, position, follow=True):
+        try:
+            self._src_pos
+        except:
+            self._src_pos = position
+
+        if not follow:
+            return
+
+        _Pair = type(self)
+        fill_pos = _Pair.fill_position
+
+        for pair in self.follow():
+            try:
+                position = pair._src_pos
+            except:
+                pair._src_pos = position
+            value = pair._car
+            if type(value) is _Pair:
+                fill_pos(value, position, True)
+
+
+    def get_position(self):
+        try:
+            return self._src_pos
+        except:
+            return None
 
 
 def is_pair(value):
