@@ -47,7 +47,7 @@
   (doc "entry point for the sibapp CLI")
 
   ;; grab sys.argv if we aren't given something else
-  (when (is None argv) (setq argv sys.argv))
+  (when (none? argv) (setq argv sys.argv))
 
   (var parser (create-option-parser argv))
   (var options (parser.parse_args
@@ -56,11 +56,11 @@
   (try
    (cli options)
 
-   (KeyboardInterrupt
+   ((KeyboardInterrupt as: ki)
     (print file: sys.stderr)
     130)
 
-   (else 0)))
+   (else: 0)))
 
 
 (when (eq __name__ "__main__")
