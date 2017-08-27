@@ -24,7 +24,7 @@ license: LGPL v.3
 from io import StringIO
 from unittest import TestCase
 
-from sibilant import cons, symbol, keyword, nil
+from sibilant import cons, symbol, keyword, nil, car, cdr
 from sibilant.parse import default_reader, source_str
 
 
@@ -311,6 +311,46 @@ class TestParse(TestCase):
         self.assertEqual(a, 1.0)
         self.assertEqual(b, "2")
         self.assertEqual(c, cons(3, nil))
+
+
+class PositionsTest(TestCase):
+
+
+    def test_position_1(self):
+        src = """
+        (hello world)
+        """
+        strm = source_str(src)
+        expr = default_reader.read(strm)
+
+        self.assertEqual(expr.get_position(), (2, 8))
+        expr = cdr(expr)
+        self.assertEqual(expr.get_position(), (2, 15))
+
+
+    def test_position_2(self):
+        src = """
+        (hello (world)
+         how are you)
+        """
+        strm = source_str(src)
+        expr = default_reader.read(strm)
+
+        self.assertEqual(expr.get_position(), (2, 8))
+        expr = cdr(expr)
+        self.assertEqual(expr.get_position(), (2, 15))
+
+        wld = car(expr)
+        self.assertEqual(expr.get_position(), (2, 15))
+
+        expr = cdr(expr)
+        self.assertEqual(expr.get_position(), (3, 9))
+
+        expr = cdr(expr)
+        self.assertEqual(expr.get_position(), (3, 13))
+
+        expr = cdr(expr)
+        self.assertEqual(expr.get_position(), (3, 17))
 
 
 #
