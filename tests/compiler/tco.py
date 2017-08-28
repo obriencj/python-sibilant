@@ -69,18 +69,18 @@ def factorial(num, accu=1):
 
 
 @trampoline
-def tco_fibonacci(num, accu=0):
+def tco_fibonacci(num, accu=0, carry=1):
     if num < 1:
         return accu
     else:
-        return tailcall(tco_fibonacci)(num - 1, accu + num)
+        return tailcall(tco_fibonacci)(num - 1, carry, carry + accu)
 
 
-def fibonacci(num, accu=0):
+def fibonacci(num, accu=0, carry=1):
     if num < 1:
         return accu
     else:
-        return fibonacci(num - 1, accu + num)
+        return fibonacci(num - 1, carry, carry + accu)
 
 
 @trampoline
@@ -181,8 +181,9 @@ class TestTCOCompiler(TestCase):
         count = getrecursionlimit()
 
         src = """
-        (function fibonacci (num :accu 0)
-          (if (< num 1) accu (fibonacci (- num 1) (+ num accu))))
+        (function fibonacci (index carry: 0 accu: 1)
+          (if (== index 0) then: carry
+              else: (fibonacci (- index 1) accu (+ accu carry))))
         """
         stmt, env = compile_expr(src)
         res = stmt()

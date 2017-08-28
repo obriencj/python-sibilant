@@ -508,12 +508,18 @@ class SpecialLet(TestCase):
 
     def test_named_let(self):
         src = """
-        (let fib ((num CALC) (accu 0))
-          (if (< num 1) accu (fib (- num 1) (+ num accu))))
+        (let fibonacci ((index CALC) (carry 0) (accu 1))
+          (if (== index 0) then: carry
+              else: (fibonacci (- index 1) accu (+ accu carry))))
         """
-        stmt, env = compile_expr(src, CALC=10)
-        res = stmt()
-        self.assertEqual(res, 55)
+
+        check = ((0, 0), (1, 1), (2, 1), (3, 2), (7, 13), (9, 34),
+                 (10, 55), (11, 89), (20, 6765), )
+
+        for index, expected in check:
+            stmt, env = compile_expr(src, CALC=index)
+            res = stmt()
+            self.assertEqual(res, expected)
 
 
 class SpecialCond(TestCase):
