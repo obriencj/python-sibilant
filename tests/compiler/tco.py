@@ -106,6 +106,7 @@ class TestTailcall(TestCase):
     def test_factorial(self):
         count = getrecursionlimit()
 
+        self.assertEqual(factorial(9), 362880)
         self.assertEqual(factorial(10), 3628800)
 
         self.assertRaises(RecursionError, factorial, count)
@@ -125,6 +126,7 @@ class TestTailcall(TestCase):
         count = getrecursionlimit()
 
         self.assertEqual(fibonacci(10), 55)
+        self.assertEqual(fibonacci(11), 89)
 
         self.assertRaises(RecursionError, fibonacci, count)
         self.assertTrue(tco_fibonacci, count)
@@ -166,6 +168,8 @@ class TestTCOCompiler(TestCase):
         res = stmt()
         self.assertTrue(callable(res))
 
+        self.assertEqual(res(8), 40320)
+        self.assertEqual(res(9), 362880)
         self.assertEqual(res(10), 3628800)
         self.assertTrue(res(count * 10))
 
