@@ -571,9 +571,21 @@ def _special_let(code, source, tc=False):
     Creates a lexical scope where each BINDING is assigned the value from
     evaluating EXPR, then executes the BODY expressions in order. The
     result of the final expression is returned.
+
+    (let NAME ((BINDING EXPR) ...) BODY...)
+
+    Same as above, but also binds a recursive function NAME which
+    re-enters the LET with updated binding values.
     """
 
-    called_by, (bindings, body) = source
+    called_by, rest = source
+
+    bindings, body = rest
+    if is_symbol(bindings):
+        named = str(bindings)
+        bindings, body = body
+    else:
+        named = None
 
     args = []
     vals = []
@@ -587,11 +599,39 @@ def _special_let(code, source, tc=False):
     else:
         args = nil
 
-    code.pseudop_position_of(source)
+    declared_at = source.get_position()
+    code.pseudop_position(*declared_at)
 
-    _helper_function(code, "<let>", args, body,
-                     declared_at=source.get_position())
+    if named:
+        # wrap a really short lambda around the let, in order to give
+        # it a binding to itself by its name as a freevar
+        kid = code.child_context(declared_at=declared_at)
+        with kid as subc:
+            subc.declare_var(named)
 
+            fnamed = "<let %s>" % named
+            _helper_function(subc, fnamed, args, body,
+                             declared_at=declared_at)
+
+            subc.pseudop_dup()
+            subc.pseudop_set_var(named)
+            subc.pseudop_return()
+            kid_code = subc.complete()
+
+        code.pseudop_lambda(kid_code, 0)
+        code.pseudop_call(0)
+
+    else:
+        _helper_function(code, "<let>", args, body,
+                         declared_at=declared_at)
+
+    # after both the named or unnamed variations, we now have the let
+    # bound as a callable at TOS
+
+    # tailcall enable this function application. has no effect if tc
+    # is False. Normally it's the compiler's job to perform this step,
+    # but since we're creating our own function application call, we
+    # need to do it manually.
     code.helper_tailcall_tos(tc)
 
     for val in vals:
