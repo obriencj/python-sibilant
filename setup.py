@@ -69,7 +69,7 @@ setup(name = "sibilant",
       requires = ["appdirs", ],
       platforms = ["python3 >= 3.5", ],
 
-      zip_safe = True,
+      zip_safe = False,
 
       classifiers = [
           "Intended Audience :: Developers",

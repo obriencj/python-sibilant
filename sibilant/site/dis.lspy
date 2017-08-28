@@ -1,0 +1,19 @@
+(defimport dis)
+
+
+(defun tco-unwrap (fun)
+  (getattr fun "_tco_original" fun))
+
+
+(defun trampoline? (fun)
+  (if (getattr fun "_tco_original" False) then: True))
+
+
+(defun full (fun)
+  (when (trampoline? fun)
+    (print "Tail-call Trampoline Wrapper")
+    (setq fun (tco-unwrap fun)))
+  (dis.show_code fun)
+  (print "Disassembly:")
+  (dis.dis fun)
+  (print))
