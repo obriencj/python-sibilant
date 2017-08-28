@@ -348,24 +348,6 @@ class Quasiquote(TestCase):
 class CompilerSpecials(TestCase):
 
 
-    def test_let(self):
-        src = "(let ((tacos 1) (beer 2)) (cons tacos beer))"
-        stmt, env = compile_expr(src, tacos=5)
-        self.assertEqual(stmt(), cons(1, 2))
-
-        src = "(let ((tacos 1) (beer 2)) (cons tacos beer nil))"
-        stmt, env = compile_expr(src, tacos=5)
-        self.assertEqual(stmt(), cons(1, 2, nil))
-
-        src = "(let () (cons tacos beer nil))"
-        stmt, env = compile_expr(src, tacos=5, beer=9)
-        self.assertEqual(stmt(), cons(5, 9, nil))
-
-        src = "(let ((tacos 1)) (cons tacos beer))"
-        stmt, env = compile_expr(src, tacos=5, beer=9)
-        self.assertEqual(stmt(), cons(1, 9))
-
-
     def test_define(self):
         src = """
         (define tacos 100)
@@ -501,6 +483,37 @@ class CompilerSpecials(TestCase):
         self.assertEqual(stmt(), 1099)
         self.assertNotIn("beer", env)
         self.assertNotIn("nachos", env)
+
+
+class SpecialLet(TestCase):
+
+
+    def test_let(self):
+        src = "(let ((tacos 1) (beer 2)) (cons tacos beer))"
+        stmt, env = compile_expr(src, tacos=5)
+        self.assertEqual(stmt(), cons(1, 2))
+
+        src = "(let ((tacos 1) (beer 2)) (cons tacos beer nil))"
+        stmt, env = compile_expr(src, tacos=5)
+        self.assertEqual(stmt(), cons(1, 2, nil))
+
+        src = "(let () (cons tacos beer nil))"
+        stmt, env = compile_expr(src, tacos=5, beer=9)
+        self.assertEqual(stmt(), cons(5, 9, nil))
+
+        src = "(let ((tacos 1)) (cons tacos beer))"
+        stmt, env = compile_expr(src, tacos=5, beer=9)
+        self.assertEqual(stmt(), cons(1, 9))
+
+
+    def test_named_let(self):
+        src = """
+        (let fib ((num CALC) (accu 0))
+          (if (< num 1) accu (fib (- num 1) (+ num accu))))
+        """
+        stmt, env = compile_expr(src, CALC=10)
+        res = stmt()
+        self.assertEqual(res, 55)
 
 
 class SpecialCond(TestCase):
