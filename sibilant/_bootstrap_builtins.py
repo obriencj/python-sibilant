@@ -239,25 +239,25 @@ def _converters():
 _converters()
 
 _val(tuple, "tuple")
-_op((lambda *vals: vals), "make-tuple", rename=True)
+_op((lambda *vals: vals), "build-tuple", rename=True)
 _op((lambda value: isinstance(value, tuple)),
     "tuple?", rename=True)
 
 _op((lambda *vals: vals), "values", rename=True)
 
 _val(list, "list")
-_op((lambda *vals: list(vals)), "make-list", rename=True)
+_op((lambda *vals: list(vals)), "build-list", rename=True)
 _op((lambda value: isinstance(value, list)),
     "list?", rename=True)
 
 _val(dict, "dict")
 _op((lambda *pairs: dict(pair.unpack() for pair in pairs)),
-    "make-dict", rename=True)
+    "build-dict", rename=True)
 _op((lambda value: isinstance(value, dict)),
     "dict?", rename=True)
 
 _val(set, "set")
-_op((lambda *vals: set(vals)), "make-set", rename=True)
+_op((lambda *vals: set(vals)), "build-set", rename=True)
 _op((lambda value: isinstance(value, set)),
     "set?", rename=True)
 

@@ -723,7 +723,7 @@ class BinaryOperators(TestCase):
         self.assertEqual(stmt(), 1)
 
         src = """
-        (% "first %s second %s third %s" (make-tuple 3 2 1))
+        (% "first %s second %s third %s" (build-tuple 3 2 1))
         """
         stmt, env = compile_expr(src)
         self.assertEqual(stmt(), "first 3 second 2 third 1")
@@ -738,7 +738,7 @@ class BinaryOperators(TestCase):
         self.assertEqual(stmt(), 1)
 
         src = """
-        (apply % `("first %s second %s third %s" ,(make-tuple 3 2 1)))
+        (apply % `("first %s second %s third %s" ,(build-tuple 3 2 1)))
         """
         stmt, env = compile_expr(src)
         self.assertEqual(stmt(), "first 3 second 2 third 1")
@@ -1127,7 +1127,7 @@ class UnaryOperators(TestCase):
         self.assertEqual(stmt(), False)
 
         src = """
-        (not (make-list 0))
+        (not (build-list 0))
         """
         stmt, env = compile_expr(src)
         self.assertEqual(stmt(), False)
@@ -1151,7 +1151,7 @@ class UnaryOperators(TestCase):
         self.assertEqual(stmt(), True)
 
         src = """
-        (not (make-list))
+        (not (build-list))
         """
         stmt, env = compile_expr(src)
         self.assertEqual(stmt(), True)
@@ -1178,7 +1178,7 @@ class UnaryOperators(TestCase):
         self.assertEqual(stmt(), False)
 
         src = """
-        (apply not `(,(make-list 0))))
+        (apply not `(,(build-list 0))))
         """
         stmt, env = compile_expr(src)
         self.assertEqual(stmt(), False)
@@ -1202,7 +1202,7 @@ class UnaryOperators(TestCase):
         self.assertEqual(stmt(), True)
 
         src = """
-        (apply not `(,(make-list)))
+        (apply not `(,(list)))
         """
         stmt, env = compile_expr(src)
         self.assertEqual(stmt(), True)

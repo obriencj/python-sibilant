@@ -140,7 +140,7 @@
 
       (coll.append
        `(define ,byname (attr (import ,(str modulename) (globals) None
-				      (make-list ,(str member)))
+				      (build-list ,(str member)))
 			      ,member)))
 
       (setq &bindings (cdr &bindings)))
@@ -150,7 +150,7 @@
 
 ;; === setf and general variables ===
 
-(let ((*gv-forms* (make-dict)))
+(let ((*gv-forms* (dict)))
 
   (defun gv-define-setter-fn (name fn)
     (set-item *gv-forms* name fn)
@@ -215,7 +215,7 @@
 ;;   (macro atom
 ;; 	 (lambda (value)
 ;; 	   `(,(if (eq "a" (item atom 1)) 'car 'cdr)
-;; 	     (reduce (lambda (x y) (y x)) (make-tuple ,@calls) ,value)))))
+;; 	     (reduce (lambda (x y) (y x)) (build-tuple ,@calls) ,value)))))
 
 
 ;; (set-atom-regex 'c__r "c[ad]{2,}r" (lambda (atom) `(c__r ,atom)))
@@ -258,7 +258,7 @@
      (setq *flds* (*body* (dict)))
      (set-item *flds* "__doc__" *body*.__doc__)
      (type *name*
-	   (make-tuple ,@bases)
+	   (build-tuple ,@bases)
 	   *flds*)))
 
 
