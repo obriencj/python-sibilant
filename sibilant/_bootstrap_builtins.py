@@ -90,7 +90,7 @@ _op(_sibilant.cdr, "cdr")
 _op(_sibilant.setcdr, "set-cdr")
 _op(_sibilant.is_pair, "pair?")
 _op(_sibilant.is_proper, "proper?")
-_op(_sibilant.make_proper, "make-proper")
+_op(_sibilant.build_proper, "build-proper")
 _val(_sibilant.nil, "nil")
 _op(_sibilant.is_nil, "nil?")
 _val(_sibilant.symbol, "symbol")
@@ -115,8 +115,6 @@ _op(_sibilant.tenth, "tenth", rename=True)
 
 
 _op(_sibilant.last, "last")
-
-_op(_sibilant.is_undefined, "undefined?")
 
 
 # === sibilant compiled builtins ===

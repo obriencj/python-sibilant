@@ -925,7 +925,7 @@ class CodeSpace(metaclass=ABCMeta):
         if self.declared_at:
             self.pseudop_position(*self.declared_at)
 
-        self.pseudop_get_var("make-proper")
+        self.pseudop_get_var("build-proper")
         self.pseudop_get_var(varname)
         self.pseudop_call_var(0, 0)
         self.pseudop_set_var(varname)

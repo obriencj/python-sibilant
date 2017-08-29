@@ -231,7 +231,7 @@ def _helper_quote(code, body, tc=False):
 
     elif is_pair(body):
         if is_proper(body):
-            code.pseudop_get_var("make-proper")
+            code.pseudop_get_var("build-proper")
         else:
             code.pseudop_get_var("cons")
 
@@ -289,7 +289,7 @@ def _helper_quasiquote(code, marked, level=0):
                 if level == 0:
                     return code.add_expression(tail)
                 else:
-                    code.pseudop_get_var("make-proper")
+                    code.pseudop_get_var("build-proper")
                     _helper_symbol(code, head)
                     _helper_quasiquote(code, tail, level - 1)
                     code.pseudop_call(2)
@@ -298,14 +298,14 @@ def _helper_quasiquote(code, marked, level=0):
             elif head is _symbol_splice:
                 tail, _rest = tail
                 if level == 0:
-                    code.pseudop_get_var("make-proper")
+                    code.pseudop_get_var("build-proper")
                     code.pseudop_get_var("to-tuple")
                     code.add_expression(tail)
                     code.pseudop_call(1)
                     code.pseudop_call_var(0)
                     return
                 else:
-                    code.pseudop_get_var("make-proper")
+                    code.pseudop_get_var("build-proper")
                     _helper_symbol(code, head)
                     _helper_quasiquote(code, tail, level - 1)
                     code.pseudop_call(2)
@@ -313,7 +313,7 @@ def _helper_quasiquote(code, marked, level=0):
 
             elif head is _symbol_quasiquote:
                 tail, _rest = tail
-                code.pseudop_get_var("make-proper")
+                code.pseudop_get_var("build-proper")
                 _helper_symbol(code, head)
                 _helper_quasiquote(code, tail, level + 1)
                 code.pseudop_call(2)
@@ -346,7 +346,7 @@ def _helper_quasiquote(code, marked, level=0):
 
                     if head is _symbol_quasiquote:
                         tail, _rest = tail
-                        code.pseudop_get_var("make-proper")
+                        code.pseudop_get_var("build-proper")
                         _helper_symbol(code, head)
                         _helper_quasiquote(code, tail, level + 1)
                         code.pseudop_call(2)
@@ -364,7 +364,7 @@ def _helper_quasiquote(code, marked, level=0):
 
                         else:
                             # not level 0, recurse with one less level
-                            code.pseudop_get_var("make-proper")
+                            code.pseudop_get_var("build-proper")
                             _helper_symbol(code, head)
                             _helper_quasiquote(code, u_expr, level - 1)
                             code.pseudop_call(2)
@@ -387,7 +387,7 @@ def _helper_quasiquote(code, marked, level=0):
                             continue
 
                         else:
-                            code.pseudop_get_var("make-proper")
+                            code.pseudop_get_var("build-proper")
                             _helper_symbol(code, head)
                             _helper_quasiquote(code, u_expr, level - 1)
                             code.pseudop_call(2)

@@ -33,11 +33,10 @@ __all__ = (
 
     "cons", "car", "cdr", "nil",
     "setcar", "setcdr",
-    "is_nil", "is_pair", "is_proper",
-    "make_proper", "unpack",
+    "is_nil", "is_pair", "is_proper", "is_recursive",
 
-    "ref", "attr", "deref", "setref",
-    "undefined", "is_undefined",
+    "build_proper", "unpack",
+    "copy_pairs", "join_pairs", "build_unpack_pair",
 
     "reapply", "repeat",
 )
@@ -56,39 +55,6 @@ class NotYetImplemented(SibilantException):
     yet.
     """
     pass
-
-
-class UndefinedType():
-    """
-    an undefined value. singleton indicating a value has not been
-    assigned to a ref yet.
-    """
-
-    __instance = None
-
-
-    def __new__(cls):
-        inst = cls.__instance
-        if inst is None:
-            inst = super().__new__(cls)
-            cls.__instance = inst
-        return inst
-
-
-    def __repr__(self):
-        return "#<unspecified>"
-
-
-    def __str__(self):
-        return "#<unspecified>"
-
-
-# undefined singleton
-undefined = UndefinedType()
-
-
-def is_undefined(value):
-    return value is undefined
 
 
 class InternedAtom():
@@ -284,12 +250,13 @@ class Pair(object):
 
 
     def __str__(self):
+        _Pair = type(self)
         col = list()
         found = set()
 
         rest = self
         while rest is not nil:
-            if type(rest) is Pair:
+            if type(rest) is _Pair:
                 if id(rest) in found:
                     # recursive
                     col.append(" ...")
@@ -317,12 +284,13 @@ class Pair(object):
 
 
     def __repr__(self):
+        _Pair = type(self)
         col = ["cons("]
         found = {}
         index = 0
 
         rest = self
-        while type(rest) is Pair:
+        while type(rest) is _Pair:
             rid = id(rest)
             found_at = found.get(rid, None)
             if found_at is None:
@@ -401,9 +369,9 @@ class Pair(object):
 
     def follow(self):
         """
-        iterator that emits cdr(self), stopping (and omitting) a trailing
+        iterator that emits cdr(self), until reaching a trailing
         nil or recursive link. If the pair is improper, the last
-        result will not be a pair
+        result will not be a pair.
         """
 
         _Pair = type(self)
@@ -544,6 +512,9 @@ class Pair(object):
             return None
 
 
+cons = Pair
+
+
 def is_pair(value):
     return isinstance(value, Pair)
 
@@ -552,12 +523,23 @@ def is_proper(value):
     return isinstance(value, Pair) and value.is_proper()
 
 
-def make_proper(*values):
+def is_recursive(value):
+    return isinstance(value, Pair) and value.is_recursive()
+
+
+def build_proper(*values):
     """
     Create a proper cons pair from values
     """
 
     return cons(*values, nil) if values else nil
+
+
+def unpack(pair):
+    try:
+        yield from pair.unpack()
+    except AttributeError:
+        return iter(pair)
 
 
 def get_position(value, default=None):
@@ -572,37 +554,6 @@ def set_position(value, position, follow=False):
 def fill_position(value, position, follow=True):
     if position and is_pair(value):
         value.fill_position(position, follow)
-
-
-def unpack(pair):
-    try:
-        yield from pair.unpack()
-    except AttributeError:
-        return iter(pair)
-
-
-# def cons(a, *b, recursive=False):
-#     """
-#     Construct a singly-linked list from arguments. If final argument
-#     is not `nil`, the list will be considered improper. If recursive
-#     is True, the final link in the list will reference the start of
-#     the list.
-#     """
-
-#     ltype = Pair
-
-#     if recursive:
-#         a = ltype(a, nil)
-#         setcdr(a, reduce(lambda x, y: ltype(y, x), b[::-1], a))
-#         return a
-#     else:
-#         b, *c = b
-#         if c:
-#             b = ltype(b, reduce(lambda x, y: ltype(y, x), c[::-1]))
-#         return ltype(a, b)
-
-
-cons = Pair
 
 
 class Nil(Pair):
@@ -703,12 +654,18 @@ class Nil(Pair):
         pass
 
 
-# This is intended as a singleton
-nil = Nil()
+def _setup_nil():
+    # This is intended as a singleton
+    nil = Nil()
 
 
-def is_nil(value):
-    return value is nil
+    def is_nil(value):
+        return value is nil
+
+    return nil, is_nil
+
+
+nil, is_nil = _setup_nil()
 
 
 def car(c):
@@ -719,7 +676,7 @@ def car(c):
     if c is nil:
         raise TypeError("cannot get car of nil")
     elif not is_pair(c):
-        raise TypeError("expected PairType instance")
+        raise TypeError("expected Pair instance")
     else:
         return c._car
 
@@ -733,7 +690,7 @@ def cdr(c):
     if c is nil:
         raise TypeError("cannot get cdr of nil")
     elif not is_pair(c):
-        raise TypeError("expected PairType instance")
+        raise TypeError("expected Pair instance")
     else:
         return c._cdr
 
@@ -742,7 +699,7 @@ def setcar(c, value):
     if c is nil:
         raise TypeError("cannod set car of nil")
     elif not is_pair(c):
-        raise TypeError("expected PairType instance")
+        raise TypeError("expected Pair instance")
     else:
         c._car = value
         return value
@@ -752,15 +709,15 @@ def setcdr(c, value):
     if c is nil:
         raise TypeError("cannod set car of nil")
     elif not is_pair(c):
-        raise TypeError("expected PairType instance")
+        raise TypeError("expected Pair instance")
     else:
         c._cdr = value
         return value
 
 
-def repeat(value, count):
-    value = (value) * count
-    return cons(*value, nil)
+def repeatedly(value):
+    while True:
+        yield value
 
 
 def reapply(fun, data, count):
@@ -792,16 +749,16 @@ ninth = caddddddddr
 tenth = cadddddddddr
 
 
-def last(seq):
+def last(seq, empty=None):
     """
     returns the last item in an iterable sequence, or undefined if the
     sequence is empty
     """
 
     if is_pair(seq):
-        seq = seq.items()
+        seq = seq.unpack()
 
-    val = undefined
+    val = empty
     for val in iter(seq):
         pass
     return val

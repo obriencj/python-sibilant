@@ -30,7 +30,7 @@ import sibilant.builtins
 
 from sibilant import (
     car, cdr, cons, nil,
-    symbol, keyword, make_proper,
+    symbol, keyword, build_proper,
 )
 
 from sibilant.compiler import (
