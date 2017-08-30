@@ -573,6 +573,8 @@ class CodeSpace(metaclass=ABCMeta):
         self.varargs = varargs
         self.varkeywords = varkeywords
 
+        # this holds a combination of global var keys and member
+        # attribute keys
         self.names = []
 
         # first const is required -- it'll be None or a doc string and
@@ -581,10 +583,14 @@ class CodeSpace(metaclass=ABCMeta):
 
         self.blocks = [CodeBlock(Block.BASE, 0, 0)]
 
-        self.gen_label = _label_generator()
+        if parent:
+            self.gen_label = parent.gen_label
+            self._gen_sym = parent._gen_sym
 
-        gs = "gensym_%08x" % id(self)
-        self._gen_sym = _label_generator(gs + "_%02x")
+        else:
+            self.gen_label = _label_generator()
+            gs = "gensym_%08x" % id(self)
+            self._gen_sym = _label_generator(gs + "_%02x")
 
         if not proper_varargs:
             # if our argument formals are an improper list, then the
@@ -751,6 +757,11 @@ class CodeSpace(metaclass=ABCMeta):
 
 
     def set_doc(self, docstr):
+        """
+        Python expects doc strings to be the first constant (followed
+        immediately by None) in a code object's const pool.
+        """
+
         consts = self.consts
 
         if docstr is None and self.consts[0] is not None:
@@ -825,17 +836,36 @@ class CodeSpace(metaclass=ABCMeta):
 
 
     def declare_const(self, value):
+        """
+        Declare a constant value
+        """
+
         assert (type(value) in _CONST_TYPES), "invalid const type %r" % value
         _list_unique_append(self.consts, value)
 
 
     def declare_var(self, name):
+        """
+        Declare a local variable by name
+        """
+
         name = str(name)
         if not (name in self.cell_vars or name in self.free_vars):
             _list_unique_append(self.fast_vars, name)
 
 
     def request_var(self, name):
+        """
+        State that this code space wants to consume a var by name.
+
+        If the var is already declared locally, do nothing.
+        Otherwise, ff the var is in our ancestry, it will request
+        those parents convert it into a cell so that it will be
+        available as a closure here.  If the var is neither local nor
+        in our ancestry, then we'll presume it must be a global
+        reference.
+        """
+
         name = str(name)
         if (name in self.fast_vars) or \
            (name in self.free_vars) or \
@@ -856,8 +886,7 @@ class CodeSpace(metaclass=ABCMeta):
                 # and they said yes
                 _list_unique_append(self.free_vars, name)
             else:
-                _list_unique_append(self.global_vars, name)
-                _list_unique_append(self.names, name)
+                self.request_global(name)
 
 
     def request_global(self, name):
@@ -1282,13 +1311,131 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop(Pseudop.RAISE, count)
 
 
+    def helper_max_stack(self, op, args, push, pop):
+
+        _Pseudop = Pseudop
+        _Opcode = Opcode
+
+        if op in (_Pseudop.CONST,
+                  _Pseudop.DUP,
+                  _Pseudop.GET_VAR,
+                  _Pseudop.GET_GLOBAL):
+            push()
+
+        elif op is _Pseudop.DELETE_VAR:
+            pass
+
+        elif op in (_Pseudop.GET_ATTR,
+                    _Pseudop.UNARY_POSITIVE,
+                    _Pseudop.UNARY_NEGATIVE,
+                    _Pseudop.UNARY_NOT,
+                    _Pseudop.UNARY_INVERT,
+                    _Pseudop.ITER):
+            pop()
+            push()
+
+        elif op is _Pseudop.SET_ATTR:
+            pop(2)
+
+        elif op in (_Pseudop.DEFINE_GLOBAL,
+                    _Pseudop.DEFINE_LOCAL,
+                    _Pseudop.SET_VAR,
+                    _Pseudop.RET_VAL,
+                    _Pseudop.POP):
+            pop()
+
+        elif op is _Pseudop.LAMBDA:
+            pop(args[1])
+            a = len(args[0].co_freevars)
+            if a:
+                push(a)
+                pop(a)
+            push(2)
+            pop(2)
+            push()
+
+        elif op is _Pseudop.BUILD_MAP:
+            pop(args[0] * 2)
+            push()
+
+        elif op in (_Pseudop.BUILD_TUPLE,
+                    _Pseudop.BUILD_TUPLE_UNPACK,
+                    _Pseudop.BUILD_MAP_UNPACK):
+            pop(args[0])
+            push()
+
+        elif op is _Pseudop.SETUP_EXCEPT:
+            push(_Opcode.SETUP_EXCEPT.stack_effect(1))
+
+        elif op is _Pseudop.SETUP_WITH:
+            push(_Opcode.SETUP_WITH.stack_effect(1))
+
+        elif op is _Pseudop.SETUP_FINALLY:
+            push(_Opcode.SETUP_FINALLY.stack_effect(1))
+
+        elif op is _Pseudop.POP_BLOCK:
+            push(_Opcode.POP_BLOCK.stack_effect())
+
+        elif op is _Pseudop.POP_EXCEPT:
+            push(_Opcode.POP_EXCEPT.stack_effect())
+
+        elif op is _Pseudop.WITH_CLEANUP_START:
+            push(_Opcode.WITH_CLEANUP_START.stack_effect())
+
+        elif op is _Pseudop.WITH_CLEANUP_FINISH:
+            push(_Opcode.WITH_CLEANUP_FINISH.stack_effect())
+
+        elif op is _Pseudop.END_FINALLY:
+            push(_Opcode.END_FINALLY.stack_effect())
+
+        elif op in (_Pseudop.COMPARE_OP,
+                    _Pseudop.ITEM,
+                    _Pseudop.BINARY_ADD,
+                    _Pseudop.BINARY_SUBTRACT,
+                    _Pseudop.BINARY_MULTIPLY,
+                    _Pseudop.BINARY_MATRIX_MULTIPLY,
+                    _Pseudop.BINARY_TRUE_DIVIDE,
+                    _Pseudop.BINARY_FLOOR_DIVIDE,
+                    _Pseudop.BINARY_POWER,
+                    _Pseudop.BINARY_MODULO,
+                    _Pseudop.BINARY_LSHIFT,
+                    _Pseudop.BINARY_RSHIFT,
+                    _Pseudop.BINARY_AND,
+                    _Pseudop.BINARY_XOR,
+                    _Pseudop.BINARY_OR, ):
+            pop(2)
+            push()
+
+        elif op is _Pseudop.RAISE:
+            pop(args[0])
+            # for the sake of counting, let's just pretend that raise
+            # evaluates to something.
+            push()
+
+        elif op is _Pseudop.FAUX_PUSH:
+            push(args[0])
+
+        elif op in (_Pseudop.ROT_THREE,
+                    _Pseudop.ROT_TWO):
+            pass
+
+        else:
+            assert False, "unknown pseudop %r" % op
+
+
+    def max_stack(self):
+        leftovers, maximum = self.blocks[0].max_stack(self)
+        assert leftovers == 0, "code has leftovers on stack"
+        return maximum
+
+
     def complete(self):
         """
         Produces a python code object representing the state of this
         CodeSpace
         """
 
-        self.require_active()
+        # self.require_active()
 
         argcount = len(self.args)
 
@@ -1383,7 +1530,8 @@ def code_space_for_version(ver=version_info,
 
 class ExpressionCodeSpace(CodeSpace):
     """
-    Adds special forms to the basic functionality of CodeSpace
+    Adds support for expressions, operators, macros, and special forms
+    to the basic functionality of CodeSpace
     """
 
 
@@ -1620,124 +1768,6 @@ class ExpressionCodeSpace(CodeSpace):
             return None
 
 
-    def helper_max_stack(self, op, args, push, pop):
-
-        _Pseudop = Pseudop
-        _Opcode = Opcode
-
-        if op in (_Pseudop.CONST,
-                  _Pseudop.DUP,
-                  _Pseudop.GET_VAR,
-                  _Pseudop.GET_GLOBAL):
-            push()
-
-        elif op is _Pseudop.DELETE_VAR:
-            pass
-
-        elif op in (_Pseudop.GET_ATTR,
-                    _Pseudop.UNARY_POSITIVE,
-                    _Pseudop.UNARY_NEGATIVE,
-                    _Pseudop.UNARY_NOT,
-                    _Pseudop.UNARY_INVERT,
-                    _Pseudop.ITER):
-            pop()
-            push()
-
-        elif op is _Pseudop.SET_ATTR:
-            pop(2)
-
-        elif op in (_Pseudop.DEFINE_GLOBAL,
-                    _Pseudop.DEFINE_LOCAL,
-                    _Pseudop.SET_VAR,
-                    _Pseudop.RET_VAL,
-                    _Pseudop.POP):
-            pop()
-
-        elif op is _Pseudop.LAMBDA:
-            pop(args[1])
-            a = len(args[0].co_freevars)
-            if a:
-                push(a)
-                pop(a)
-            push(2)
-            pop(2)
-            push()
-
-        elif op is _Pseudop.BUILD_MAP:
-            pop(args[0] * 2)
-            push()
-
-        elif op in (_Pseudop.BUILD_TUPLE,
-                    _Pseudop.BUILD_TUPLE_UNPACK,
-                    _Pseudop.BUILD_MAP_UNPACK):
-            pop(args[0])
-            push()
-
-        elif op is _Pseudop.SETUP_EXCEPT:
-            push(_Opcode.SETUP_EXCEPT.stack_effect(1))
-
-        elif op is _Pseudop.SETUP_WITH:
-            push(_Opcode.SETUP_WITH.stack_effect(1))
-
-        elif op is _Pseudop.SETUP_FINALLY:
-            push(_Opcode.SETUP_FINALLY.stack_effect(1))
-
-        elif op is _Pseudop.POP_BLOCK:
-            push(_Opcode.POP_BLOCK.stack_effect())
-
-        elif op is _Pseudop.POP_EXCEPT:
-            push(_Opcode.POP_EXCEPT.stack_effect())
-
-        elif op is _Pseudop.WITH_CLEANUP_START:
-            push(_Opcode.WITH_CLEANUP_START.stack_effect())
-
-        elif op is _Pseudop.WITH_CLEANUP_FINISH:
-            push(_Opcode.WITH_CLEANUP_FINISH.stack_effect())
-
-        elif op is _Pseudop.END_FINALLY:
-            push(_Opcode.END_FINALLY.stack_effect())
-
-        elif op in (_Pseudop.COMPARE_OP,
-                    _Pseudop.ITEM,
-                    _Pseudop.BINARY_ADD,
-                    _Pseudop.BINARY_SUBTRACT,
-                    _Pseudop.BINARY_MULTIPLY,
-                    _Pseudop.BINARY_MATRIX_MULTIPLY,
-                    _Pseudop.BINARY_TRUE_DIVIDE,
-                    _Pseudop.BINARY_FLOOR_DIVIDE,
-                    _Pseudop.BINARY_POWER,
-                    _Pseudop.BINARY_MODULO,
-                    _Pseudop.BINARY_LSHIFT,
-                    _Pseudop.BINARY_RSHIFT,
-                    _Pseudop.BINARY_AND,
-                    _Pseudop.BINARY_XOR,
-                    _Pseudop.BINARY_OR, ):
-            pop(2)
-            push()
-
-        elif op is _Pseudop.RAISE:
-            pop(args[0])
-            # for the sake of counting, let's just pretend that raise
-            # evaluates to something.
-            push()
-
-        elif op is _Pseudop.FAUX_PUSH:
-            push(args[0])
-
-        elif op in (_Pseudop.ROT_THREE,
-                    _Pseudop.ROT_TWO):
-            pass
-
-        else:
-            assert False, "unknown pseudop %r" % op
-
-
-    def max_stack(self):
-        leftovers, maximum = self.blocks[0].max_stack(self)
-        assert leftovers == 0, "code has leftovers on stack"
-        return maximum
-
-
 def _list_unique_append(onto_list, value):
     # we have to manually loop and use the `is` operator, because the
     # list.index method will match False with 0 and True with 1, which
@@ -1749,33 +1779,6 @@ def _list_unique_append(onto_list, value):
     else:
         onto_list.append(value)
         return len(onto_list)
-
-
-# def op_max_stack(opargs):
-#     depth = 0
-#
-#    for op, args in opargs:
-#        effect = op.stack_effect(*args)
-#        depth += effect
-#        if depth > maxdepth:
-#            maxdepth = depth
-#
-#        if op.hasjrel or op.hasjabs:
-#            pass
-
-
-# def label_graph(pseudops):
-#     jump_points = {}
-
-#     for op, args in pseudops:
-#         if op is Pseudop.LABEL:
-#             labal = args[0]
-#             point = jump_points.get(label)
-#             if point is None:
-#                 point = []
-#                 jump_points[label] = point
-
-#             current_point = point
 
 
 def iter_compile(source, env, filename=None, reader=None,
@@ -1817,8 +1820,6 @@ def iter_compile(source, env, filename=None, reader=None,
             codespace.add_expression_with_return(expr)
             code = codespace.complete()
         yield code
-
-
 
 
 def gather_formals(args, declared_at=None):
