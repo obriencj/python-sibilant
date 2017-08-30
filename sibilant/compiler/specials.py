@@ -600,7 +600,8 @@ def _special_let(code, source, tc=False):
         args = nil
 
     declared_at = source.get_position()
-    code.pseudop_position(*declared_at)
+    if declared_at:
+        code.pseudop_position(*declared_at)
 
     if named:
         # wrap a really short lambda around the let, in order to give
