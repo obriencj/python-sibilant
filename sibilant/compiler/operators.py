@@ -491,6 +491,9 @@ def _operator_bit_and(code, source, tc=False):
     """
     (& VALUE MASK)
     Applies bitwise-and MASK to VALUE
+
+    (bitwise-and VALUE MASK)
+    same as above
     """
 
     _helper_binary(code, source, code.pseudop_binary_and)
@@ -501,6 +504,9 @@ def _operator_bit_or(code, source, tc=False):
     """
     (| VALUE SETMASK)
     Applies bitwise-or SETMASK to VALUE
+
+    (bitwise-or VALUE SETMASK)
+    same as above
     """
 
     _helper_binary(code, source, code.pseudop_binary_or)
@@ -511,16 +517,35 @@ def _operator_bit_xor(code, source, tc=False):
     """
     (^ VALUE FLIPMASK)
     Applies bitwise-xor FLIPMASK to VALUE
+
+    (bitwise-xor VALUE FLIPMASK)
+    same as above
     """
 
     _helper_binary(code, source, code.pseudop_binary_xor)
 
 
+@operator(_symbol_gt, pyop.gt, _symbol_gt_)
+def _operator_gt(code, source, tc=False):
+    """
+    (> VAL1 VAL2)
+    True if VAL1 is greater-than VAL2
+
+    (gt VAL1 VAL2)
+    same as above
+    """
+
+    _helper_binary(code, source, code.pseudop_compare_gt)
+
+
 @operator(_symbol_ge, pyop.ge, _symbol_ge_)
-def _operator_gte(code, source, tc=False):
+def _operator_ge(code, source, tc=False):
     """
     (>= VAL1 VAL2)
-    True if VAL1 is greater-than, or equal-to VAL2
+    True if VAL1 is greater-than or equal-to VAL2
+
+    (ge VAL1 VAL2)
+    same as above
     """
 
     _helper_binary(code, source, code.pseudop_compare_gte)
@@ -571,15 +596,21 @@ def _operator_lt(code, source, tc=False):
     """
     (< VAL1 VAL2)
     True if VAL1 is less-than VAL2
+
+    (lt VAL1 VAL2)
+    same as above
     """
     _helper_binary(code, source, code.pseudop_compare_lt)
 
 
 @operator(_symbol_le, pyop.le, _symbol_le_)
-def _operator_lte(code, source, tc=False):
+def _operator_le(code, source, tc=False):
     """
     (<= VAL1 VAL2)
-    True if VAL1 is less-than, or equal-to VAL2
+    True if VAL1 is less-than or equal-to VAL2
+
+    (le VAL1 VAL2)
+    same as above
     """
 
     _helper_binary(code, source, code.pseudop_compare_lte)
@@ -590,6 +621,9 @@ def _operator_eq(code, source, tc=False):
     """
     (== VAL1 VAL2)
     True if VAL1 and VAL2 are equal
+
+    (eq VAL1 VAL2)
+    same as above
     """
 
     _helper_binary(code, source, code.pseudop_compare_eq)
@@ -600,19 +634,12 @@ def _operator_not_eq(code, source, tc=False):
     """
     (!= VAL1 VAL2)
     True if VAL1 and VAL2 are not equal
+
+    (ne VAL1 VAL2)
+    same as above
     """
 
     _helper_binary(code, source, code.pseudop_compare_not_eq)
-
-
-@operator(_symbol_gt, pyop.gt, _symbol_gt_)
-def _operator_gt(code, source, tc=False):
-    """
-    (>= VAL1 VAL2)
-    True if VAL1 is greater-than VAL2
-    """
-
-    _helper_binary(code, source, code.pseudop_compare_gt)
 
 
 # --- unary operators ---
