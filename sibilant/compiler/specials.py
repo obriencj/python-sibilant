@@ -158,6 +158,13 @@ def _special_doc(code, source, tc=False):
 
 @special(_symbol_attr)
 def _special_get_attr(code, source, tc=False):
+    """
+    (attr OBJECT SYM)
+
+    gets the attribute of the object that is named after the given
+    symbol.
+    """
+
     try:
         called_by, (obj, (member, rest)) = source
     except ValueError:
@@ -165,6 +172,9 @@ def _special_get_attr(code, source, tc=False):
 
     if not is_nil(rest):
         raise code.error("too many arguments to attr", source)
+
+    if not is_symbol(member):
+        raise code.error("attr member must be a symbol", source)
 
     code.pseudop_position_of(source)
     code.add_expression(obj)
@@ -176,6 +186,15 @@ def _special_get_attr(code, source, tc=False):
 
 @special(_symbol_set_attr)
 def _special_set_attr(code, source, tc=False):
+    """
+    (set-attr OBJECT SYM EXPRESSION)
+
+    sets the attribute of an object to the value of expression.
+
+    this is also available via setf, eg.
+    (setf (attr OBJ SYM) EXPRESSION)
+    """
+
     try:
         called_by, (obj, (member, (value, rest))) = source
     except ValueError:
@@ -199,7 +218,11 @@ def _special_set_attr(code, source, tc=False):
 @special(_symbol_quote)
 def _special_quote(code, source, tc=False):
     """
-    Special form for quote
+    (quote FORM)
+
+    Returns FORM without evaluating it.
+
+    'FORM same as above
     """
 
     called_by, body = source
@@ -284,6 +307,10 @@ def _helper_quasiquote(code, marked, level=0):
         if is_proper(marked):
             head, tail = marked
 
+            # special cases -- if the pair we're operating on is
+            # an unquote, unquote-splicing, or nested quasiquote, we'll
+            # defer to them right away and return.
+
             if head is _symbol_unquote:
                 tail, _rest = tail
                 if level == 0:
@@ -319,6 +346,9 @@ def _helper_quasiquote(code, marked, level=0):
                 code.pseudop_call(2)
                 return
 
+        # otherwise, it was not one of the special cases, so we're in
+        # for the long haul and will need to begin setting up for a
+        # build-unpack-pair call
         code.pseudop_get_var("build-unpack-pair")
 
         coll_tup = 0  # the count of collected tuples
@@ -421,10 +451,13 @@ def _helper_quasiquote(code, marked, level=0):
             code.pseudop_get_var("nil")
             coll_tup += 1
 
+        # finally invoke build-unpack-pair with the count of the mixed
+        # tuple and pair arguments on the stack.
         code.pseudop_call(coll_tup)
 
     else:
-        # some... other thing.
+        # the thing we're quasiquoting isn't a keyword, symbol or
+        # pair. it had better be something we can store as a const!
         code.pseudop_const(marked)
 
 
@@ -474,11 +507,14 @@ def _helper_begin(code, body, tc):
 @special(_symbol_with)
 def _special_with(code, source, tc=False):
     """
-    (with (BINDING EXPRESSION) BODY)
+    (with (BINDING EXPRESSION) BODY...)
 
     Enters the context manager from EXPRESSION, binding it to BINDING,
     and evaluates the expressions of BODY. The final value of BODY is
     the result.
+
+    Alternative binding syntax is supported, eg.
+    (with (EXPRESSION as: BINDING) BODY...)
     """
 
     called_by, (args, body) = source
@@ -576,6 +612,9 @@ def _special_let(code, source, tc=False):
 
     Same as above, but also binds a recursive function NAME which
     re-enters the LET with updated binding values.
+
+    In both cases, the alternative binding syntax may be used, eg.
+    (let ((EXPR as: BINDING) ...) BODY...)
     """
 
     called_by, rest = source
@@ -610,7 +649,7 @@ def _special_let(code, source, tc=False):
         with kid as subc:
             subc.declare_var(named)
 
-            fnamed = "<let %s>" % named
+            fnamed = "<let %r>" % named
             _helper_function(subc, fnamed, args, body,
                              declared_at=declared_at)
 
@@ -984,7 +1023,7 @@ def _special_setq(code, source, tc=False):
     """
     (setq SYM EXPR)
 
-    binds the result of evaluating EXPR to SYM)
+    binds the result of evaluating EXPR to SYM
     """
 
     called_by, (binding, body) = source
@@ -1012,6 +1051,11 @@ def _special_setq(code, source, tc=False):
 
 @special(_symbol_global)
 def _special_global(code, source, tc=False):
+    """
+    (global SYM)
+    Evaluates a symbol in the global scope. This is useful if the
+    symbol is shadowed by a local binding.
+    """
 
     called_by, (binding, rest) = source
     if not is_nil(rest):
@@ -1025,6 +1069,12 @@ def _special_global(code, source, tc=False):
 
 @special(_symbol_define_global, _symbol_define)
 def _special_define_global(code, source, tc=False):
+    """
+    (define-global SYM EXPRESSION)
+
+    Defines or sets a value in global context. If EXPRESSION is
+    omitted, it defaults to None.
+    """
 
     called_by, (binding, body) = source
 
@@ -1044,6 +1094,12 @@ def _special_define_global(code, source, tc=False):
 
 @special(_symbol_define_local)
 def _special_define_local(code, source, tc=False):
+    """
+    (define-local SYM EXPRESSION)
+
+    Defines or sets a value in a local context. If EXPRESSION is
+    omitted, it defaults to None.
+    """
 
     called_by, (binding, body) = source
 
@@ -1063,6 +1119,23 @@ def _special_define_local(code, source, tc=False):
 
 @special(_symbol_cond)
 def _special_cond(code, source, tc=False):
+    """
+    (cond (TEST_EXPRESSION BODY...)... )
+    Conditionally executes body depending on a test expression. Multiple
+    test expressions and bodies may be specified, but only the body of the
+    first truthful expression is evaluated and returned. If no test
+    expression is truthful, evaluates to None.
+
+    (cond (TEST_EXPRESSION BODY...)
+          ...
+          (else: BODY...))
+
+    As above, but the else keyword is considered true, and the
+    associated body will be evaluated and returned if no other
+    previous test expression matched. Identical behavior can be
+    achieved by using a truthful constant (eg. True, or 1) as the test
+    expression.
+    """
 
     called_by, cl = source
 

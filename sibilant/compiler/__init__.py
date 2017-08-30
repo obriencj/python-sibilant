@@ -75,7 +75,7 @@ class UnsupportedVersion(SibilantException):
 
 class Compiled():
     __slots__ = ("__name__", )
-    __objname__ = "sibilant-compiled"
+    __objname__ = "sibilant compiled"
 
 
     def __init__(self, name):
@@ -88,7 +88,7 @@ class Compiled():
 
 
     def __repr__(self):
-        return "<%s %s>" % (self.__objname__, self.__name__)
+        return "<%s %r>" % (self.__objname__, self.__name__)
 
 
     def compile(self, compiler, source_obj):
@@ -100,7 +100,7 @@ def is_compiled(obj):
 
 
 class Special(Compiled):
-    __objname__ = "special-form"
+    __objname__ = "special form"
 
 
     def __init__(self, name, compilefn):
