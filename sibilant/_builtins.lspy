@@ -242,24 +242,21 @@
 ;; === python object system classes ==
 
 (defmacro method (name params . body)
-  `(let ((*method* (lambda ,params ,@body))
-	 (*name* ,(str name)))
-     (set-attr *method* __name__ *name*)
-     (set-item *members* *name* *method*)))
+  `(let ((method (function ,name ,params ,@body))
+	 (name ,(str name)))
+     (set-item *members* name method)
+     None))
 
 
 (defmacro class (name bases . body)
-  `(let ((*name* ,(str name))
-	 (*flds* None)
-	 (*body* (lambda (*members*)
-		   (begin ,@body)
-		   *members*)))
+  `(let ((body (lambda (*members*)
+		 (begin ,@body)
+		 *members*)))
 
-     (setq *flds* (*body* (dict)))
-     (set-item *flds* "__doc__" *body*.__doc__)
-     (type *name*
-	   (build-tuple ,@bases)
-	   *flds*)))
+     (define-local flds (dict :__module__ __name__))
+     (body flds)
+     (set-item flds "__doc__" body.__doc__)
+     (type ,(str name) (values ,@bases) flds)))
 
 
 ;;
