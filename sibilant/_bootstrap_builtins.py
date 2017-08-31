@@ -31,110 +31,115 @@ license: LGPL v.3
 """
 
 
-import sys as _sys
-import fractions as _fractions
-import functools as _functools
+def setup(glbls):
 
-import sibilant as _sibilant
-import sibilant.compiler as _compiler
-import sibilant.compiler.tco as _tco
-import sibilant.compiler.specials as _specials
-import sibilant.compiler.operators as _operators
+    import sys
 
-from .compiler.specials import *   # noqa
-from .compiler.operators import *  # noqa
+    from fractions import Fraction as fraction
+    from functools import partial, reduce, wraps
 
-
-__all__ = []
-__all__.extend(_specials.__all__)
-__all__.extend(_operators.__all__)
+    import sibilant
+    import sibilant.compiler as compiler
+    import sibilant.compiler.tco as tco
+    import sibilant.compiler.specials as specials
+    import sibilant.compiler.operators as operators
 
 
-def _op(opf, name=None, rename=False):
-    name = name if name else opf.__name__
-
-    if rename:
-        opf.__name__ = name
-        opf.__qualname__ = "sibilant.builtins." + name
-
-    globals()[name] = opf
-    __all__.append(name)
+    _all_ = []
 
 
-def _val(value, name):
-    globals()[name] = value
-    __all__.append(name)
+    def _op(opf, name=None, rename=False):
+        name = name if name else opf.__name__
+
+        if rename:
+            opf.__name__ = name
+            opf.__qualname__ = "sibilant.builtins." + name
+
+        glbls[name] = opf
+        _all_.append(name)
 
 
-# TODO: do we need a delf like setf, but for deleting?
+    def _val(value, name):
+        glbls[name] = value
+        _all_.append(name)
 
 
-# === useful stuff from functools ===
+    # === mass imports from other modules ==
 
-_op(_functools.partial)
+    for name, value in specials.__dict__.items():
+        glbls[name] = value
+        _all_.append(name)
 
+    for name, value in operators.__dict__.items():
+        glbls[name] = value
+        _all_.append(name)
 
-# == sibilant data types ===
-
-_op(_sibilant.cons, "cons")
-_op(_sibilant.car, "car")
-_op(_sibilant.setcar, "set-car")
-_op(_sibilant.cdr, "cdr")
-_op(_sibilant.setcdr, "set-cdr")
-_op(_sibilant.is_pair, "pair?")
-_op(_sibilant.is_proper, "proper?")
-_op(_sibilant.build_proper, "build-proper")
-_val(_sibilant.nil, "nil")
-_op(_sibilant.is_nil, "nil?")
-_val(_sibilant.symbol, "symbol")
-_op(_sibilant.is_symbol, "symbol?")
-_val(_sibilant.keyword, "keyword")
-_op(_sibilant.is_keyword, "keyword?")
-
-_op(_sibilant.copy_pair, "copy-pair")
-_op(_sibilant.copy_pair, "join-pairs")
-_op(_sibilant.build_unpack_pair, "build-unpack-pair")
-
-_op(_sibilant.first, "first")
-_op(_sibilant.second, "second", rename=True)
-_op(_sibilant.third, "third", rename=True)
-_op(_sibilant.fourth, "fourth", rename=True)
-_op(_sibilant.fifth, "fifth", rename=True)
-_op(_sibilant.sixth, "sixth", rename=True)
-_op(_sibilant.seventh, "seventh", rename=True)
-_op(_sibilant.eighth, "eighth", rename=True)
-_op(_sibilant.ninth, "ninth", rename=True)
-_op(_sibilant.tenth, "tenth", rename=True)
+    # all the exceptions from builtins. We'll pick other values more
+    # selectively later
+    for name, value in __builtins__.items():
+        if isinstance(value, type) and issubclass(value, BaseException):
+            glbls[name] = value
+            _all_.append(name)
 
 
-_op(_sibilant.last, "last")
+    # == sibilant data types ===
+
+    _op(sibilant.cons, "cons")
+    _op(sibilant.car, "car")
+    _op(sibilant.setcar, "set-car")
+    _op(sibilant.cdr, "cdr")
+    _op(sibilant.setcdr, "set-cdr")
+    _op(sibilant.is_pair, "pair?")
+    _op(sibilant.is_proper, "proper?")
+    _op(sibilant.build_proper, "build-proper")
+    _val(sibilant.nil, "nil")
+    _op(sibilant.is_nil, "nil?")
+    _val(sibilant.symbol, "symbol")
+    _op(sibilant.is_symbol, "symbol?")
+    _val(sibilant.keyword, "keyword")
+    _op(sibilant.is_keyword, "keyword?")
+
+    _op(sibilant.copy_pair, "copy-pair")
+    _op(sibilant.copy_pair, "join-pairs")
+    _op(sibilant.build_unpack_pair, "build-unpack-pair")
+
+    _op(sibilant.first, "first")
+    _op(sibilant.second, "second", rename=True)
+    _op(sibilant.third, "third", rename=True)
+    _op(sibilant.fourth, "fourth", rename=True)
+    _op(sibilant.fifth, "fifth", rename=True)
+    _op(sibilant.sixth, "sixth", rename=True)
+    _op(sibilant.seventh, "seventh", rename=True)
+    _op(sibilant.eighth, "eighth", rename=True)
+    _op(sibilant.ninth, "ninth", rename=True)
+    _op(sibilant.tenth, "tenth", rename=True)
+
+    _op(sibilant.last, "last")
 
 
-# === sibilant compiled builtins ===
+    # === sibilant compiled builtins ===
 
-_val(_compiler.Special, "special")
-_op(_compiler.is_special, "special?")
+    _val(compiler.Special, "special")
+    _op(compiler.is_special, "special?")
 
-_val(_compiler.Macro, "macro")
-_op(_compiler.is_macro, "macro?")
+    _val(compiler.Macro, "macro")
+    _op(compiler.is_macro, "macro?")
 
-_val(_compiler.Macrolet, "macrolet")
-_op(_compiler.is_macrolet, "macrolet?")
+    _val(compiler.Macrolet, "macrolet")
+    _op(compiler.is_macrolet, "macrolet?")
 
-_val(_compiler.Operator, "operator")
-_op(_compiler.is_operator, "operator?")
+    _val(compiler.Operator, "operator")
+    _op(compiler.is_operator, "operator?")
 
-_op(_tco.trampoline, "trampoline")
-_op(_tco.tailcall, "tailcall")
+    _op(tco.trampoline, "trampoline")
+    _op(tco.tailcall, "tailcall")
 
 
-# === some python builtin types ===
+    # === some python builtin types ===
 
-def _converters():
-    _unset = object()
-    is_pair = _sibilant.is_pair
-    reduce = _functools.reduce
-    wraps = _functools.wraps
+    _op(partial, "partial")
+    _op(wraps, "wraps")
+
 
     def _as_tuple(value):
         if is_pair(value):
@@ -144,6 +149,7 @@ def _converters():
 
     _op(_as_tuple, "to-tuple", rename=True)
 
+
     def _as_list(value):
         if is_pair(value):
             return list(value.unpack())
@@ -151,6 +157,7 @@ def _converters():
             return list(value)
 
     _op(_as_list, "to-list", rename=True)
+
 
     def _as_set(value):
         if is_pair(value):
@@ -160,6 +167,7 @@ def _converters():
 
     _op(_as_set, "to-set", rename=True)
 
+
     def _count(value):
         if is_pair(value):
             return value.count()
@@ -168,6 +176,7 @@ def _converters():
 
     _op(_count, "count")
 
+
     def _apply(fun, arglist=(), kwargs={}):
         if is_pair(arglist):
             arglist = arglist.unpack()
@@ -175,9 +184,10 @@ def _converters():
 
     _op(_apply, "apply", rename=True)
 
+
     map_ = map
 
-    @wraps(map)
+    @wraps(map_)
     def _map(fun, arglist):
         if is_pair(arglist):
             arglist = arglist.unpack()
@@ -185,9 +195,10 @@ def _converters():
 
     _op(_map, "map", rename=True)
 
+
     zip_ = zip
 
-    @wraps(zip)
+    @wraps(zip_)
     def _zip(left, right):
         if is_pair(left):
             left = left.unpack()
@@ -197,15 +208,17 @@ def _converters():
 
     _op(_zip, "zip", rename=True)
 
+
     filter_ = filter
 
-    @wraps(filter)
+    @wraps(filter_)
     def _filter(test, seq):
         if is_pair(seq):
             seq = seq.unpack()
         return filter_(test, seq)
 
     _op(_filter, "filter", rename=True)
+
 
     enumerate_ = enumerate
 
@@ -216,12 +229,14 @@ def _converters():
 
     _op(_enumerate, "enumerate", rename=True)
 
-    reduce_ = reduce
 
-    def _reduce(fun, values, init=_unset):
+    reduce_ = reduce
+    unset_ = object()
+
+    def _reduce(fun, values, init=unset_):
         if is_pair(values):
             values = values.unpack()
-        if init is _unset:
+        if init is unset_:
             return reduce_(fun, values)
         else:
             return reduce_(fun, values, init)
@@ -229,75 +244,76 @@ def _converters():
     _op(_reduce, "reduce", rename=True)
 
 
-_converters()
+    _val(tuple, "tuple")
+    _op((lambda *vals: vals), "build-tuple", rename=True)
+    _op((lambda value: isinstance(value, tuple)),
+        "tuple?", rename=True)
 
-_val(tuple, "tuple")
-_op((lambda *vals: vals), "build-tuple", rename=True)
-_op((lambda value: isinstance(value, tuple)),
-    "tuple?", rename=True)
+    _op((lambda *vals: vals), "values", rename=True)
 
-_op((lambda *vals: vals), "values", rename=True)
+    _val(list, "list")
+    _op((lambda *vals: list(vals)), "build-list", rename=True)
+    _op((lambda value: isinstance(value, list)),
+        "list?", rename=True)
 
-_val(list, "list")
-_op((lambda *vals: list(vals)), "build-list", rename=True)
-_op((lambda value: isinstance(value, list)),
-    "list?", rename=True)
+    _val(dict, "dict")
+    _op((lambda *pairs: dict(pair.unpack() for pair in pairs)),
+        "build-dict", rename=True)
+    _op((lambda value: isinstance(value, dict)),
+        "dict?", rename=True)
 
-_val(dict, "dict")
-_op((lambda *pairs: dict(pair.unpack() for pair in pairs)),
-    "build-dict", rename=True)
-_op((lambda value: isinstance(value, dict)),
-    "dict?", rename=True)
+    _val(set, "set")
+    _op((lambda *vals: set(vals)), "build-set", rename=True)
+    _op((lambda value: isinstance(value, set)),
+        "set?", rename=True)
 
-_val(set, "set")
-_op((lambda *vals: set(vals)), "build-set", rename=True)
-_op((lambda value: isinstance(value, set)),
-    "set?", rename=True)
-
-_op(lambda value: hasattr(value, "__iter__"), "iterable?", rename=True)
-
-
-# === some python builtin functions ===
-
-_op(callable)
-_op(callable, "function?")
-_op(next, "next")
-_op(slice)
-_op(len)
-_op(format)
-_op(getattr)
-_op(setattr)
-_op(isinstance)
-_op(open)
-_op(print)
-_op(str)
-_op(repr)
-_op(type)
-_op(int)
-_op(bool)
-_op(float)
-_op(complex)
-_op(range)
-_op(help, "help")
-_op(dir, "dir")
-_op(_fractions.Fraction, "fraction")
-_op(_sys.exit, "exit")
-_op(__import__, "import")
-_op(globals)
-_op(locals)
-
-_val(object, "object")
-
-# all the exceptions from builtins
-for key, val in __builtins__.items():
-    if isinstance(val, type) and issubclass(val, BaseException):
-        _val(val, key)
+    _op(lambda value: hasattr(value, "__iter__"),
+        "iterable?", rename=True)
 
 
-# === Export 'em ===
+    # === some python builtin functions ===
+
+    _op(callable, "callable?")
+    _op(next, "next")
+    _op(slice, "slice")
+    _op(len, "len")
+    _op(format, "format")
+    _op(getattr, "getattr")
+    _op(setattr, "setattr")
+    _op(isinstance, "isinstance")
+    _op(open, "open")
+    _op(print, "print")
+    _op(str, "str")
+    _op(repr, "repr")
+    _op(type, "type")
+    _op(int, "int")
+    _op(bool, "bool")
+    _op(float, "float")
+    _op(complex, "complex")
+    _op(fraction, "fraction")
+
+    _op(range, "range")
+    _op(help, "help")
+    _op(dir, "dir")
+
+    _val(object, "object")
+
+    _op(__import__, "import")
+    _op(globals, "globals")
+    _op(locals, "locals")
+
+    _op(sys.exit, "exit")
 
 
-__all__ = tuple(__all__)
+    # done with setup
+    return tuple(_all_)
+
+
+# --- and finally, clean up ---
+
+__all__ = setup(globals())
+
+del setup
 
 
 #

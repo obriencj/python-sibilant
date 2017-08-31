@@ -773,7 +773,7 @@ def setup(glbls):
     return tuple(_all_)
 
 
-# --- and finally clean up ---
+# --- and finally, clean up ---
 
 __all__ = setup(globals())
 
