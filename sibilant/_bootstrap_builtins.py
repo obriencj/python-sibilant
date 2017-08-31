@@ -244,7 +244,11 @@ def setup(glbls):
         iterated
         """
 
-        # TODO: make this an operator
+        # this doesn't need to be an operator or a special, because in
+        # instances where this could be compiled inline, someone could
+        # just as easily write (FUN *: POSITIONALS **: KEYWORDS) and
+        # have it be inlined. The only real use of apply is as a
+        # runtime function, passed along to call its arguments.
 
         if is_pair(arglist):
             arglist = arglist.unpack()
