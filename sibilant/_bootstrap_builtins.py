@@ -17,14 +17,15 @@
 Pythonic builtin definitions for sibilant.
 
 These are used to bootstrap an importer that can load the
-_builtins.lspy.
+_builtins.lspy module
 
-This module and _builtins are then merged together to create the real
-builtins module
+This module and _builtins are then merged together to create the final
+builtins module, which is made available to any module being loaded
+via sibilant.
 
 This contains re-bindings of common existing Python functions,
 sometimes just under a slightly more lisp-ish name, but in some cases
-also altered to handle the list form of pairs.
+also altered to handle the pair type in a sensible way.
 
 author: Christopher O'Brien  <obriencj@gmail.com>
 license: LGPL v.3
@@ -32,6 +33,13 @@ license: LGPL v.3
 
 
 def setup(glbls):
+
+    # since this is the basis for the builtins module (ie. the default
+    # available namespace for everything sibilant executes), we need
+    # to be fastidious about what ends up in it. We need to avoid
+    # leaking temporary variable, or imports, etc. This setup function
+    # will bind various objects to the passed glbls dictionary, and
+    # return an __all__ tuple.
 
     import sys
 
@@ -50,6 +58,13 @@ def setup(glbls):
     _all_ = []
 
 
+    class builtin_partial(partial):
+        def __repr__(self):
+            return "<sibilant builtin %r>" % self.__name__
+
+        __str__ = __repr__
+
+
     def _op(opf, name=None, rename=False):
         name = name if name else opf.__name__
 
@@ -66,7 +81,12 @@ def setup(glbls):
         _all_.append(name)
 
 
-    # === mass imports from other modules ==
+    def _ty(type_, name):
+        _val(type_, name)
+        _op(builtin_partial(type_.__instancecheck__), name + "?", True)
+
+
+    # === mass re-export from other modules ==
 
     sd = specials.__dict__
     for name in specials.__all__:
@@ -121,7 +141,7 @@ def setup(glbls):
     _op(sibilant.last, "last")
 
 
-    # === sibilant compiled builtins ===
+    # === sibilant compiler builtins ===
 
     _val(compiler.Special, "special")
     _op(compiler.is_special, "special?")
@@ -146,6 +166,14 @@ def setup(glbls):
 
 
     def _as_tuple(value):
+        """
+        (to-tuple VALUE)
+
+        Converts VALUE to a tuple. If VALUE is a cons pair, will
+        unpack it. Otherwise, VALUE will be iterated over and its
+        contents collected.
+        """
+
         if is_pair(value):
             return tuple(value.unpack())
         else:
@@ -155,6 +183,14 @@ def setup(glbls):
 
 
     def _as_list(value):
+        """
+        (to-list VALUE)
+
+        Converts VALUE to a list. If VALUE is a cons pair, will
+        unpack it. Otherwise, VALUE will be iterated over and its
+        contents collected.
+        """
+
         if is_pair(value):
             return list(value.unpack())
         else:
@@ -164,6 +200,14 @@ def setup(glbls):
 
 
     def _as_set(value):
+        """
+        (to-set VALUE)
+
+        Converts VALUE to a set. If VALUE is a cons pair, will
+        unpack it. Otherwise, VALUE will be iterated over and its
+        contents collected.
+        """
+
         if is_pair(value):
             return set(value.unpack())
         else:
@@ -173,15 +217,35 @@ def setup(glbls):
 
 
     def _count(value):
-        if is_pair(value):
-            return value.count()
-        else:
-            return len(value)
+        """
+        (count VALUE)
+
+        The number of items in VALUE. If VALUE is a cons pair, will
+        unpack it. Otherwise, identical to (len VALUE)
+        """
+
+        return value.count() if is_pair(value) else len(value)
 
     _op(_count, "count")
 
 
     def _apply(fun, arglist=(), kwargs={}):
+        """
+        (apply FUN)
+        (apply FUN arglist: POSITIONALS)
+        (apply FUN kwargs: KEYWORDS)
+        (apply FUN arglist: POSITIONALS kwargs: KEYWORDS)
+
+        Invokes FUN as a function, with optional iterable
+        POSITIONALS as positional arguments, and optional mapping
+        KEYWORDS as keyword arguments.
+
+        If POSITIONALS is a a cons pair, it will be unpacked instead of
+        iterated
+        """
+
+        # TODO: make this an operator
+
         if is_pair(arglist):
             arglist = arglist.unpack()
         return fun(*arglist, **kwargs)
@@ -191,32 +255,58 @@ def setup(glbls):
 
     map_ = map
 
-    @wraps(map_)
-    def _map(fun, arglist):
-        if is_pair(arglist):
-            arglist = arglist.unpack()
-        return map_(fun, arglist)
+    def _map(fun, *arglist):
+        """
+        (map FUN VALUES...)
+
+        Iterator that applies FUN using positional arguments from each
+        of the itrable VALUES. Stops when the shortest iterable is
+        exhausted.
+
+        If a VALUES is a cons pair, it will be unpacked instead of
+        iterated
+        """
+
+        arglist = ((a.unpack() if is_pair(a) else a) for a in arglist)
+        return map_(fun, *arglist)
 
     _op(_map, "map", rename=True)
 
 
     zip_ = zip
 
-    @wraps(zip_)
-    def _zip(left, right):
-        if is_pair(left):
-            left = left.unpack()
-        if is_pair(right):
-            right = right.unpack()
-        return zip_(left, right)
+    def _zip(*iters):
+        """
+        (zip VALUES...)
+
+        Return a zip object iterable whose items are tuples where the
+        i-th element comes from the i-th VALUES argument. Stops when the
+        shortest iterable is exhausted.
+
+        If a VALUES is a cons pair, it will be unpacked instead of
+        iterated
+        """
+
+        iters = ((i.unpack() if is_pair(i) else i) for i in iters)
+        return zip_(*iters)
 
     _op(_zip, "zip", rename=True)
 
 
     filter_ = filter
 
-    @wraps(filter_)
     def _filter(test, seq):
+        """
+        (filter RULE VALUE)
+
+        Iterator yielding items from VALUE that pass RULE. RULE may be
+        a unary predicate function, or None to indicate that items
+        which are truthful should be yielded (same as using bool)
+
+        If VALUE is a cons pair, it will be unpacked instead of
+        iterated
+        """
+
         if is_pair(seq):
             seq = seq.unpack()
         return filter_(test, seq)
@@ -226,21 +316,47 @@ def setup(glbls):
 
     enumerate_ = enumerate
 
-    def _enumerate(value):
+    def _enumerate(value, start=0):
+        """
+        (enumerate VALUE)
+        (enumerate VALUE start: N)
+
+        Iterator returning tuples of (INDEX, ITEM) where each ITEM is
+        from iterating through VALUE, and INDEX starts from N
+        (defaulting to 0 if unspecified) incrementing upwards by 1.
+
+        If VALUE is a cons pair, it will be unpacked instead of
+        iterated
+        """
+
         if is_pair(value):
             value = value.unpack()
-        return enumerate_(value)
+        return enumerate_(value, start)
 
     _op(_enumerate, "enumerate", rename=True)
 
 
     reduce_ = reduce
-    unset_ = object()
+    unset = object()
 
-    def _reduce(fun, values, init=unset_):
+    def _reduce(fun, values, init=unset):
+        """
+        (reduce FUN SEQUENCE)
+        (reduce FUN SEQUENCE init: INIT)
+
+        Apply a function FUN of two arguments cumulatively to the
+        items of SEQUENCE, from left to right, so as to reduce the
+        sequence to a single value. If INIT is present, it is placed
+        before the items of the sequence in the calculation, and
+        serves as a default should the sequence be empty.
+
+        If SEQUENCE is a cons pair, it will be unpacked instead of
+        iterated
+        """
+
         if is_pair(values):
             values = values.unpack()
-        if init is unset_:
+        if init is unset:
             return reduce_(fun, values)
         else:
             return reduce_(fun, values, init)
@@ -248,38 +364,37 @@ def setup(glbls):
     _op(_reduce, "reduce", rename=True)
 
 
-    _val(tuple, "tuple")
     _op((lambda *vals: vals), "build-tuple", rename=True)
-    _op((lambda value: isinstance(value, tuple)),
-        "tuple?", rename=True)
-
     _op((lambda *vals: vals), "values", rename=True)
+    _ty(tuple, "tuple")
 
-    _val(list, "list")
+
     _op((lambda *vals: list(vals)), "build-list", rename=True)
-    _op((lambda value: isinstance(value, list)),
-        "list?", rename=True)
+    _ty(list, "list")
 
-    _val(dict, "dict")
-    _op((lambda *pairs: dict(pair.unpack() for pair in pairs)),
-        "build-dict", rename=True)
-    _op((lambda value: isinstance(value, dict)),
-        "dict?", rename=True)
 
-    _val(set, "set")
+    def _build_dict(*pairs):
+        pairs = ((p.unpack() if is_pair(p) else p) for p in pairs)
+        return dict(*pairs)
+
+
+    _ty(dict, "dict")
+    _op(_build_dict, "build-dict", rename=True)
+
+
+    _ty(set, "set")
     _op((lambda *vals: set(vals)), "build-set", rename=True)
-    _op((lambda value: isinstance(value, set)),
-        "set?", rename=True)
 
     _op(lambda value: hasattr(value, "__iter__"),
         "iterable?", rename=True)
+
+    _ty(slice, "slice")
 
 
     # === some python builtin functions ===
 
     _op(callable, "callable?")
     _op(next, "next")
-    _op(slice, "slice")
     _op(len, "len")
     _op(format, "format")
     _op(getattr, "getattr")
@@ -287,16 +402,17 @@ def setup(glbls):
     _op(isinstance, "isinstance")
     _op(open, "open")
     _op(print, "print")
-    _op(str, "str")
-    _op(repr, "repr")
-    _op(type, "type")
-    _op(int, "int")
-    _op(bool, "bool")
-    _op(float, "float")
-    _op(complex, "complex")
-    _op(fraction, "fraction")
 
-    _op(range, "range")
+    _ty(str, "str")
+    _op(repr, "repr")
+    _ty(type, "type")
+    _ty(bool, "bool")
+    _ty(int, "int")
+    _ty(float, "float")
+    _ty(complex, "complex")
+    _ty(fraction, "fraction")
+
+    _ty(range, "range")
     _op(help, "help")
     _op(dir, "dir")
 
