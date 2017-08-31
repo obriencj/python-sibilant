@@ -226,7 +226,7 @@ def setup(glbls):
 
         return value.count() if is_pair(value) else len(value)
 
-    _op(_count, "count")
+    _op(_count, "count", rename=True)
 
 
     def _apply(fun, arglist=(), kwargs={}):
