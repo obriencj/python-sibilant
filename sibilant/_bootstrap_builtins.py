@@ -44,6 +44,8 @@ def setup(glbls):
     import sibilant.compiler.specials as specials
     import sibilant.compiler.operators as operators
 
+    from sibilant import is_pair
+
 
     _all_ = []
 
