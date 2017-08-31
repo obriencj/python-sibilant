@@ -34,7 +34,6 @@ license: LGPL v.3
 import sys as _sys
 import fractions as _fractions
 import functools as _functools
-import operator as _operator
 
 import sibilant as _sibilant
 import sibilant.compiler as _compiler
@@ -66,12 +65,6 @@ def _val(value, name):
     globals()[name] = value
     __all__.append(name)
 
-
-# === standard operators ===
-
-# TODO: move these into operator
-_op(_operator.setitem, "set-item")
-_op(_operator.delitem, "del-item")
 
 # TODO: do we need a delf like setf, but for deleting?
 

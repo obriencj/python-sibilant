@@ -178,7 +178,7 @@ def _special_get_attr(code, source, tc=False):
 
     code.pseudop_position_of(source)
     code.add_expression(obj)
-    code.pseudop_getattr(str(member))
+    code.pseudop_get_attr(str(member))
 
     # no further transformations
     return None
@@ -206,7 +206,7 @@ def _special_set_attr(code, source, tc=False):
     code.add_expression(obj)
     code.add_expression(value)
     code.pseudop_rot_two()
-    code.pseudop_setattr(str(member))
+    code.pseudop_set_attr(str(member))
 
     # make setf calls evaluate to None
     code.pseudop_const(None)
@@ -1084,7 +1084,7 @@ def _special_define_global(code, source, tc=False):
         raise code.error("define-global with non-symbol binding", source)
 
     code.pseudop_position_of(source)
-    code.pseudop_define_global(str(binding))
+    code.pseudop_set_global(str(binding))
 
     # define expression evaluates to None
     code.pseudop_const(None)
@@ -1109,7 +1109,7 @@ def _special_define_local(code, source, tc=False):
         raise code.error("define-local with non-symbol binding", source)
 
     code.pseudop_position_of(source)
-    code.pseudop_define_local(str(binding))
+    code.pseudop_set_local(str(binding))
 
     # define expression evaluates to None
     code.pseudop_const(None)

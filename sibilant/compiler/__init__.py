@@ -288,16 +288,18 @@ class Pseudop(Enum):
     CALL_VAR = _auto()
     CALL_VAR_KW = _auto()
     CONST = _auto()
+    SET_LOCAL = _auto()
     GET_VAR = _auto()
     SET_VAR = _auto()
-    DELETE_VAR = _auto()
+    DEL_VAR = _auto()
     GET_ATTR = _auto()
     SET_ATTR = _auto()
+    DEL_ATTR = _auto()
     LAMBDA = _auto()
     RET_VAL = _auto()
     GET_GLOBAL = _auto()
-    DEFINE_GLOBAL = _auto()
-    DEFINE_LOCAL = _auto()
+    SET_GLOBAL = _auto()
+    DEL_GLOBAL = _auto()
     JUMP = _auto()
     JUMP_FORWARD = _auto()
     POP_JUMP_IF_TRUE = _auto()
@@ -308,7 +310,9 @@ class Pseudop(Enum):
     UNARY_NOT = _auto()
     UNARY_INVERT = _auto()
     ITER = _auto()
-    ITEM = _auto()
+    GET_ITEM = _auto()
+    SET_ITEM = _auto()
+    DEL_ITEM = _auto()
     BINARY_POWER = _auto()
     BINARY_MULTIPLY = _auto()
     BINARY_MATRIX_MULTIPLY = _auto()
@@ -521,7 +525,11 @@ class CodeBlock():
                 # depending on Python version
                 code.helper_max_stack(op, args, push, pop)
 
-        # print("leaving max_stack()", self.block_type, "with", stac)
+        if stac != leftovers:
+            print("leaving max_stack()", self.block_type, "with", stac)
+            for o in self.pseudops:
+                print("\t", repr(o))
+
         assert (stac == leftovers), ("%i / %i left-over stack items for %r"
                                      % (stac, leftovers, self.block_type))
 
@@ -977,14 +985,19 @@ class CodeSpace(metaclass=ABCMeta):
             pass
 
 
-    def pseudop_getattr(self, name):
+    def pseudop_get_attr(self, name):
         self.request_name(name)
         self.pseudop(Pseudop.GET_ATTR, name)
 
 
-    def pseudop_setattr(self, name):
+    def pseudop_set_attr(self, name):
         self.request_name(name)
         self.pseudop(Pseudop.SET_ATTR, name)
+
+
+    def pseudop_del_attr(self, name):
+        self.request_name(name)
+        self.pseudop(Pseudop.DEL_ATTR, name)
 
 
     def pseudop_rot_two(self):
@@ -1038,6 +1051,14 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop(Pseudop.CONST, val)
 
 
+    def pseudop_set_local(self, name):
+        """
+        Declares var as local, assigns TOS to is
+        """
+        self.declare_var(name)
+        self.pseudop(Pseudop.SET_LOCAL, name)
+
+
     def pseudop_get_var(self, name):
         """
         Pushes a pseudo op to load a named value
@@ -1055,12 +1076,8 @@ class CodeSpace(metaclass=ABCMeta):
 
 
     def pseudop_del_var(self, name):
-        self.pseudop(Pseudop.DELETE_VAR, name)
-
-
-    def pseudop_get_global(self, name):
-        self.request_global(name)
-        self.pseudop(Pseudop.GET_GLOBAL, name)
+        self.request_var(name)
+        self.pseudop(Pseudop.DEL_VAR, name)
 
 
     def pseudop_lambda(self, code, default_count):
@@ -1074,6 +1091,8 @@ class CodeSpace(metaclass=ABCMeta):
 
 
     def pseudop_pop(self, count=1):
+        assert count > 0, ("pseudop_pop with weird count %r" % count)
+
         while count > 0:
             self.pseudop(Pseudop.POP)
             count -= 1
@@ -1098,21 +1117,22 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop(Pseudop.RET_VAL)
 
 
-    def pseudop_define_global(self, name):
+    def pseudop_get_global(self, name):
+        self.request_global(name)
+        self.pseudop(Pseudop.GET_GLOBAL, name)
+
+
+    def pseudop_set_global(self, name):
         """
         Pushes a pseudo op to globally define TOS to name
         """
-        _list_unique_append(self.global_vars, name)
-        _list_unique_append(self.names, name)
-        self.pseudop(Pseudop.DEFINE_GLOBAL, name)
+        self.request_global(name)
+        self.pseudop(Pseudop.SET_GLOBAL, name)
 
 
-    def pseudop_define_local(self, name):
-        """
-        Pushes a pseudo op to globally define TOS to name
-        """
-        self.declare_var(name)
-        self.pseudop(Pseudop.DEFINE_LOCAL, name)
+    def pseudop_del_global(self, name):
+        self.request_global(name)
+        self.pseudop(Pseudop.DEL_GLOBAL, name)
 
 
     def pseudop_label(self, name):
@@ -1260,7 +1280,15 @@ class CodeSpace(metaclass=ABCMeta):
 
 
     def pseudop_item(self):
-        self.pseudop(Pseudop.ITEM)
+        self.pseudop(Pseudop.GET_ITEM)
+
+
+    def pseudop_set_item(self):
+        self.pseudop(Pseudop.SET_ITEM)
+
+
+    def pseudop_del_item(self):
+        self.pseudop(Pseudop.DEL_ITEM)
 
 
     def pseudop_compare_lt(self):
@@ -1322,7 +1350,8 @@ class CodeSpace(metaclass=ABCMeta):
                   _Pseudop.GET_GLOBAL):
             push()
 
-        elif op is _Pseudop.DELETE_VAR:
+        elif op in (_Pseudop.DEL_VAR,
+                    _Pseudop.DEL_GLOBAL):
             pass
 
         elif op in (_Pseudop.GET_ATTR,
@@ -1334,13 +1363,18 @@ class CodeSpace(metaclass=ABCMeta):
             pop()
             push()
 
-        elif op is _Pseudop.SET_ATTR:
+        elif op in (_Pseudop.SET_ATTR,
+                    _Pseudop.DEL_ITEM):
             pop(2)
 
-        elif op in (_Pseudop.DEFINE_GLOBAL,
-                    _Pseudop.DEFINE_LOCAL,
+        elif op is _Pseudop.SET_ITEM:
+            pop(3)
+
+        elif op in (_Pseudop.SET_GLOBAL,
+                    _Pseudop.SET_LOCAL,
                     _Pseudop.SET_VAR,
                     _Pseudop.RET_VAL,
+                    _Pseudop.DEL_ATTR,
                     _Pseudop.POP):
             pop()
 
@@ -1389,7 +1423,7 @@ class CodeSpace(metaclass=ABCMeta):
             push(_Opcode.END_FINALLY.stack_effect())
 
         elif op in (_Pseudop.COMPARE_OP,
-                    _Pseudop.ITEM,
+                    _Pseudop.GET_ITEM,
                     _Pseudop.BINARY_ADD,
                     _Pseudop.BINARY_SUBTRACT,
                     _Pseudop.BINARY_MULTIPLY,
