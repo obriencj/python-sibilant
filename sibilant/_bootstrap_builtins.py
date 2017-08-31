@@ -68,12 +68,14 @@ def setup(glbls):
 
     # === mass imports from other modules ==
 
-    for name, value in specials.__dict__.items():
-        glbls[name] = value
+    sd = specials.__dict__
+    for name in specials.__all__:
+        glbls[name] = sd[name]
         _all_.append(name)
 
-    for name, value in operators.__dict__.items():
-        glbls[name] = value
+    sd = operators.__dict__
+    for name in operators.__all__:
+        glbls[name] = sd[name]
         _all_.append(name)
 
     # all the exceptions from builtins. We'll pick other values more
