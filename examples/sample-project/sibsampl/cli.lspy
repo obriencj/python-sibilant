@@ -18,9 +18,6 @@
 (defimportfrom os.path basename)
 
 
-(defmacrolet var 'define-local)
-
-
 (defun item-slice (value :start None :stop None :step 1)
   (item value (slice start stop step)))
 

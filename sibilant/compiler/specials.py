@@ -38,6 +38,7 @@ _symbol_set_attr = symbol("set-attr")
 _symbol_setq = symbol("setq")
 _symbol_global = symbol("global")
 _symbol_define = symbol("define")
+_symbol_var = symbol("var")
 _symbol_define_global = symbol("define-global")
 _symbol_defmacro = symbol("defmacro")
 _symbol_quote = symbol("quote")
@@ -1089,13 +1090,19 @@ def _special_define_global(code, source, tc=False):
     return None
 
 
-@special(_symbol_define)
+@special(_symbol_define, _symbol_var)
 def _special_define(code, source, tc=False):
     """
     (define SYM EXPRESSION)
 
     Defines or sets a value in a local context. If EXPRESSION is
     omitted, it defaults to None.
+
+    At the module level, the local context is the same as the global
+    context
+
+    (var SYM EXPRESSION)
+    same as above
     """
 
     called_by, (binding, body) = source
