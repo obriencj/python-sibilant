@@ -259,5 +259,23 @@
      (type ,(str name) (values ,@bases) flds)))
 
 
+(defmacro compile (source env: None filename: "<anon>")
+  (when (none? env) (setq env '(globals)))
+
+  `(let ((src ,source) (io (import "io")) (sib (import "sibilant.compiler")))
+     (if (isinstance src (values str io.IOBase))
+	 then: (next (sib.compiler.iter_compile src ,env ,filename))
+	 else: (sib.compiler.compile_expression src ,env ,filename))))
+
+
+(defmacro eval (source env: None)
+  (when (none? env) (setq env '(globals)))
+
+  `(let ((src ,source) (types (import "types")))
+     (if (isinstance src types.CodeType)
+	 then: (py-eval src ,env)
+	 else: (py-eval (compile src ,env) ,env))))
+
+
 ;;
 ;; The end.

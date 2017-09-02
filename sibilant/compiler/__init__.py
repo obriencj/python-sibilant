@@ -1818,6 +1818,13 @@ def _list_unique_append(onto_list, value):
 def iter_compile(source, env, filename=None, reader=None,
                  **codespace_args):
 
+    """
+    Compile and yield a Python code object representing the evaluation
+    of each expression that can be read from source.
+
+    Source may be a str, an IOBase, or a SourceStream instance
+    """
+
     if isinstance(source, str):
         source = source_str(source, filename)
 
@@ -1831,7 +1838,7 @@ def iter_compile(source, env, filename=None, reader=None,
     if reader is None:
         reader = default_reader
 
-    factory = code_space_for_version(version_info)
+    factory = code_space_for_version()
     if not factory:
         raise UnsupportedVersion(version_info)
 
@@ -1854,6 +1861,29 @@ def iter_compile(source, env, filename=None, reader=None,
             codespace.add_expression_with_return(expr)
             code = codespace.complete()
         yield code
+
+
+def compile_expression(source_obj, env, filename="<anon>",
+                       **codespace_args):
+
+    """
+    Compile and yield a Python code object representing the evaluation
+    of the given source_obj expression, which should be the result of
+    a a `read` call from a SourceStream, a valid symbol or cons pair,
+    or a self-evaluating type.
+    """
+
+    factory = code_space_for_version()
+    if not factory:
+        raise UnsupportedVersion(version_info)
+
+    codespace = factory(filename=filename, **codespace_args)
+    with codespace.activate(env):
+        assert(env.get("__compiler__") == codespace)
+        codespace.add_expression_with_return(source_obj)
+        code = codespace.complete()
+
+    return code
 
 
 def gather_formals(args, declared_at=None):

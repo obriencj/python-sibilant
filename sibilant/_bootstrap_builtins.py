@@ -425,6 +425,8 @@ def setup(glbls):
     _op(__import__, "import")
     _op(globals, "globals")
     _op(locals, "locals")
+    _op(compile, "py-compile")
+    _op(eval, "py-eval")
 
     _op(sys.exit, "exit")
 
