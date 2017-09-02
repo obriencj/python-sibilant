@@ -38,8 +38,8 @@ _symbol_set_attr = symbol("set-attr")
 _symbol_setq = symbol("setq")
 _symbol_global = symbol("global")
 _symbol_define = symbol("define")
+_symbol_var = symbol("var")
 _symbol_define_global = symbol("define-global")
-_symbol_define_local = symbol("define-local")
 _symbol_defmacro = symbol("defmacro")
 _symbol_quote = symbol("quote")
 _symbol_quasiquote = symbol("quasiquote")
@@ -716,10 +716,10 @@ def _helper_function(code, name, args, body, declared_at=None):
     for expr in defaults:
         code.add_expression(expr)
 
-    kid = code.child_context(args=argnames,
+    kid = code.child_context(name=name,
+                             args=argnames,
                              varargs=varargs,
                              varkeywords=varkeywords,
-                             name=name,
                              declared_at=declared_at,
                              proper_varargs=proper,
                              tco_enabled=tco)
@@ -1065,7 +1065,7 @@ def _special_global(code, source, tc=False):
     return None
 
 
-@special(_symbol_define_global, _symbol_define)
+@special(_symbol_define_global)
 def _special_define_global(code, source, tc=False):
     """
     (define-global SYM EXPRESSION)
@@ -1090,13 +1090,19 @@ def _special_define_global(code, source, tc=False):
     return None
 
 
-@special(_symbol_define_local)
-def _special_define_local(code, source, tc=False):
+@special(_symbol_define, _symbol_var)
+def _special_define(code, source, tc=False):
     """
-    (define-local SYM EXPRESSION)
+    (define SYM EXPRESSION)
 
     Defines or sets a value in a local context. If EXPRESSION is
     omitted, it defaults to None.
+
+    At the module level, the local context is the same as the global
+    context
+
+    (var SYM EXPRESSION)
+    same as above
     """
 
     called_by, (binding, body) = source
@@ -1104,10 +1110,14 @@ def _special_define_local(code, source, tc=False):
     _helper_begin(code, body, False)
 
     if not is_symbol(binding):
-        raise code.error("define-local with non-symbol binding", source)
+        raise code.error("define with non-symbol binding", source)
+
+    varname = str(binding)
+
+    code.declare_var(varname)
 
     code.pseudop_position_of(source)
-    code.pseudop_set_local(str(binding))
+    code.pseudop_set_var(varname)
 
     # define expression evaluates to None
     code.pseudop_const(None)

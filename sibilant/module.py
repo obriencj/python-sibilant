@@ -18,7 +18,7 @@ import types
 from io import IOBase
 from os.path import split
 
-from sibilant.compiler import iter_compile
+from sibilant.compiler import iter_compile, Mode
 from sibilant.parse import source_str, source_stream
 
 
@@ -67,7 +67,8 @@ def exec_module(module, thing, filename=None):
 
     thing.skip_exec()
 
-    for code in iter_compile(thing, glbls, filename=filename):
+    for code in iter_compile(thing, glbls,
+                             filename=filename, mode=Mode.MODULE):
         eval(code, glbls)
         consumed.append(code)
 
