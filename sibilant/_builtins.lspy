@@ -276,7 +276,7 @@
 
 (begin
  (gd-define-simple-target function 'function)
- (gd-define-simple-target classy 'class)
+ (gd-define-simple-target class 'class)
 
  None)
 
