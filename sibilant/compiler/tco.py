@@ -14,7 +14,7 @@
 
 
 __all__ = (
-    "trampoline", "tailcall",
+    "trampoline", "tailcall", "tco_disable",
 )
 
 
@@ -47,6 +47,10 @@ def setup():
         raised, the trampoline will return that result.
         """
 
+        skip = _ga(fun, "_tco_disable", False)
+        if skip:
+            return fun
+
         # if fun is already a wrapped tailcall, or it's a wrapped
         # trampoline, we'll unwrap it first.
         fun = _ga(fun, "_tco_original", fun)
@@ -63,6 +67,10 @@ def setup():
 
 
     def tailcall(fun):
+        skip = _ga(fun, "_tco_disable", False)
+        if skip:
+            return fun
+
         # if fun is already a wrapped tailcall, or it's a wrapped
         # trampoline, we'll unwrap it first.
         fun = _ga(fun, "_tco_original", fun)
@@ -72,10 +80,25 @@ def setup():
 
         return tco_bounce
 
-    return trampoline, tailcall
+
+    def tco_disable(fun):
+        """
+        Decorator to instruct the tailcall optimization to never tailcall
+        or wrap as a trampoline the decorated function.
+        """
+
+        # if fun is already a wrapped tailcall, or it's a wrapped
+        # trampoline, we'll unwrap it first.
+        fun = _ga(fun, "_tco_original", fun)
+
+        fun._tco_disable = True
+        return fun
 
 
-trampoline, tailcall = setup()
+    return trampoline, tailcall, tco_disable
+
+
+trampoline, tailcall, tco_disable = setup()
 del setup
 
 
