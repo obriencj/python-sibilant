@@ -538,21 +538,27 @@ class CodeBlock():
         return stac, maxc
 
 
+class Mode(Enum):
+    EXPRESSION = "expr"
+    MODULE = "module"
+
+
 class CodeSpace(metaclass=ABCMeta):
     """
     Represents a lexical scope, expressions occurring within that
     scope, and nested sub-scopes.
     """
 
-    def __init__(self, args=(),
+    def __init__(self, parent=None, name=None, args=(),
                  varargs=False, varkeywords=False, proper_varargs=True,
-                 parent=None, name=None,
                  filename=None, declared_at=None,
-                 tco_enabled=True):
+                 tco_enabled=True, mode=Mode.EXPRESSION):
 
         self.env = None
         self.parent = parent
         self.name = name
+
+        self.mode = mode
 
         self.tco_enabled = tco_enabled
         self.tailcalls = 0
@@ -810,8 +816,7 @@ class CodeSpace(metaclass=ABCMeta):
             self.env = None
 
 
-    def child(self, args=(), varargs=False, varkeywords=False,
-              name=None, declared_at=None, **addtl):
+    def child(self, name=None, declared_at=None, **addtl):
 
         """
         Returns a child codespace
@@ -823,21 +828,15 @@ class CodeSpace(metaclass=ABCMeta):
         if name is None:
             name = "%s.<child>" % self.name
 
-        cs = type(self)(parent=self,
-                        args=args,
-                        varargs=varargs,
-                        varkeywords=varkeywords,
-                        name=name,
-                        filename=self.filename,
-                        declared_at=declared_at,
-                        **addtl)
+        addtl["name"] = name
+        addtl["declared_at"] = declared_at
 
-        return cs
+        return type(self)(parent=self, **addtl)
 
 
     def child_context(self, **kwargs):
         """
-        Returns a context for a child codespace
+        Returns an active context for a child codespace
         """
 
         self.require_active()
@@ -854,14 +853,19 @@ class CodeSpace(metaclass=ABCMeta):
         _list_unique_append(self.consts, value)
 
 
-    def declare_var(self, name):
+    def declare_var(self, namesym):
         """
         Declare a local variable by name
         """
 
-        name = str(name)
-        if not (name in self.cell_vars or name in self.free_vars):
-            _list_unique_append(self.fast_vars, name)
+        name = str(namesym)
+
+        if self.mode is Mode.MODULE:
+            return self.request_global(name)
+
+        else:
+            if not (name in self.cell_vars or name in self.free_vars):
+                _list_unique_append(self.fast_vars, name)
 
 
     def request_var(self, name):

@@ -24,7 +24,7 @@
    (function defmacro (name formals . body)
 	     (doc "Defines a Macro instance in the current module")
 
-	     (define-local proper (proper? formals))
+	     (define proper (proper? formals))
 	     `(define-global ,name
 		((lambda (M) (set-attr M _proper ,proper) M)
 		 (macro ,(str name) (function ,name ,formals ,@body)))))))
@@ -37,11 +37,11 @@
 
 
 (defmacro defun (name params . body)
-  `(define ,name (function ,name ,params ,@body)))
+  `(define-global ,name (function ,name ,params ,@body)))
 
 
 (defmacro defclass (name bases . body)
-  `(define ,name (class ,name ,bases ,@body)))
+  `(define-global ,name (class ,name ,bases ,@body)))
 
 
 ;; === reader macros and atom matchers ===
@@ -104,7 +104,7 @@
 ;; === imports ===
 
 (defmacro defimport (modulename as-name: None)
-  (doc "Import a module and bind it to the global scope")
+  (doc "Import a module and bind it to the current scope")
 
   (unless (symbol? modulename)
     (raise (Exception (% "defimport module name must be a symbol, not %r"
@@ -121,7 +121,7 @@
 
 (defmacro defimportfrom (modulename . &bindings)
   (doc "Import definitions from a module and bind them to the"
-       "global scope")
+       "current scope")
 
   (unless (symbol? modulename)
     (raise (Exception (% "defimportfrom module name must be a symbol, not %r"
@@ -135,13 +135,15 @@
     (while &bindings
       (setq current (car &bindings))
 
-      (setq member (if (pair? current) (first current) current))
-      (setq byname (if (pair? current) (second current) member))
+      ;; todo: use my cooler binding exploder
+      (setq byname (if (pair? current) (first current) member))
+      (setq member (if (pair? current) (second current) current))
 
       (coll.append
-       `(define ,byname (attr (import ,(str modulename) (globals) None
-				      (build-list ,(str member)))
-			      ,member)))
+       `(define ,byname
+	  (attr (import ,(str modulename) (globals) None
+			(build-list ,(str member)))
+		,member)))
 
       (setq &bindings (cdr &bindings)))
 
@@ -150,16 +152,16 @@
 
 ;; === runtime macroexpand ===
 
-(define _sibilant_compiler (attr (import "sibilant.compiler") compiler))
-(define _macroexpand_1 _sibilant_compiler.macroexpand_1)
-(define _macroexpand _sibilant_compiler.macroexpand)
+(defimportfrom sibilant.compiler
+  (macroexpandq-1 macroexpand_1)
+  (macroexpandq macroexpand))
 
 
 (defmacro macroexpand-1 (source)
-  `(_macroexpand_1 (globals) ',source))
+  `(macroexpandq_1 (globals) ',source))
 
 (defmacro macroexpand (source)
-  `(_macroexpand (globals) ',source))
+  `(macroexpandq (globals) ',source))
 
 
 ;; === setf and general variables ===
@@ -209,35 +211,77 @@
 
 ;; === def general targets ===
 
+
 (let ((*gd-targets* (dict))
       (*gd-scopes* (dict)))
-
-  (defun gd-define-target-fn (name fn)
-    (set-item *gd-targets* name fn)
-    None)
 
   (defun gd-define-scope-fn (key fn)
     (set-item *gd-scopes* key fn)
     None)
 
-  (defmacro gd-define-target (name formals . body)
-    `(gd-define-target-fn
-      ,name
-      (lambda ,formals ,@body)))
-
   (defmacro gd-define-scope (name formals . body)
-    `(gd-define-target-fn
-      ,name
+    `(gd-define-scope-fn
+      (keyword ,name)
       (lambda ,formals ,@body)))
 
   (defmacro gd-define-simple-scope (name setter)
     `(gd-define-scope
-      ,name (dest val) `(,',setter ,dest ,val)))
+      ,name (dest val) `(,,setter ,dest ,val)))
+
+  (defun gd-define-target-fn (name fn)
+    (set-item *gd-targets* name fn)
+    None)
+
+  (defmacro gd-define-target (name formals . body)
+    `(gd-define-target-fn
+      (symbol ',name)
+      (lambda ,formals ,@body)))
+
+  (defmacro gd-define-simple-target (name factory)
+    `(gd-define-target ,name (setter source)
+		       (setter (car source) `(,,factory ,@(cdr source)))))
+
+
+  (defmacro def source
+    (let ((scope ':local)
+	  (target None)
+	  (d-scope None)
+	  (d-target None))
+
+      (when (keyword? (car source))
+	(setq scope (car source))
+	(setq source (cdr source)))
+
+      (print *gd-scopes*)
+      (setq d-scope (dict.get *gd-scopes* scope None))
+      (when (none? d-scope)
+	(raise (Exception (% "undefined def scope %r" scope))))
+
+      (setq target (car source))
+      (setq source (cdr source))
+
+      (setq d-target (dict.get *gd-targets* target None))
+      (when (none? d-target)
+	(raise (Exception (% "undefined def target %r" target))))
+
+      (print "scope:" scope)
+      (print "target:" target)
+      (print "source:" source)
+
+      (d-target d-scope source)))
 
   None)
 
 (begin
- (gd-define-simple-scope ':global define-global)
+ (gd-define-simple-scope ':local 'define)
+ (gd-define-simple-scope ':global 'define-global)
+ ;; todo: thread-local
+
+ None)
+
+(begin
+ (gd-define-simple-target function 'function)
+ (gd-define-simple-target classy 'class)
 
  None)
 
@@ -248,13 +292,13 @@
 ;;   (unless (is str (type atom))
 ;;     (raise (Exception (% "what happened in c__r: %r" atom))))
 
-;;   (define-local sb (attr (import "sibilant.builtins") builtins))
-;;   (define-local sd sb.__dict__)
+;;   (define sb (attr (import "sibilant.builtins") builtins))
+;;   (define sd sb.__dict__)
 
-;;   (define-local found (dict.get sd atom None))
+;;   (define found (dict.get sd atom None))
 
 ;;   (when (none? found)
-;;     (define-local calls (reduce (lambda (cell atom-char)
+;;     (define calls (reduce (lambda (cell atom-char)
 ;; 				  (cons (if (eq "a" atom-char) 'car 'cdr)
 ;; 					cell))
 ;; 				(item atom (slice -2 1 -1))
@@ -291,7 +335,7 @@
 (defmacro local (name . dfn)
   (let ((target (first dfn)))
     (cond ((or (eq target 'function) (eq target 'class))
-	   `(define-local ,(second dfn) ,dfn))
+	   `(define ,(second dfn) ,dfn))
 	  (else:
 	   (raise (Exception (% "invalid local definition %" target)))))))
 
@@ -308,9 +352,9 @@
 (defmacro class (name bases . body)
   `(let ((body (lambda (*members*)
 		 (begin ,@body)
-		 *members*)))
+		 *members*))
+	 (flds (dict :__module__ __name__)))
 
-     (define-local flds (dict :__module__ __name__))
      (body flds)
      (set-item flds "__doc__" body.__doc__)
      (type ,(str name) (values ,@bases) flds)))

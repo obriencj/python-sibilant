@@ -454,10 +454,10 @@ class CompilerSpecials(TestCase):
         self.assertEqual(stmt(), 190)
 
 
-    def test_define_local(self):
+    def test_define(self):
         src = """
         (begin
-          (define-local tacos 100)
+          (define tacos 100)
           tacos)
         """
         stmt, env = compile_expr(src)
@@ -466,7 +466,7 @@ class CompilerSpecials(TestCase):
 
         src = """
         (begin
-          (define-local tacos 100)
+          (define tacos 100)
           tacos)
         """
         stmt, env = compile_expr(src, tacos=5)
@@ -475,8 +475,8 @@ class CompilerSpecials(TestCase):
 
         src = """
         (let ((beer 999))
-          (define-local tacos beer)
-          (define-local nachos 100)
+          (define tacos beer)
+          (define nachos 100)
           (+ nachos tacos))
         """
         stmt, env = compile_expr(src, tacos=5)
