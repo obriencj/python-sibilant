@@ -239,8 +239,8 @@
 
   (defmacro gd-define-simple-target (name factory)
     `(gd-define-target ,name (setter source)
-		       (setter (car source) `(,,factory ,@(cdr source)))))
-
+		       (setter (car source)
+			       `(,,factory ,@source))))
 
   (defmacro def source
     (let ((scope ':local)
@@ -252,7 +252,6 @@
 	(setq scope (car source))
 	(setq source (cdr source)))
 
-      (print *gd-scopes*)
       (setq d-scope (dict.get *gd-scopes* scope None))
       (when (none? d-scope)
 	(raise (Exception (% "undefined def scope %r" scope))))
@@ -263,10 +262,6 @@
       (setq d-target (dict.get *gd-targets* target None))
       (when (none? d-target)
 	(raise (Exception (% "undefined def target %r" target))))
-
-      (print "scope:" scope)
-      (print "target:" target)
-      (print "source:" source)
 
       (d-target d-scope source)))
 
@@ -281,7 +276,7 @@
 
 (begin
  (gd-define-simple-target function 'function)
- (gd-define-simple-target classy 'class)
+ (gd-define-simple-target class 'class)
 
  None)
 
@@ -342,22 +337,11 @@
 
 ;; === python object system classes ==
 
-(defmacro method (name params . body)
-  `(let ((method (function ,name ,params ,@body))
-	 (name ,(str name)))
-     (set-item *members* name method)
-     None))
-
 
 (defmacro class (name bases . body)
-  `(let ((body (lambda (*members*)
-		 (begin ,@body)
-		 *members*))
-	 (flds (dict :__module__ __name__)))
-
-     (body flds)
-     (set-item flds "__doc__" body.__doc__)
-     (type ,(str name) (values ,@bases) flds)))
+  `(type ,(str name) (values ,@bases)
+	 (let ((fields (lambda (__module__) (begin ,@body) (locals))))
+	   (fields __name__))))
 
 
 (defmacro compile (source env: None filename: "<anon>")

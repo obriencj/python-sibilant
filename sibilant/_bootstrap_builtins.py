@@ -65,8 +65,13 @@ def setup(glbls):
         __str__ = __repr__
 
 
-    def _op(opf, name=None, rename=False):
+    def _op(opf, name=None, rename=False, tco_disable=False):
         name = name if name else opf.__name__
+
+        if tco_disable:
+            if not isinstance(opf, partial):
+                opf = wraps(opf)(builtin_partial(opf))
+            opf = tco.tco_disable(opf)
 
         if rename:
             opf.__name__ = name
@@ -157,6 +162,7 @@ def setup(glbls):
 
     _op(tco.trampoline, "trampoline")
     _op(tco.tailcall, "tailcall")
+    _op(tco.tco_disable, "tco-disable")
 
 
     # === some python builtin types ===
@@ -423,12 +429,12 @@ def setup(glbls):
     _val(object, "object")
 
     _op(__import__, "import")
-    _op(globals, "globals")
-    _op(locals, "locals")
+    _op(globals, "globals", tco_disable=True)
+    _op(locals, "locals", tco_disable=True)
     _op(compile, "py-compile")
     _op(eval, "py-eval")
 
-    _op(sys.exit, "exit")
+    _op(sys.exit, "exit", tco_disable=True)
 
 
     # done with setup
