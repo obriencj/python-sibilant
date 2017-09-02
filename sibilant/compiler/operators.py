@@ -18,19 +18,15 @@ The built-in operators with compile-time optimizations
 """
 
 
-import operator as pyop
-
-from functools import reduce
-
 from .. import symbol, is_nil
-
-
-__all__ = []
 
 
 _symbol_nil = symbol("nil")
 
 _symbol_item = symbol("item")
+_symbol_set_item = symbol("set-item")
+_symbol_del_item = symbol("del-item")
+
 _symbol_add = symbol("add")
 _symbol_add_ = symbol("+")
 _symbol_sub = symbol("subtract")
@@ -84,626 +80,704 @@ _symbol_iter = symbol("iter")
 _symbol_raise = symbol("raise")
 
 
-def operator():
+def setup(glbls):
+
     from . import Operator
-    glbls = globals()
 
-    def operator(namesym, runtime, *aliases):
-        name = str(namesym)
+    from functools import partial, reduce
 
-        # runtime = partial(runtime)
-        # runtime.__name__ = name
+    import operator as pyop
+    from operator import (
+        add, sub, mul, truediv, floordiv,
+    )
 
-        def deco(compilefn):
-            compilefn.__name__ = name
-            inst = Operator(name, compilefn, runtime)
+    _all_ = []
 
-            __all__.append(name)
-            glbls[name] = inst
 
-            for alias in aliases:
-                alias = str(alias)
-                __all__.append(alias)
-                glbls[alias] = inst
+    def operator():
 
-            return inst
+        def operator(namesym, runtime, *aliases):
+            name = str(namesym)
 
-        return deco
+            runtime = partial(runtime)
+            runtime.__name__ = name
 
-    return operator
+            def deco(compilefn):
+                compilefn.__name__ = name
+                inst = Operator(name, compilefn, runtime)
 
-operator = operator()
+                _all_.append(name)
+                glbls[name] = inst
 
+                for alias in aliases:
+                    alias = str(alias)
+                    _all_.append(alias)
+                    glbls[alias] = inst
 
-# --- conditionally reducing operators ---
+                return inst
 
+            return deco
 
-def _runtime_and(*vals):
-    val = True
-    for val in vals:
-        if not val:
-            break
-    return val
+        return operator
 
+    operator = operator()
 
-def _helper_and(code, exprs):
-    code.pseudop_const(True)
 
-    end_label = code.gen_label()
-    while exprs:
-        code.pseudop_pop()
+    # --- conditionally reducing operators ---
 
-        ex, exprs = exprs
-        code.add_expression(ex)
-        code.pseudop_dup()
-        code.pseudop_pop_jump_if_false(end_label)
 
-    code.pseudop_label(end_label)
+    def _runtime_and(*vals):
+        val = True
+        for val in vals:
+            if not val:
+                break
+        return val
 
 
-@operator(_symbol_and, _runtime_and)
-def _operator_and(code, source, tc=False):
-    """
-    (and EXPR...)
-    Evaluates expressions in order until one returns a false-ish
-    result, then returns it. Otherwise, returns the last value.
-    """
+    def _helper_and(code, exprs):
+        code.pseudop_const(True)
 
-    called_by, rest = source
+        end_label = code.gen_label()
+        while exprs:
+            code.pseudop_pop()
 
-    code.pseudop_position_of(source)
-    _helper_and(code, rest)
+            ex, exprs = exprs
+            code.add_expression(ex)
+            code.pseudop_dup()
+            code.pseudop_pop_jump_if_false(end_label)
 
-    return None
+        code.pseudop_label(end_label)
 
 
-def _runtime_or(*vals):
-    val = False
-    for val in vals:
-        if val:
-            break
-    return val
+    @operator(_symbol_and, _runtime_and)
+    def _operator_and(code, source, tc=False):
+        """
+        (and EXPR...)
+        Evaluates expressions in order until one returns a false-ish
+        result, then returns it. Otherwise, returns the last value.
+        """
 
+        called_by, rest = source
 
-def _helper_or(code, exprs):
-    code.pseudop_const(False)
+        code.pseudop_position_of(source)
+        _helper_and(code, rest)
 
-    end_label = code.gen_label()
-    while exprs:
-        code.pseudop_pop()
+        return None
 
-        ex, exprs = exprs
-        code.add_expression(ex)
-        code.pseudop_dup()
-        code.pseudop_pop_jump_if_true(end_label)
 
-    code.pseudop_label(end_label)
+    def _runtime_or(*vals):
+        val = False
+        for val in vals:
+            if val:
+                break
+        return val
 
 
-@operator(_symbol_or, runtime=_runtime_or)
-def _operator_or(code, source, tc=False):
-    """
-    (or EXPR...)
-    Evaluates expressions in order until one returns a true-ish
-    result, then returns it. Otherwise, returns the last value.
-    """
+    def _helper_or(code, exprs):
+        code.pseudop_const(False)
 
-    called_by, rest = source
+        end_label = code.gen_label()
+        while exprs:
+            code.pseudop_pop()
 
-    code.pseudop_position_of(source)
-    _helper_or(code, rest)
+            ex, exprs = exprs
+            code.add_expression(ex)
+            code.pseudop_dup()
+            code.pseudop_pop_jump_if_true(end_label)
 
-    return None
+        code.pseudop_label(end_label)
 
 
-# --- reducing operators ---
+    @operator(_symbol_or, runtime=_runtime_or)
+    def _operator_or(code, source, tc=False):
+        """
+        (or EXPR...)
+        Evaluates expressions in order until one returns a true-ish
+        result, then returns it. Otherwise, returns the last value.
+        """
 
+        called_by, rest = source
 
-def _runtime_add(val, *vals):
-    if vals:
-        return reduce(pyop.add, vals, val)
-    else:
-        return +val
+        code.pseudop_position_of(source)
+        _helper_or(code, rest)
 
+        return None
 
-@operator(_symbol_add, _runtime_add, _symbol_add_)
-def _operator_add(code, source, tc=False):
-    """
-    (+ VAL)
-    applies unary_positive to VAL
 
-    (+ VAL VAL...)
-    adds the first two values together. Then adds the result to the
-    next value. Continues until only the result remains.
-    """
+    # --- reducing operators ---
 
-    called_by, rest = source
-    if is_nil(rest):
-        raise code.error("too few arguments to %s" % called_by, source)
 
-    code.pseudop_position_of(source)
+    def _runtime_add(val, *vals):
+        return reduce(add, vals, val) if vals else +val
 
-    val, rest = rest
-    code.add_expression(val)
 
-    if is_nil(rest):
-        code.pseudop_unary_positive()
+    @operator(_symbol_add, _runtime_add, _symbol_add_)
+    def _operator_add(code, source, tc=False):
+        """
+        (+ VAL)
+        applies unary_positive to VAL
 
-    else:
-        while rest:
-            val, rest = rest
-            code.add_expression(val)
-            code.pseudop_binary_add()
+        (+ VAL VAL...)
+        adds the first two values together. Then adds the result to the
+        next value. Continues until only the result remains.
+        """
 
-    return None
+        called_by, rest = source
+        if is_nil(rest):
+            raise code.error("too few arguments to %s" % called_by, source)
 
+        code.pseudop_position_of(source)
 
-def _runtime_subtract(val, *vals):
-    if vals:
-        return reduce(pyop.sub, vals, val)
-    else:
-        return -val
-
-
-@operator(_symbol_sub, _runtime_subtract, _symbol_sub_)
-def _operator_subtract(code, source, tc=False):
-    """
-    (- VAL)
-    applies unary_negative to VAL
-
-    (- VAL VAL...)
-    subtracts the second value from the first value. Then
-    subtracts the next value from the result. Continues until only
-    the result remains.
-    """
-
-    called_by, rest = source
-    if is_nil(rest):
-        raise code.error("too few arguments to %s" % called_by, source)
-
-    code.pseudop_position_of(source)
-
-    val, rest = rest
-    code.add_expression(val)
-
-    if is_nil(rest):
-        code.pseudop_unary_negative()
-
-    else:
-        while rest:
-            val, rest = rest
-            code.add_expression(val)
-            code.pseudop_binary_subtract()
-
-    return None
-
-
-def _runtime_multiply(val, *vals):
-    if vals:
-        return reduce(pyop.mul, vals, val)
-    else:
-        return 1 * val
-
-
-@operator(_symbol_mult, _runtime_multiply, _symbol_mult_)
-def _operator_multiply(code, source, tc=False):
-    """
-    (* VAL)
-    same as (* 1 VAL)
-
-    (* VAL VAL...)
-    multiplies values together, from left to right.
-    """
-
-    called_by, rest = source
-    if is_nil(rest):
-        raise code.error("too few arguments to %s" % called_by, source)
-
-    code.pseudop_position_of(source)
-
-    val, rest = rest
-    if is_nil(rest):
-        code.pseudop_const(1)
+        val, rest = rest
         code.add_expression(val)
-        code.pseudop_binary_multiply()
 
-    else:
+        if is_nil(rest):
+            code.pseudop_unary_positive()
+
+        else:
+            while rest:
+                val, rest = rest
+                code.add_expression(val)
+                code.pseudop_binary_add()
+
+        return None
+
+
+    def _runtime_subtract(val, *vals):
+        return reduce(sub, vals, val) if vals else -val
+
+
+    @operator(_symbol_sub, _runtime_subtract, _symbol_sub_)
+    def _operator_subtract(code, source, tc=False):
+        """
+        (- VAL)
+        applies unary_negative to VAL
+
+        (- VAL VAL...)
+        subtracts the second value from the first value. Then
+        subtracts the next value from the result. Continues until only
+        the result remains.
+        """
+
+        called_by, rest = source
+        if is_nil(rest):
+            raise code.error("too few arguments to %s" % called_by, source)
+
+        code.pseudop_position_of(source)
+
+        val, rest = rest
         code.add_expression(val)
-        while rest:
-            val, rest = rest
+
+        if is_nil(rest):
+            code.pseudop_unary_negative()
+
+        else:
+            while rest:
+                val, rest = rest
+                code.add_expression(val)
+                code.pseudop_binary_subtract()
+
+        return None
+
+
+    def _runtime_multiply(val, *vals):
+        return reduce(mul, vals, val) if vals else (1 * val)
+
+
+    @operator(_symbol_mult, _runtime_multiply, _symbol_mult_)
+    def _operator_multiply(code, source, tc=False):
+        """
+        (* VAL)
+        same as (* 1 VAL)
+
+        (* VAL VAL...)
+        multiplies values together, from left to right.
+        """
+
+        called_by, rest = source
+        if is_nil(rest):
+            raise code.error("too few arguments to %s" % called_by, source)
+
+        code.pseudop_position_of(source)
+
+        val, rest = rest
+        if is_nil(rest):
+            code.pseudop_const(1)
             code.add_expression(val)
             code.pseudop_binary_multiply()
 
-    return None
+        else:
+            code.add_expression(val)
+            while rest:
+                val, rest = rest
+                code.add_expression(val)
+                code.pseudop_binary_multiply()
+
+        return None
 
 
-def _runtime_divide(val, *vals):
-    if vals:
-        return reduce(pyop.truediv, vals, val)
-    else:
-        return 1 / val
+    def _runtime_divide(val, *vals):
+        return reduce(truediv, vals, val) if vals else (1 / val)
 
 
-@operator(_symbol_div, _runtime_divide, _symbol_div_)
-def _operator_divide(code, source, tc=False):
-    """
-    (/ VAL)
-    same as (/ 1 VAL)
+    @operator(_symbol_div, _runtime_divide, _symbol_div_)
+    def _operator_divide(code, source, tc=False):
+        """
+        (/ VAL)
+        same as (/ 1 VAL)
 
-    (/ VAL VAL...)
-    divides the first value from the second, and then divides the
-    result by the next value
-    """
+        (/ VAL VAL...)
+        divides the first value from the second, and then divides the
+        result by the next value
+        """
 
-    called_by, rest = source
-    if is_nil(rest):
-        raise code.error("too few arguments to %s" % called_by, source)
+        called_by, rest = source
+        if is_nil(rest):
+            raise code.error("too few arguments to %s" % called_by, source)
 
-    code.pseudop_position_of(source)
+        code.pseudop_position_of(source)
 
-    val, rest = rest
-    if is_nil(rest):
-        code.pseudop_const(1)
-        code.add_expression(val)
-        code.pseudop_binary_divide()
-
-    else:
-        code.add_expression(val)
-        while rest:
-            val, rest = rest
+        val, rest = rest
+        if is_nil(rest):
+            code.pseudop_const(1)
             code.add_expression(val)
             code.pseudop_binary_divide()
 
-    return None
+        else:
+            code.add_expression(val)
+            while rest:
+                val, rest = rest
+                code.add_expression(val)
+                code.pseudop_binary_divide()
+
+        return None
 
 
-def _runtime_floor_divide(val, *vals):
-    if vals:
-        return reduce(pyop.floordiv, vals, val)
-    else:
-        return 1 // val
+    def _runtime_floor_divide(val, *vals):
+        return reduce(floordiv, vals, val) if vals else (1 // val)
 
 
-@operator(_symbol_floordiv, _runtime_floor_divide, _symbol_floordiv_)
-def _operator_floor_divide(code, source, tc=False):
-    """
-    (// VAL)
-    same as (// 1 VAL)
+    @operator(_symbol_floordiv, _runtime_floor_divide, _symbol_floordiv_)
+    def _operator_floor_divide(code, source, tc=False):
+        """
+        (// VAL)
+        same as (// 1 VAL)
 
-    (// VAL VAL...)
-    divides the first value from the second, and then divides the
-    result by the next value
-    """
+        (// VAL VAL...)
+        divides the first value from the second, and then divides the
+        result by the next value
+        """
 
-    called_by, rest = source
-    if is_nil(rest):
-        raise code.error("too few arguments to %s" % called_by, source)
+        called_by, rest = source
+        if is_nil(rest):
+            raise code.error("too few arguments to %s" % called_by, source)
 
-    code.pseudop_position_of(source)
+        code.pseudop_position_of(source)
 
-    val, rest = rest
-    if is_nil(rest):
-        code.pseudop_const(1)
-        code.add_expression(val)
-        code.pseudop_binary_floor_divide()
-
-    else:
-        code.add_expression(val)
-        while rest:
-            val, rest = rest
+        val, rest = rest
+        if is_nil(rest):
+            code.pseudop_const(1)
             code.add_expression(val)
             code.pseudop_binary_floor_divide()
 
-    return None
+        else:
+            code.add_expression(val)
+            while rest:
+                val, rest = rest
+                code.add_expression(val)
+                code.pseudop_binary_floor_divide()
+
+        return None
 
 
-# --- binary operators ---
+    # --- ternary operators ---
 
 
-def _helper_binary(code, source, opfun, flip=False):
-    name, rest = source
+    def _helper_ternary(code, source, opfun):
+        name, rest = source
 
-    try:
-        left, (right, rest) = rest
+        try:
+            left, (middle, (right, rest)) = rest
 
-    except ValueError:
-        raise code.error("too few arguments to %s" % name, source)
+        except ValueError:
+            raise code.error("too few arguments to %s" % name, source)
 
-    if not is_nil(rest):
-        raise code.error("too many arguments to %s" % name, source)
+        if not is_nil(rest):
+            raise code.error("too many arguments to %s" % name, source)
 
-    code.pseudop_position_of(source)
+        code.pseudop_position_of(source)
 
-    if flip:
         code.add_expression(right)
         code.add_expression(left)
+        code.add_expression(middle)
 
-    else:
-        code.add_expression(left)
-        code.add_expression(right)
+        code.pseudop_position_of(source)
+        opfun()
 
-    opfun()
 
+    @operator(_symbol_set_item, pyop.setitem)
+    def _operator_set_item(code, source, tc=False):
+        """
+        (set-item OBJ KEY VALUE)
+        gets item from OBJ by KEY
+        """
 
-@operator(_symbol_item, pyop.getitem)
-def _operator_item(code, source, tc=False):
-    """
-    (item OBJ KEY)
-    gets item from OBJ by key KEY
-    """
+        _helper_ternary(code, source, code.pseudop_set_item)
+        code.pseudop_const(None)
 
-    _helper_binary(code, source, code.pseudop_item)
 
+    # --- binary operators ---
 
-@operator(_symbol_pow, pyop.pow, _symbol_pow_)
-def _operator_power(code, source, tc=False):
-    """
-    (** VAL EXPONENT)
-    raises VAL to the EXPONENT
-    """
 
-    _helper_binary(code, source, code.pseudop_binary_power)
+    def _helper_binary(code, source, opfun, flip=False):
+        name, rest = source
 
+        try:
+            left, (right, rest) = rest
 
-@operator(_symbol_mod, pyop.mod, _symbol_mod_)
-def _operator_modulo(code, source, tc=False):
-    """
-    (% VAL MOD)
-    VAL modulo MOD. If VAL is a string, Pythonic string
-    substitution is invoked.
-    """
+        except ValueError:
+            raise code.error("too few arguments to %s" % name, source)
 
-    _helper_binary(code, source, code.pseudop_binary_modulo)
+        if not is_nil(rest):
+            raise code.error("too many arguments to %s" % name, source)
 
+        code.pseudop_position_of(source)
 
-@operator(_symbol_matrix_mult, pyop.matmul, _symbol_matrix_mult_)
-def _operator_matmul(code, source, tc=False):
-    """
-    (matrix-multiply MATRIX MATRIX)
-    Multiply two matrices, return the result
-    """
+        if flip:
+            code.add_expression(right)
+            code.add_expression(left)
 
-    _helper_binary(code, source, code.pseudop_binary_matrix_multiply)
+        else:
+            code.add_expression(left)
+            code.add_expression(right)
 
+        code.pseudop_position_of(source)
+        opfun()
 
-@operator(_symbol_lshift, pyop.lshift, _symbol_lshift_)
-def _operator_lshift(code, source, tc=False):
-    """
-    (<< VALUE COUNT)
-    Bitshift VALUE left by COUNT bits
-    """
 
-    _helper_binary(code, source, code.pseudop_binary_lshift)
+    @operator(_symbol_item, pyop.getitem)
+    def _operator_item(code, source, tc=False):
+        """
+        (item OBJ KEY)
+        gets item from OBJ by key KEY
+        """
 
+        _helper_binary(code, source, code.pseudop_item)
 
-@operator(_symbol_rshift, pyop.rshift, _symbol_rshift_)
-def _operator_rshift(code, source, tc=False):
-    """
-    (>> VALUE COUNT)
-    Bitshift VALUE right by COUNT bits
-    """
 
-    _helper_binary(code, source, code.pseudop_binary_rshift)
+    @operator(_symbol_del_item, pyop.delitem)
+    def _operator_del_item(code, source, tc=False):
+        """
+        (del-item OBJ KEY)
+        gets item from OBJ by KEY
+        """
 
+        _helper_binary(code, source, code.pseudop_del_item)
 
-@operator(_symbol_bit_and, pyop.and_, _symbol_bit_and_)
-def _operator_bit_and(code, source, tc=False):
-    """
-    (& VALUE MASK)
-    Applies bitwise-and MASK to VALUE
-    """
 
-    _helper_binary(code, source, code.pseudop_binary_and)
+    @operator(_symbol_pow, pyop.pow, _symbol_pow_)
+    def _operator_power(code, source, tc=False):
+        """
+        (** VAL EXPONENT)
+        raises VAL to the EXPONENT
+        """
 
+        _helper_binary(code, source, code.pseudop_binary_power)
 
-@operator(_symbol_bit_or, pyop.or_, _symbol_bit_or_)
-def _operator_bit_or(code, source, tc=False):
-    """
-    (| VALUE SETMASK)
-    Applies bitwise-or SETMASK to VALUE
-    """
 
-    _helper_binary(code, source, code.pseudop_binary_or)
+    @operator(_symbol_mod, pyop.mod, _symbol_mod_)
+    def _operator_modulo(code, source, tc=False):
+        """
+        (% VAL MOD)
+        VAL modulo MOD. If VAL is a string, Pythonic string
+        substitution is invoked.
+        """
 
+        _helper_binary(code, source, code.pseudop_binary_modulo)
 
-@operator(_symbol_bit_xor, pyop.xor, _symbol_bit_xor_)
-def _operator_bit_xor(code, source, tc=False):
-    """
-    (^ VALUE FLIPMASK)
-    Applies bitwise-xor FLIPMASK to VALUE
-    """
 
-    _helper_binary(code, source, code.pseudop_binary_xor)
+    @operator(_symbol_matrix_mult, pyop.matmul, _symbol_matrix_mult_)
+    def _operator_matmul(code, source, tc=False):
+        """
+        (matrix-multiply MATRIX MATRIX)
+        Multiply two matrices, return the result
+        """
 
+        _helper_binary(code, source, code.pseudop_binary_matrix_multiply)
 
-@operator(_symbol_ge, pyop.ge, _symbol_ge_)
-def _operator_gte(code, source, tc=False):
-    """
-    (>= VAL1 VAL2)
-    True if VAL1 is greater-than, or equal-to VAL2
-    """
 
-    _helper_binary(code, source, code.pseudop_compare_gte)
+    @operator(_symbol_lshift, pyop.lshift, _symbol_lshift_)
+    def _operator_lshift(code, source, tc=False):
+        """
+        (<< VALUE COUNT)
+        Bitshift VALUE left by COUNT bits
+        """
 
+        _helper_binary(code, source, code.pseudop_binary_lshift)
 
-@operator(_symbol_in, pyop.contains)
-def _operator_in(code, source, tc=False):
-    """
-    (in SEQ VALUE)
-    True if SEQ contains VALUE
-    """
 
-    _helper_binary(code, source, code.pseudop_compare_in, True)
+    @operator(_symbol_rshift, pyop.rshift, _symbol_rshift_)
+    def _operator_rshift(code, source, tc=False):
+        """
+        (>> VALUE COUNT)
+        Bitshift VALUE right by COUNT bits
+        """
 
+        _helper_binary(code, source, code.pseudop_binary_rshift)
 
-@operator(_symbol_not_in, (lambda seq, value: value not in seq))
-def _operator_not_in(code, source, tc=False):
-    """
-    (not-in SEQ VALUE)
-    False if SEQ contains VALUE
-    """
 
-    _helper_binary(code, source, code.pseudop_compare_not_in, True)
+    @operator(_symbol_bit_and, pyop.and_, _symbol_bit_and_)
+    def _operator_bit_and(code, source, tc=False):
+        """
+        (& VALUE MASK)
+        Applies bitwise-and MASK to VALUE
 
+        (bitwise-and VALUE MASK)
+        same as above
+        """
 
-@operator(_symbol_is, pyop.is_)
-def _operator_is(code, source, tc=False):
-    """
-    (is OBJ1 OBJ2)
-    True if OBJ1 and OBJ2 are the same object
-    """
+        _helper_binary(code, source, code.pseudop_binary_and)
 
-    _helper_binary(code, source, code.pseudop_compare_is)
 
+    @operator(_symbol_bit_or, pyop.or_, _symbol_bit_or_)
+    def _operator_bit_or(code, source, tc=False):
+        """
+        (| VALUE SETMASK)
+        Applies bitwise-or SETMASK to VALUE
 
-@operator(_symbol_is_not, pyop.is_not)
-def _operator_is_not(code, source, tc=False):
-    """
-    (is-not OBJ1 OBJ2)
-    True if OBJ1 and OBJ2 are different objects
-    """
+        (bitwise-or VALUE SETMASK)
+        same as above
+        """
 
-    _helper_binary(code, source, code.pseudop_compare_is_not)
+        _helper_binary(code, source, code.pseudop_binary_or)
 
 
-@operator(_symbol_lt, pyop.lt, _symbol_lt_)
-def _operator_lt(code, source, tc=False):
-    """
-    (< VAL1 VAL2)
-    True if VAL1 is less-than VAL2
-    """
-    _helper_binary(code, source, code.pseudop_compare_lt)
+    @operator(_symbol_bit_xor, pyop.xor, _symbol_bit_xor_)
+    def _operator_bit_xor(code, source, tc=False):
+        """
+        (^ VALUE FLIPMASK)
+        Applies bitwise-xor FLIPMASK to VALUE
 
+        (bitwise-xor VALUE FLIPMASK)
+        same as above
+        """
 
-@operator(_symbol_le, pyop.le, _symbol_le_)
-def _operator_lte(code, source, tc=False):
-    """
-    (<= VAL1 VAL2)
-    True if VAL1 is less-than, or equal-to VAL2
-    """
+        _helper_binary(code, source, code.pseudop_binary_xor)
 
-    _helper_binary(code, source, code.pseudop_compare_lte)
 
+    @operator(_symbol_gt, pyop.gt, _symbol_gt_)
+    def _operator_gt(code, source, tc=False):
+        """
+        (> VAL1 VAL2)
+        True if VAL1 is greater-than VAL2
 
-@operator(_symbol_eq, pyop.eq, _symbol_eq_)
-def _operator_eq(code, source, tc=False):
-    """
-    (== VAL1 VAL2)
-    True if VAL1 and VAL2 are equal
-    """
+        (gt VAL1 VAL2)
+        same as above
+        """
 
-    _helper_binary(code, source, code.pseudop_compare_eq)
+        _helper_binary(code, source, code.pseudop_compare_gt)
 
 
-@operator(_symbol_not_eq, pyop.ne, _symbol_not_eq_)
-def _operator_not_eq(code, source, tc=False):
-    """
-    (!= VAL1 VAL2)
-    True if VAL1 and VAL2 are not equal
-    """
+    @operator(_symbol_ge, pyop.ge, _symbol_ge_)
+    def _operator_ge(code, source, tc=False):
+        """
+        (>= VAL1 VAL2)
+        True if VAL1 is greater-than or equal-to VAL2
 
-    _helper_binary(code, source, code.pseudop_compare_not_eq)
+        (ge VAL1 VAL2)
+        same as above
+        """
 
+        _helper_binary(code, source, code.pseudop_compare_gte)
 
-@operator(_symbol_gt, pyop.gt, _symbol_gt_)
-def _operator_gt(code, source, tc=False):
-    """
-    (>= VAL1 VAL2)
-    True if VAL1 is greater-than VAL2
-    """
 
-    _helper_binary(code, source, code.pseudop_compare_gt)
+    @operator(_symbol_in, pyop.contains)
+    def _operator_in(code, source, tc=False):
+        """
+        (in SEQ VALUE)
+        True if SEQ contains VALUE
+        """
 
+        _helper_binary(code, source, code.pseudop_compare_in, True)
 
-# --- unary operators ---
 
+    @operator(_symbol_not_in, (lambda seq, value: value not in seq))
+    def _operator_not_in(code, source, tc=False):
+        """
+        (not-in SEQ VALUE)
+        False if SEQ contains VALUE
+        """
 
-def _helper_unary(code, source, opfun):
-    try:
-        name, (expr, rest) = source
-    except ValueError:
-        raise code.error("too few arguments to %s" % name, source)
+        _helper_binary(code, source, code.pseudop_compare_not_in, True)
 
-    if not is_nil(rest):
-        raise code.error("too many arguments to %s" % name, source)
 
-    code.pseudop_position_of(source)
-    code.add_expression(expr)
-    opfun()
+    @operator(_symbol_is, pyop.is_)
+    def _operator_is(code, source, tc=False):
+        """
+        (is OBJ1 OBJ2)
+        True if OBJ1 and OBJ2 are the same object
+        """
 
+        _helper_binary(code, source, code.pseudop_compare_is)
 
-@operator(_symbol_not, pyop.not_)
-def _operator_not(code, source, tc=False):
-    """
-    (not VAL)
-    Boolean inversion of VAL. If VAL is true-like, returns
-    False. Otherwise, True
-    """
 
-    _helper_unary(code, source, code.pseudop_unary_not)
+    @operator(_symbol_is_not, pyop.is_not)
+    def _operator_is_not(code, source, tc=False):
+        """
+        (is-not OBJ1 OBJ2)
+        True if OBJ1 and OBJ2 are different objects
+        """
 
+        _helper_binary(code, source, code.pseudop_compare_is_not)
 
-@operator(_symbol_invert, pyop.invert)
-def _operator_invert(code, source, tc=False):
-    """
-    (~ VAL)
-    Binary inversion of VAL
-    """
 
-    _helper_unary(code, source, code.pseudop_unary_invert)
+    @operator(_symbol_lt, pyop.lt, _symbol_lt_)
+    def _operator_lt(code, source, tc=False):
+        """
+        (< VAL1 VAL2)
+        True if VAL1 is less-than VAL2
 
+        (lt VAL1 VAL2)
+        same as above
+        """
+        _helper_binary(code, source, code.pseudop_compare_lt)
 
-@operator(_symbol_iter, iter)
-def _operator_iter(code, source, tc=False):
-    """
-    (iter OBJ)
-    Produces an iterator over the contents of OBJ
-    """
 
-    _helper_unary(code, source, code.pseudop_iter)
+    @operator(_symbol_le, pyop.le, _symbol_le_)
+    def _operator_le(code, source, tc=False):
+        """
+        (<= VAL1 VAL2)
+        True if VAL1 is less-than or equal-to VAL2
 
+        (le VAL1 VAL2)
+        same as above
+        """
 
-def _runtime_raise(exc=None):
-    if exc:
-        raise exc
-    else:
-        raise
+        _helper_binary(code, source, code.pseudop_compare_lte)
 
 
-@operator(_symbol_raise, _runtime_raise)
-def _special_raise(code, source, tc=False):
-    """
-    (raise EXCEPTION_EXPR)
+    @operator(_symbol_eq, pyop.eq, _symbol_eq_)
+    def _operator_eq(code, source, tc=False):
+        """
+        (== VAL1 VAL2)
+        True if VAL1 and VAL2 are equal
 
-    evaluates EXCEPTION_EXPR and raises it in the Python interpreter.
-    This function does not return, and execution will jump to whatever
-    outer exception handlers exist (if any).
+        (eq VAL1 VAL2)
+        same as above
+        """
 
-    (raise)
+        _helper_binary(code, source, code.pseudop_compare_eq)
 
-    re-raises the most recently raised exception
-    """
 
-    called_by, cl = source
+    @operator(_symbol_not_eq, pyop.ne, _symbol_not_eq_)
+    def _operator_not_eq(code, source, tc=False):
+        """
+        (!= VAL1 VAL2)
+        True if VAL1 and VAL2 are not equal
 
-    c = cl.count()
-    if c > 3:
-        msg = "too many arguments to raise %r" % cl
-        raise code.error(msg, source)
+        (ne VAL1 VAL2)
+        same as above
+        """
 
-    for rx in cl.unpack():
-        code.add_expression(rx)
+        _helper_binary(code, source, code.pseudop_compare_not_eq)
 
-    code.pseudop_position_of(source)
-    code.pseudop_raise(c)
 
-    return None
+    # --- unary operators ---
 
 
-# --- and finally clean up ---
+    def _helper_unary(code, source, opfun):
+        try:
+            name, (expr, rest) = source
+        except ValueError:
+            raise code.error("too few arguments to %s" % name, source)
 
+        if not is_nil(rest):
+            raise code.error("too many arguments to %s" % name, source)
 
-__all__ = tuple(__all__)
+        code.pseudop_position_of(source)
+        code.add_expression(expr)
+
+        code.pseudop_position_of(source)
+        opfun()
+
+
+    @operator(_symbol_not, pyop.not_)
+    def _operator_not(code, source, tc=False):
+        """
+        (not VAL)
+        Boolean inversion of VAL. If VAL is true-like, returns
+        False. Otherwise, True
+        """
+
+        _helper_unary(code, source, code.pseudop_unary_not)
+
+
+    @operator(_symbol_invert, pyop.invert)
+    def _operator_invert(code, source, tc=False):
+        """
+        (~ VAL)
+        Binary inversion of VAL
+        """
+
+        _helper_unary(code, source, code.pseudop_unary_invert)
+
+
+    @operator(_symbol_iter, iter)
+    def _operator_iter(code, source, tc=False):
+        """
+        (iter OBJ)
+        Produces an iterator over the contents of OBJ
+        """
+
+        _helper_unary(code, source, code.pseudop_iter)
+
+
+    def _runtime_raise(exc=None):
+        if exc:
+            raise exc
+        else:
+            raise
+
+
+    @operator(_symbol_raise, _runtime_raise)
+    def _special_raise(code, source, tc=False):
+        """
+        (raise EXCEPTION_EXPR)
+
+        evaluates EXCEPTION_EXPR and raises it in the Python interpreter.
+        This function does not return, and execution will jump to whatever
+        outer exception handlers exist (if any).
+
+        (raise)
+
+        re-raises the most recently raised exception
+        """
+
+        called_by, cl = source
+
+        c = cl.count()
+        if c > 3:
+            msg = "too many arguments to raise %r" % cl
+            raise code.error(msg, source)
+
+        for rx in cl.unpack():
+            code.add_expression(rx)
+
+        code.pseudop_position_of(source)
+        code.pseudop_raise(c)
+
+        return None
+
+
+    # done with setup
+    return tuple(_all_)
+
+
+# --- and finally, clean up ---
+
+__all__ = setup(globals())
+
+del setup
 
 
 #

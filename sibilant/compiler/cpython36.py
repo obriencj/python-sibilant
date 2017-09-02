@@ -112,6 +112,20 @@ class CPython36(ExpressionCodeSpace):
                 i = _const_index(self.consts, args[0])
                 yield _Opcode.LOAD_CONST, i
 
+            elif op is _Pseudop.SET_LOCAL:
+                n = args[0]
+                if n in self.cell_vars:
+                    i = self.cell_vars.index(n)
+                    yield _Opcode.STORE_DEREF, i
+                elif n in self.free_vars:
+                    i = self.free_vars.index(n) + len(self.cell_vars)
+                    yield _Opcode.STORE_DEREF, i
+                elif n in self.fast_vars:
+                    i = self.fast_vars.index(n)
+                    yield _Opcode.STORE_FAST, i
+                else:
+                    assert False, "missing local name %r" % n
+
             elif op is _Pseudop.GET_VAR:
                 n = args[0]
                 if n in self.cell_vars:
@@ -146,7 +160,7 @@ class CPython36(ExpressionCodeSpace):
                 else:
                     assert False, "missing var %r" % n
 
-            elif op is _Pseudop.DELETE_VAR:
+            elif op is _Pseudop.DEL_VAR:
                 n = args[0]
                 if n in self.cell_vars:
                     i = self.cell_vars.index(n)
@@ -165,8 +179,27 @@ class CPython36(ExpressionCodeSpace):
 
             elif op is _Pseudop.GET_GLOBAL:
                 n = args[0]
-                i = self.names.index(n)
-                yield _Opcode.LOAD_GLOBAL, i
+                if n in self.global_vars:
+                    i = self.names.index(n)
+                    yield _Opcode.LOAD_GLOBAL, i
+                else:
+                    assert False, "missing global name %r" % n
+
+            elif op is _Pseudop.SET_GLOBAL:
+                n = args[0]
+                if n in self.global_vars:
+                    i = self.names.index(n)
+                    yield _Opcode.STORE_GLOBAL, i
+                else:
+                    assert False, "missing global name %r" % n
+
+            elif op is _Pseudop.DEL_GLOBAL:
+                n = args[0]
+                if n in self.global_vars:
+                    i = self.names.index(n)
+                    yield _Opcode.DELETE_GLOBAL, i
+                else:
+                    assert False, "missing global name %r" % n
 
             elif op is _Pseudop.GET_ATTR:
                 n = args[0]
@@ -178,27 +211,10 @@ class CPython36(ExpressionCodeSpace):
                 i = self.names.index(n)
                 yield _Opcode.STORE_ATTR, i
 
-            elif op is _Pseudop.DEFINE_GLOBAL:
+            elif op is _Pseudop.DEL_ATTR:
                 n = args[0]
-                if n in self.global_vars:
-                    i = self.names.index(n)
-                    yield _Opcode.STORE_GLOBAL, i
-                else:
-                    assert False, "missing global name %r" % n
-
-            elif op is _Pseudop.DEFINE_LOCAL:
-                n = args[0]
-                if n in self.cell_vars:
-                    i = self.cell_vars.index(n)
-                    yield _Opcode.STORE_DEREF, i
-                elif n in self.free_vars:
-                    i = self.free_vars.index(n) + len(self.cell_vars)
-                    yield _Opcode.STORE_DEREF, i
-                elif n in self.fast_vars:
-                    i = self.fast_vars.index(n)
-                    yield _Opcode.STORE_FAST, i
-                else:
-                    assert False, "missing local name %r" % n
+                i = self.names.index(n)
+                yield _Opcode.DELETE_ATTR, i
 
             elif op is _Pseudop.POP:
                 yield _Opcode.POP_TOP, 0
@@ -285,8 +301,14 @@ class CPython36(ExpressionCodeSpace):
             elif op is _Pseudop.COMPARE_OP:
                 yield _Opcode.COMPARE_OP, args[0]
 
-            elif op is _Pseudop.ITEM:
+            elif op is _Pseudop.GET_ITEM:
                 yield _Opcode.BINARY_SUBSCR, 0
+
+            elif op is _Pseudop.SET_ITEM:
+                yield _Opcode.STORE_SUBSCR, 0
+
+            elif op is _Pseudop.DEL_ITEM:
+                yield _Opcode.DELETE_SUBSCR, 0
 
             elif op is _Pseudop.BINARY_ADD:
                 yield _Opcode.BINARY_ADD, 0

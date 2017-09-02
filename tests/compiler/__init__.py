@@ -30,7 +30,7 @@ import sibilant.builtins
 
 from sibilant import (
     car, cdr, cons, nil,
-    symbol, keyword, make_proper,
+    symbol, keyword, build_proper,
 )
 
 from sibilant.compiler import (
@@ -162,7 +162,7 @@ class TestCompiler(TestCase):
         # block. this is a reproducer for a bug where the constant
         # values were being combined.
 
-        src = "(make-list True 1 True 1 False 0 False 0)"
+        src = "(build-list True 1 True 1 False 0 False 0)"
         stmt, env = compile_expr(src)
         res = stmt()
         self.assertIs(res[0], True)

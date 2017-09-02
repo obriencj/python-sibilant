@@ -1,0 +1,60 @@
+#! /usr/bin/env sibilant
+
+;; This library is free software; you can redistribute it and/or modify
+;; it under the terms of the GNU Lesser General Public License as
+;; published by the Free Software Foundation; either version 3 of the
+;; License, or (at your option) any later version.
+;;
+;; This library is distributed in the hope that it will be useful, but
+;; WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;; Lesser General Public License for more details.
+;;
+;; You should have received a copy of the GNU Lesser General Public
+;; License along with this library; if not, see
+;; <http://www.gnu.org/licenses/>.
+
+
+;; this macro simply prints the source for an expression, the word
+;; "is", and then evaluates and prints the result of the expression.
+(defmacro print-example (expression)
+  `(print ,(str expression) "is" ,expression))
+
+
+;; a contrived dollars class, based on the float type.
+(defclass dollars (float)
+  (method __str__ (self)
+	  (% "$%0.02f" self))
+  (method __repr__ (self)
+	  (% "(dollars %0.02f)" self)))
+
+
+;; here's a very simple reader macro based on the dollarsign
+;; character.  When encountered, will read the next S-Expr from the
+;; stream, and will return the source object to be used in place of
+;; that value. In this case, simply wrapping whatever is read in a
+;; call to dollars
+(defun read-dollars (stream c)
+  `(dollars ,(read stream)))
+
+(set-macro-character "$" read-dollars terminating: False)
+
+
+;; note that when this example function is read from the source file,
+;; it is translated by the above registered macro. The conversion of
+;; $100 to (dollars 100) happens at read time, which is before compile
+;; time, and also before run time.
+(defun example ()
+  (define-local X $100)
+  (print-example (type X))
+  (print-example (repr X))
+  (print-example (str X))
+  None)
+
+
+(when (eq __name__ "__main__")
+  (example))
+
+
+;;
+;; The end.

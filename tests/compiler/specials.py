@@ -348,24 +348,6 @@ class Quasiquote(TestCase):
 class CompilerSpecials(TestCase):
 
 
-    def test_let(self):
-        src = "(let ((tacos 1) (beer 2)) (cons tacos beer))"
-        stmt, env = compile_expr(src, tacos=5)
-        self.assertEqual(stmt(), cons(1, 2))
-
-        src = "(let ((tacos 1) (beer 2)) (cons tacos beer nil))"
-        stmt, env = compile_expr(src, tacos=5)
-        self.assertEqual(stmt(), cons(1, 2, nil))
-
-        src = "(let () (cons tacos beer nil))"
-        stmt, env = compile_expr(src, tacos=5, beer=9)
-        self.assertEqual(stmt(), cons(5, 9, nil))
-
-        src = "(let ((tacos 1)) (cons tacos beer))"
-        stmt, env = compile_expr(src, tacos=5, beer=9)
-        self.assertEqual(stmt(), cons(1, 9))
-
-
     def test_define(self):
         src = """
         (define tacos 100)
@@ -472,10 +454,10 @@ class CompilerSpecials(TestCase):
         self.assertEqual(stmt(), 190)
 
 
-    def test_define_local(self):
+    def test_define(self):
         src = """
         (begin
-          (define-local tacos 100)
+          (define tacos 100)
           tacos)
         """
         stmt, env = compile_expr(src)
@@ -484,7 +466,7 @@ class CompilerSpecials(TestCase):
 
         src = """
         (begin
-          (define-local tacos 100)
+          (define tacos 100)
           tacos)
         """
         stmt, env = compile_expr(src, tacos=5)
@@ -493,14 +475,51 @@ class CompilerSpecials(TestCase):
 
         src = """
         (let ((beer 999))
-          (define-local tacos beer)
-          (define-local nachos 100)
+          (define tacos beer)
+          (define nachos 100)
           (+ nachos tacos))
         """
         stmt, env = compile_expr(src, tacos=5)
         self.assertEqual(stmt(), 1099)
         self.assertNotIn("beer", env)
         self.assertNotIn("nachos", env)
+
+
+class SpecialLet(TestCase):
+
+
+    def test_let(self):
+        src = "(let ((tacos 1) (beer 2)) (cons tacos beer))"
+        stmt, env = compile_expr(src, tacos=5)
+        self.assertEqual(stmt(), cons(1, 2))
+
+        src = "(let ((tacos 1) (beer 2)) (cons tacos beer nil))"
+        stmt, env = compile_expr(src, tacos=5)
+        self.assertEqual(stmt(), cons(1, 2, nil))
+
+        src = "(let () (cons tacos beer nil))"
+        stmt, env = compile_expr(src, tacos=5, beer=9)
+        self.assertEqual(stmt(), cons(5, 9, nil))
+
+        src = "(let ((tacos 1)) (cons tacos beer))"
+        stmt, env = compile_expr(src, tacos=5, beer=9)
+        self.assertEqual(stmt(), cons(1, 9))
+
+
+    def test_named_let(self):
+        src = """
+        (let fibonacci ((index CALC) (carry 0) (accu 1))
+          (if (== index 0) then: carry
+              else: (fibonacci (- index 1) accu (+ accu carry))))
+        """
+
+        check = ((0, 0), (1, 1), (2, 1), (3, 2), (7, 13), (9, 34),
+                 (10, 55), (11, 89), (20, 6765), )
+
+        for index, expected in check:
+            stmt, env = compile_expr(src, CALC=index)
+            res = stmt()
+            self.assertEqual(res, expected)
 
 
 class SpecialCond(TestCase):

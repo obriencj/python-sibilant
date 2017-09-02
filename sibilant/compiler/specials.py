@@ -24,7 +24,7 @@ from .. import (
     get_position, fill_position,
 )
 
-from . import is_macro, gather_formals
+from . import gather_formals
 
 
 __all__ = []
@@ -38,8 +38,8 @@ _symbol_set_attr = symbol("set-attr")
 _symbol_setq = symbol("setq")
 _symbol_global = symbol("global")
 _symbol_define = symbol("define")
+_symbol_var = symbol("var")
 _symbol_define_global = symbol("define-global")
-_symbol_define_local = symbol("define-local")
 _symbol_defmacro = symbol("defmacro")
 _symbol_quote = symbol("quote")
 _symbol_quasiquote = symbol("quasiquote")
@@ -53,8 +53,6 @@ _symbol_with = symbol("with")
 _symbol_let = symbol("let")
 _symbol_while = symbol("while")
 _symbol_try = symbol("try")
-
-_symbol_macroexpand_1 = symbol("macroexpand-1")
 
 _keyword_else = keyword("else")
 _keyword_as = keyword("as")
@@ -158,6 +156,13 @@ def _special_doc(code, source, tc=False):
 
 @special(_symbol_attr)
 def _special_get_attr(code, source, tc=False):
+    """
+    (attr OBJECT SYM)
+
+    gets the attribute of the object that is named after the given
+    symbol.
+    """
+
     try:
         called_by, (obj, (member, rest)) = source
     except ValueError:
@@ -166,9 +171,12 @@ def _special_get_attr(code, source, tc=False):
     if not is_nil(rest):
         raise code.error("too many arguments to attr", source)
 
+    if not is_symbol(member):
+        raise code.error("attr member must be a symbol", source)
+
     code.pseudop_position_of(source)
     code.add_expression(obj)
-    code.pseudop_getattr(str(member))
+    code.pseudop_get_attr(str(member))
 
     # no further transformations
     return None
@@ -176,6 +184,15 @@ def _special_get_attr(code, source, tc=False):
 
 @special(_symbol_set_attr)
 def _special_set_attr(code, source, tc=False):
+    """
+    (set-attr OBJECT SYM EXPRESSION)
+
+    sets the attribute of an object to the value of expression.
+
+    this is also available via setf, eg.
+    (setf (attr OBJ SYM) EXPRESSION)
+    """
+
     try:
         called_by, (obj, (member, (value, rest))) = source
     except ValueError:
@@ -187,7 +204,7 @@ def _special_set_attr(code, source, tc=False):
     code.add_expression(obj)
     code.add_expression(value)
     code.pseudop_rot_two()
-    code.pseudop_setattr(str(member))
+    code.pseudop_set_attr(str(member))
 
     # make setf calls evaluate to None
     code.pseudop_const(None)
@@ -199,7 +216,11 @@ def _special_set_attr(code, source, tc=False):
 @special(_symbol_quote)
 def _special_quote(code, source, tc=False):
     """
-    Special form for quote
+    (quote FORM)
+
+    Returns FORM without evaluating it.
+
+    'FORM same as above
     """
 
     called_by, body = source
@@ -231,7 +252,7 @@ def _helper_quote(code, body, tc=False):
 
     elif is_pair(body):
         if is_proper(body):
-            code.pseudop_get_var("make-proper")
+            code.pseudop_get_var("build-proper")
         else:
             code.pseudop_get_var("cons")
 
@@ -284,12 +305,16 @@ def _helper_quasiquote(code, marked, level=0):
         if is_proper(marked):
             head, tail = marked
 
+            # special cases -- if the pair we're operating on is
+            # an unquote, unquote-splicing, or nested quasiquote, we'll
+            # defer to them right away and return.
+
             if head is _symbol_unquote:
                 tail, _rest = tail
                 if level == 0:
                     return code.add_expression(tail)
                 else:
-                    code.pseudop_get_var("make-proper")
+                    code.pseudop_get_var("build-proper")
                     _helper_symbol(code, head)
                     _helper_quasiquote(code, tail, level - 1)
                     code.pseudop_call(2)
@@ -298,14 +323,14 @@ def _helper_quasiquote(code, marked, level=0):
             elif head is _symbol_splice:
                 tail, _rest = tail
                 if level == 0:
-                    code.pseudop_get_var("make-proper")
+                    code.pseudop_get_var("build-proper")
                     code.pseudop_get_var("to-tuple")
                     code.add_expression(tail)
                     code.pseudop_call(1)
                     code.pseudop_call_var(0)
                     return
                 else:
-                    code.pseudop_get_var("make-proper")
+                    code.pseudop_get_var("build-proper")
                     _helper_symbol(code, head)
                     _helper_quasiquote(code, tail, level - 1)
                     code.pseudop_call(2)
@@ -313,12 +338,15 @@ def _helper_quasiquote(code, marked, level=0):
 
             elif head is _symbol_quasiquote:
                 tail, _rest = tail
-                code.pseudop_get_var("make-proper")
+                code.pseudop_get_var("build-proper")
                 _helper_symbol(code, head)
                 _helper_quasiquote(code, tail, level + 1)
                 code.pseudop_call(2)
                 return
 
+        # otherwise, it was not one of the special cases, so we're in
+        # for the long haul and will need to begin setting up for a
+        # build-unpack-pair call
         code.pseudop_get_var("build-unpack-pair")
 
         coll_tup = 0  # the count of collected tuples
@@ -346,7 +374,7 @@ def _helper_quasiquote(code, marked, level=0):
 
                     if head is _symbol_quasiquote:
                         tail, _rest = tail
-                        code.pseudop_get_var("make-proper")
+                        code.pseudop_get_var("build-proper")
                         _helper_symbol(code, head)
                         _helper_quasiquote(code, tail, level + 1)
                         code.pseudop_call(2)
@@ -364,7 +392,7 @@ def _helper_quasiquote(code, marked, level=0):
 
                         else:
                             # not level 0, recurse with one less level
-                            code.pseudop_get_var("make-proper")
+                            code.pseudop_get_var("build-proper")
                             _helper_symbol(code, head)
                             _helper_quasiquote(code, u_expr, level - 1)
                             code.pseudop_call(2)
@@ -387,7 +415,7 @@ def _helper_quasiquote(code, marked, level=0):
                             continue
 
                         else:
-                            code.pseudop_get_var("make-proper")
+                            code.pseudop_get_var("build-proper")
                             _helper_symbol(code, head)
                             _helper_quasiquote(code, u_expr, level - 1)
                             code.pseudop_call(2)
@@ -421,10 +449,13 @@ def _helper_quasiquote(code, marked, level=0):
             code.pseudop_get_var("nil")
             coll_tup += 1
 
+        # finally invoke build-unpack-pair with the count of the mixed
+        # tuple and pair arguments on the stack.
         code.pseudop_call(coll_tup)
 
     else:
-        # some... other thing.
+        # the thing we're quasiquoting isn't a keyword, symbol or
+        # pair. it had better be something we can store as a const!
         code.pseudop_const(marked)
 
 
@@ -474,11 +505,14 @@ def _helper_begin(code, body, tc):
 @special(_symbol_with)
 def _special_with(code, source, tc=False):
     """
-    (with (BINDING EXPRESSION) BODY)
+    (with (BINDING EXPRESSION) BODY...)
 
     Enters the context manager from EXPRESSION, binding it to BINDING,
     and evaluates the expressions of BODY. The final value of BODY is
     the result.
+
+    Alternative binding syntax is supported, eg.
+    (with (EXPRESSION as: BINDING) BODY...)
     """
 
     called_by, (args, body) = source
@@ -571,9 +605,24 @@ def _special_let(code, source, tc=False):
     Creates a lexical scope where each BINDING is assigned the value from
     evaluating EXPR, then executes the BODY expressions in order. The
     result of the final expression is returned.
+
+    (let NAME ((BINDING EXPR) ...) BODY...)
+
+    Same as above, but also binds a recursive function NAME which
+    re-enters the LET with updated binding values.
+
+    In both cases, the alternative binding syntax may be used, eg.
+    (let ((EXPR as: BINDING) ...) BODY...)
     """
 
-    called_by, (bindings, body) = source
+    called_by, rest = source
+
+    bindings, body = rest
+    if is_symbol(bindings):
+        named = str(bindings)
+        bindings, body = body
+    else:
+        named = None
 
     args = []
     vals = []
@@ -587,11 +636,40 @@ def _special_let(code, source, tc=False):
     else:
         args = nil
 
-    code.pseudop_position_of(source)
+    declared_at = source.get_position()
+    if declared_at:
+        code.pseudop_position(*declared_at)
 
-    _helper_function(code, "<let>", args, body,
-                     declared_at=source.get_position())
+    if named:
+        # wrap a really short lambda around the let, in order to give
+        # it a binding to itself by its name as a freevar
+        kid = code.child_context(declared_at=declared_at)
+        with kid as subc:
+            subc.declare_var(named)
 
+            fnamed = "<let %r>" % named
+            _helper_function(subc, fnamed, args, body,
+                             declared_at=declared_at)
+
+            subc.pseudop_dup()
+            subc.pseudop_set_var(named)
+            subc.pseudop_return()
+            kid_code = subc.complete()
+
+        code.pseudop_lambda(kid_code, 0)
+        code.pseudop_call(0)
+
+    else:
+        _helper_function(code, "<let>", args, body,
+                         declared_at=declared_at)
+
+    # after both the named or unnamed variations, we now have the let
+    # bound as a callable at TOS
+
+    # tailcall enable this function application. has no effect if tc
+    # is False. Normally it's the compiler's job to perform this step,
+    # but since we're creating our own function application call, we
+    # need to do it manually.
     code.helper_tailcall_tos(tc)
 
     for val in vals:
@@ -638,10 +716,10 @@ def _helper_function(code, name, args, body, declared_at=None):
     for expr in defaults:
         code.add_expression(expr)
 
-    kid = code.child_context(args=argnames,
+    kid = code.child_context(name=name,
+                             args=argnames,
                              varargs=varargs,
                              varkeywords=varkeywords,
-                             name=name,
                              declared_at=declared_at,
                              proper_varargs=proper,
                              tco_enabled=tco)
@@ -943,7 +1021,7 @@ def _special_setq(code, source, tc=False):
     """
     (setq SYM EXPR)
 
-    binds the result of evaluating EXPR to SYM)
+    binds the result of evaluating EXPR to SYM
     """
 
     called_by, (binding, body) = source
@@ -971,6 +1049,11 @@ def _special_setq(code, source, tc=False):
 
 @special(_symbol_global)
 def _special_global(code, source, tc=False):
+    """
+    (global SYM)
+    Evaluates a symbol in the global scope. This is useful if the
+    symbol is shadowed by a local binding.
+    """
 
     called_by, (binding, rest) = source
     if not is_nil(rest):
@@ -982,8 +1065,14 @@ def _special_global(code, source, tc=False):
     return None
 
 
-@special(_symbol_define_global, _symbol_define)
+@special(_symbol_define_global)
 def _special_define_global(code, source, tc=False):
+    """
+    (define-global SYM EXPRESSION)
+
+    Defines or sets a value in global context. If EXPRESSION is
+    omitted, it defaults to None.
+    """
 
     called_by, (binding, body) = source
 
@@ -993,7 +1082,7 @@ def _special_define_global(code, source, tc=False):
         raise code.error("define-global with non-symbol binding", source)
 
     code.pseudop_position_of(source)
-    code.pseudop_define_global(str(binding))
+    code.pseudop_set_global(str(binding))
 
     # define expression evaluates to None
     code.pseudop_const(None)
@@ -1001,18 +1090,34 @@ def _special_define_global(code, source, tc=False):
     return None
 
 
-@special(_symbol_define_local)
-def _special_define_local(code, source, tc=False):
+@special(_symbol_define, _symbol_var)
+def _special_define(code, source, tc=False):
+    """
+    (define SYM EXPRESSION)
+
+    Defines or sets a value in a local context. If EXPRESSION is
+    omitted, it defaults to None.
+
+    At the module level, the local context is the same as the global
+    context
+
+    (var SYM EXPRESSION)
+    same as above
+    """
 
     called_by, (binding, body) = source
 
     _helper_begin(code, body, False)
 
     if not is_symbol(binding):
-        raise code.error("define-local with non-symbol binding", source)
+        raise code.error("define with non-symbol binding", source)
+
+    varname = str(binding)
+
+    code.declare_var(varname)
 
     code.pseudop_position_of(source)
-    code.pseudop_define_local(str(binding))
+    code.pseudop_set_var(varname)
 
     # define expression evaluates to None
     code.pseudop_const(None)
@@ -1022,6 +1127,23 @@ def _special_define_local(code, source, tc=False):
 
 @special(_symbol_cond)
 def _special_cond(code, source, tc=False):
+    """
+    (cond (TEST_EXPRESSION BODY...)... )
+    Conditionally executes body depending on a test expression. Multiple
+    test expressions and bodies may be specified, but only the body of the
+    first truthful expression is evaluated and returned. If no test
+    expression is truthful, evaluates to None.
+
+    (cond (TEST_EXPRESSION BODY...)
+          ...
+          (else: BODY...))
+
+    As above, but the else keyword is considered true, and the
+    associated body will be evaluated and returned if no other
+    previous test expression matched. Identical behavior can be
+    achieved by using a truthful constant (eg. True, or 1) as the test
+    expression.
+    """
 
     called_by, cl = source
 
@@ -1053,34 +1175,6 @@ def _special_cond(code, source, tc=False):
     code.pseudop_label(done)
 
     return None
-
-
-@special(_symbol_macroexpand_1)
-def _special_macroexpand_1(code, source, tc=False):
-    called_by, body = source
-
-    if is_symbol(body):
-        namesym = body
-        args = nil
-
-    elif is_proper(body):
-        namesym, args = body
-
-        if not is_symbol(namesym):
-            msg = "cannot expand: %r" % namesym
-            raise code.error(msg, source)
-
-    else:
-        msg = "invalid parameter to %s: %r" % (called_by, body)
-        raise code.error(msg, source)
-
-    found = code.find_compiled(namesym)
-    if not is_macro(found):
-        msg = "%s is not a macro: %r" % (namesym, found)
-        raise code.error(msg, source)
-
-    # TODO: emulate macro expansion better
-    return _helper_quote(code, found.expand(*args))
 
 
 # --- and finally clean up ---

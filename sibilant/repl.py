@@ -26,7 +26,7 @@ import sibilant.builtins
 
 from traceback import format_exception, format_exception_only
 
-from sibilant.compiler import iter_compile
+from sibilant.compiler import iter_compile, Mode
 from sibilant.parse import default_reader
 
 
@@ -60,6 +60,7 @@ def repl(stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr,
     for line in stdin:
         try:
             for code in iter_compile(line, env,
+                                     mode=Mode.MODULE,
                                      filename="<repl>",
                                      reader=reader):
                 if code:

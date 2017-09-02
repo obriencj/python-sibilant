@@ -69,18 +69,18 @@ def factorial(num, accu=1):
 
 
 @trampoline
-def tco_fibonacci(num, accu=0):
+def tco_fibonacci(num, accu=0, carry=1):
     if num < 1:
         return accu
     else:
-        return tailcall(tco_fibonacci)(num - 1, accu + num)
+        return tailcall(tco_fibonacci)(num - 1, carry, carry + accu)
 
 
-def fibonacci(num, accu=0):
+def fibonacci(num, accu=0, carry=1):
     if num < 1:
         return accu
     else:
-        return fibonacci(num - 1, accu + num)
+        return fibonacci(num - 1, carry, carry + accu)
 
 
 @trampoline
@@ -106,6 +106,7 @@ class TestTailcall(TestCase):
     def test_factorial(self):
         count = getrecursionlimit()
 
+        self.assertEqual(factorial(9), 362880)
         self.assertEqual(factorial(10), 3628800)
 
         self.assertRaises(RecursionError, factorial, count)
@@ -125,6 +126,7 @@ class TestTailcall(TestCase):
         count = getrecursionlimit()
 
         self.assertEqual(fibonacci(10), 55)
+        self.assertEqual(fibonacci(11), 89)
 
         self.assertRaises(RecursionError, fibonacci, count)
         self.assertTrue(tco_fibonacci, count)
@@ -166,6 +168,8 @@ class TestTCOCompiler(TestCase):
         res = stmt()
         self.assertTrue(callable(res))
 
+        self.assertEqual(res(8), 40320)
+        self.assertEqual(res(9), 362880)
         self.assertEqual(res(10), 3628800)
         self.assertTrue(res(count * 10))
 
@@ -181,8 +185,9 @@ class TestTCOCompiler(TestCase):
         count = getrecursionlimit()
 
         src = """
-        (function fibonacci (num :accu 0)
-          (if (< num 1) accu (fibonacci (- num 1) (+ num accu))))
+        (function fibonacci (index carry: 0 accu: 1)
+          (if (== index 0) then: carry
+              else: (fibonacci (- index 1) accu (+ accu carry))))
         """
         stmt, env = compile_expr(src)
         res = stmt()

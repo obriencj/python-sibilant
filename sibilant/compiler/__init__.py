@@ -75,7 +75,7 @@ class UnsupportedVersion(SibilantException):
 
 class Compiled():
     __slots__ = ("__name__", )
-    __objname__ = "sibilant-compiled"
+    __objname__ = "sibilant compiled"
 
 
     def __init__(self, name):
@@ -88,7 +88,7 @@ class Compiled():
 
 
     def __repr__(self):
-        return "<%s %s>" % (self.__objname__, self.__name__)
+        return "<%s %r>" % (self.__objname__, self.__name__)
 
 
     def compile(self, compiler, source_obj):
@@ -100,7 +100,7 @@ def is_compiled(obj):
 
 
 class Special(Compiled):
-    __objname__ = "special-form"
+    __objname__ = "special form"
 
 
     def __init__(self, name, compilefn):
@@ -196,7 +196,9 @@ class Macrolet(Macro):
 
         elif is_pair(source_obj):
             called_by, source = source_obj
-            return cons(expanded, source)
+            res = cons(expanded, source)
+            fill_position(res, source_obj.get_position())
+            return res
 
         else:
             msg = "Error expanding macrolet %s from %r" % \
@@ -288,16 +290,18 @@ class Pseudop(Enum):
     CALL_VAR = _auto()
     CALL_VAR_KW = _auto()
     CONST = _auto()
+    SET_LOCAL = _auto()
     GET_VAR = _auto()
     SET_VAR = _auto()
-    DELETE_VAR = _auto()
+    DEL_VAR = _auto()
     GET_ATTR = _auto()
     SET_ATTR = _auto()
+    DEL_ATTR = _auto()
     LAMBDA = _auto()
     RET_VAL = _auto()
     GET_GLOBAL = _auto()
-    DEFINE_GLOBAL = _auto()
-    DEFINE_LOCAL = _auto()
+    SET_GLOBAL = _auto()
+    DEL_GLOBAL = _auto()
     JUMP = _auto()
     JUMP_FORWARD = _auto()
     POP_JUMP_IF_TRUE = _auto()
@@ -308,7 +312,9 @@ class Pseudop(Enum):
     UNARY_NOT = _auto()
     UNARY_INVERT = _auto()
     ITER = _auto()
-    ITEM = _auto()
+    GET_ITEM = _auto()
+    SET_ITEM = _auto()
+    DEL_ITEM = _auto()
     BINARY_POWER = _auto()
     BINARY_MULTIPLY = _auto()
     BINARY_MATRIX_MULTIPLY = _auto()
@@ -521,11 +527,20 @@ class CodeBlock():
                 # depending on Python version
                 code.helper_max_stack(op, args, push, pop)
 
-        # print("leaving max_stack()", self.block_type, "with", stac)
+        if stac != leftovers:
+            print("leaving max_stack()", self.block_type, "with", stac)
+            for o in self.pseudops:
+                print("\t", repr(o))
+
         assert (stac == leftovers), ("%i / %i left-over stack items for %r"
                                      % (stac, leftovers, self.block_type))
 
         return stac, maxc
+
+
+class Mode(Enum):
+    EXPRESSION = "expr"
+    MODULE = "module"
 
 
 class CodeSpace(metaclass=ABCMeta):
@@ -534,15 +549,16 @@ class CodeSpace(metaclass=ABCMeta):
     scope, and nested sub-scopes.
     """
 
-    def __init__(self, args=(),
+    def __init__(self, parent=None, name=None, args=(),
                  varargs=False, varkeywords=False, proper_varargs=True,
-                 parent=None, name=None,
                  filename=None, declared_at=None,
-                 tco_enabled=True):
+                 tco_enabled=True, mode=Mode.EXPRESSION):
 
         self.env = None
         self.parent = parent
         self.name = name
+
+        self.mode = mode
 
         self.tco_enabled = tco_enabled
         self.tailcalls = 0
@@ -573,6 +589,8 @@ class CodeSpace(metaclass=ABCMeta):
         self.varargs = varargs
         self.varkeywords = varkeywords
 
+        # this holds a combination of global var keys and member
+        # attribute keys
         self.names = []
 
         # first const is required -- it'll be None or a doc string and
@@ -581,10 +599,14 @@ class CodeSpace(metaclass=ABCMeta):
 
         self.blocks = [CodeBlock(Block.BASE, 0, 0)]
 
-        self.gen_label = _label_generator()
+        if parent:
+            self.gen_label = parent.gen_label
+            self._gen_sym = parent._gen_sym
 
-        gs = "gensym_%08x" % id(self)
-        self._gen_sym = _label_generator(gs + "_%02x")
+        else:
+            self.gen_label = _label_generator()
+            gs = "gensym_%08x" % id(self)
+            self._gen_sym = _label_generator(gs + "_%02x")
 
         if not proper_varargs:
             # if our argument formals are an improper list, then the
@@ -751,6 +773,11 @@ class CodeSpace(metaclass=ABCMeta):
 
 
     def set_doc(self, docstr):
+        """
+        Python expects doc strings to be the first constant (followed
+        immediately by None) in a code object's const pool.
+        """
+
         consts = self.consts
 
         if docstr is None and self.consts[0] is not None:
@@ -789,8 +816,7 @@ class CodeSpace(metaclass=ABCMeta):
             self.env = None
 
 
-    def child(self, args=(), varargs=False, varkeywords=False,
-              name=None, declared_at=None, **addtl):
+    def child(self, name=None, declared_at=None, **addtl):
 
         """
         Returns a child codespace
@@ -802,21 +828,15 @@ class CodeSpace(metaclass=ABCMeta):
         if name is None:
             name = "%s.<child>" % self.name
 
-        cs = type(self)(parent=self,
-                        args=args,
-                        varargs=varargs,
-                        varkeywords=varkeywords,
-                        name=name,
-                        filename=self.filename,
-                        declared_at=declared_at,
-                        **addtl)
+        addtl["name"] = name
+        addtl["declared_at"] = declared_at
 
-        return cs
+        return type(self)(parent=self, **addtl)
 
 
     def child_context(self, **kwargs):
         """
-        Returns a context for a child codespace
+        Returns an active context for a child codespace
         """
 
         self.require_active()
@@ -825,17 +845,41 @@ class CodeSpace(metaclass=ABCMeta):
 
 
     def declare_const(self, value):
+        """
+        Declare a constant value
+        """
+
         assert (type(value) in _CONST_TYPES), "invalid const type %r" % value
         _list_unique_append(self.consts, value)
 
 
-    def declare_var(self, name):
-        name = str(name)
-        if not (name in self.cell_vars or name in self.free_vars):
-            _list_unique_append(self.fast_vars, name)
+    def declare_var(self, namesym):
+        """
+        Declare a local variable by name
+        """
+
+        name = str(namesym)
+
+        if self.mode is Mode.MODULE:
+            return self.request_global(name)
+
+        else:
+            if not (name in self.cell_vars or name in self.free_vars):
+                _list_unique_append(self.fast_vars, name)
 
 
     def request_var(self, name):
+        """
+        State that this code space wants to consume a var by name.
+
+        If the var is already declared locally, do nothing.
+        Otherwise, ff the var is in our ancestry, it will request
+        those parents convert it into a cell so that it will be
+        available as a closure here.  If the var is neither local nor
+        in our ancestry, then we'll presume it must be a global
+        reference.
+        """
+
         name = str(name)
         if (name in self.fast_vars) or \
            (name in self.free_vars) or \
@@ -856,8 +900,7 @@ class CodeSpace(metaclass=ABCMeta):
                 # and they said yes
                 _list_unique_append(self.free_vars, name)
             else:
-                _list_unique_append(self.global_vars, name)
-                _list_unique_append(self.names, name)
+                self.request_global(name)
 
 
     def request_global(self, name):
@@ -925,7 +968,7 @@ class CodeSpace(metaclass=ABCMeta):
         if self.declared_at:
             self.pseudop_position(*self.declared_at)
 
-        self.pseudop_get_var("make-proper")
+        self.pseudop_get_var("build-proper")
         self.pseudop_get_var(varname)
         self.pseudop_call_var(0, 0)
         self.pseudop_set_var(varname)
@@ -948,14 +991,19 @@ class CodeSpace(metaclass=ABCMeta):
             pass
 
 
-    def pseudop_getattr(self, name):
+    def pseudop_get_attr(self, name):
         self.request_name(name)
         self.pseudop(Pseudop.GET_ATTR, name)
 
 
-    def pseudop_setattr(self, name):
+    def pseudop_set_attr(self, name):
         self.request_name(name)
         self.pseudop(Pseudop.SET_ATTR, name)
+
+
+    def pseudop_del_attr(self, name):
+        self.request_name(name)
+        self.pseudop(Pseudop.DEL_ATTR, name)
 
 
     def pseudop_rot_two(self):
@@ -1009,6 +1057,14 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop(Pseudop.CONST, val)
 
 
+    def pseudop_set_local(self, name):
+        """
+        Declares var as local, assigns TOS to is
+        """
+        self.declare_var(name)
+        self.pseudop(Pseudop.SET_LOCAL, name)
+
+
     def pseudop_get_var(self, name):
         """
         Pushes a pseudo op to load a named value
@@ -1026,12 +1082,8 @@ class CodeSpace(metaclass=ABCMeta):
 
 
     def pseudop_del_var(self, name):
-        self.pseudop(Pseudop.DELETE_VAR, name)
-
-
-    def pseudop_get_global(self, name):
-        self.request_global(name)
-        self.pseudop(Pseudop.GET_GLOBAL, name)
+        self.request_var(name)
+        self.pseudop(Pseudop.DEL_VAR, name)
 
 
     def pseudop_lambda(self, code, default_count):
@@ -1045,6 +1097,8 @@ class CodeSpace(metaclass=ABCMeta):
 
 
     def pseudop_pop(self, count=1):
+        assert count > 0, ("pseudop_pop with weird count %r" % count)
+
         while count > 0:
             self.pseudop(Pseudop.POP)
             count -= 1
@@ -1069,21 +1123,22 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop(Pseudop.RET_VAL)
 
 
-    def pseudop_define_global(self, name):
+    def pseudop_get_global(self, name):
+        self.request_global(name)
+        self.pseudop(Pseudop.GET_GLOBAL, name)
+
+
+    def pseudop_set_global(self, name):
         """
         Pushes a pseudo op to globally define TOS to name
         """
-        _list_unique_append(self.global_vars, name)
-        _list_unique_append(self.names, name)
-        self.pseudop(Pseudop.DEFINE_GLOBAL, name)
+        self.request_global(name)
+        self.pseudop(Pseudop.SET_GLOBAL, name)
 
 
-    def pseudop_define_local(self, name):
-        """
-        Pushes a pseudo op to globally define TOS to name
-        """
-        self.declare_var(name)
-        self.pseudop(Pseudop.DEFINE_LOCAL, name)
+    def pseudop_del_global(self, name):
+        self.request_global(name)
+        self.pseudop(Pseudop.DEL_GLOBAL, name)
 
 
     def pseudop_label(self, name):
@@ -1231,7 +1286,15 @@ class CodeSpace(metaclass=ABCMeta):
 
 
     def pseudop_item(self):
-        self.pseudop(Pseudop.ITEM)
+        self.pseudop(Pseudop.GET_ITEM)
+
+
+    def pseudop_set_item(self):
+        self.pseudop(Pseudop.SET_ITEM)
+
+
+    def pseudop_del_item(self):
+        self.pseudop(Pseudop.DEL_ITEM)
 
 
     def pseudop_compare_lt(self):
@@ -1282,13 +1345,137 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop(Pseudop.RAISE, count)
 
 
+    def helper_max_stack(self, op, args, push, pop):
+
+        _Pseudop = Pseudop
+        _Opcode = Opcode
+
+        if op in (_Pseudop.CONST,
+                  _Pseudop.DUP,
+                  _Pseudop.GET_VAR,
+                  _Pseudop.GET_GLOBAL):
+            push()
+
+        elif op in (_Pseudop.DEL_VAR,
+                    _Pseudop.DEL_GLOBAL):
+            pass
+
+        elif op in (_Pseudop.GET_ATTR,
+                    _Pseudop.UNARY_POSITIVE,
+                    _Pseudop.UNARY_NEGATIVE,
+                    _Pseudop.UNARY_NOT,
+                    _Pseudop.UNARY_INVERT,
+                    _Pseudop.ITER):
+            pop()
+            push()
+
+        elif op in (_Pseudop.SET_ATTR,
+                    _Pseudop.DEL_ITEM):
+            pop(2)
+
+        elif op is _Pseudop.SET_ITEM:
+            pop(3)
+
+        elif op in (_Pseudop.SET_GLOBAL,
+                    _Pseudop.SET_LOCAL,
+                    _Pseudop.SET_VAR,
+                    _Pseudop.RET_VAL,
+                    _Pseudop.DEL_ATTR,
+                    _Pseudop.POP):
+            pop()
+
+        elif op is _Pseudop.LAMBDA:
+            pop(args[1])
+            a = len(args[0].co_freevars)
+            if a:
+                push(a)
+                pop(a)
+            push(2)
+            pop(2)
+            push()
+
+        elif op is _Pseudop.BUILD_MAP:
+            pop(args[0] * 2)
+            push()
+
+        elif op in (_Pseudop.BUILD_TUPLE,
+                    _Pseudop.BUILD_TUPLE_UNPACK,
+                    _Pseudop.BUILD_MAP_UNPACK):
+            pop(args[0])
+            push()
+
+        elif op is _Pseudop.SETUP_EXCEPT:
+            push(_Opcode.SETUP_EXCEPT.stack_effect(1))
+
+        elif op is _Pseudop.SETUP_WITH:
+            push(_Opcode.SETUP_WITH.stack_effect(1))
+
+        elif op is _Pseudop.SETUP_FINALLY:
+            push(_Opcode.SETUP_FINALLY.stack_effect(1))
+
+        elif op is _Pseudop.POP_BLOCK:
+            push(_Opcode.POP_BLOCK.stack_effect())
+
+        elif op is _Pseudop.POP_EXCEPT:
+            push(_Opcode.POP_EXCEPT.stack_effect())
+
+        elif op is _Pseudop.WITH_CLEANUP_START:
+            push(_Opcode.WITH_CLEANUP_START.stack_effect())
+
+        elif op is _Pseudop.WITH_CLEANUP_FINISH:
+            push(_Opcode.WITH_CLEANUP_FINISH.stack_effect())
+
+        elif op is _Pseudop.END_FINALLY:
+            push(_Opcode.END_FINALLY.stack_effect())
+
+        elif op in (_Pseudop.COMPARE_OP,
+                    _Pseudop.GET_ITEM,
+                    _Pseudop.BINARY_ADD,
+                    _Pseudop.BINARY_SUBTRACT,
+                    _Pseudop.BINARY_MULTIPLY,
+                    _Pseudop.BINARY_MATRIX_MULTIPLY,
+                    _Pseudop.BINARY_TRUE_DIVIDE,
+                    _Pseudop.BINARY_FLOOR_DIVIDE,
+                    _Pseudop.BINARY_POWER,
+                    _Pseudop.BINARY_MODULO,
+                    _Pseudop.BINARY_LSHIFT,
+                    _Pseudop.BINARY_RSHIFT,
+                    _Pseudop.BINARY_AND,
+                    _Pseudop.BINARY_XOR,
+                    _Pseudop.BINARY_OR, ):
+            pop(2)
+            push()
+
+        elif op is _Pseudop.RAISE:
+            pop(args[0])
+            # for the sake of counting, let's just pretend that raise
+            # evaluates to something.
+            push()
+
+        elif op is _Pseudop.FAUX_PUSH:
+            push(args[0])
+
+        elif op in (_Pseudop.ROT_THREE,
+                    _Pseudop.ROT_TWO):
+            pass
+
+        else:
+            assert False, "unknown pseudop %r" % op
+
+
+    def max_stack(self):
+        leftovers, maximum = self.blocks[0].max_stack(self)
+        assert leftovers == 0, "code has leftovers on stack"
+        return maximum
+
+
     def complete(self):
         """
         Produces a python code object representing the state of this
         CodeSpace
         """
 
-        self.require_active()
+        # self.require_active()
 
         argcount = len(self.args)
 
@@ -1383,7 +1570,8 @@ def code_space_for_version(ver=version_info,
 
 class ExpressionCodeSpace(CodeSpace):
     """
-    Adds special forms to the basic functionality of CodeSpace
+    Adds support for expressions, operators, macros, and special forms
+    to the basic functionality of CodeSpace
     """
 
 
@@ -1592,150 +1780,7 @@ class ExpressionCodeSpace(CodeSpace):
 
 
     def find_compiled(self, namesym):
-        # okay, let's look through the environment by name
-        name = str(namesym)
-        env = self.env
-
-        try:
-            # is it in globals?
-            found = env[name]
-        except KeyError:
-            try:
-                # nope, how about in builtins?
-                env = env["__builtins__"].__dict__
-                found = env[name]
-
-            except KeyError:
-                # nope
-                found = None
-
-        if found and is_compiled(found):
-            # we found a Macro instance, return the relevant
-            # method
-            return found
-
-        else:
-            # we either found nothing, or what we found doesn't
-            # qualify
-            return None
-
-
-    def helper_max_stack(self, op, args, push, pop):
-
-        _Pseudop = Pseudop
-        _Opcode = Opcode
-
-        if op in (_Pseudop.CONST,
-                  _Pseudop.DUP,
-                  _Pseudop.GET_VAR,
-                  _Pseudop.GET_GLOBAL):
-            push()
-
-        elif op is _Pseudop.DELETE_VAR:
-            pass
-
-        elif op in (_Pseudop.GET_ATTR,
-                    _Pseudop.UNARY_POSITIVE,
-                    _Pseudop.UNARY_NEGATIVE,
-                    _Pseudop.UNARY_NOT,
-                    _Pseudop.UNARY_INVERT,
-                    _Pseudop.ITER):
-            pop()
-            push()
-
-        elif op is _Pseudop.SET_ATTR:
-            pop(2)
-
-        elif op in (_Pseudop.DEFINE_GLOBAL,
-                    _Pseudop.DEFINE_LOCAL,
-                    _Pseudop.SET_VAR,
-                    _Pseudop.RET_VAL,
-                    _Pseudop.POP):
-            pop()
-
-        elif op is _Pseudop.LAMBDA:
-            pop(args[1])
-            a = len(args[0].co_freevars)
-            if a:
-                push(a)
-                pop(a)
-            push(2)
-            pop(2)
-            push()
-
-        elif op is _Pseudop.BUILD_MAP:
-            pop(args[0] * 2)
-            push()
-
-        elif op in (_Pseudop.BUILD_TUPLE,
-                    _Pseudop.BUILD_TUPLE_UNPACK,
-                    _Pseudop.BUILD_MAP_UNPACK):
-            pop(args[0])
-            push()
-
-        elif op is _Pseudop.SETUP_EXCEPT:
-            push(_Opcode.SETUP_EXCEPT.stack_effect(1))
-
-        elif op is _Pseudop.SETUP_WITH:
-            push(_Opcode.SETUP_WITH.stack_effect(1))
-
-        elif op is _Pseudop.SETUP_FINALLY:
-            push(_Opcode.SETUP_FINALLY.stack_effect(1))
-
-        elif op is _Pseudop.POP_BLOCK:
-            push(_Opcode.POP_BLOCK.stack_effect())
-
-        elif op is _Pseudop.POP_EXCEPT:
-            push(_Opcode.POP_EXCEPT.stack_effect())
-
-        elif op is _Pseudop.WITH_CLEANUP_START:
-            push(_Opcode.WITH_CLEANUP_START.stack_effect())
-
-        elif op is _Pseudop.WITH_CLEANUP_FINISH:
-            push(_Opcode.WITH_CLEANUP_FINISH.stack_effect())
-
-        elif op is _Pseudop.END_FINALLY:
-            push(_Opcode.END_FINALLY.stack_effect())
-
-        elif op in (_Pseudop.COMPARE_OP,
-                    _Pseudop.ITEM,
-                    _Pseudop.BINARY_ADD,
-                    _Pseudop.BINARY_SUBTRACT,
-                    _Pseudop.BINARY_MULTIPLY,
-                    _Pseudop.BINARY_MATRIX_MULTIPLY,
-                    _Pseudop.BINARY_TRUE_DIVIDE,
-                    _Pseudop.BINARY_FLOOR_DIVIDE,
-                    _Pseudop.BINARY_POWER,
-                    _Pseudop.BINARY_MODULO,
-                    _Pseudop.BINARY_LSHIFT,
-                    _Pseudop.BINARY_RSHIFT,
-                    _Pseudop.BINARY_AND,
-                    _Pseudop.BINARY_XOR,
-                    _Pseudop.BINARY_OR, ):
-            pop(2)
-            push()
-
-        elif op is _Pseudop.RAISE:
-            pop(args[0])
-            # for the sake of counting, let's just pretend that raise
-            # evaluates to something.
-            push()
-
-        elif op is _Pseudop.FAUX_PUSH:
-            push(args[0])
-
-        elif op in (_Pseudop.ROT_THREE,
-                    _Pseudop.ROT_TWO):
-            pass
-
-        else:
-            assert False, "unknown pseudop %r" % op
-
-
-    def max_stack(self):
-        leftovers, maximum = self.blocks[0].max_stack(self)
-        assert leftovers == 0, "code has leftovers on stack"
-        return maximum
+        return _find_compiled(self.env, namesym)
 
 
 def _list_unique_append(onto_list, value):
@@ -1751,35 +1796,15 @@ def _list_unique_append(onto_list, value):
         return len(onto_list)
 
 
-# def op_max_stack(opargs):
-#     depth = 0
-#
-#    for op, args in opargs:
-#        effect = op.stack_effect(*args)
-#        depth += effect
-#        if depth > maxdepth:
-#            maxdepth = depth
-#
-#        if op.hasjrel or op.hasjabs:
-#            pass
-
-
-# def label_graph(pseudops):
-#     jump_points = {}
-
-#     for op, args in pseudops:
-#         if op is Pseudop.LABEL:
-#             labal = args[0]
-#             point = jump_points.get(label)
-#             if point is None:
-#                 point = []
-#                 jump_points[label] = point
-
-#             current_point = point
-
-
 def iter_compile(source, env, filename=None, reader=None,
                  **codespace_args):
+
+    """
+    Compile and yield a Python code object representing the evaluation
+    of each expression that can be read from source.
+
+    Source may be a str, an IOBase, or a SourceStream instance
+    """
 
     if isinstance(source, str):
         source = source_str(source, filename)
@@ -1794,7 +1819,7 @@ def iter_compile(source, env, filename=None, reader=None,
     if reader is None:
         reader = default_reader
 
-    factory = code_space_for_version(version_info)
+    factory = code_space_for_version()
     if not factory:
         raise UnsupportedVersion(version_info)
 
@@ -1819,6 +1844,27 @@ def iter_compile(source, env, filename=None, reader=None,
         yield code
 
 
+def compile_expression(source_obj, env, filename="<anon>",
+                       **codespace_args):
+
+    """
+    Compile and yield a Python code object representing the evaluation
+    of the given source_obj expression, which should be the result of
+    a a `read` call from a SourceStream, a valid symbol or cons pair,
+    or a self-evaluating type.
+    """
+
+    factory = code_space_for_version()
+    if not factory:
+        raise UnsupportedVersion(version_info)
+
+    codespace = factory(filename=filename, **codespace_args)
+    with codespace.activate(env):
+        assert(env.get("__compiler__") == codespace)
+        codespace.add_expression_with_return(source_obj)
+        code = codespace.complete()
+
+    return code
 
 
 def gather_formals(args, declared_at=None):
@@ -2019,6 +2065,92 @@ def gather_parameters(args, declared_at=None):
         raise err("leftover parameters %r" % arg)
 
     return (positional, keywords, defaults, star, starstar)
+
+
+def _find_compiled(env, namesym):
+    # okay, let's look through the environment by name
+    name = str(namesym)
+
+    try:
+        # is it in globals?
+        found = env[name]
+    except KeyError:
+        try:
+            # nope, how about in builtins?
+            env = env["__builtins__"].__dict__
+            found = env[name]
+
+        except KeyError:
+            # nope
+            found = None
+
+    if found and is_compiled(found):
+        # we found a Macro instance, return the relevant
+        # method
+        return found
+
+    else:
+        # we either found nothing, or what we found doesn't
+        # qualify
+        return None
+
+
+def _get_expander(env, source_obj):
+    expander = None
+
+    if source_obj is nil:
+        pass
+
+    elif is_symbol(source_obj):
+        namesym = source_obj
+        found = _find_compiled(env, namesym)
+        if is_macrolet(found):
+            expander = partial(found.expand)
+
+    elif is_proper(source_obj):
+        namesym, params = source_obj
+
+        if is_symbol(namesym):
+            found = _find_compiled(env, namesym)
+            if is_macrolet(found):
+                def expander():
+                    return cons(found.expand(), params)
+
+            elif is_macro(found):
+                if found._proper:
+                    position = params.get_position()
+                    args, kwargs = simple_parameters(params, position)
+                    expander = partial(found.expand, *args, **kwargs)
+                else:
+                    expander = partial(found.expand, *params.unpack())
+
+    return expander
+
+
+def iter_macroexpand(env, source_obj, position=None):
+    if position is None and is_pair(source_obj):
+        position = source_obj.get_position()
+
+    expander = _get_expander(env, source_obj)
+    expanded = source_obj
+
+    while expander:
+        expanded = expander()
+        yield expanded
+
+        expander = _get_expander(env, expanded)
+        if is_pair(expanded):
+            fill_position(expanded, position)
+
+
+def macroexpand(env, source_obj, position=None):
+    for source_obj in iter_macroexpand(env, source_obj, position):
+        pass
+    return source_obj
+
+
+def macroexpand_1(env, source_obj, position=None):
+    return next(iter_macroexpand(env, source_obj, position), source_obj)
 
 
 #
