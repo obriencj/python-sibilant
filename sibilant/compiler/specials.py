@@ -24,7 +24,7 @@ from .. import (
     get_position, fill_position,
 )
 
-from . import is_macro, gather_formals
+from . import gather_formals
 
 
 __all__ = []
@@ -53,8 +53,6 @@ _symbol_with = symbol("with")
 _symbol_let = symbol("let")
 _symbol_while = symbol("while")
 _symbol_try = symbol("try")
-
-_symbol_macroexpand_1 = symbol("macroexpand-1")
 
 _keyword_else = keyword("else")
 _keyword_as = keyword("as")
@@ -1167,34 +1165,6 @@ def _special_cond(code, source, tc=False):
     code.pseudop_label(done)
 
     return None
-
-
-@special(_symbol_macroexpand_1)
-def _special_macroexpand_1(code, source, tc=False):
-    called_by, body = source
-
-    if is_symbol(body):
-        namesym = body
-        args = nil
-
-    elif is_proper(body):
-        namesym, args = body
-
-        if not is_symbol(namesym):
-            msg = "cannot expand: %r" % namesym
-            raise code.error(msg, source)
-
-    else:
-        msg = "invalid parameter to %s: %r" % (called_by, body)
-        raise code.error(msg, source)
-
-    found = code.find_compiled(namesym)
-    if not is_macro(found):
-        msg = "%s is not a macro: %r" % (namesym, found)
-        raise code.error(msg, source)
-
-    # TODO: emulate macro expansion better
-    return _helper_quote(code, found.expand(*args))
 
 
 # --- and finally clean up ---

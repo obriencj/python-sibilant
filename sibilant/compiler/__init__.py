@@ -196,7 +196,9 @@ class Macrolet(Macro):
 
         elif is_pair(source_obj):
             called_by, source = source_obj
-            return cons(expanded, source)
+            res = cons(expanded, source)
+            fill_position(res, source_obj.get_position())
+            return res
 
         else:
             msg = "Error expanding macrolet %s from %r" % \
@@ -1774,32 +1776,7 @@ class ExpressionCodeSpace(CodeSpace):
 
 
     def find_compiled(self, namesym):
-        # okay, let's look through the environment by name
-        name = str(namesym)
-        env = self.env
-
-        try:
-            # is it in globals?
-            found = env[name]
-        except KeyError:
-            try:
-                # nope, how about in builtins?
-                env = env["__builtins__"].__dict__
-                found = env[name]
-
-            except KeyError:
-                # nope
-                found = None
-
-        if found and is_compiled(found):
-            # we found a Macro instance, return the relevant
-            # method
-            return found
-
-        else:
-            # we either found nothing, or what we found doesn't
-            # qualify
-            return None
+        return _find_compiled(self.env, namesym)
 
 
 def _list_unique_append(onto_list, value):
@@ -2084,6 +2061,92 @@ def gather_parameters(args, declared_at=None):
         raise err("leftover parameters %r" % arg)
 
     return (positional, keywords, defaults, star, starstar)
+
+
+def _find_compiled(env, namesym):
+    # okay, let's look through the environment by name
+    name = str(namesym)
+
+    try:
+        # is it in globals?
+        found = env[name]
+    except KeyError:
+        try:
+            # nope, how about in builtins?
+            env = env["__builtins__"].__dict__
+            found = env[name]
+
+        except KeyError:
+            # nope
+            found = None
+
+    if found and is_compiled(found):
+        # we found a Macro instance, return the relevant
+        # method
+        return found
+
+    else:
+        # we either found nothing, or what we found doesn't
+        # qualify
+        return None
+
+
+def _get_expander(env, source_obj):
+    expander = None
+
+    if source_obj is nil:
+        pass
+
+    elif is_symbol(source_obj):
+        namesym = source_obj
+        found = _find_compiled(env, namesym)
+        if is_macrolet(found):
+            expander = partial(found.expand)
+
+    elif is_proper(source_obj):
+        namesym, params = source_obj
+
+        if is_symbol(namesym):
+            found = _find_compiled(env, namesym)
+            if is_macrolet(found):
+                def expander():
+                    return cons(found.expand(), params)
+
+            elif is_macro(found):
+                if found._proper:
+                    position = params.get_position()
+                    args, kwargs = simple_parameters(params, position)
+                    expander = partial(found.expand, *args, **kwargs)
+                else:
+                    expander = partial(found.expand, *params.unpack())
+
+    return expander
+
+
+def iter_macroexpand(env, source_obj, position=None):
+    if position is None and is_pair(source_obj):
+        position = source_obj.get_position()
+
+    expander = _get_expander(env, source_obj)
+    expanded = source_obj
+
+    while expander:
+        expanded = expander()
+        yield expanded
+
+        expander = _get_expander(env, expanded)
+        if is_pair(expanded):
+            fill_position(expanded, position)
+
+
+def macroexpand(env, source_obj, position=None):
+    for source_obj in iter_macroexpand(env, source_obj, position):
+        pass
+    return source_obj
+
+
+def macroexpand_1(env, source_obj, position=None):
+    return next(iter_macroexpand(env, source_obj, position), source_obj)
 
 
 #
