@@ -23,9 +23,9 @@
 
 ;; a contrived dollars class, based on the float type.
 (defclass dollars (float)
-  (method __str__ (self)
+  (def function __str__ (self)
 	  (% "$%0.02f" self))
-  (method __repr__ (self)
+  (def function __repr__ (self)
 	  (% "(dollars %0.02f)" self)))
 
 
