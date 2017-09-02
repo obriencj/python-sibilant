@@ -252,7 +252,6 @@
 	(setq scope (car source))
 	(setq source (cdr source)))
 
-      (print *gd-scopes*)
       (setq d-scope (dict.get *gd-scopes* scope None))
       (when (none? d-scope)
 	(raise (Exception (% "undefined def scope %r" scope))))
