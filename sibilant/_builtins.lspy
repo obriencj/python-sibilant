@@ -148,6 +148,20 @@
     `(begin ,@coll)))
 
 
+;; === runtime macroexpand ===
+
+(define _sibilant_compiler (attr (import "sibilant.compiler") compiler))
+(define _macroexpand_1 _sibilant_compiler.macroexpand_1)
+(define _macroexpand _sibilant_compiler.macroexpand)
+
+
+(defmacro macroexpand-1 (source)
+  `(_macroexpand_1 (globals) ',source))
+
+(defmacro macroexpand (source)
+  `(_macroexpand (globals) ',source))
+
+
 ;; === setf and general variables ===
 
 (let ((*gv-forms* (dict)))
