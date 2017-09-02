@@ -177,7 +177,10 @@
       ((item *gv-forms* (car target)) (cdr target) value))
 
      (else:
-      (raise (Exception (% "invalid setf target %s" target)))))))
+      (raise (Exception (% "invalid setf target %s" target))))))
+
+  None)
+
 
 (begin
   (gv-define-simple-setter attr set-attr)
@@ -190,32 +193,72 @@
   None)
 
 
-;; === c_r magic ===
+;; === def general targets ===
 
-;; I thought this was such a good idea, to use a higher-order macro to
-;; create the various cadr forms as requested at compile-time. But it
-;; falls apart whenever someone tried to evaluate it without then
-;; re-expanding it ie. a (print cadr) will result in the cadr being
-;; expanded into (c__r "card"), then c__r expands... into a
-;; macro. There's no invocation of the macro from there, so at
-;; compile-time you're left with an expression that didn't express
-;; into any actual compileable form and is just left as a macro
-;; instance (which is not a valid constant value, either, if we ever
-;; want to compile our code objects to file)
+(let ((*gd-targets* (dict))
+      (*gd-scopes* (dict)))
+
+  (defun gd-define-target-fn (name fn)
+    (set-item *gd-targets* name fn)
+    None)
+
+  (defun gd-define-scope-fn (key fn)
+    (set-item *gd-scopes* key fn)
+    None)
+
+  (defmacro gd-define-target (name formals . body)
+    `(gd-define-target-fn
+      ,name
+      (lambda ,formals ,@body)))
+
+  (defmacro gd-define-scope (name formals . body)
+    `(gd-define-target-fn
+      ,name
+      (lambda ,formals ,@body)))
+
+  (defmacro gd-define-simple-scope (name setter)
+    `(gd-define-scope
+      ,name (dest val) `(,',setter ,dest ,val)))
+
+  None)
+
+(begin
+ (gd-define-simple-scope ':global define-global)
+
+ None)
+
+
+;; === c_r magic ===
 
 ;; (defmacro c__r (atom)
 ;;   (unless (is str (type atom))
 ;;     (raise (Exception (% "what happened in c__r: %r" atom))))
 
-;;   (define-local calls (reduce (lambda (cell atom-char)
-;; 				(cons (if (eq "a" atom-char) 'car 'cdr)
-;; 				      cell))
-;; 			      (item atom (slice -2 1 -1))
-;; 			      nil))
-;;   (macro atom
-;; 	 (lambda (value)
-;; 	   `(,(if (eq "a" (item atom 1)) 'car 'cdr)
-;; 	     (reduce (lambda (x y) (y x)) (build-tuple ,@calls) ,value)))))
+;;   (define-local sb (attr (import "sibilant.builtins") builtins))
+;;   (define-local sd sb.__dict__)
+
+;;   (define-local found (dict.get sd atom None))
+
+;;   (when (none? found)
+;;     (define-local calls (reduce (lambda (cell atom-char)
+;; 				  (cons (if (eq "a" atom-char) 'car 'cdr)
+;; 					cell))
+;; 				(item atom (slice -2 1 -1))
+;; 				nil))
+
+;;     (setq found
+;; 	  (macro atom
+;; 		 (lambda (value)
+;; 		   `(,(if (eq "a" (item atom 1)) 'car 'cdr)
+;; 		     (reduce (lambda (x y) (y x)) (values ,@calls)
+;; 			     ,value)))))
+
+;;     (print (found.expand 'TACO))
+
+;;     (setf (item sd atom) found)
+;;     None)
+
+;;   (symbol atom))
 
 
 ;; (set-atom-regex 'c__r "c[ad]{2,}r" (lambda (atom) `(c__r ,atom)))
