@@ -34,7 +34,7 @@ def setup():
         # invocation of partial has very very low overhead, so we'll
         # just subclass it and inject a single slot for marking up the
         # original function.
-        __slots__ = ("_tco_original", )
+        pass
 
 
     def trampoline(fun):
@@ -47,9 +47,12 @@ def setup():
         raised, the trampoline will return that result.
         """
 
-        skip = _ga(fun, "_tco_disable", False)
-        if skip:
-            return fun
+        # note we don't check for _tco_disable here, because by the
+        # time we get this far, the function has been compiled
+        # expecting to have a trampoline under it, and it will return
+        # TailCall objects. Without the trampoline, those would end up
+        # in the normal return flow, and would break a bunch of
+        # things.
 
         # if fun is already a wrapped tailcall, or it's a wrapped
         # trampoline, we'll unwrap it first.
@@ -67,8 +70,7 @@ def setup():
 
 
     def tailcall(fun):
-        skip = _ga(fun, "_tco_disable", False)
-        if skip:
+        if _ga(fun, "_tco_disable", False):
             return fun
 
         # if fun is already a wrapped tailcall, or it's a wrapped
@@ -84,14 +86,11 @@ def setup():
     def tco_disable(fun):
         """
         Decorator to instruct the tailcall optimization to never tailcall
-        or wrap as a trampoline the decorated function.
+        bounce the given function
         """
 
-        # if fun is already a wrapped tailcall, or it's a wrapped
-        # trampoline, we'll unwrap it first.
-        fun = _ga(fun, "_tco_original", fun)
-
         fun._tco_disable = True
+
         return fun
 
 
