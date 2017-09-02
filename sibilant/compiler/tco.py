@@ -14,7 +14,7 @@
 
 
 __all__ = (
-    "trampoline", "tailcall",
+    "trampoline", "tailcall", "tco_disable",
 )
 
 
@@ -34,7 +34,7 @@ def setup():
         # invocation of partial has very very low overhead, so we'll
         # just subclass it and inject a single slot for marking up the
         # original function.
-        __slots__ = ("_tco_original", )
+        pass
 
 
     def trampoline(fun):
@@ -46,6 +46,13 @@ def setup():
         non-TailCall result is acquired, or once an exception is
         raised, the trampoline will return that result.
         """
+
+        # note we don't check for _tco_disable here, because by the
+        # time we get this far, the function has been compiled
+        # expecting to have a trampoline under it, and it will return
+        # TailCall objects. Without the trampoline, those would end up
+        # in the normal return flow, and would break a bunch of
+        # things.
 
         # if fun is already a wrapped tailcall, or it's a wrapped
         # trampoline, we'll unwrap it first.
@@ -63,6 +70,9 @@ def setup():
 
 
     def tailcall(fun):
+        if _ga(fun, "_tco_disable", False):
+            return fun
+
         # if fun is already a wrapped tailcall, or it's a wrapped
         # trampoline, we'll unwrap it first.
         fun = _ga(fun, "_tco_original", fun)
@@ -72,10 +82,22 @@ def setup():
 
         return tco_bounce
 
-    return trampoline, tailcall
+
+    def tco_disable(fun):
+        """
+        Decorator to instruct the tailcall optimization to never tailcall
+        bounce the given function
+        """
+
+        fun._tco_disable = True
+
+        return fun
 
 
-trampoline, tailcall = setup()
+    return trampoline, tailcall, tco_disable
+
+
+trampoline, tailcall, tco_disable = setup()
 del setup
 
 

@@ -23,9 +23,9 @@
 
 ;; a contrived dollars class, based on the float type.
 (defclass dollars (float)
-  (method __str__ (self)
+  (def function __str__ (self)
 	  (% "$%0.02f" self))
-  (method __repr__ (self)
+  (def function __repr__ (self)
 	  (% "(dollars %0.02f)" self)))
 
 
@@ -45,7 +45,7 @@
 ;; $100 to (dollars 100) happens at read time, which is before compile
 ;; time, and also before run time.
 (defun example ()
-  (define-local X $100)
+  (var X $100)
   (print-example (type X))
   (print-example (repr X))
   (print-example (str X))
