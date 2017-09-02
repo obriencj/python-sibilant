@@ -162,6 +162,7 @@ def setup(glbls):
 
     _op(tco.trampoline, "trampoline")
     _op(tco.tailcall, "tailcall")
+    _op(tco.tco_disable, "tco-disable")
 
 
     # === some python builtin types ===
