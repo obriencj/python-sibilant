@@ -136,8 +136,8 @@
       (setq current (car &bindings))
 
       ;; todo: use my cooler binding exploder
-      (setq byname (if (pair? current) (first current) member))
       (setq member (if (pair? current) (second current) current))
+      (setq byname (if (pair? current) (first current) member))
 
       (coll.append
        `(define ,byname
