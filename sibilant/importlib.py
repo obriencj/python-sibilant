@@ -26,10 +26,13 @@ import sys
 from contextlib import contextmanager
 from importlib.abc import FileLoader
 from importlib.machinery import FileFinder, PathFinder
-from os import getcwd
-from os.path import basename
 
-from sibilant.module import prep_module, exec_module
+from os import getcwd
+from os.path import basename, getmtime, getsize
+
+from sibilant.module import (
+    prep_module, exec_module, init_module, marshal_module,
+)
 
 
 # we're going to pre-import this
@@ -153,6 +156,20 @@ def temporary_install():
 def import_module(name, globals_=None, locals_=None, fromlist=0, level=0):
     with temporary_install():
         return __import__(name, globals_, locals_, fromlist, level)
+
+
+def compile_to_file(name, source_file, dest_file):
+    mtime = getmtime(source_file)
+    source_size = getsize(source_file)
+
+    mod = init_module(name, builtins=sibilant.builtins, filename=source_file)
+
+    with open(source_file, "rt") as fin:
+        bytecode = marshal_module(mod, fin, filename=source_file,
+                                  mtime=mtime, source_size=source_size)
+
+    with open(dest_file, "wb") as fout:
+        fout.write(bytecode)
 
 
 #
