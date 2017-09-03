@@ -1,0 +1,45 @@
+
+
+- init time
+  - create module
+  - setup globals
+  - setup builtins
+  - create parser
+  - bind parser to module
+  - create compiler
+  - bind compiler to module
+
+
+- loader iteratively
+  - parse time
+  - compile time
+  - run time
+
+
+- parse time
+  - obtain parser from module
+  - read an expression
+  - handoff expression to loader
+
+- compile time
+  - with expression from parser
+  - obtain compiler from module
+  - pass expression to compiler
+  - handoff code obj to loader
+
+- run time
+  - with code obj from compiler
+  - eval code in environment (side-effects galore!)
+  - handoff result to loader
+
+
+- when loading a pre-compiled module
+  - init time
+  - loader iteratively
+    - bypass parse time
+    - bypass compile time
+    - run time
+
+
+#
+# The end.

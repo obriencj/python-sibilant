@@ -26,7 +26,7 @@ def _setup():
     import sys
     from os.path import join, dirname
     from pkgutil import get_data
-    from .module import create_module
+    from .module import load_module
 
     # because the sibilant.importlib functions will attempt to use
     # this module, we can't rely on them to in-turn load us. Thus for
@@ -43,9 +43,9 @@ def _setup():
 
     src = get_data(__name__, "_builtins.lspy").decode("utf8")
     filename = join(dirname(__file__), "_builtins.lspy")
-    builtins = create_module("sibilant._builtins", src,
-                             builtins=bootstrap,
-                             filename=filename)
+    builtins = load_module("sibilant._builtins", src,
+                           builtins=bootstrap,
+                           filename=filename)
 
     sys.modules["sibilant._builtins"] = builtins
     sys.modules["sibilant"]._builtins = builtins
