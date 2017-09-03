@@ -28,12 +28,34 @@ from argparse import ArgumentParser
 from os.path import basename, join
 
 from .repl import basic_env, repl
-from .module import create_module
+from .module import load_module, compile_to_file
 
 
 _APPDIR = AppDirs("sibilant")
 
 DEFAULT_HISTFILE = join(_APPDIR.user_config_dir, "history")
+
+
+class CLIException(Exception):
+    pass
+
+
+def cli_compile(options):
+
+    filename = options.filename
+    if not filename:
+        raise CLIException("--compile requires that FILENAME is specified")
+
+    name = options.compile
+
+    if filename.endswith(".lspy"):
+        destname = filename[:-4] + "pyc"
+    elif filename.endswith(".sibilant"):
+        destname = filename[:-8] + "pyc"
+    else:
+        raise CLIException("FILENAME should be a .lspy or .sibilant file")
+
+    compile_to_file(name, filename, destname)
 
 
 def cli(options):
@@ -51,11 +73,14 @@ def cli(options):
     if options.tweakpath:
         sys.path.insert(0, ".")
 
+    if options.compile:
+        return cli_compile(options)
+
     filename = options.filename
 
     if filename:
         with open(filename, "rt") as fd:
-            mod = create_module("__main__", fd, filename=filename)
+            mod = load_module("__main__", fd, filename=filename)
 
         if options.interactive:
             # probably not the best way to implement this, but it'll
@@ -88,10 +113,17 @@ def cli_option_parser(args):
                         action="store", default=DEFAULT_HISTFILE,
                         help="REPL history file")
 
-    parser.add_argument("-i", "--interactive", dest="interactive",
-                        action="store_true", default=False,
-                        help="Enter interactive mode after executing the"
-                        " given script")
+    g = parser.add_mutually_exclusive_group()
+
+    g.add_argument("-i", "--interactive", dest="interactive",
+                   action="store_true", default=False,
+                   help="Enter interactive mode after executing the"
+                   " given script")
+
+    g.add_argument("-C", "--compile", dest="compile",
+                   action="store", default=None,
+                   help="Compile the specified file as a module with"
+                   " this name")
 
     return parser
 
