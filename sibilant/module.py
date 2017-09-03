@@ -13,11 +13,10 @@
 # <http://www.gnu.org/licenses/>.
 
 
-import dis
 import types
 
 from io import IOBase
-from os.path import split
+from os.path import split, getmtime, getsize
 
 from sibilant.compiler import Mode, iter_compile, code_space_for_version
 from sibilant.parse import source_str, source_stream
@@ -25,7 +24,7 @@ from sibilant.parse import source_str, source_stream
 
 __all__ = (
     "init_module", "load_module", "prep_module", "exec_module",
-    "marshal_module",
+    "marshal_module", "exec_marshal_module", "compile_to_file",
 )
 
 
@@ -143,9 +142,22 @@ def marshal_module(module, thing, filename=None, mtime=0, source_size=0):
         codespace.pseudop_return_none()
 
         code = codespace.complete()
-        dis.dis(code)
 
     return _code_to_bytecode(code, mtime, source_size)
+
+
+def compile_to_file(name, source_file, dest_file):
+    mtime = getmtime(source_file)
+    source_size = getsize(source_file)
+
+    mod = init_module(name, filename=source_file)
+
+    with open(source_file, "rt") as fin:
+        bytecode = marshal_module(mod, fin, filename=source_file,
+                                  mtime=mtime, source_size=source_size)
+
+    with open(dest_file, "wb") as fout:
+        fout.write(bytecode)
 
 
 #
