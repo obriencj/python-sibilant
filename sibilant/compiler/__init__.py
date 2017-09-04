@@ -19,7 +19,6 @@ from abc import ABCMeta, abstractmethod
 from contextlib import contextmanager
 from enum import Enum
 from functools import partial
-from io import IOBase
 from itertools import count
 from platform import python_implementation
 from sys import version_info
@@ -29,14 +28,10 @@ from .. import (
     SibilantException,
     symbol, is_symbol, keyword, is_keyword,
     cons, nil, is_pair, is_proper,
-    get_position, fill_position
+    get_position, fill_position,
 )
 
-from ..parse import (
-    SibilantSyntaxError,
-    default_reader, source_str,
-    source_stream, SourceStream,
-)
+from ..parse import SibilantSyntaxError
 
 
 __all__ = (
@@ -49,7 +44,6 @@ __all__ = (
     "Macro", "is_macro",
     "Macrolet", "is_macrolet",
     "Operator", "is_operator",
-    "iter_compile",
     "gather_formals", "gather_parameters",
 )
 
@@ -608,7 +602,7 @@ class CodeSpace(metaclass=ABCMeta):
             gs = "gensym_%08x" % id(self)
             self._gen_sym = _label_generator(gs + "_%02x")
 
-        if not proper_varargs:
+        if varargs and not proper_varargs:
             # if our argument formals are an improper list, then the
             # varargs are expected to be a cons list, not a pythonic
             # tuple, and we'll need to perform a translation step at
@@ -626,6 +620,20 @@ class CodeSpace(metaclass=ABCMeta):
         del self._gen_sym
         self.consts.clear()
         del self.consts
+
+
+    def reset(self):
+        self.env = None
+        self.blocks = [CodeBlock(Block.BASE, 0, 0)]
+        self.consts = [None]
+
+        self.tailcalls = 0
+
+        self.fast_vars.clear()
+        self.free_vars.clear()
+        self.cell_vars.clear()
+        self.global_vars.clear()
+        self.names.clear()
 
 
     def gen_pseudops(self):
@@ -798,22 +806,16 @@ class CodeSpace(metaclass=ABCMeta):
     @contextmanager
     def activate(self, env):
         """
-        Sets the __compiler__ attribute temporarily in env, and resets
-        it when the context exits.
+        Binds to an environment, clears self at end of context
         """
 
         self.env = env
-        old = env.get("__compiler__", None)
-        env["__compiler__"] = self
 
         try:
             yield self
 
         finally:
-            env["__compiler__"] = old
-            if old is None:
-                del env["__compiler__"]
-            self.env = None
+            self.reset()
 
 
     def child(self, name=None, declared_at=None, **addtl):
@@ -949,9 +951,7 @@ class CodeSpace(metaclass=ABCMeta):
         # initial step which will convert the pythonic varargs tuple
         # into a proper cons list
 
-        if not self.varargs:
-            # nothing to do.
-            return
+        assert self.varargs, "helper_prep_varargs called when varargs=False"
 
         if self.varkeywords:
             # if it's varargs and also varkeywords, the var will be
@@ -1713,7 +1713,7 @@ class ExpressionCodeSpace(CodeSpace):
         tailcall position.
         """
 
-        if self.tco_enabled and tc:
+        if tc and self.tco_enabled and self.mode is not Mode.MODULE:
             self.pseudop_get_var("tailcall")
             self.pseudop_rot_two()
             self.pseudop_call(1)
@@ -1796,54 +1796,6 @@ def _list_unique_append(onto_list, value):
         return len(onto_list)
 
 
-def iter_compile(source, env, filename=None, reader=None,
-                 **codespace_args):
-
-    """
-    Compile and yield a Python code object representing the evaluation
-    of each expression that can be read from source.
-
-    Source may be a str, an IOBase, or a SourceStream instance
-    """
-
-    if isinstance(source, str):
-        source = source_str(source, filename)
-
-    elif isinstance(source, IOBase):
-        source = source_stream(source, filename)
-
-    if not isinstance(source, SourceStream):
-        raise CompilerException("iter_compile source must be str, stream,"
-                                " or SourceStream")
-
-    if reader is None:
-        reader = default_reader
-
-    factory = code_space_for_version()
-    if not factory:
-        raise UnsupportedVersion(version_info)
-
-    # this should probably be part of codespace.activate
-    env["__stream__"] = source
-    env["__reader__"] = reader
-    env["read"] = reader.read
-
-    while True:
-        codespace = factory(filename=filename, **codespace_args)
-        with codespace.activate(env):
-            assert(env.get("__compiler__") == codespace)
-
-            # read until EOF
-            expr = reader.read(source)
-            if expr is None:
-                break
-
-            # compile
-            codespace.add_expression_with_return(expr)
-            code = codespace.complete()
-        yield code
-
-
 def compile_expression(source_obj, env, filename="<anon>",
                        **codespace_args):
 
@@ -1860,7 +1812,6 @@ def compile_expression(source_obj, env, filename="<anon>",
 
     codespace = factory(filename=filename, **codespace_args)
     with codespace.activate(env):
-        assert(env.get("__compiler__") == codespace)
         codespace.add_expression_with_return(source_obj)
         code = codespace.complete()
 
