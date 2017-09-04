@@ -53,6 +53,7 @@
 	 ((attr __reader__ ,',attrsym) ,@args))
        ((ne NameError) None))))
 
+(_reader_macro read read)
 (_reader_macro set-event-macro set_event_macro)
 (_reader_macro get-event-macro get_event_macro)
 (_reader_macro clear-event-macro clear_event_macro)

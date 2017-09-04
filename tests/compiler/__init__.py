@@ -21,12 +21,12 @@ license: LGPL v.3
 """
 
 
+import dis
+
 from contextlib import contextmanager
 from fractions import Fraction as fraction
 from functools import partial
 from unittest import TestCase
-
-import sibilant.builtins
 
 from sibilant import (
     car, cdr, cons, nil,
@@ -36,45 +36,63 @@ from sibilant import (
 from sibilant.compiler import (
     is_macro, Macro,
     is_special, Special,
-    iter_compile,
     CodeFlag,
 )
 
-import dis
+from sibilant.module import (
+    fake_module_from_env, init_module, load_module_1,
+    run_time,
+)
+
+from sibilant.parse import source_str
 
 
 class Object(object):
     pass
 
 
-def basic_env(**base):
-    env = {"__builtins__": sibilant.builtins}
-    env.update(base)
-    return env
-
-
 def compile_expr(src_str, **base):
-    env = basic_env(**base)
-    icode = iter_compile(src_str, env)
-    code = next(icode)
-    return partial(eval, code, env), env
+    mod = fake_module_from_env(base)
+    init_module(mod, source_str(src_str), None)
+
+    partial_run_time = partial(partial, run_time)
+
+    result = load_module_1(mod, run_time=partial_run_time)
+
+    return result, mod.__dict__
 
 
 def compile_expr_no_tco(src_str, **base):
-    env = basic_env(**base)
-    icode = iter_compile(src_str, env, tco_enabled=False)
-    code = next(icode)
-    return partial(eval, code, env), env
+    mod = fake_module_from_env(base)
+
+    params = {"tco_enabled": False}
+
+    init_module(mod, source_str(src_str), None,
+                compiler_factory_params=params)
+
+    partial_run_time = partial(partial, run_time)
+
+    result = load_module_1(mod, run_time=partial_run_time)
+
+    return result, mod.__dict__
 
 
 def compile_dis_expr(src_str, **base):
-    env = basic_env(**base)
-    icode = iter_compile(src_str, env)
-    code = next(icode)
+    mod = fake_module_from_env(base)
+    init_module(mod, source_str(src_str), None)
+
+    code_objs = []
+    def partial_run_time(module, code_obj):
+        code_objs.append(code_obj)
+        return partial(run_time, module, code_obj)
+
+    result = load_module_1(mod, run_time=partial_run_time)
+
     dis.show_code(code)
     print("Disassembly:")
     dis.dis(code)
-    return partial(eval, code, env), env
+
+    return result, mod.__dict__
 
 
 def make_accumulator():

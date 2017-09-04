@@ -27,8 +27,9 @@ from appdirs import AppDirs
 from argparse import ArgumentParser
 from os.path import basename, join
 
-from .repl import basic_env, repl
-from .module import load_module, compile_to_file
+from .module import new_module, init_module, load_module, compile_to_file
+from .parse import source_open
+from .repl import repl
 
 
 _APPDIR = AppDirs("sibilant")
@@ -78,17 +79,20 @@ def cli(options):
 
     filename = options.filename
 
+    mod = new_module("__main__")
+
     if filename:
-        with open(filename, "rt") as fd:
-            mod = load_module("__main__", fd, filename=filename)
+        with source_open(filename) as source:
+            init_module(mod, source, None)
+            load_module(mod)
 
         if options.interactive:
             # probably not the best way to implement this, but it'll
             # do for now, eh?
-            repl(env=mod.__dict__)
+            repl(mod)
 
     else:
-        repl(env=basic_env(__name__="__main__", __file__=None))
+        repl(mod)
 
 
 def cli_option_parser(args):

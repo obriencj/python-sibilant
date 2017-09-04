@@ -24,7 +24,8 @@ license: LGPL v.3
 from unittest import TestCase
 
 from sibilant import car, cdr, cons, nil, symbol
-from sibilant.module import load_module
+from sibilant.module import new_module, init_module, load_module
+from sibilant.parse import source_str
 
 
 def getter_setter(value):
@@ -67,8 +68,11 @@ class ModuleTest(TestCase):
         getter, setter = getter_setter(None)
 
         defaults = {"set_result": setter}
-        test_module = load_module("test_module", mod_source_1,
-                                  defaults=defaults)
+
+        test_module = new_module("test_module")
+        init_module(test_module, source_str(mod_source_1), None,
+                    defaults=defaults)
+        load_module(test_module)
 
         # the last action of the module is to call set_result, and
         # getter can show us what was passed there.

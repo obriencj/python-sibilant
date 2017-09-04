@@ -28,8 +28,9 @@ from unittest import TestCase
 
 import sibilant.builtins
 
-from sibilant.compiler import iter_compile
 from sibilant.compiler.tco import trampoline, tailcall
+
+from . import compile_expr
 
 
 @contextmanager
@@ -38,19 +39,6 @@ def recursionlimit(limit=(getrecursionlimit() // 2)):
     yield setrecursionlimit(limit)
     setrecursionlimit(original)
     assert getrecursionlimit() == original, "could not reset recursion limit"
-
-
-def basic_env(**base):
-    env = {"__builtins__": sibilant.builtins}
-    env.update(base)
-    return env
-
-
-def compile_expr(src_str, **base):
-    env = basic_env(**base)
-    icode = iter_compile(src_str, env)
-    code = next(icode)
-    return partial(eval, code, env), env
 
 
 @trampoline

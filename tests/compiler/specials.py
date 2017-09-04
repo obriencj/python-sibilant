@@ -456,7 +456,7 @@ class CompilerSpecials(TestCase):
 
     def test_define(self):
         src = """
-        (begin
+        (let ()
           (define tacos 100)
           tacos)
         """
@@ -465,7 +465,7 @@ class CompilerSpecials(TestCase):
         self.assertNotIn("tacos", env)
 
         src = """
-        (begin
+        (let ()
           (define tacos 100)
           tacos)
         """

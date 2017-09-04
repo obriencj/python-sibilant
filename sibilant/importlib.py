@@ -28,9 +28,9 @@ from importlib.abc import FileLoader
 from importlib.machinery import FileFinder, PathFinder
 
 from os import getcwd
-from os.path import basename
 
-from sibilant.module import prep_module, exec_module
+from .module import init_module, load_module
+from .parse import source_str
 
 
 # we're going to pre-import this
@@ -97,24 +97,26 @@ class SibilantSourceFileLoader(FileLoader):
 
 
     def create_module(self, spec):
+        # return None to let the Python system allocate its own
+        # preferred module type
         return None
 
 
     def get_source(self, fullname):
-        # return self.get_data(self.get_filename(fullname)).decode("utf8")
+        # with open(self.get_filename(fullname), "rt") as sf:
+        #    data = sf.read()
+        # return data
 
-        with open(self.get_filename(fullname), "rt") as sf:
-            data = sf.read()
-        return data
+        return self.get_data(self.get_filename(fullname)).decode("utf8")
 
 
     def exec_module(self, module):
         name = module.__name__
-        source = self.get_source(name)
-        filename = basename(self.get_filename(name))
+        source_stream = source_str(self.get_source(name))
+        filename = self.get_filename(name)
 
-        prep_module(module)
-        exec_module(module, source, filename=filename)
+        init_module(module, source_stream, None, filename=filename)
+        load_module(module)
 
 
 # go ahead and setup the _path_hooks in advance. Even if we don't run
