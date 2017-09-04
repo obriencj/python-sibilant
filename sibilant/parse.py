@@ -512,6 +512,9 @@ class SourceStream(object):
     def __init__(self, stream, filename=None):
         self.filename = filename
         self.stream = stream
+
+        self.ahead = StringIO()
+
         self.lin = 1
         self.col = 0
 
@@ -539,7 +542,18 @@ class SourceStream(object):
         position counting.
         """
 
-        data = self.stream.read(count)
+        # see if we can fulfill the count from the read-ahead
+        data = self.ahead.read(count)
+        if data:
+            need = count - len(data)
+            if need:
+                # didn't have enough, so get the rest of the data from
+                # the actual stream
+                self.ahead.seek(0)
+                self.ahead.truncate()
+                data = data + self.stream.read(need)
+        else:
+            data = self.stream.read(count)
 
         lin = self.lin
         col = self.col
@@ -559,6 +573,44 @@ class SourceStream(object):
         self.lin = lin
         self.col = col
 
+        print(" == read ==", data)
+        return data
+
+
+    def peek(self, count=1):
+        # see if we can fulfill the count from the read-ahead
+
+        pos = self.ahead.tell()
+        data = self.ahead.read(count)
+        if data:
+            need = count - len(data)
+            if need:
+                # didn't have enough, so get the rest of the data from
+                # the actual stream
+                data = data + self.read_ahead(need)
+
+            # this is just a peek, so don't actually consume
+            # read-ahead
+            self.ahead.seek(pos, 0)
+
+        else:
+            # there wasn't anything in the read-ahead, so this is
+            # equivalent
+            data = self.read_ahead(count)
+
+        print(" == peeked ==", data)
+        return data
+
+
+    def read_ahead(self, count=1):
+        data = self.stream.read(count)
+
+        # append whatever we've read to the ahead buffer
+        pos = self.ahead.tell()
+        self.ahead.seek(0, 2)
+        self.ahead.write(data)
+        self.ahead.seek(pos, 0)
+
         return data
 
 
@@ -567,15 +619,11 @@ class SourceStream(object):
 
 
     def skip_exec(self):
-        stream = self.stream
-        start = stream.tell()
-
-        if stream.read(2) == "#!":
-            stream.readline()
+        if self.peek(2) == "#!":
+            self.read(2)
+            self.stream.readline()
             self.lin += 1
             self.col = 0
-        else:
-            stream.seek(start, 0)
 
 
     def skip_whitespace(self):
@@ -583,26 +631,16 @@ class SourceStream(object):
 
 
     def read_until(self, testf):
-        stream = self.stream
-        start = stream.tell()
+        accumulate = []
 
-        index = 0
-        for index, char in enumerate(iter(partial(stream.read, 1), '')):
+        for char in iter(self.peek, ''):
             if testf(char):
                 break
-        else:
-            index += 1
+            else:
+                accumulate.append(char)
+                self.read(1)
 
-        stream.seek(start, 0)
-
-        if index:
-            # note, all the above seeking works on the stream directly,
-            # and then resets it. We call self.read() here so that the
-            # col/lineno accumulators can be updated.
-            return self.read(index)
-
-        else:
-            return ""
+        return "".join(accumulate)
 
 
 default_reader = Reader()
