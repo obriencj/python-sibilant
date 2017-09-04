@@ -22,21 +22,14 @@ license: LGPL v.3
 
 
 import sys
-import sibilant.builtins
 
 from traceback import format_exception, format_exception_only
 
-from sibilant.compiler import iter_compile, Mode
-from sibilant.parse import default_reader
+from sibilant.module import init_module, load_module_1
+from sibilant.parse import source_str
 
 
-def basic_env(**base):
-    base["__builtins__"] = sibilant.builtins
-    return base
-
-
-def repl(stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr,
-         env=None):
+def repl(mod, stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr):
     """
     enter into a read-eval-print-loop, using stdin, stdout, and stderr
     for user I/O. optionally include a sibilant module to act as a
@@ -45,32 +38,28 @@ def repl(stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr,
     returns the resulting global name space when the repl completes.
     """
 
-    if env is None:
-        env = basic_env(stdin=stdin, stdout=stdout, stderr=stderr)
-
     # print(file=stdout)
-    print("sibilant > ", end="", file=stdout)
-    stdout.flush()
+    env = mod.__dict__
 
-    # we may want to ensure we use the same reader every time. that's
-    # mostly guaranteed by using default_reader, but we might get
-    # fancier if we ever make this repl not suck.
-    reader = default_reader
-
-    for line in stdin:
+    while True:
         try:
-            for code in iter_compile(line, env,
-                                     mode=Mode.MODULE,
-                                     filename="<repl>",
-                                     reader=reader):
-                if code:
-                    result = eval(code, env)
-                    env['_'] = result
-                    if result is not None:
-                        print(result, file=stdout)
+            line = input("sibilant > ")
+
+            source = source_str(line)
+            init_module(mod, source, None)
+
+            result = load_module_1(mod)
+            env['_'] = result
+            if result is not None:
+                print(result, file=stdout)
 
         except KeyboardInterrupt as ki:
             print(ki, file=stderr)
+            stderr.flush()
+            break
+
+        except EOFError:
+            print(file=stderr)
             stderr.flush()
             break
 
@@ -82,7 +71,7 @@ def repl(stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr,
             show_traceback(file=stderr)
             stderr.flush()
 
-        print("sibilant > ", end="", file=stdout)
+
         stdout.flush()
 
     print(file=stdout)
