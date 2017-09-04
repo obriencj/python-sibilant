@@ -573,7 +573,6 @@ class SourceStream(object):
         self.lin = lin
         self.col = col
 
-        print(" == read ==", data)
         return data
 
 
@@ -598,7 +597,6 @@ class SourceStream(object):
             # equivalent
             data = self.read_ahead(count)
 
-        print(" == peeked ==", data)
         return data
 
 
