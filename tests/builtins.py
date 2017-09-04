@@ -28,24 +28,11 @@ import sibilant.builtins
 
 from sibilant import car, cdr, cons, nil, symbol
 
-from sibilant.compiler import iter_compile
+from .compiler import compile_expr
 
 
 class Object(object):
     pass
-
-
-def basic_env(**base):
-    env = {"__builtins__": sibilant.builtins}
-    env.update(base)
-    return env
-
-
-def compile_expr(src_str, **base):
-    env = basic_env(**base)
-    icode = iter_compile(src_str, env)
-    code = next(icode)
-    return partial(eval, code, env), env
 
 
 class BuiltinsSetBang(TestCase):
