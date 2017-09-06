@@ -78,7 +78,7 @@ def tco_even(num):
 
 @trampoline
 def tco_odd(num):
-    return True if num == 1 else tailcall(tco_even)(num - 1)
+    return False if num == 0 else tailcall(tco_even)(num - 1)
 
 
 def even(num):
@@ -86,7 +86,7 @@ def even(num):
 
 
 def odd(num):
-    return True if num == 1 else even(num - 1)
+    return False if num == 0 else even(num - 1)
 
 
 class TestTailcall(TestCase):
@@ -135,12 +135,18 @@ class TestTailcall(TestCase):
         self.assertTrue(even(8))
         self.assertTrue(odd(13))
 
+        self.assertFalse(odd(14))
+        self.assertFalse(even(9))
+
         num = count * 2
         self.assertRaises(RecursionError, even, num)
         self.assertRaises(RecursionError, odd, num - 1)
 
         self.assertTrue(tco_even(num))
         self.assertTrue(tco_odd(num - 1))
+
+        self.assertFalse(tco_even(num - 1))
+        self.assertFalse(tco_odd(num))
 
 
 class TestTCOCompiler(TestCase):
@@ -196,9 +202,9 @@ class TestTCOCompiler(TestCase):
         src = """
         (begin
           (defun even (val)
-             (if (== val 2) True (odd (- val 1))))
+             (if (== val 0) True (odd (- val 1))))
           (defun odd (val)
-             (if (== val 1) True (even (- val 1))))
+             (if (== val 0) False (even (- val 1))))
           (values even odd))
         """
         stmt, env = compile_expr(src)
@@ -206,6 +212,9 @@ class TestTCOCompiler(TestCase):
 
         self.assertTrue(even(8))
         self.assertTrue(odd(13))
+
+        self.assertFalse(odd(14))
+        self.assertFalse(even(9))
 
         count = getrecursionlimit() * 2
 
