@@ -56,16 +56,50 @@
 
      (def function test_shadowed (self)
 
+	  ;; create a function which definitely raises
 	  (def function someone () (raise Exception))
+	  (self.assertRaises Exception someone)
 
+	  ;; now shadow that function in labels, and call the same
+	  ;; name from another labels function
 	  (labels
 	      ((foo () (someone))
 	       (someone () "Happy"))
 
+	    ;; foo should see the shadowed copy
 	    (self.assertEqual (foo) "Happy")
+
+	    ;; so should this body
 	    (self.assertEqual (someone) "Happy")
 
 	    None)
+	  None)
+
+     None)
+
+
+(def class FLetTest (TestCase)
+
+     (def function test_shadowed (self)
+
+	  ;; create a function which definitely raises
+	  (def function someone () (raise Exception))
+	  (self.assertRaises Exception someone)
+
+	  ;; now shadow that function in labels, and call the same
+	  ;; name from another labels function
+	  (flet
+	      ((foo () (someone))
+	       (someone () "Happy"))
+
+	    ;; foo sees the original copy of someone
+	    (self.assertRaises Exception foo)
+
+	    ;; however, this body sees the shadowed copy
+	    (self.assertEqual (someone) "Happy")
+
+	    None)
+
 	  None)
 
      None)
