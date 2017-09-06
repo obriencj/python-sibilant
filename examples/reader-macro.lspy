@@ -23,6 +23,8 @@
 
 ;; a contrived dollars class, based on the float type.
 (defclass dollars (float)
+  (doc "simple wrapper for float which formats the value as a dollars")
+
   (def function __str__ (self)
 	  (% "$%0.02f" self))
   (def function __repr__ (self)

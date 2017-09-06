@@ -146,7 +146,16 @@ def _special_doc(code, source, tc=False):
 
     called_by, rest = source
 
-    code.set_doc(" ".join(d.strip() for d in map(str, rest.unpack())))
+    # collapse the doc
+    docstr = "\n".join(d.strip() for d in map(str, rest.unpack()))
+
+    # force it into const slot zero
+    code.set_doc(docstr)
+
+    # also assign a local var named __doc__
+    code.declare_var("__doc__")
+    code.pseudop_const(docstr)
+    code.pseudop_set_var("__doc__")
 
     # doc special expression evaluates to None
     code.pseudop_const(None)
