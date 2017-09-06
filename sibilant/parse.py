@@ -401,23 +401,21 @@ class Reader(object):
         The character macro handler for string literals
         """
 
-        combine = []
+        def combine():
+            is_escp = partial(str.__eq__, "\\")
+            is_char = partial(str.__eq__, char)
+            sr = partial(stream.read, 1)
+            for C in iter(sr, ''):
+                if is_char(C):
+                    break
+                yield C
+                if is_escp(C):
+                    yield sr()
+            else:
+                raise stream.error("Unexpected EOF")
 
-        esc = False
-
-        c = ""
-        for c in iter(stream):
-            if (not esc) and c == '\"':
-                # done deal
-                break
-            esc = (not esc) and c == '\\'
-            combine.append(c)
-
-        if c != '\"':
-            raise stream.error("Unexpected EOF")
-
-        combine = "".join(combine).encode()
-        return VALUE, combine.decode("unicode-escape")
+        data = "".join(combine()).encode()
+        return VALUE, data.decode("unicode-escape")
 
 
     def _read_quote(self, stream, char):
