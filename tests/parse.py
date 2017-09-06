@@ -127,9 +127,32 @@ class TestParse(TestCase):
         col = parse_source(src)
         self.assertEqual(col, 0b101)
 
+
+    def test_float(self):
+
         src = "1.5"
         col = parse_source(src)
         self.assertEqual(col, 1.5)
+
+        src = "1."
+        col = parse_source(src)
+        self.assertEqual(col, 1.0)
+
+        src = ".5"
+        col = parse_source(src)
+        self.assertEqual(col, 0.5)
+
+        src = "1.5e2"
+        col = parse_source(src)
+        self.assertEqual(col, 1.5e2)
+
+        src = ".5e2"
+        col = parse_source(src)
+        self.assertEqual(col, 0.5e2)
+
+        src = "5e-1"
+        col = parse_source(src)
+        self.assertEqual(col, 5e-1)
 
 
     def test_complex(self):
