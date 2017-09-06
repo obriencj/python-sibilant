@@ -53,7 +53,8 @@ _oct_like = partial(regex(r"0o[0-7]+").match)
 
 _bin_like = partial(regex(r"0b[01]+").match)
 
-_decimal_like = partial(regex(r"-?(\d*\.\d+|\d+\.\d*)").match)
+_float_like = partial(regex(r"-?((\d*\.\d+|\d+\.\d*)(e-?\d+)?|"
+                            "(\d+e-?\d+))").match)
 
 _fraction_like = partial(regex(r"-?\d+/\d+").match)
 
@@ -61,7 +62,7 @@ _complex_like = partial(regex(r"-?\d*\.?\d+\+\d*\.?\d*[ij]").match)
 
 _keyword_like = partial(regex(r"^(:.+|.+:)$").match)
 
-_as_decimal = partial(float)
+_as_float = partial(float)
 
 _as_integer = partial(int)
 
@@ -304,7 +305,7 @@ class Reader(object):
         ap(symbol("hex"), _hex_like, _as_hex)
         ap(symbol("oct"), _oct_like, _as_oct)
         ap(symbol("binary"), _bin_like, _as_bin)
-        ap(symbol("float"), _decimal_like, _as_decimal)
+        ap(symbol("float"), _float_like, _as_float)
         ap(symbol("complex"), _complex_like, _as_complex)
         ap(symbol("fraction"), _fraction_like, _as_fraction)
 
