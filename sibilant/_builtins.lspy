@@ -163,6 +163,19 @@
   `(macroexpandq (globals) ',source))
 
 
+;; === flet and values ===
+
+(defmacro labels (declarations . body)
+  `(let ()
+     ,@(map (lambda (d) `(def function ,@d)) declarations)
+     ,@body))
+
+
+(defmacro flet (declarations . body)
+  `(let (,@(map (lambda (d) `(,(car d) (function ,@d))) declarations))
+     ,@body))
+
+
 ;; === setf and general variables ===
 
 (let ((*gv-forms* (dict)))
