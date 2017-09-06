@@ -166,7 +166,7 @@
 ;; === flet and values ===
 
 (defmacro labels (declarations . body)
-  `(let (,@(map (lambda (d) `(,(car d) None))))
+  `(let (,@(map (lambda (d) `(,(car d) None)) declarations))
      ,@(map (lambda (d) `(def function ,@d)) declarations)
      ,@body))
 
