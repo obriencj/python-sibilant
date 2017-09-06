@@ -51,7 +51,7 @@
      `(try
        (unless (none? __reader__)
 	 ((attr __reader__ ,',attrsym) ,@args))
-       ((ne NameError) None))))
+       ((NameError as: ne) None))))
 
 (_reader_macro read read)
 (_reader_macro set-event-macro set_event_macro)
@@ -154,7 +154,8 @@
   (macroexpandq-1 macroexpand_1)
   (macroexpandq macroexpand))
 
-
+;; the macros just snag globals and quote the source, then pass them
+;; on to the quoted expanders imported above
 (defmacro macroexpand-1 (source)
   `(macroexpandq_1 (globals) ',source))
 
@@ -323,16 +324,6 @@
 ;; (defmacrolet seventh 'caddddddr)
 
 
-;; === local variable definitions ===
-
-(defmacro local (name . dfn)
-  (let ((target (first dfn)))
-    (cond ((or (eq target 'function) (eq target 'class))
-	   `(define ,(second dfn) ,dfn))
-	  (else:
-	   (raise (Exception (% "invalid local definition %" target)))))))
-
-
 ;; === python object system classes ==
 
 
@@ -342,18 +333,14 @@
 	   (fields __name__))))
 
 
-(defmacro compile (source env: None filename: "<anon>")
-  (when (none? env) (setq env '(globals)))
-
+(defmacro compile (source env: '(globals) filename: "<anon>")
   `(let ((src ,source) (io (import "io")) (sib (import "sibilant.compiler")))
      (if (isinstance src (values str io.IOBase))
 	 then: (next (sib.compiler.iter_compile src ,env ,filename))
 	 else: (sib.compiler.compile_expression src ,env ,filename))))
 
 
-(defmacro eval (source env: None)
-  (when (none? env) (setq env '(globals)))
-
+(defmacro eval (source env: '(globals))
   `(let ((src ,source) (types (import "types")))
      (if (isinstance src types.CodeType)
 	 then: (py-eval src ,env)
