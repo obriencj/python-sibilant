@@ -52,6 +52,8 @@ _symbol_function = symbol("function")
 _symbol_with = symbol("with")
 _symbol_let = symbol("let")
 _symbol_while = symbol("while")
+_symbol_continue = symbol("continue")
+_symbol_break = symbol("break")
 _symbol_try = symbol("try")
 
 _keyword_else = keyword("else")
@@ -751,31 +753,117 @@ def _special_while(code, source, tc=False):
 
     Evaluates TEST_EXPR. If the result is truthful, evaluates the BODY
     expressions in order, then repeats until the evaluation of
-    TEST_EXPR is not truthful. The result is the last successful BODY
-    expression, or None if BODY was never executed.
+    TEST_EXPR is not truthful. The result is specified via the break
+    expression, the most recent continue expression, or the final
+    expression of the BODY
+
+    (while TEST_EXPR
+       ...
+       (continue VAL))
+
+    The continue expression pops off all extra values on the stack and
+    stores VAL as a possible result for the loop. If the loop
+    terminates naturally (by TEST_EXPR failing), this will be the
+    result.
+
+    (while TEST_EXPR
+       ...
+       (break VAL))
+
+    The break expression terminates the loop with the given value. If
+    VAL is not specified, it defaults to None
     """
 
     called_by, (test, body) = source
 
-    top = code.gen_label()
-    done = code.gen_label()
+    storage = code.gen_sym()
+    code.declare_var(storage)
 
-    # pre-populate our return value
+    # initial value, just in case we never actually loop
     code.pseudop_const(None)
+    code.pseudop_set_var(storage)
 
-    code.pseudop_label(top)
+    with code.block_loop() as block:
 
-    code.add_expression(test)
-    code.pseudop_pop_jump_if_false(done)
+        # this enables continue and break to find it and set it
+        block.storage = storage
 
-    # throw away previous value in favor of evaluating the body
-    code.pseudop_pop()
-    _helper_begin(code, body, False)
+        code.add_expression(test)
+        code.pseudop_pop_jump_if_false(block.pop_label)
 
-    code.pseudop_jump(top)
-    code.pseudop_label(done)
+        _helper_begin(code, body, False)
+        code.pseudop_set_var(storage)
+        code.pseudop_jump(block.top_label)
 
-    # no additional transform needed
+    code.pseudop_get_var(storage)
+    code.pseudop_const(None)
+    code.pseudop_set_var(storage)
+    code.pseudop_del_var(storage)
+
+    return None
+
+
+@special(_symbol_continue)
+def _special_continue(code, source, tc=False):
+
+    from . import Block
+
+    called_by, rest = source
+
+    block = code.get_block()
+    if block.block_type is not Block.LOOP:
+        raise code.error("continue called inside of non-loop block", source)
+
+    if is_nil(rest):
+        value = None
+
+    else:
+        value, _rest = rest
+        if not is_nil(_rest):
+            msg = "Too many arguments to %s, %r" % (called_by, rest)
+            raise code.error(msg, source)
+        rest = _rest
+
+    # this magic causes a number of pops to be inserted equal to the
+    # current stack counter. It's calculated when max_stack is run.
+    code.pseudop_magic_pop_all()
+
+    code.add_expression(value, False)
+    code.pseudop_set_var(block.storage)
+    code.pseudop_continue_loop(block.top_label)
+
+    return None
+
+
+@special(_symbol_break)
+def _special_break(code, source, tc=False):
+
+    from . import Block
+
+    called_by, rest = source
+
+    block = code.get_block()
+    if block.block_type is not Block.LOOP:
+        raise code.error("break called inside of non-loop block", source)
+
+    if is_nil(rest):
+        value = None
+
+    else:
+        value, _rest = rest
+        if not is_nil(_rest):
+            msg = "Too many arguments to %s, %r" % (called_by, rest)
+            raise code.error(msg, source)
+        rest = _rest
+
+    # this magic causes a number of pops to be inserted equal to the
+    # current stack counter. It's calculated when max_stack is run.
+    code.pseudop_magic_pop_all()
+
+    code.add_expression(value, False)
+    code.pseudop_set_var(block.storage)
+    code.pseudop_break_loop()
+
     return None
 
 
@@ -816,15 +904,13 @@ def _special_try(code, source, tc=False):
     whether an exception was or was not raised or caught. If an
     exception was raised but not matched, then once BODY is completed,
     the exception will be propagated upwards and this function does
-    not return. Otherwise, the final value of BODY is returned.
+    not return. finally does not override the result value -- whether
+    from a completed EXPR or a matching EXC_HANDLER.
     """
 
     called_by, (try_expr, catches) = source
 
     ca, act_else, act_finally = _collect_catches(code, catches)
-
-    storage = code.gen_sym()
-    code.declare_var(storage)
 
     storage = code.gen_sym()
     code.declare_var(storage)
@@ -943,7 +1029,7 @@ def _try_finally(code, try_expr, catches, storage,
 
     with code.block_finally_cleanup(cleanup):
         _helper_begin(code, fin_exprs, tc)
-        code.pseudop_set_var(storage)
+        code.pseudop_pop()
 
 
 def _try_else_finally(code, try_expr, catches, storage,
@@ -955,7 +1041,7 @@ def _try_else_finally(code, try_expr, catches, storage,
 
     with code.block_finally_cleanup(cleanup):
         _helper_begin(code, fin_exprs, tc)
-        code.pseudop_set_var(storage)
+        code.pseudop_pop()
 
 
 def _except(code, catches, except_label, end_label,
@@ -1164,16 +1250,16 @@ def _special_cond(code, source, tc=False):
         label = code.gen_label()
 
         if test is _keyword_else:
-            with code.block_begin():
-                _helper_begin(code, body, tc)
+            # with code.block_begin():
+            _helper_begin(code, body, tc)
             code.pseudop_jump_forward(done)
             break
 
         else:
             code.add_expression(test)
             code.pseudop_pop_jump_if_false(label)
-            with code.block_begin():
-                _helper_begin(code, body, tc)
+            # with code.block_begin():
+            _helper_begin(code, body, tc)
             code.pseudop_jump_forward(done)
 
     else:

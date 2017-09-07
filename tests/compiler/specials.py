@@ -667,7 +667,7 @@ class SpecialTry(TestCase):
         """
         stmt, env = compile_expr(src, good_guy=good_guy)
         res = stmt()
-        self.assertEqual(res, 999)
+        self.assertEqual(res, 567)
         self.assertEqual(accu, [567, 999])
 
 
@@ -683,7 +683,7 @@ class SpecialTry(TestCase):
         """
         stmt, env = compile_expr(src, good_guy=good_guy)
         res = stmt()
-        self.assertEqual(res, 999)
+        self.assertEqual(res, 888)
         self.assertEqual(accu, [567, 888, 999])
 
 
@@ -813,7 +813,7 @@ class SpecialTry(TestCase):
         """
         stmt, env = compile_expr(src, **locals())
         res = stmt()
-        self.assertEqual(res, 789)
+        self.assertEqual(res, -111)
         self.assertEqual(accu1, [567])
         self.assertEqual(accu2, [-111, 789])
 
@@ -831,7 +831,7 @@ class SpecialTry(TestCase):
         """
         stmt, env = compile_expr(src, **locals())
         res = stmt()
-        self.assertEqual(res, 789)
+        self.assertEqual(res, -111)
         self.assertEqual(accu1, [567])
         self.assertEqual(accu2, [-111, 789])
 
@@ -850,7 +850,7 @@ class SpecialTry(TestCase):
         """
         stmt, env = compile_expr(src, **locals())
         res = stmt()
-        self.assertEqual(res, 789)
+        self.assertEqual(res, -111)
         self.assertEqual(accu1, [567])
         self.assertEqual(accu2, [-111, 789])
 
@@ -869,7 +869,7 @@ class SpecialTry(TestCase):
         """
         stmt, env = compile_expr(src, **locals())
         res = stmt()
-        self.assertEqual(res, 789)
+        self.assertEqual(res, -111)
         self.assertEqual(accu1, [567])
         self.assertEqual(accu2, [-111, 789])
 
@@ -891,7 +891,7 @@ class SpecialTry(TestCase):
         """
         stmt, env = compile_expr(src, **locals())
         res = stmt()
-        self.assertEqual(res, 789)
+        self.assertEqual(res, -111)
         self.assertEqual(accu1, [567] * counter)
         self.assertEqual(accu2, [-111, 789] * counter)
 
@@ -910,7 +910,7 @@ class SpecialTry(TestCase):
         """
         stmt, env = compile_expr(src, **locals())
         res = stmt()
-        self.assertEqual(res, 789)
+        self.assertEqual(res, -111)
         self.assertEqual(accu1, [567] * counter)
         self.assertEqual(accu2, [-111, 789] * counter)
 
@@ -945,6 +945,99 @@ class SpecialWith(TestCase):
         self.assertEqual(accu1, [123, 456, 111, 777, 789])
         self.assertEqual(accu2, [777])
         self.assertEqual(accu3, [777])
+
+
+class SpecialWhile(TestCase):
+
+    def test_simple_while(self):
+        accu1, good_guy = make_accumulator()
+
+        src = """
+        (while (< 0 x)
+          (decr x)
+          (good_guy (+ 100 x)))
+        """
+        stmt, env = compile_expr(src, x=5, **locals())
+        res = stmt()
+        self.assertEqual(res, 100)
+        self.assertEqual(accu1, [104, 103, 102, 101, 100])
+
+
+    def test_while_continue(self):
+        accu1, good_guy = make_accumulator()
+
+        src = """
+        (while keep_going
+          (decr x)
+          (if (< 0 x)
+              then: (begin
+                       (good_guy (+ 100 x))
+                       (continue 987))
+              else: (begin
+                       (setq keep_going False)
+                       654)))
+        """
+        stmt, env = compile_expr(src, keep_going=True, x=5, **locals())
+        res = stmt()
+        self.assertEqual(res, 654)
+        self.assertEqual(accu1, [104, 103, 102, 101])
+
+
+    def test_evil_continue(self):
+        accu1, good_guy = make_accumulator()
+
+        src = """
+        (while keep_going
+          (decr x)
+          (if (< 0 x)
+              then: (begin
+                       (good_guy (+ 100 x (continue 987))))
+              else: (begin
+                       (setq keep_going False)
+                       654)))
+        """
+        stmt, env = compile_expr(src, keep_going=True, x=500, **locals())
+        res = stmt()
+        self.assertEqual(res, 654)
+        self.assertEqual(accu1, [])
+
+
+    def test_while_break(self):
+        accu1, good_guy = make_accumulator()
+
+        src = """
+        (while keep_going
+          (decr x)
+          (if (< 0 x)
+              then: (begin
+                       (good_guy (+ 100 x)))
+              else: (begin
+                       (setq keep_going False)
+                       (break 654))))
+        """
+        stmt, env = compile_expr(src, keep_going=True, x=5, **locals())
+        res = stmt()
+        self.assertEqual(res, 654)
+        self.assertEqual(accu1, [104, 103, 102, 101])
+
+
+    def test_evil_break(self):
+        accu1, good_guy = make_accumulator()
+
+        src = """
+        (while keep_going
+          (decr x)
+          (if (< 0 x)
+              then: (begin
+                       (good_guy (+ 100 x)))
+              else: (begin
+                       (setq keep_going False)
+                       (good_guy (+ 100 x (break 654))))))
+        """
+        stmt, env = compile_expr(src, keep_going=True, x=5, **locals())
+        res = stmt()
+        self.assertEqual(res, 654)
+        self.assertEqual(accu1, [104, 103, 102, 101])
 
 
 #
