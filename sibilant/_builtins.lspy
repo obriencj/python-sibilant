@@ -152,7 +152,8 @@
 
 (defimportfrom sibilant.compiler
   (macroexpandq-1 macroexpand_1)
-  (macroexpandq macroexpand))
+  (macroexpandq macroexpand)
+  (simple-parameters simple_parameters))
 
 ;; the macros just snag globals and quote the source, then pass them
 ;; on to the quoted expanders imported above
@@ -161,19 +162,6 @@
 
 (defmacro macroexpand (source)
   `(macroexpandq (globals) ',source))
-
-
-;; === flet and values ===
-
-(defmacro labels (declarations . body)
-  `(let (,@(map (lambda (d) `(,(car d) None)) declarations))
-     ,@(map (lambda (d) `(def function ,@d)) declarations)
-     ,@body))
-
-
-(defmacro flet (declarations . body)
-  `(let (,@(map (lambda (d) `(,(car d) (lambda ,@(cdr d)))) declarations))
-     ,@body))
 
 
 ;; === setf and general variables ===
@@ -293,6 +281,45 @@
  None)
 
 
+;; === flet and values ===
+
+(defmacro labels (declarations . body)
+  `(let (,@(map (lambda (d) `(,(car d) None)) declarations))
+     ,@(map (lambda (d) `(def function ,@d)) declarations)
+     ,@body))
+
+
+(defmacro flet (declarations . body)
+  `(let (,@(map (lambda (d) `(,(car d) (lambda ,@(cdr d)))) declarations))
+     ,@body))
+
+
+(defmacro vars (*: variables)
+  `(begin ,@(map (lambda (d) `(var ,@d)) variables)))
+
+
+(defmacro let-values (bind_vals . body)
+  (vars (bins) (fbins) (vals))
+  (setq-values (bins vals) (bind_vals.unpack))
+
+  (def function flatten (seq)
+       (var x (list))
+       (last
+	(map (lambda (v) (cond ((pair? v)
+				(x.extend (flatten (unpack v))))
+			       ((symbol? v)
+				(x.append `(,v)))))
+	     seq))
+       x)
+
+  (setq fbins (flatten bins))
+
+  `(let ()
+     (vars ,@fbins)
+     (setq-values ,bins ,vals)
+     ,@body))
+
+
 ;; === c_r magic ===
 
 ;; (defmacro c__r (atom)
@@ -341,9 +368,11 @@
 
 
 (defmacro class (name bases . body)
-  `(type ,(str name) (values ,@bases)
-	 (let ((fields (lambda (__module__) (begin ,@body) (locals))))
-	   (fields __name__))))
+  `(type
+    ,(str name)
+    (values ,@bases)
+    (let ((fields (lambda (__module__) (begin ,@body) (locals))))
+      (fields __name__))))
 
 
 (defmacro compile (source env: '(globals) filename: "<anon>")

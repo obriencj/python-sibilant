@@ -108,6 +108,14 @@ class CPython36(ExpressionCodeSpace):
             elif op is _Pseudop.CALL_VAR_KW:
                 yield _Opcode.CALL_FUNCTION_EX, 0x01
 
+            elif op is _Pseudop.UNPACK_SEQUENCE:
+                yield _Opcode.UNPACK_SEQUENCE, args[0]
+
+            elif op is _Pseudop.UNPACK_EX:
+                if args[1]:
+                    yield _Opcode.EXTENDED_ARG, args[1]
+                yield _Opcode.UNPACK_EX, args[0]
+
             elif op is _Pseudop.CONST:
                 i = _const_index(self.consts, args[0])
                 yield _Opcode.LOAD_CONST, i

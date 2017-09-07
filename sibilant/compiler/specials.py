@@ -36,6 +36,7 @@ _symbol_doc = symbol("doc")
 _symbol_attr = symbol("attr")
 _symbol_set_attr = symbol("set-attr")
 _symbol_setq = symbol("setq")
+_symbol_setq_values = symbol("setq-values")
 _symbol_global = symbol("global")
 _symbol_define = symbol("define")
 _symbol_var = symbol("var")
@@ -59,6 +60,7 @@ _symbol_try = symbol("try")
 _keyword_else = keyword("else")
 _keyword_as = keyword("as")
 _keyword_finally = keyword("finally")
+_keyword_star = keyword("*:")
 
 
 def special():
@@ -812,6 +814,120 @@ def _special_while(code, source, tc=False):
     return None
 
 
+@special(_symbol_setq_values)
+def _special_setq_values(code, source, tc=False):
+    """
+    (setq-values BINDINGS VALUES_EXPR)
+    """
+
+    try:
+        called_by, (bindings, (expr, rest)) = source
+    except ValueError:
+        raise code.error("too few arguments to setq-values", source)
+
+    if not is_nil(rest):
+        raise code.error("too many arguments to setq-values", source)
+
+    code.add_expression(expr, False)
+    _helper_setq_values(code, bindings)
+
+    # setq-values evaluates to None
+    code.pseudop_const(None)
+
+    return None
+
+
+def _helper_binding_split(code, bindings):
+    left = []
+    mid = None
+    right = []
+
+    biter = iter(bindings.unpack())
+
+    for b in biter:
+        if is_symbol(b) or is_pair(b):
+            left.append(b)
+
+        elif b is _keyword_star:
+            mid = next(biter, None)
+            if mid is None:
+                msg = "expected symbol binding after *: not %r" % mid
+                raise code.error(msg, bindings)
+            break
+
+        else:
+            msg = "expected symbol or pair in binding, not %r" % b
+            raise code.error(msg, bindings)
+
+    for b in biter:
+        if is_symbol(b) or is_pair(b):
+            right.append(b)
+
+        else:
+            msg = "expected symbol or pair in binding, not %r" % b
+            raise code.error(msg, bindings)
+
+    return left, mid, right
+
+
+def _helper_setq_values(code, bindings):
+    bcount = bindings.count()
+
+    if is_nil(bindings):
+        code.pseudop_pop()
+
+    elif is_proper(bindings):
+        left, mid, right = _helper_binding_split(code, bindings)
+        if mid:
+            code.pseudop_unpack_ex(len(left), len(right))
+
+            for b in left:
+                if is_symbol(b):
+                    code.pseudop_set_var(str(b))
+                elif is_pair(b):
+                    _helper_setq_values(code, b)
+                else:
+                    msg = "bindings must be symbols or pairs, not %r" % b
+                    raise code.error(msg, bindings)
+
+            if is_symbol(mid):
+                code.pseudop_set_var(str(mid))
+            else:
+                msg = "start bindings must be symbols, not %r" % mid
+                raise code.error(msg, bindings)
+
+            for b in right:
+                if is_symbol(b):
+                    code.pseudop_set_var(str(b))
+                elif is_pair(b):
+                    _helper_setq_values(code, b)
+                else:
+                    msg = "bindings must be symbols or pairs, not %r" % b
+                    raise code.error(msg, bindings)
+
+        else:
+            code.pseudop_unpack_sequence(bcount)
+            for b in bindings.unpack():
+                if is_symbol(b):
+                    code.pseudop_set_var(str(b))
+                elif is_pair(b):
+                    _helper_setq_values(code, b)
+                else:
+                    msg = "bindings must be symbols or pairs, not %r" % b
+                    raise code.error(msg, bindings)
+
+    else:
+        code.pseudop_unpack_ex(bcount - 1, 0)
+        for b in bindings.unpack():
+            if is_symbol(b):
+                code.pseudop_set_var(str(b))
+            elif is_pair(b):
+                _helper_setq_values(code, b)
+            else:
+                msg = "improper bindings must be symbols or pairs, not %r" % b
+                raise code.error(msg, bindings)
+
+
 @special(_symbol_continue)
 def _special_continue(code, source, tc=False):
 
@@ -1212,21 +1328,23 @@ def _special_define(code, source, tc=False):
 
     (var SYM EXPRESSION)
     same as above
+
+    if EXPRESSION is omitted, the SYM is declared in the local
+    namespace, but left unassigned.
     """
 
     called_by, (binding, body) = source
-
-    _helper_begin(code, body, False)
 
     if not is_symbol(binding):
         raise code.error("define with non-symbol binding", source)
 
     varname = str(binding)
-
     code.declare_var(varname)
 
-    code.pseudop_position_of(source)
-    code.pseudop_set_var(varname)
+    if body:
+        _helper_begin(code, body, False)
+        code.pseudop_position_of(source)
+        code.pseudop_set_var(varname)
 
     # define expression evaluates to None
     code.pseudop_const(None)

@@ -283,6 +283,8 @@ class Pseudop(Enum):
     CALL_KW = _auto()
     CALL_VAR = _auto()
     CALL_VAR_KW = _auto()
+    UNPACK_SEQUENCE = _auto()
+    UNPACK_EX = _auto()
     CONST = _auto()
     SET_LOCAL = _auto()
     GET_VAR = _auto()
@@ -1115,6 +1117,14 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop(Pseudop.CALL_VAR_KW, argc, kwdc)
 
 
+    def pseudop_unpack_sequence(self, argc):
+        self.pseudop(Pseudop.UNPACK_SEQUENCE, argc)
+
+
+    def pseudop_unpack_ex(self, left, right):
+        self.pseudop(Pseudop.UNPACK_EX, left, right)
+
+
     def pseudop_const(self, val):
         """
         Pushes a pseudo op to load a constant value
@@ -1478,6 +1488,14 @@ class CodeSpace(metaclass=ABCMeta):
         elif op is _Pseudop.BUILD_MAP:
             pop(args[0] * 2)
             push()
+
+        elif op is _Pseudop.UNPACK_SEQUENCE:
+            pop()
+            push(args[0])
+
+        elif op is _Pseudop.UNPACK_EX:
+            pop()
+            push(args[0] + args[1] + 1)
 
         elif op in (_Pseudop.BUILD_TUPLE,
                     _Pseudop.BUILD_TUPLE_UNPACK,
