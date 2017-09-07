@@ -438,7 +438,6 @@ class CodeBlock():
 
 
     def __del__(self):
-        self.clear()
         del self.pseudops
         del self.children
 
@@ -630,9 +629,7 @@ class CodeSpace(metaclass=ABCMeta):
     def __del__(self):
         del self.env
         del self.parent
-        if self.blocks:
-            self.blocks[0].clear()
-            self.blocks.clear()
+        del self.blocks
         del self.gen_label
         del self._gen_sym
         self.consts.clear()
@@ -641,6 +638,9 @@ class CodeSpace(metaclass=ABCMeta):
 
     def reset(self):
         self.env = None
+
+        if self.blocks:
+            self.blocks[0].clear()
         self.blocks = [CodeBlock(Block.BASE, 0, 0)]
         self.consts = [None]
 
