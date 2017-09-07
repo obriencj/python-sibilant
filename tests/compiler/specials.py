@@ -963,7 +963,47 @@ class SpecialWhile(TestCase):
         self.assertEqual(accu1, [104, 103, 102, 101, 100])
 
 
+    def test_errors(self):
+        src = """
+        (continue)
+        """
+        self.assertRaises(SyntaxError, compile_expr, src)
+
+        src = """
+        (while True (continue 1 2))
+        """
+        self.assertRaises(SyntaxError, compile_expr, src)
+
+        src = """
+        (break)
+        """
+        self.assertRaises(SyntaxError, compile_expr, src)
+
+        src = """
+        (while True (break 1 2))
+        """
+        self.assertRaises(SyntaxError, compile_expr, src)
+
+
     def test_while_continue(self):
+        accu1, good_guy = make_accumulator()
+
+        src = """
+        (while keep_going
+          (decr x)
+          (if (< 0 x)
+              then: (begin
+                       (good_guy (+ 100 x))
+                       (continue))
+              else: (begin
+                       (setq keep_going False)
+                       654)))
+        """
+        stmt, env = compile_expr(src, keep_going=True, x=5, **locals())
+        res = stmt()
+        self.assertEqual(res, 654)
+        self.assertEqual(accu1, [104, 103, 102, 101])
+
         accu1, good_guy = make_accumulator()
 
         src = """
@@ -984,6 +1024,23 @@ class SpecialWhile(TestCase):
 
 
     def test_evil_continue(self):
+        accu1, good_guy = make_accumulator()
+
+        src = """
+        (while keep_going
+          (decr x)
+          (if (< 0 x)
+              then: (begin
+                       (good_guy (+ 100 x (continue))))
+              else: (begin
+                       (setq keep_going False)
+                       654)))
+        """
+        stmt, env = compile_expr(src, keep_going=True, x=500, **locals())
+        res = stmt()
+        self.assertEqual(res, 654)
+        self.assertEqual(accu1, [])
+
         accu1, good_guy = make_accumulator()
 
         src = """
@@ -1020,6 +1077,23 @@ class SpecialWhile(TestCase):
         self.assertEqual(res, 654)
         self.assertEqual(accu1, [104, 103, 102, 101])
 
+        accu1, good_guy = make_accumulator()
+
+        src = """
+        (while keep_going
+          (decr x)
+          (if (< 0 x)
+              then: (begin
+                       (good_guy (+ 100 x)))
+              else: (begin
+                       (setq keep_going False)
+                       (break))))
+        """
+        stmt, env = compile_expr(src, keep_going=True, x=5, **locals())
+        res = stmt()
+        self.assertEqual(res, None)
+        self.assertEqual(accu1, [104, 103, 102, 101])
+
 
     def test_evil_break(self):
         accu1, good_guy = make_accumulator()
@@ -1037,6 +1111,23 @@ class SpecialWhile(TestCase):
         stmt, env = compile_expr(src, keep_going=True, x=5, **locals())
         res = stmt()
         self.assertEqual(res, 654)
+        self.assertEqual(accu1, [104, 103, 102, 101])
+
+        accu1, good_guy = make_accumulator()
+
+        src = """
+        (while keep_going
+          (decr x)
+          (if (< 0 x)
+              then: (begin
+                       (good_guy (+ 100 x)))
+              else: (begin
+                       (setq keep_going False)
+                       (good_guy (+ 100 x (break))))))
+        """
+        stmt, env = compile_expr(src, keep_going=True, x=5, **locals())
+        res = stmt()
+        self.assertEqual(res, None)
         self.assertEqual(accu1, [104, 103, 102, 101])
 
 
