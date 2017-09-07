@@ -219,10 +219,10 @@ class CPython36(ExpressionCodeSpace):
             elif op is _Pseudop.POP:
                 yield _Opcode.POP_TOP, 0
 
-            elif op is _Pseudop.MAGIC_POP_ALL:
-                n = args[0]
-                for _ in range(0, n):
-                    yield _Opcode.POP_TOP, 0
+            # elif op is _Pseudop.MAGIC_POP_ALL:
+            #     n = args[0]
+            #     for _ in range(0, n):
+            #         yield _Opcode.POP_TOP, 0
 
             elif op is _Pseudop.LAMBDA:
                 yield from self.helper_gen_lambda(*args)

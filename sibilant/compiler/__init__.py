@@ -341,7 +341,7 @@ class Pseudop(Enum):
     BREAK_LOOP = _auto()
     CONTINUE_LOOP = _auto()
     FAUX_PUSH = _auto()
-    MAGIC_POP_ALL = _auto()
+    # MAGIC_POP_ALL = _auto()
     DEBUG_STACK = _auto()
 
 
@@ -503,12 +503,12 @@ class CodeBlock():
                 print(" ".join(map(str, args)),
                       "max:", maxc, "current:", stac)
 
-            elif op is _Pseudop.MAGIC_POP_ALL:
+            # elif op is _Pseudop.MAGIC_POP_ALL:
                 # print("MAGIC_POP_ALL:", stac)
 
                 # this is a stupid hack when I need to unwind a block
                 # like for continue.
-                opa[1] = stac
+                # opa[1] = stac
 
             elif op is _Pseudop.LABEL:
                 stac = labels.get(args[0], stac)
