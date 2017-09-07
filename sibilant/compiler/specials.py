@@ -810,6 +810,8 @@ def _special_continue(code, source, tc=False):
 
     called_by, rest = source
 
+    # TODO: check *all* parent blocks for a Block.LOOP type, because
+    # we can certainly escape out of try and with blocks as well.
     block = code.get_block()
     if block.block_type is not Block.LOOP:
         raise code.error("continue called inside of non-loop block", source)
@@ -842,6 +844,8 @@ def _special_break(code, source, tc=False):
 
     called_by, rest = source
 
+    # TODO: check *all* parent blocks for a Block.LOOP type, because
+    # we can certainly escape out of try and with blocks as well.
     block = code.get_block()
     if block.block_type is not Block.LOOP:
         raise code.error("break called inside of non-loop block", source)
