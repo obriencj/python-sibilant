@@ -784,15 +784,24 @@ def _special_while(code, source, tc=False):
     code.pseudop_set_var(storage)
 
     with code.block_loop() as block:
-
         # this enables continue and break to find it and set it
         block.storage = storage
 
         code.add_expression(test)
         code.pseudop_pop_jump_if_false(block.pop_label)
 
-        _helper_begin(code, body, False)
-        code.pseudop_set_var(storage)
+        whatever = code.gen_label()
+        with code.block_finally(whatever):
+            _helper_begin(code, body, False)
+            code.pseudop_set_var(storage)
+
+        with code.block_finally_cleanup(whatever):
+            # this is required by the finally above. The finally is
+            # only present so that we can get the stack to unwind if
+            # continue is called. break would already have unwound the
+            # stack, but continue doesn't for whatever reason.
+            pass
+
         code.pseudop_jump(block.top_label)
 
     code.pseudop_get_var(storage)
@@ -810,11 +819,12 @@ def _special_continue(code, source, tc=False):
 
     called_by, rest = source
 
-    # TODO: check *all* parent blocks for a Block.LOOP type, because
-    # we can certainly escape out of try and with blocks as well.
-    block = code.get_block()
-    if block.block_type is not Block.LOOP:
-        raise code.error("continue called inside of non-loop block", source)
+    for block in reversed(code.blocks):
+        if block.block_type is Block.LOOP:
+            break
+    else:
+        raise code.error("continue called without while", source)
+
 
     if is_nil(rest):
         value = None
@@ -828,7 +838,7 @@ def _special_continue(code, source, tc=False):
 
     # this magic causes a number of pops to be inserted equal to the
     # current stack counter. It's calculated when max_stack is run.
-    code.pseudop_magic_pop_all()
+    # code.pseudop_magic_pop_all()
 
     code.add_expression(value, False)
     code.pseudop_set_var(block.storage)
@@ -844,11 +854,11 @@ def _special_break(code, source, tc=False):
 
     called_by, rest = source
 
-    # TODO: check *all* parent blocks for a Block.LOOP type, because
-    # we can certainly escape out of try and with blocks as well.
-    block = code.get_block()
-    if block.block_type is not Block.LOOP:
-        raise code.error("break called inside of non-loop block", source)
+    for block in reversed(code.blocks):
+        if block.block_type is Block.LOOP:
+            break
+    else:
+        raise code.error("break called without while", source)
 
     if is_nil(rest):
         value = None
@@ -862,7 +872,7 @@ def _special_break(code, source, tc=False):
 
     # this magic causes a number of pops to be inserted equal to the
     # current stack counter. It's calculated when max_stack is run.
-    code.pseudop_magic_pop_all()
+    # code.pseudop_magic_pop_all()
 
     code.add_expression(value, False)
     code.pseudop_set_var(block.storage)
