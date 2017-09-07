@@ -66,11 +66,12 @@ def setup():
             return work
 
         tco_trampoline._tco_original = fun
+        tco_trampoline._tco_enable = True
         return tco_trampoline
 
 
     def tailcall(fun):
-        if _ga(fun, "_tco_disable", False):
+        if not _ga(fun, "_tco_enable", False):
             return fun
 
         # if fun is already a wrapped tailcall, or it's a wrapped
@@ -89,10 +90,14 @@ def setup():
         bounce the given function
         """
 
-        fun._tco_disable = True
+        fun._tco_enable = False
 
         return fun
 
+
+    trampoline.__qualname__ = "sibilant.tco.trampoline"
+    tailcall.__qualname__ = "sibilant.tco.tailcall"
+    tco_disable.__qualname__ = "sibilant.tco.tco_disable"
 
     return trampoline, tailcall, tco_disable
 
