@@ -216,6 +216,11 @@ class CPython35(ExpressionCodeSpace):
             elif op is _Pseudop.POP:
                 yield _Opcode.POP_TOP,
 
+            # elif op is _Pseudop.MAGIC_POP_ALL:
+            #     n = args[0]
+            #     for _ in range(0, n):
+            #         yield _Opcode.POP_TOP,
+
             elif op is _Pseudop.LAMBDA:
                 yield from self.helper_gen_lambda(*args)
 
@@ -270,6 +275,9 @@ class CPython35(ExpressionCodeSpace):
 
             elif op is _Pseudop.SETUP_FINALLY:
                 yield _Opcode.SETUP_FINALLY, args[0], 0
+
+            elif op is _Pseudop.SETUP_LOOP:
+                yield _Opcode.SETUP_LOOP, args[0], 0
 
             elif op is _Pseudop.POP_BLOCK:
                 yield _Opcode.POP_BLOCK,
@@ -354,6 +362,12 @@ class CPython35(ExpressionCodeSpace):
 
             elif op is _Pseudop.ROT_THREE:
                 yield _Opcode.ROT_THREE,
+
+            elif op is _Pseudop.CONTINUE_LOOP:
+                yield _Opcode.CONTINUE_LOOP, args[0]
+
+            elif op is _Pseudop.BREAK_LOOP:
+                yield _Opcode.BREAK_LOOP,
 
             else:
                 assert False, "Unknown Pseudop %r" % op
