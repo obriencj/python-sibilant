@@ -506,16 +506,8 @@ class CodeBlock():
             elif op is _Pseudop.MAGIC_POP_ALL:
                 # print("MAGIC_POP_ALL:", stac)
 
-                # this is emitted by the continue special, because it
-                # can be invoked in a manner which needs to clear off
-                # the stack before continuing the loop (or the stack
-                # will grow unbounded with each iteration)
-
-                # this is kind-of stupid, but I have a plan. There's
-                # probably another block type I can push onto the
-                # stack so that when I use continue, I can unwind.
-                # Until then, I'm going to have to unwind like this,
-                # which I totally concede is bullshit.
+                # this is a stupid hack when I need to unwind a block
+                # like for continue.
                 opa[1] = stac
 
             elif op is _Pseudop.LABEL:
@@ -1178,9 +1170,9 @@ class CodeSpace(metaclass=ABCMeta):
             count -= 1
 
 
-    def pseudop_magic_pop_all(self):
-        assert self.blocks, "no blocks on stack"
-        self.blocks[-1].pseudops.append([Pseudop.MAGIC_POP_ALL, 0])
+    # def pseudop_magic_pop_all(self):
+    #     assert self.blocks, "no blocks on stack"
+    #     self.blocks[-1].pseudops.append([Pseudop.MAGIC_POP_ALL, 0])
 
 
     def pseudop_dup(self):
