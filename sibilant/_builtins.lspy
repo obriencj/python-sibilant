@@ -382,11 +382,13 @@
 
 
 (defmacro class (name bases . body)
-  `(type
-    ,(str name)
-    (values ,@bases)
-    (let ((fields (lambda (__module__) (begin ,@body) (locals))))
-      (fields __name__))))
+  `(flet ((create-class (name fields *: bases metaclass: type)
+			(metaclass name bases fields))
+	  (create-fields (__module__) (begin ,@body) (locals)))
+
+     (create-class ,(str name)
+		   (create-fields __name__)
+		   ,@bases)))
 
 
 (defmacro compile (source env: '(globals) filename: "<anon>")
