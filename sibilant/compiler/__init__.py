@@ -1368,8 +1368,8 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop(Pseudop.ITER)
 
 
-    def pseudop_for_iter(self):
-        self.pseudop(Pseudop.FOR_ITER)
+    def pseudop_for_iter(self, label):
+        self.pseudop(Pseudop.FOR_ITER, label)
 
 
     def pseudop_item(self):

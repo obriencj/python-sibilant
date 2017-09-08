@@ -863,6 +863,7 @@ def _special_for_each(code, source, tc=False):
             pass
 
         code.pseudop_jump(next_label)
+        code.pseudop_faux_pop()
 
     code.pseudop_get_var(storage)
     code.pseudop_const(None)
@@ -932,6 +933,10 @@ def _helper_binding_split(code, bindings):
 
 
 def _helper_setq_values(code, bindings):
+    if is_symbol(bindings):
+        code.pseudop_set_var(str(bindings))
+        return
+
     bcount = bindings.count()
 
     if is_nil(bindings):
