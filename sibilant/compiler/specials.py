@@ -818,6 +818,9 @@ def _special_while(code, source, tc=False):
 def _special_setq_values(code, source, tc=False):
     """
     (setq-values BINDINGS VALUES_EXPR)
+
+    where BINDINGS is a nested pair of symbols in the same structure
+    as values from VALUES_EXPR.
     """
 
     try:

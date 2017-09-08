@@ -277,6 +277,7 @@
 (begin
  (gd-define-simple-target function 'function)
  (gd-define-simple-target class 'class)
+ ;; todo: import
 
  None)
 
@@ -295,27 +296,39 @@
 
 
 (defmacro vars (*: variables)
-  `(begin ,@(map (lambda (d) `(var ,@d)) variables)))
+  (doc "(vars BINDINGS...)"
+       ""
+       "where each BINDING is either a symbol or a pair in (SYM EXPR)"
+       "format. Declares each binding symbol in the current scope, and"
+       "optionally assigns it the value from EXPR")
+
+  `(begin ,@(map (lambda (d)
+		   (when (symbol? d) (setq d `(,d)))
+		   `(var ,@d))
+		 variables)))
 
 
 (defmacro let-values (bind_vals . body)
-  (vars (bins) (fbins) (vals))
+  (doc "(let-values (BINDINGS VALS) . BODY)"
+       ""
+       "where BINDINGS is a nested pair of symbols in the same structure"
+       "as values from VALS.")
+
+  (vars bins vals)
   (setq-values (bins vals) (bind_vals.unpack))
 
   (def function flatten (seq)
        (var x (list))
        (last
-	(map (lambda (v) (cond ((pair? v)
-				(x.extend (flatten (unpack v))))
-			       ((symbol? v)
-				(x.append `(,v)))))
+	(map (lambda (v)
+	       (cond
+		((pair? v) (x.extend (flatten (unpack v))))
+		((symbol? v) (x.append `(,v)))))
 	     seq))
        x)
 
-  (setq fbins (flatten bins))
-
   `(let ()
-     (vars ,@fbins)
+     (vars ,@(flatten bins))
      (setq-values ,bins ,vals)
      ,@body))
 
