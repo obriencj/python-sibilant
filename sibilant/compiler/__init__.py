@@ -561,7 +561,7 @@ class CodeSpace(metaclass=ABCMeta):
     scope, and nested sub-scopes.
     """
 
-    def __init__(self, parent=None, name=None, args=(),
+    def __init__(self, parent=None, name=None, args=(), kwonly=0,
                  varargs=False, varkeywords=False, proper_varargs=True,
                  filename=None, declared_at=None,
                  tco_enabled=True, mode=Mode.EXPRESSION):
@@ -598,6 +598,7 @@ class CodeSpace(metaclass=ABCMeta):
             _list_unique_append(self.args, n)
             _list_unique_append(self.fast_vars, n)
 
+        self.kwonly = kwonly
         self.varargs = varargs
         self.varkeywords = varkeywords
 
@@ -1162,14 +1163,14 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop(Pseudop.DEL_VAR, name)
 
 
-    def pseudop_lambda(self, code, default_count):
+    def pseudop_lambda(self, code, *params):
         """
         Pushes a pseudo op to load a lambda from code
         """
 
         self.declare_const(code)
         self.declare_const(code.co_name)
-        self.pseudop(Pseudop.LAMBDA, code, default_count)
+        self.pseudop(Pseudop.LAMBDA, code, *params)
 
 
     def pseudop_pop(self, count=1):
@@ -1597,6 +1598,9 @@ class CodeSpace(metaclass=ABCMeta):
             argcount -= 1
             flags |= CodeFlag.VARKEYWORDS.value
 
+        kwonly = self.kwonly
+        argcount -= kwonly
+
         if not (self.free_vars or self.cell_vars):
             flags |= CodeFlag.NOFREE.value
 
@@ -1627,7 +1631,7 @@ class CodeSpace(metaclass=ABCMeta):
         freevars = tuple(self.free_vars)
         cellvars = tuple(self.cell_vars)
 
-        ret = CodeType(argcount, 0, nlocals, stacksize, flags, code,
+        ret = CodeType(argcount, kwonly, nlocals, stacksize, flags, code,
                        consts, names, varnames, filename, name,
                        firstlineno, lnotab, freevars, cellvars)
 
@@ -1926,11 +1930,19 @@ def gather_formals(args, declared_at=None):
     (positional, keywords, defaults, stararg, starstararg)
 
     - positional is a list of symbols defining positional arguments
-    - keywords is a list of keywords defining keyword arguments
-    - defaults is a list of expressions defining default values for keywords
+
+    - defaults is a list of keywords and expr pairs defining keyword
+      arguments and their default value expression
+
+    - kwonly is a list of keywords and expr pairs which are
+      keyword-only arguments and theid default value expression
+
     - stararg is a symbol for variadic positional arguments
+
     - starstararg is a symbol for variadic keyword arguments
     """
+
+    undefined = object()
 
     def err(msg):
         return SibilantSyntaxError(msg, declared_at)
@@ -1971,19 +1983,22 @@ def gather_formals(args, declared_at=None):
         else:
             return (positional, (), (), None, None)
 
-    keywords = []
     defaults = []
+    kwonly = []
 
     while arg not in (_keyword_star, _keyword_starstar):
-        keywords.append(arg)
-        defaults.append(next(iargs))
+        value = next(iargs, undefined)
+        if value is undefined:
+            raise err("missing value for keyword formal %s" % args)
+        else:
+            defaults.append((arg, value))
 
-        arg = next(iargs, None)
+        arg = next(iargs, undefined)
 
-        if is_keyword(arg):
-            continue
-        elif arg is None:
+        if arg is undefined:
             break
+        elif is_keyword(arg):
+            continue
         else:
             raise err("keyword formals must be alternating keywords and"
                       " values, not %r" % arg)
@@ -1991,25 +2006,52 @@ def gather_formals(args, declared_at=None):
     star = None
     starstar = None
 
-    if arg is None:
-        return (positional, keywords, defaults, None, None)
+    if arg is undefined:
+        return (positional, defaults, kwonly, None, None)
 
     if arg is _keyword_star:
-        star = next(iargs, None)
-        if not is_symbol(star):
+        star = next(iargs, undefined)
+        if star is undefined:
+            raise err("* keyword requires symbol binding")
+        elif not is_symbol(star):
             raise err("* keyword requires symbol binding, not %r" % star)
-        arg = next(iargs, None)
+        arg = next(iargs, undefined)
+
+    if arg is undefined:
+        return (positional, defaults, kwonly, star, starstar)
+
+    elif not is_keyword(arg):
+        raise err("expected keyword in formals, got %r" % arg)
+
+    # keyword formals after *: are considered keyword-only
+    while arg not in (_keyword_star, _keyword_starstar):
+        value = next(iargs, undefined)
+        if value is undefined:
+            raise err("missing value for keyword-only formal %s" % arg)
+        else:
+            kwonly.append((arg, value))
+
+        arg = next(iargs, undefined)
+        if arg is undefined:
+            break
+        elif is_keyword(arg):
+            continue
+        else:
+            raise err("keyword-only formals must be alternating keywords"
+                      " and values, not %r" % arg)
 
     if arg is _keyword_starstar:
-        starstar = next(iargs, None)
-        if not is_symbol(starstar):
+        starstar = next(iargs, undefined)
+        if starstar is undefined:
+            raise err("** keyword requires symbol binding")
+        elif not is_symbol(starstar):
             raise err("** keyword requires symbol binding, not %r" % star)
-        arg = next(iargs, None)
+        arg = next(iargs, undefined)
 
-    if arg:
+    if arg is not undefined:
         raise err(("leftover formals %r" % arg))
 
-    return (positional, keywords, defaults, star, starstar)
+    return (positional, defaults, kwonly, star, starstar)
 
 
 def simple_parameters(source_args, declared_at=None):
@@ -2069,7 +2111,7 @@ def gather_parameters(args, declared_at=None):
         else:
             positional.append(arg)
     else:
-        # handled all if args, done deal.
+        # handled all of args, done deal.
         if improper:
             return (positional[:-1], (), (), positional[-1], None)
         else:
@@ -2099,7 +2141,7 @@ def gather_parameters(args, declared_at=None):
     star = None
     starstar = None
 
-    if arg is None:
+    if arg is undefined:
         return (positional, keywords, defaults, None, None)
 
     if arg is _keyword_star:
