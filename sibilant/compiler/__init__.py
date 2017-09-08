@@ -563,7 +563,7 @@ class CodeSpace(metaclass=ABCMeta):
     """
 
     def __init__(self, parent=None, name=None, args=(), kwonly=0,
-                 varargs=False, varkeywords=False, proper_varargs=True,
+                 varargs=False, varkeywords=False,
                  filename=None, declared_at=None,
                  tco_enabled=True, mode=Mode.EXPRESSION):
 
@@ -621,13 +621,6 @@ class CodeSpace(metaclass=ABCMeta):
             self.gen_label = _label_generator()
             gs = "gensym_%08x" % id(self)
             self._gen_sym = _label_generator(gs + "_%02x")
-
-        if varargs and not proper_varargs:
-            # if our argument formals are an improper list, then the
-            # varargs are expected to be a cons list, not a pythonic
-            # tuple, and we'll need to perform a translation step at
-            # the beginning of the function.
-            self.helper_prep_varargs()
 
 
     def __del__(self):
