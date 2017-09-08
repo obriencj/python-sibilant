@@ -319,7 +319,8 @@
 
   (def function flatten (seq)
        (var x (list))
-       (last
+       (last ;; I haven't written for-each yet, and map is lazy, so
+	     ;; I'm using last to just get it to run.
 	(map (lambda (v)
 	       (cond
 		((pair? v) (x.extend (flatten (unpack v))))
