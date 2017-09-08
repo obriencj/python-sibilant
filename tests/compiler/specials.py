@@ -1251,5 +1251,40 @@ class SpecialSetqValues(TestCase):
         self.assertEqual(env["e"], 8)
 
 
+class SpecialForEach(TestCase):
+
+    def test_range(self):
+
+        src = """
+        (let ((z 0))
+          (for-each (x (range 0 10))
+            (setq z (+ x z))
+             z))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, 45)
+
+
+    def test_unpack_enum(self):
+
+        accu1, good_guy = make_accumulator()
+
+        src = """
+        (let ((z 0))
+          (for-each ((x y) (enumerate (range 0 5)))
+             (good_guy (values x y z))
+             (setq z (+ x y z))))
+        """
+        stmt, env = compile_expr(src, good_guy=good_guy)
+        res = stmt()
+        self.assertEqual(res, None)
+        self.assertEqual(accu1, [(0, 0, 0),
+                                 (1, 1, 0),
+                                 (2, 2, 2),
+                                 (3, 3, 6),
+                                 (4, 4, 12)])
+
+
 #
 # The end.
