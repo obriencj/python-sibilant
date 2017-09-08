@@ -309,6 +309,9 @@ class CPython35(ExpressionCodeSpace):
             elif op is _Pseudop.ITER:
                 yield _Opcode.GET_ITER,
 
+            elif op is _Pseudop.FOR_ITER:
+                yield _Opcode.FOR_ITER, args[0]
+
             elif op is _Pseudop.COMPARE_OP:
                 yield _Opcode.COMPARE_OP, args[0], 0
 

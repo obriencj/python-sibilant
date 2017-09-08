@@ -308,6 +308,7 @@ class Pseudop(Enum):
     UNARY_NOT = _auto()
     UNARY_INVERT = _auto()
     ITER = _auto()
+    FOR_ITER = _auto()
     GET_ITEM = _auto()
     SET_ITEM = _auto()
     DEL_ITEM = _auto()
@@ -1367,6 +1368,10 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop(Pseudop.ITER)
 
 
+    def pseudop_for_iter(self):
+        self.pseudop(Pseudop.FOR_ITER)
+
+
     def pseudop_item(self):
         self.pseudop(Pseudop.GET_ITEM)
 
@@ -1445,6 +1450,7 @@ class CodeSpace(metaclass=ABCMeta):
                   _Pseudop.GET_VAR,
                   _Pseudop.GET_GLOBAL,
                   _Pseudop.BREAK_LOOP,
+                  _Pseudop.FOR_ITER,
                   _Pseudop.CONTINUE_LOOP):
             push()
 
