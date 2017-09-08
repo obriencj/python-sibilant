@@ -379,7 +379,18 @@ class CPython35(ExpressionCodeSpace):
                 assert False, "Unknown Pseudop %r" % op
 
 
-    def helper_gen_lambda(self, code, default_count=0):
+    def pseudop_lambda(self, code, defaults=(), kwonly=()):
+        for arg, expr in defaults:
+            self.add_expression(expr)
+
+        for arg, expr in kwonly:
+            self.pseudop_const(str(arg))
+            self.add_expression(expr)
+
+        super().pseudop_lambda(code, len(defaults), len(kwonly))
+
+
+    def helper_gen_lambda(self, code, default_count, kwonly_count):
         """
         Helper to _gen_code that handles just lambda definitions
         """
@@ -407,13 +418,13 @@ class CPython35(ExpressionCodeSpace):
             yield _Opcode.BUILD_TUPLE, len(code.co_freevars), 0
             yield _Opcode.LOAD_CONST, ci, 0
             yield _Opcode.LOAD_CONST, ni, 0
-            yield _Opcode.MAKE_CLOSURE, default_count, 0
+            yield _Opcode.MAKE_CLOSURE, default_count, kwonly_count
 
         else:
             # not a closure, so just a pain ol' function
             yield _Opcode.LOAD_CONST, ci, 0
             yield _Opcode.LOAD_CONST, ni, 0
-            yield _Opcode.MAKE_FUNCTION, default_count, 0
+            yield _Opcode.MAKE_FUNCTION, default_count, kwonly_count
 
 
     def helper_compile_call(self, args, declared_at):
@@ -524,6 +535,11 @@ class CPython35(ExpressionCodeSpace):
             pop(args[1] * 2)  # kw:val pairs
             pop(3)            # args, kwds, function
             push()            # result
+
+        elif op is _Pseudop.LAMBDA:
+            pop(args[1])
+            pop(args[2] * 2)
+            push()
 
         else:
             return super().helper_max_stack(op, args, push, pop)

@@ -603,7 +603,7 @@ def _special_function(code, source, tc=False):
         subc.pseudop_return()
         kid_code = subc.complete()
 
-    code.pseudop_lambda(kid_code, 0)
+    code.pseudop_lambda(kid_code)
     code.pseudop_call(0)
 
     # no additional transform needed
@@ -669,7 +669,7 @@ def _special_let(code, source, tc=False):
             subc.pseudop_return()
             kid_code = subc.complete()
 
-        code.pseudop_lambda(kid_code, 0)
+        code.pseudop_lambda(kid_code)
         code.pseudop_call(0)
 
     else:
@@ -703,13 +703,16 @@ def _helper_function(code, name, args, body, declared_at=None):
         raise code.error(msg, declared_at)
 
     formals = gather_formals(args, get_position(args, declared_at))
-    pos, keys, defaults, star, starstar = formals
+    pos, defaults, kwonly, star, starstar = formals
     proper = is_proper(args)
 
     argnames = list(map(str, pos))
 
-    if keys:
-        argnames.extend(map(str, keys))
+    if defaults:
+        argnames.extend(map(str, (k for k, v in defaults)))
+
+    if kwonly:
+        argnames.extend(map(str, (k for k, v in kwonly)))
 
     if star:
         varargs = True
@@ -726,11 +729,9 @@ def _helper_function(code, name, args, body, declared_at=None):
     if declared_at is None:
         declared_at = body.get_position()
 
-    for expr in defaults:
-        code.add_expression(expr)
-
     kid = code.child_context(name=name,
                              args=argnames,
+                             kwonly=len(kwonly),
                              varargs=varargs,
                              varkeywords=varkeywords,
                              declared_at=declared_at,
@@ -740,7 +741,7 @@ def _helper_function(code, name, args, body, declared_at=None):
     with kid as subc:
         _helper_begin(subc, body, tco)
         subc.pseudop_return()
-        code.pseudop_lambda(subc.complete(), len(defaults))
+        code.pseudop_lambda(subc.complete(), defaults, kwonly)
 
         if tco and subc.tailcalls > 0:
             code.pseudop_get_var("trampoline")

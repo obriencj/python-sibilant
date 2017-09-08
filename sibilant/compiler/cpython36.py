@@ -384,7 +384,23 @@ class CPython36(ExpressionCodeSpace):
                 assert False, "Unknown Pseudop %r" % op
 
 
-    def helper_gen_lambda(self, code, default_count=0):
+    def pseudop_lambda(self, code, defaults=(), kwonly=()):
+
+        if defaults:
+            for arg, expr in defaults:
+                self.add_expression(expr)
+            self.pseudop_build_tuple(len(defaults))
+
+        if kwonly:
+            for arg, expr in kwonly:
+                self.pseudop_const(str(arg))
+                self.add_expression(expr)
+            self.pseudop_build_map(len(kwonly))
+
+        super().pseudop_lambda(code, len(defaults), len(kwonly))
+
+
+    def helper_gen_lambda(self, code, default_count, kwonly_count):
         """
         Helper to _gen_code that handles just lambda definitions
         """
@@ -397,8 +413,10 @@ class CPython36(ExpressionCodeSpace):
         flags = 0x00
 
         if default_count:
-            yield Opcode.BUILD_TUPLE, default_count
             flags |= 0x01
+
+        if kwonly_count:
+            flags |= 0x02
 
         if code.co_freevars:
             # code is a closure, so we'll need to find the matching
@@ -550,6 +568,13 @@ class CPython36(ExpressionCodeSpace):
         elif op is _Pseudop.CALL_VAR_KW:
             pop(3)  # kwargs, args, function
             push()  # result
+
+        elif op is _Pseudop.LAMBDA:
+            if args[1]:
+                pop()
+            if args[2]:
+                pop()
+            push()
 
         else:
             return super().helper_max_stack(op, args, push, pop)
