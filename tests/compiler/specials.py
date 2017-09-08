@@ -1131,5 +1131,125 @@ class SpecialWhile(TestCase):
         self.assertEqual(accu1, [104, 103, 102, 101])
 
 
+class SpecialSetqValues(TestCase):
+
+
+    def test_simple_values(self):
+
+        src = """
+        (setq-values (a b c) (values 9 8 7))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(env["a"], 9)
+        self.assertEqual(env["b"], 8)
+        self.assertEqual(env["c"], 7)
+
+        src = """
+        (setq-values (a b . c) (values 9 8 7 6 5))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(env["a"], 9)
+        self.assertEqual(env["b"], 8)
+        self.assertEqual(env["c"], [7, 6, 5])
+
+
+    def test_nested_values(self):
+
+        src = """
+        (setq-values (a (b c)) (values 1 (values 2 3)))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(env["a"], 1)
+        self.assertEqual(env["b"], 2)
+        self.assertEqual(env["c"], 3)
+
+
+        src = """
+        (setq-values (a (b c)) '(1 2 . 3))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(env["a"], 1)
+        self.assertEqual(env["b"], 2)
+        self.assertEqual(env["c"], 3)
+
+
+    def test_star_values(self):
+
+        src = """
+        (setq-values (a b *: c) (values 1 2 3 4 5))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(env["a"], 1)
+        self.assertEqual(env["b"], 2)
+        self.assertEqual(env["c"], [3, 4, 5])
+
+        src = """
+        (setq-values (a b *: c) (values 1 2))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(env["a"], 1)
+        self.assertEqual(env["b"], 2)
+        self.assertEqual(env["c"], [])
+
+        src = """
+        (setq-values (a *: b c) (values 1 2 3 4 5))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(env["a"], 1)
+        self.assertEqual(env["b"], [2, 3, 4])
+        self.assertEqual(env["c"], 5)
+
+        src = """
+        (setq-values (*: a b c) (values 1 2 3 4 5))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(env["a"], [1, 2, 3])
+        self.assertEqual(env["b"], 4)
+        self.assertEqual(env["c"], 5)
+
+        src = """
+        (setq-values (*: a b c) (values 1 2))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(env["a"], [])
+        self.assertEqual(env["b"], 1)
+        self.assertEqual(env["c"], 2)
+
+        src = """
+        (setq-values
+          (*: a (b c *: d) e)
+          (values 1 2 3 (values 4 5 6 7) 8))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(env["a"], [1, 2, 3])
+        self.assertEqual(env["b"], 4)
+        self.assertEqual(env["c"], 5)
+        self.assertEqual(env["d"], [6, 7])
+        self.assertEqual(env["e"], 8)
+
+        src = """
+        (setq-values
+          (*: a (b c . d) e)
+          (values 1 2 3 (values 4 5 6 7) 8))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(env["a"], [1, 2, 3])
+        self.assertEqual(env["b"], 4)
+        self.assertEqual(env["c"], 5)
+        self.assertEqual(env["d"], [6, 7])
+        self.assertEqual(env["e"], 8)
+
+
 #
 # The end.
