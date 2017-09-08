@@ -52,6 +52,7 @@ _symbol_lambda = symbol("lambda")
 _symbol_function = symbol("function")
 _symbol_with = symbol("with")
 _symbol_let = symbol("let")
+_symbol_for_each = symbol("for-each")
 _symbol_while = symbol("while")
 _symbol_continue = symbol("continue")
 _symbol_break = symbol("break")
@@ -734,8 +735,8 @@ def _helper_function(code, name, args, body, declared_at=None):
                              kwonly=len(kwonly),
                              varargs=varargs,
                              varkeywords=varkeywords,
-                             declared_at=declared_at,
                              proper_varargs=proper,
+                             declared_at=declared_at,
                              tco_enabled=tco)
 
     with kid as subc:
@@ -777,7 +778,10 @@ def _special_while(code, source, tc=False):
     VAL is not specified, it defaults to None
     """
 
-    called_by, (test, body) = source
+    try:
+        called_by, (test, body) = source
+    except ValueError:
+        raise code.error("too few arguments to while", source)
 
     storage = code.gen_sym()
     code.declare_var(storage)
@@ -806,6 +810,60 @@ def _special_while(code, source, tc=False):
             pass
 
         code.pseudop_jump(block.top_label)
+
+    code.pseudop_get_var(storage)
+    code.pseudop_const(None)
+    code.pseudop_set_var(storage)
+    code.pseudop_del_var(storage)
+
+    return None
+
+
+@special(_symbol_for_each)
+def _special_for_each(code, source, tc=False):
+    """
+    (for-each (BINDING  ITEREXPR) . BODY)
+    """
+
+    try:
+        called_by, (bindings, body) = source
+        bindings, (expr, rest) = bindings
+    except ValueError:
+        raise code.error("too few arguments to for-each", source)
+
+    if not is_nil(rest):
+        raise code.error("too many arguments to for-each", source)
+
+    storage = code.gen_sym()
+    code.declare_var(storage)
+
+    code.pseudop_const(None)
+    code.pseudop_set_var(storage)
+
+    next_label = code.gen_label()
+
+    with code.block_loop() as block:
+        # this enables continue and break to find it and set it
+        block.storage = storage
+
+        code.add_expression(expr, False)
+        code.pseudop_iter()
+
+        code.pseudop_label(next_label)
+        code.pseudop_for_iter(block.pop_label)
+
+        _helper_setq_values(code, bindings)
+
+        whatever = code.gen_label()
+        with code.block_finally(whatever):
+            _helper_begin(code, body, False)
+            code.pseudop_set_var(storage)
+
+        with code.block_finally_cleanup(whatever):
+            pass
+
+        code.pseudop_jump(next_label)
+        code.pseudop_faux_pop()
 
     code.pseudop_get_var(storage)
     code.pseudop_const(None)
@@ -875,6 +933,10 @@ def _helper_binding_split(code, bindings):
 
 
 def _helper_setq_values(code, bindings):
+    if is_symbol(bindings):
+        code.pseudop_set_var(str(bindings))
+        return
+
     bcount = bindings.count()
 
     if is_nil(bindings):
