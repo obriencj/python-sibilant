@@ -408,20 +408,20 @@ def setup(glbls):
     _op(open, "open")
     _op(print, "print")
 
+    _ty(object, "object")
+    _ty(str, "bytes")
     _ty(str, "str")
-    _op(repr, "repr")
     _ty(type, "type")
     _ty(bool, "bool")
     _ty(int, "int")
     _ty(float, "float")
     _ty(complex, "complex")
     _ty(fraction, "fraction")
-
     _ty(range, "range")
+
+    _op(repr, "repr")
     _op(help, "help")
     _op(dir, "dir")
-
-    _val(object, "object")
 
     _op(__import__, "import")
     _op(globals, "globals")
