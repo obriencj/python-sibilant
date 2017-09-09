@@ -45,7 +45,7 @@ def repl(mod, stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr):
         try:
             line = input("sibilant > ")
 
-            source = source_str(line)
+            source = source_str(line, filename="<stdin>")
             init_module(mod, source, None)
 
             result = load_module_1(mod)
