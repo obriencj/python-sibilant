@@ -705,7 +705,6 @@ def _helper_function(code, name, args, body, declared_at=None):
 
     formals = gather_formals(args, get_position(args, declared_at))
     pos, defaults, kwonly, star, starstar = formals
-    proper = is_proper(args)
 
     argnames = list(map(str, pos))
 
@@ -735,7 +734,6 @@ def _helper_function(code, name, args, body, declared_at=None):
                              kwonly=len(kwonly),
                              varargs=varargs,
                              varkeywords=varkeywords,
-                             proper_varargs=proper,
                              declared_at=declared_at,
                              tco_enabled=tco)
 

@@ -47,7 +47,8 @@ def _setup():
     filename = join(dirname(__file__), "_builtins.lspy")
 
     builtins = new_module("sibilant._builtins")
-    init_module(builtins, source_str(src), bootstrap, filename=filename)
+    source_stream = source_str(src, filename=filename)
+    init_module(builtins, source_stream, bootstrap, filename=filename)
     load_module(builtins)
 
     sys.modules["sibilant"]._builtins = builtins

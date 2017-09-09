@@ -95,7 +95,7 @@ def get_module_stream(module):
     try:
         stream = module.__stream__
     except:
-        stream = source_str("")
+        stream = source_str("", "<empty>")
         module.__stream__ = stream
 
     return stream

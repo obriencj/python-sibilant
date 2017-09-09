@@ -105,11 +105,12 @@ EOF = keyword("eof")
 
 
 class SibilantSyntaxError(SyntaxError):
-    def __init__(self, message, location=None, filename=None):
+    def __init__(self, message, location=None, filename=None, text=None):
         if filename:
             if not location:
                 location = (1, 0)
-            super().__init__(message, (filename, *location, None))
+            super().__init__(message, (filename, *location, text))
+            self.print_file_and_line = True
         else:
             super().__init__(message)
 
