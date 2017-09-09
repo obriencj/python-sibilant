@@ -31,16 +31,18 @@
 
 
 (defmacro defmacrolet (name . body)
-  (doc "Defined a Macrolet in the current module")
+  (doc "Defines a Macrolet in the current module")
   `(define-global ,name
      (macrolet ,(str name) (function ,name () ,@body))))
 
 
 (defmacro defun (name params . body)
+  (doc "Defines a function with the given name in the current module")
   `(define-global ,name (function ,name ,params ,@body)))
 
 
 (defmacro defclass (name bases . body)
+  (doc "Defines a class with the given name in the current module")
   `(define-global ,name (class ,name ,bases ,@body)))
 
 
@@ -137,7 +139,7 @@
       (setq member (if (pair? current) (second current) current))
       (setq byname (if (pair? current) (first current) member))
 
-      (coll.append
+      (list.append coll
        `(define ,byname
 	  (attr (import ,(str modulename) (globals) None
 			(build-list ,(str member)))
@@ -303,29 +305,29 @@
        "optionally assigns it the value from EXPR")
 
   `(begin ,@(map (lambda (d)
-		   (when (symbol? d) (setq d `(,d)))
-		   `(var ,@d))
+		   (if (symbol? d)
+		       then: `(var ,d)
+		       else: `(var ,@d)))
 		 variables)))
 
 
 (defmacro let-values (bind_vals . body)
-  (doc "(let-values (BINDINGS VALS) . BODY)"
-       ""
-       "where BINDINGS is a nested pair of symbols in the same structure"
-       "as values from VALS.")
+  (doc "
+  (let-values (BINDINGS VALS) . BODY)
+
+  where BINDINGS is a nested pair of symbols in the same structure as
+  values from VALS.
+  ")
 
   (vars bins vals)
-  (setq-values (bins vals) (bind_vals.unpack))
+  (setq-values (bins vals) (cons.unpack bind_vals))
 
   (def function flatten (seq)
        (var x (list))
-       (last ;; I haven't written for-each yet, and map is lazy, so
-	     ;; I'm using last to just get it to run.
-	(map (lambda (v)
-	       (cond
-		((pair? v) (x.extend (flatten (unpack v))))
-		((symbol? v) (x.append `(,v)))))
-	     seq))
+       (for-each (v seq)
+		 (cond
+		  ((pair? v) (x.extend (flatten (unpack v))))
+		  ((symbol? v) (x.append `(,v)))))
        x)
 
   `(let ()
