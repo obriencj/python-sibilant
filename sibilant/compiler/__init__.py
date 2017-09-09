@@ -895,6 +895,7 @@ class CodeSpace(metaclass=ABCMeta):
 
         addtl["name"] = name
         addtl["declared_at"] = declared_at
+        addtl.setdefault("filename", self.filename)
 
         return type(self)(parent=self, **addtl)
 
@@ -1708,16 +1709,14 @@ class ExpressionCodeSpace(CodeSpace):
             elif is_pair(expr):
                 try:
                     expr = self.compile_pair(expr, tc)
-                except TypeError:
-                    print(expr)
-                    raise
+                except TypeError as te:
+                    raise self.error("while compiling pair", expr) from te
 
             elif is_symbol(expr):
                 try:
                     expr = self.compile_symbol(expr, tc)
-                except TypeError:
-                    print(expr)
-                    raise
+                except TypeError as te:
+                    raise self.error("while compiling symbol", expr) from te
 
             elif is_keyword(expr):
                 expr = self.compile_keyword(expr)
