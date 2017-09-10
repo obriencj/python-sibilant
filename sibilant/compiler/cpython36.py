@@ -238,6 +238,9 @@ class CPython36(ExpressionCodeSpace):
             elif op is _Pseudop.RET_VAL:
                 yield _Opcode.RETURN_VALUE, 0
 
+            elif op is _Pseudop.YIELD_VAL:
+                yield _Opcode.YIELD_VALUE, 0
+
             elif op is _Pseudop.DUP:
                 yield _Opcode.DUP_TOP, 0
 

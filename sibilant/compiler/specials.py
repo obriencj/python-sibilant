@@ -57,6 +57,8 @@ _symbol_while = symbol("while")
 _symbol_continue = symbol("continue")
 _symbol_break = symbol("break")
 _symbol_try = symbol("try")
+_symbol_return = symbol("return")
+_symbol_yield = symbol("yield")
 
 _keyword_else = keyword("else")
 _keyword_as = keyword("as")
@@ -742,7 +744,8 @@ def _helper_function(code, name, args, body, declared_at=None):
         subc.pseudop_return()
         code.pseudop_lambda(subc.complete(), defaults, kwonly)
 
-        if tco and subc.tailcalls > 0:
+        tco = subc.tco_enabled and not subc.generator and subc.tailcalls
+        if tco:
             code.pseudop_get_var("trampoline")
             code.pseudop_rot_two()
             code.pseudop_call(1)
@@ -1050,13 +1053,63 @@ def _special_break(code, source, tc=False):
             raise code.error(msg, source)
         rest = _rest
 
-    # this magic causes a number of pops to be inserted equal to the
-    # current stack counter. It's calculated when max_stack is run.
-    # code.pseudop_magic_pop_all()
-
     code.add_expression(value, False)
     code.pseudop_set_var(block.storage)
     code.pseudop_break_loop()
+
+    return None
+
+
+@special(_symbol_return)
+def _special_return(code, source, tc=False):
+
+    called_by, rest = source
+
+    if is_nil(rest):
+        value = None
+        code.pseudop_return_none()
+
+    else:
+        value, _rest = rest
+        if not is_nil(_rest):
+            msg = "Too many arguments to %s, %r" % (called_by, rest)
+            raise code.error(msg, source)
+        rest = _rest
+
+        # the expression being returned is always valid tco if the
+        # code is thusly enabled
+        code.add_expression(value, True)
+        code.pseudop_return()
+
+    # just to calm max-stack down, we'll pretend return is a perfectly
+    # valid expression which evaluates to a result.
+    code.pseudop_faux_push()
+
+    return None
+
+
+@special(_symbol_yield)
+def _special_yield(code, source, tc=False):
+
+    called_by, rest = source
+
+    if is_nil(rest):
+        value = None
+        code.pseudop_yield_none()
+
+    else:
+        value, _rest = rest
+        if not is_nil(_rest):
+            msg = "Too many arguments to %s, %r" % (called_by, rest)
+            raise code.error(msg, source)
+        rest = _rest
+
+        # the expression being yielded is always NOT tco valid
+        code.add_expression(value, False)
+        code.pseudop_yield()
+
+    # yield op does indeed push a value back onto the stack, and
+    # max-stack knows this. No need to try and fake a result.
 
     return None
 
