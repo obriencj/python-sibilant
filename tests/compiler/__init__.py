@@ -83,14 +83,15 @@ def compile_dis_expr(src_str, **base):
 
     code_objs = []
     def partial_run_time(module, code_obj):
+
+        dis.show_code(code_obj)
+        print("Disassembly:")
+        dis.dis(code_obj)
+
         code_objs.append(code_obj)
         return partial(run_time, module, code_obj)
 
     result = load_module_1(mod, run_time=partial_run_time)
-
-    dis.show_code(code)
-    print("Disassembly:")
-    dis.dis(code)
 
     return result, mod.__dict__
 
