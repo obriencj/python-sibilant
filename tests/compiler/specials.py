@@ -24,6 +24,7 @@ license: LGPL v.3
 import dis
 
 from functools import partial
+from types import GeneratorType as generator
 from unittest import TestCase
 
 from . import (
@@ -1284,6 +1285,25 @@ class SpecialForEach(TestCase):
                                  (2, 2, 2),
                                  (3, 3, 6),
                                  (4, 4, 12)])
+
+
+class SpecialYield(TestCase):
+
+    def test_yield(self):
+        src = """
+        (let ((x 5) (y 0))
+          (while x
+            (yield (values x y))
+            (incr y)
+            (decr x)))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertEqual(type(res), generator)
+        self.assertEqual(next(res), (5, 0))
+        self.assertEqual(list(res), [(4, 1), (3, 2),
+                                     (2, 3), (1, 4)])
 
 
 #
