@@ -59,6 +59,7 @@ _symbol_break = symbol("break")
 _symbol_try = symbol("try")
 _symbol_return = symbol("return")
 _symbol_yield = symbol("yield")
+_symbol_yield_from = symbol("yield-from")
 
 _keyword_else = keyword("else")
 _keyword_as = keyword("as")
@@ -1110,6 +1111,42 @@ def _special_yield(code, source, tc=False):
 
     # yield op does indeed push a value back onto the stack, and
     # max-stack knows this. No need to try and fake a result.
+
+    return None
+
+
+@special(_symbol_yield_from)
+def _special_yield_from(code, source, tc=False):
+
+    try:
+        called_by, (value, rest) = source
+
+    except ValueError:
+        msg = "Too few arguments to %s, %r" % (called_by, source)
+        raise code.error(msg, source)
+
+    if not is_nil(rest):
+        msg = "Too many arguments to %s, %r" % (called_by, source)
+        raise code.error(msg, source)
+
+    # the expression being yielded from is always NOT tco valid
+    code.add_expression(value, False)
+
+    # according to the dis page, I should only need to call
+    # YIELD_FROM, but that always fails. If I look at a disassembly of
+    # a simple yield from call in Python, I see that there's a const
+    # None at TOS, with the generator below it whenever YIELD_FROM
+    # happens. I'm emulating that here.
+
+    # it looks like the None is being sent to the iter!
+    code.pseudop_get_yield_from_iter()
+    code.pseudop_const(None)
+    code.pseudop_yield_from()
+    code.pseudop_pop()
+
+    # unlike yield, yield-from doesn't have a real result value, so
+    # we'll give it one.
+    code.pseudop_const(None)
 
     return None
 

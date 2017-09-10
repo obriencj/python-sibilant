@@ -1306,5 +1306,29 @@ class SpecialYield(TestCase):
                                      (2, 3), (1, 4)])
 
 
+class SpecielYieldFrom(TestCase):
+
+    def test_yield_from(self):
+        src = """
+        (let ((x 5) (y 0))
+          (yield (values None None))
+          (yield-from
+            (let ()
+              (while x
+                (yield (values x y))
+                (incr y)
+                (decr x))))
+          (yield (values x y)))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertEqual(type(res), generator)
+        self.assertEqual(next(res), (None, None))
+
+        self.assertEqual(list(res), [(5, 0), (4, 1), (3, 2),
+                                     (2, 3), (1, 4), (0, 5)])
+
+
 #
 # The end.
