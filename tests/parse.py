@@ -30,7 +30,7 @@ from sibilant.parse import default_reader, source_str
 
 def parse_source(src_str):
     reader = default_reader
-    stream = source_str(src_str)
+    stream = source_str(src_str, "<unittest>")
     return reader.read(stream)
 
 
@@ -324,7 +324,7 @@ class TestParse(TestCase):
         src = """
         1.0 "2" (3)
         """
-        strm = source_str(src)
+        strm = source_str(src, "<unittest>")
         read = default_reader.read
 
         a = read(strm)
@@ -343,7 +343,7 @@ class PositionsTest(TestCase):
         src = """
         (hello world)
         """
-        strm = source_str(src)
+        strm = source_str(src, "<unittest>")
         expr = default_reader.read(strm)
 
         self.assertEqual(expr.get_position(), (2, 8))
@@ -356,7 +356,7 @@ class PositionsTest(TestCase):
         (hello (world)
          how are you)
         """
-        strm = source_str(src)
+        strm = source_str(src, "<unittest>")
         expr = default_reader.read(strm)
 
         self.assertEqual(expr.get_position(), (2, 8))
