@@ -241,6 +241,9 @@ class CPython36(ExpressionCodeSpace):
             elif op is _Pseudop.YIELD_VAL:
                 yield _Opcode.YIELD_VALUE, 0
 
+            elif op is _Pseudop.YIELD_FROM:
+                yield _Opcode.YIELD_FROM, 0
+
             elif op is _Pseudop.DUP:
                 yield _Opcode.DUP_TOP, 0
 
@@ -319,6 +322,9 @@ class CPython36(ExpressionCodeSpace):
 
             elif op is _Pseudop.FOR_ITER:
                 yield _Opcode.FOR_ITER, args[0]
+
+            elif op is _Pseudop.GET_YIELD_FROM_ITER:
+                yield _Opcode.GET_YIELD_FROM_ITER, 0
 
             elif op is _Pseudop.COMPARE_OP:
                 yield _Opcode.COMPARE_OP, args[0]

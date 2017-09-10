@@ -296,6 +296,7 @@ class Pseudop(Enum):
     LAMBDA = _auto()
     RET_VAL = _auto()
     YIELD_VAL = _auto()
+    YIELD_FROM = _auto()
     GET_GLOBAL = _auto()
     SET_GLOBAL = _auto()
     DEL_GLOBAL = _auto()
@@ -310,6 +311,7 @@ class Pseudop(Enum):
     UNARY_INVERT = _auto()
     ITER = _auto()
     FOR_ITER = _auto()
+    GET_YIELD_FROM_ITER = _auto()
     GET_ITEM = _auto()
     SET_ITEM = _auto()
     DEL_ITEM = _auto()
@@ -1224,6 +1226,11 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop(Pseudop.YIELD_VAL)
 
 
+    def pseudop_yield_from(self):
+        self.declare_generator()
+        self.pseudop(Pseudop.YIELD_FROM)
+
+
     def pseudop_get_global(self, name):
         self.request_global(name)
         self.pseudop(Pseudop.GET_GLOBAL, name)
@@ -1390,6 +1397,10 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop(Pseudop.FOR_ITER, label)
 
 
+    def pseudop_get_yield_from_iter(self):
+        self.pseudop(Pseudop.GET_YIELD_FROM_ITER)
+
+
     def pseudop_item(self):
         self.pseudop(Pseudop.GET_ITEM)
 
@@ -1482,6 +1493,7 @@ class CodeSpace(metaclass=ABCMeta):
                     _Pseudop.UNARY_NOT,
                     _Pseudop.UNARY_INVERT,
                     _Pseudop.ITER,
+                    _Pseudop.GET_YIELD_FROM_ITER,
                     _Pseudop.YIELD_VAL):
             pop()
             push()
@@ -1497,7 +1509,7 @@ class CodeSpace(metaclass=ABCMeta):
                     _Pseudop.SET_LOCAL,
                     _Pseudop.SET_VAR,
                     _Pseudop.RET_VAL,
-                    _Pseudop.YIELD_VAL,
+                    _Pseudop.YIELD_FROM,
                     _Pseudop.DEL_ATTR,
                     _Pseudop.POP):
             pop()
