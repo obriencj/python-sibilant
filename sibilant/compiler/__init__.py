@@ -295,6 +295,8 @@ class Pseudop(Enum):
     DEL_ATTR = _auto()
     LAMBDA = _auto()
     RET_VAL = _auto()
+    YIELD_VAL = _auto()
+    YIELD_FROM = _auto()
     GET_GLOBAL = _auto()
     SET_GLOBAL = _auto()
     DEL_GLOBAL = _auto()
@@ -309,6 +311,7 @@ class Pseudop(Enum):
     UNARY_INVERT = _auto()
     ITER = _auto()
     FOR_ITER = _auto()
+    GET_YIELD_FROM_ITER = _auto()
     GET_ITEM = _auto()
     SET_ITEM = _auto()
     DEL_ITEM = _auto()
@@ -576,6 +579,8 @@ class CodeSpace(metaclass=ABCMeta):
         self.tco_enabled = tco_enabled
         self.tailcalls = 0
 
+        self.generator = False
+
         self.filename = filename
         self.declared_at = declared_at
 
@@ -642,6 +647,7 @@ class CodeSpace(metaclass=ABCMeta):
         self.consts = [None]
 
         self.tailcalls = 0
+        self.generator = False
 
         self.fast_vars.clear()
         self.free_vars.clear()
@@ -824,8 +830,17 @@ class CodeSpace(metaclass=ABCMeta):
         self.get_block().storage = value
 
 
+    def declare_generator(self):
+        self.generator = True
+
+        if self.tailcalls:
+            msg = "generator mode set after a tailcall was declared"
+            raise self.error(msg)
+
+
     def declare_tailcall(self):
         assert self.tco_enabled, "declare_tailcall without tco_enabled"
+        assert not self.generator, "declare_tailcall with a generator"
         self.tailcalls += 1
 
 
@@ -1200,6 +1215,22 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop(Pseudop.RET_VAL)
 
 
+    def pseudop_yield(self):
+        self.declare_generator()
+        self.pseudop(Pseudop.YIELD_VAL)
+
+
+    def pseudop_yield_none(self):
+        self.declare_generator()
+        self.pseudop_const(None)
+        self.pseudop(Pseudop.YIELD_VAL)
+
+
+    def pseudop_yield_from(self):
+        self.declare_generator()
+        self.pseudop(Pseudop.YIELD_FROM)
+
+
     def pseudop_get_global(self, name):
         self.request_global(name)
         self.pseudop(Pseudop.GET_GLOBAL, name)
@@ -1366,6 +1397,10 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop(Pseudop.FOR_ITER, label)
 
 
+    def pseudop_get_yield_from_iter(self):
+        self.pseudop(Pseudop.GET_YIELD_FROM_ITER)
+
+
     def pseudop_item(self):
         self.pseudop(Pseudop.GET_ITEM)
 
@@ -1457,7 +1492,9 @@ class CodeSpace(metaclass=ABCMeta):
                     _Pseudop.UNARY_NEGATIVE,
                     _Pseudop.UNARY_NOT,
                     _Pseudop.UNARY_INVERT,
-                    _Pseudop.ITER):
+                    _Pseudop.ITER,
+                    _Pseudop.GET_YIELD_FROM_ITER,
+                    _Pseudop.YIELD_VAL):
             pop()
             push()
 
@@ -1472,6 +1509,7 @@ class CodeSpace(metaclass=ABCMeta):
                     _Pseudop.SET_LOCAL,
                     _Pseudop.SET_VAR,
                     _Pseudop.RET_VAL,
+                    _Pseudop.YIELD_FROM,
                     _Pseudop.DEL_ATTR,
                     _Pseudop.POP):
             pop()
@@ -1606,6 +1644,9 @@ class CodeSpace(metaclass=ABCMeta):
 
         if self.parent:
             flags |= CodeFlag.NESTED.value
+
+        if self.generator:
+            flags |= CodeFlag.GENERATOR.value
 
         lnt = []
         code = self.code_bytes(lnt)
@@ -1817,7 +1858,10 @@ class ExpressionCodeSpace(CodeSpace):
         tailcall position.
         """
 
-        if tc and self.tco_enabled and self.mode is not Mode.MODULE:
+        if tc and self.tco_enabled and \
+           not self.generator and \
+           self.mode is not Mode.MODULE:
+
             self.pseudop_get_var("tailcall")
             self.pseudop_rot_two()
             self.pseudop_call(1)

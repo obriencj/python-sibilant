@@ -210,7 +210,6 @@
 
 ;; === def general targets ===
 
-
 (let ((*gd-targets* (dict))
       (*gd-scopes* (dict)))
 
@@ -377,7 +376,6 @@
 
 ;; === python object system classes ==
 
-
 (defmacro class (name bases . body)
   `(flet ((create-class (name fields *: bases metaclass: type)
 			(metaclass name bases fields))
@@ -400,6 +398,12 @@
      (if (isinstance src types.CodeType)
 	 then: (py-eval src ,env)
 	 else: (py-eval (compile src ,env) ,env))))
+
+
+;; === generator stuff ===
+
+(defmacro send (iterator value)
+  `((attr ,iterator send) ,value))
 
 
 ;;
