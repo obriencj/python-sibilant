@@ -487,8 +487,7 @@ class Reader(object):
         The character macro handler for comments
         """
 
-        comment = stream.read_until("\n\r".__contains__)
-        return SKIP, comment
+        return SKIP, stream.readline()
 
 
 @contextmanager
@@ -499,21 +498,23 @@ def source_open(filename):
         yield reader
 
 
-def source_str(source_str, filename=None):
+def source_str(source_str, filename):
     return SourceStream(StringIO(source_str), filename)
 
 
-def source_stream(source_stream, filename=None):
+def source_stream(source_stream, filename):
     return SourceStream(source_stream, filename)
 
 
 class SourceStream(object):
 
-    def __init__(self, stream, filename=None):
+    def __init__(self, stream, filename):
+
+        if not stream.seekable():
+            raise TypeError("SourceStream's stream argument must be seekable")
+
         self.filename = filename
         self.stream = stream
-
-        self.ahead = StringIO()
 
         self.lin = 1
         self.col = 0
@@ -542,18 +543,10 @@ class SourceStream(object):
         position counting.
         """
 
+        assert count >= 1, "nonsense read value"
+
         # see if we can fulfill the count from the read-ahead
-        data = self.ahead.read(count)
-        if data:
-            need = count - len(data)
-            if need:
-                # didn't have enough, so get the rest of the data from
-                # the actual stream
-                self.ahead.seek(0)
-                self.ahead.truncate()
-                data = data + self.stream.read(need)
-        else:
-            data = self.stream.read(count)
+        data = self.stream.read(count)
 
         lin = self.lin
         col = self.col
@@ -576,39 +569,18 @@ class SourceStream(object):
         return data
 
 
-    def peek(self, count=1):
-        # see if we can fulfill the count from the read-ahead
-
-        pos = self.ahead.tell()
-        data = self.ahead.read(count)
-        if data:
-            need = count - len(data)
-            if need:
-                # didn't have enough, so get the rest of the data from
-                # the actual stream
-                data = data + self.read_ahead(need)
-
-            # this is just a peek, so don't actually consume
-            # read-ahead
-            self.ahead.seek(pos, 0)
-
-        else:
-            # there wasn't anything in the read-ahead, so this is
-            # equivalent
-            data = self.read_ahead(count)
-
+    def readline(self):
+        data = self.stream.readline()
+        self.lin += 1
+        self.col = 0
         return data
 
 
-    def read_ahead(self, count=1):
-        data = self.stream.read(count)
-
-        # append whatever we've read to the ahead buffer
-        pos = self.ahead.tell()
-        self.ahead.seek(0, 2)
-        self.ahead.write(data)
-        self.ahead.seek(pos, 0)
-
+    def peek(self, count=1):
+        s = self.stream
+        pos = s.tell()
+        data = s.read(count)
+        s.seek(pos, 0)
         return data
 
 
@@ -618,10 +590,7 @@ class SourceStream(object):
 
     def skip_exec(self):
         if self.peek(2) == "#!":
-            self.read(2)
-            self.stream.readline()
-            self.lin += 1
-            self.col = 0
+            self.readline()
 
 
     def skip_whitespace(self):
@@ -629,16 +598,17 @@ class SourceStream(object):
 
 
     def read_until(self, testf):
-        accumulate = []
+        s = self.stream
+        pos = s.tell()
 
-        for char in iter(self.peek, ''):
+        i = 0
+        for i, char in enumerate(iter(partial(s.read, 1), ''), 1):
             if testf(char):
+                i -= 1
                 break
-            else:
-                accumulate.append(char)
-                self.read(1)
 
-        return "".join(accumulate)
+        s.seek(pos, 0)
+        return self.read(i) if i else ""
 
 
 default_reader = Reader()

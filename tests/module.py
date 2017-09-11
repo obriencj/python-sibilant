@@ -69,9 +69,10 @@ class ModuleTest(TestCase):
 
         defaults = {"set_result": setter}
 
+        source = source_str(mod_source_1, "<unittest>")
         test_module = new_module("test_module")
-        init_module(test_module, source_str(mod_source_1), None,
-                    defaults=defaults)
+
+        init_module(test_module, source, None, defaults=defaults)
         load_module(test_module)
 
         # the last action of the module is to call set_result, and
