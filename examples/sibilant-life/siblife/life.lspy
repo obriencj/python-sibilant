@@ -1,0 +1,139 @@
+;; This library is free software; you can redistribute it and/or modify
+;; it under the terms of the GNU Lesser General Public License as
+;; published by the Free Software Foundation; either version 3 of the
+;; License, or (at your option) any later version.
+;;
+;; This library is distributed in the hope that it will be useful, but
+;; WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;; Lesser General Public License for more details.
+;;
+;; You should have received a copy of the GNU Lesser General Public
+;; License along with this library; if not, see
+;; <http://www.gnu.org/licenses/>.
+
+
+(defimportfrom array array)
+(defimportfrom copy copy)
+(defimportfrom itertools product repeat)
+(defimportfrom random random)
+
+
+(def class LifeBoard (object)
+
+     (def function __init__ (self width height wrap: False)
+
+	  (setf self.width width)
+	  (setf self.height height)
+	  (setf self.wrap wrap)
+
+	  (setf self.data (array "B" (repeat 0 (* height width))))
+
+	  None)
+
+
+     (def function clear (self)
+	  (var size  (* self.height self.width))
+	  (setf self.data (array "B" (repeat 0 size)))
+	  None)
+
+
+     (def function randomize (self threshold: 0.5)
+	  (def function rnd (dead)
+	       (if (< threshold (random)) 1 dead))
+
+	  (var size  (* self.height self.width))
+	  (setf self.data (array "B" (map rnd (repeat 0 size))))
+	  None)
+
+
+     (def function toggle (self x y)
+	  (vars (w self.width) (h self.height))
+
+	  (unless self.wrap
+	    (unless (and (within? x 0 w) (within? y 0 h))
+	      (return 0)))
+
+	  (var index (+ (* w (% y h)) (% x w)))
+	  (setf (item self.data index) (not (item self.data index)))
+	  None)
+
+
+     (def function get (self x y)
+	  (vars (w self.width) (h self.height))
+
+	  (unless self.wrap
+	    (unless (and (within? x 0 w) (within? y 0 h))
+	      (return 0)))
+
+	  (var index (+ (* w (% y h)) (% x w)))
+	  (item self.data index))
+
+
+     (def function set (self x y value)
+	  (vars (w self.width) (h self.height))
+
+	  (unless self.wrap
+	    (unless (and (within? x 0 w) (within? y 0 h))
+	      (return 0)))
+
+	  (var index (+ (* w (% y h)) (% x w)))
+	  (setf (item self.data index) value))
+
+
+     (def function get-group (self x y)
+	  (starmap self.get (product (values (- x 1) x (+ x 1))
+				     (values (- y 1) y (+ y 1)))))
+
+
+     (def function get-all-groups (self)
+	  (starmap self.get-group (product (range 0 self.width)
+					   (range 0 self.height))))
+
+
+     (def function age (self)
+	  (doc "update the state of this board to represent the next"
+	       "generation")
+
+	  (setf self.data
+		(array "B" (map life-rule (self.get-all-groups))))
+	  self)
+
+
+     (def function child (self)
+	  (doc "create a copy of this board and age it to the next"
+	       "generation")
+
+	  (var kid (copy self))
+	  (kid.age))
+
+
+     None)
+
+
+(def function life-rule (group)
+
+     ;; group starts as a generator, need to actualize it
+     (setq group (tuple group))
+
+     ;; state of the center of the group
+     (var center (item group 4))
+
+     ;; count of living members of the group
+     (var living (reduce (lambda (accu val)
+			   (if val then: (+ 1 accu) else: accu))
+			 group))
+
+     (if center
+	 then: (if (or (< living 3) (> living 4))
+		   then: 0
+		   else: (+ center 1))
+	 else: (if (== living 3) 1 0)))
+
+
+(def function within? (value min_i max)
+     (and (<= min_i value) (< value max)))
+
+
+;;
+;; The end.

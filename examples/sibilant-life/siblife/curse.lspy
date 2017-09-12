@@ -1,0 +1,218 @@
+;; This library is free software; you can redistribute it and/or modify
+;; it under the terms of the GNU Lesser General Public License as
+;; published by the Free Software Foundation; either version 3 of the
+;; License, or (at your option) any later version.
+;;
+;; This library is distributed in the hope that it will be useful, but
+;; WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;; Lesser General Public License for more details.
+;;
+;; You should have received a copy of the GNU Lesser General Public
+;; License along with this library; if not, see
+;; <http://www.gnu.org/licenses/>.
+
+
+(defimportfrom curses
+  wrapper
+  mousemask BUTTON1_CLICKED
+  KEY_UP KEY_DOWN KEY_LEFT KEY_RIGHT)
+
+(defimportfrom time sleep)
+
+(defimportfrom siblife.life LifeBoard)
+
+
+(define smilies
+  (values "\U0001f615"
+	  "\U0001f610"
+	  "\U0001f642"
+	  "\U0001f600"
+	  "\U0001f60e"))
+
+
+(def function smilie-render (cell)
+     (if cell
+	 then: (values (item smilies (% cell (len smilies))) 0)
+	 else: (values " " 0)))
+
+
+(def function make-char-renderer (alive: "O" dead: " ")
+     (setf alive (item alive 0))
+     (setf dead (item dead 0))
+     (lambda (cell)
+       (if cell
+	   then: (values alive 0)
+	   else: (values dead 0))))
+
+
+(def class LifeScreen (object)
+
+     (def function __init__ (self screen renderer: None)
+
+	  (when (none? renderer)
+	    (setf renderer (make-char-renderer)))
+	  (setf self.renderer renderer)
+
+	  (vars width height)
+	  (setq-values (width height) (screen.getmaxyx))
+
+	  (setf self.width width)
+	  (setf self.height height)
+
+	  (setf self.screen screen)
+
+	  (setf self.board (LifeBoard width height))
+	  (setf self.clear self.board.clear)
+	  (setf self.randomize self.board.randomize)
+	  (setf self.toggle self.board.toggle)
+
+	  None)
+
+
+     (def function display (self)
+	  (var all-coords (product (range 0 self.width)
+				   (range 0 self.height)))
+
+	  (var board self.board)
+	  (var render self.renderer)
+	  (var screen self.screen)
+
+	  (vars cell style)
+
+	  (for-each ((x y) all-coords)
+		    (setq-values (cell style) (render (board.get x y)))
+		    (screen.attrset style)
+		    (screen.addch (+ 1 x) (+ 1 y) cell))
+
+	  (screen.refresh))
+
+     None)
+
+
+(def function erase-menu (stdscr menu-y)
+     (stdscr.move menu-y 0)
+     (stdscr.clrtoeol)
+
+     (stdscr.move (+ menu-y 1) 0)
+     (stdscr.clrtoeol)
+
+     None)
+
+
+(def function display-menu (stdscr menu-y)
+     (erase-menu stdscr menu-y)
+
+     (stdscr.addstr
+      menu-y 4
+      "Use the cursor keys to move, space or Enter to toggle cells")
+
+     (stdscr.addstr
+      (+ menu-y 1) 4
+      "E)rase the board, R)andom fill, S)tep, C)ontinuous, Q)uit")
+
+     (stdscr.attrset 0)
+
+     None)
+
+
+(def function continuous-mode (stdscr board menu-y)
+
+     (erase-menu stdscr menu-y)
+     (stdscr.addstr menu-y 6 " Hit any key to stop ")
+
+     (stdscr.refresh)
+     (stdscr.nodelay 1)
+
+     (while (== -1 (stdscr.getch))
+       (stdscr.addstr 0 0 "/")
+       (stdscr.refresh)
+       (board.display)
+       (stdscr.addstr 0 0 "+")
+       (stdscr.refresh)
+
+       (sleep 0.2))
+
+     (stdscr.nodelay 0)
+     (display-menu stdscr menu-y)
+
+     None)
+
+
+(def function curses-main (stdscr wrap: False)
+
+     (stdscr.clear)
+
+     (vars y x)
+     (setq-values (y x) (stdscr.getmaxyx))
+
+     (var menu-y (- y 4))
+     (display-menu stdscr menu-y)
+
+     (mousemask BUTTON1_CLICKED)
+
+     (var board-window (stdscr.subwin (- y 3) x 0 0))
+     (var board (LifeScreen board-window wrap))
+     (board.display)
+
+     (vars (y-pos (// y 2)) (x-pos (// x 2)))
+
+     (while True
+       (stdscr.move (+ 1 y-pos) (+ 1 x-pos))
+
+       (var event (stdscr.getch))
+
+       (cond
+	((and (< 0 keystroke) (< keystroke 256))
+	 (setq event (chr event))
+
+	 (cond
+	  ((in " \n" c)
+	   (board.toggle y-pos x-pos))
+
+	  ((in "Cc" c)
+	   (continuous-mode))
+
+	  ((in "Ee" c)
+	   (board.clear))
+
+	  ((in "Qq" c)
+	   (break))
+
+	  ((in "Rr" c)
+	   (board.randomize)
+	   (board.display))
+
+	  ((in "Ss" c)
+	   (board.display))
+
+	  (else: None)))
+
+	((== keystroke KEY_UP)
+	 (decr y-pos))
+
+	((== keystroke KEY_DOWN)
+	 (incr y-pos))
+
+	((== keystroke KEY_LEFT)
+	 (decr x-pos))
+
+	((== keystroke KEY_RIGHT)
+	 (incr x-pos))
+
+	(else: None))
+
+       (setq y-pos (% y-pos board.height))
+       (setq x-pos (% y-pos board.width))
+
+       (sleep 0.2))
+
+     None)
+
+
+(def function main (wrap: False)
+     (wrapper curses-main wrap))
+
+
+;;
+;; The end.

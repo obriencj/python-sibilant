@@ -1,0 +1,68 @@
+;; This library is free software; you can redistribute it and/or modify
+;; it under the terms of the GNU Lesser General Public License as
+;; published by the Free Software Foundation; either version 3 of the
+;; License, or (at your option) any later version.
+;;
+;; This library is distributed in the hope that it will be useful, but
+;; WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;; Lesser General Public License for more details.
+;;
+;; You should have received a copy of the GNU Lesser General Public
+;; License along with this library; if not, see
+;; <http://www.gnu.org/licenses/>.
+
+
+(defimport sys)
+(defimportfrom argparse ArgumentParser)
+(defimportfrom os.path basename)
+
+(defimport siblife.curse)
+
+
+(defmacro item-slice (value start: 'None stop: 'None step: 1)
+  `(item ,value (slice ,start ,stop ,step)))
+
+
+(defun cli (options)
+  (siblife.curse.main options.wrap))
+
+
+(defun create-option-parser (argv)
+  (doc "the siblife CLI argument parser")
+
+  (var parser (ArgumentParser
+	       prog: (basename (item argv 0))
+	       description: "This is siblife"))
+
+  (parser.add_argument "--wrap" action: "store_true" default: False
+		       help: "Game board wraps at edges")
+
+  parser)
+
+
+(defun main (argv: None)
+  (doc "entry point for the siblife CLI")
+
+  ;; grab sys.argv if we aren't given something else
+  (when (none? argv) (setq argv sys.argv))
+
+  (var parser (create-option-parser argv))
+  (var options (parser.parse_args
+		(item-slice argv 1)))
+
+  (try
+   (cli options)
+
+   ((KeyboardInterrupt as: ki)
+    (print file: sys.stderr)
+    130)
+
+   (else: 0)))
+
+
+(when (eq __name__ "__main__")
+  (sys.exit (main)))
+
+
+;; The end.
