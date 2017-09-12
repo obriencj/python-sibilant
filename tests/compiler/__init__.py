@@ -563,6 +563,29 @@ class KeywordArgs(TestCase):
         self.assertRaises(TypeError, res, 1, 2, 3)
 
 
+    def test_kwonly_formals(self):
+        src = """
+        (lambda (a b *: c foo: True)
+          (values a b c foo))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertTrue(callable(res))
+        self.assertEqual(res(1, 2, 3, 4, 5), (1, 2, (3, 4, 5), True))
+        self.assertEqual(res(1, 2, foo=False), (1, 2, (), False))
+
+        src = """
+        (lambda (a b *: () foo: True)
+          (values a b foo))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertTrue(callable(res))
+        self.assertEqual(res(1, 2), (1, 2, True))
+        self.assertEqual(res(1, 2, foo=False), (1, 2, False))
+        self.assertRaises(TypeError, res, 1, 2, 3)
+
+
     def test_parameters(self):
         def tst(a, b, c):
             return (a, b, c)
