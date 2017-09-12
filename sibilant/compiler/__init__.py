@@ -2055,6 +2055,9 @@ def gather_formals(args, declared_at=None):
         star = next(iargs, undefined)
         if star is undefined:
             raise err("* keyword requires symbol binding")
+        elif star is nil:
+            # nil means an ignored star arg, this is allowed.
+            pass
         elif not is_symbol(star):
             raise err("* keyword requires symbol binding, not %r" % star)
         arg = next(iargs, undefined)
@@ -2062,7 +2065,14 @@ def gather_formals(args, declared_at=None):
     if arg is undefined:
         return (positional, defaults, kwonly, star, starstar)
 
-    elif not is_keyword(arg):
+    # while is_symbol(arg):
+    #     kwonly.append(arg)
+    #     arg = next(iargs, undefined)
+    #
+    # if arg is undefined:
+    #     return (positional, defaults, kwonly, star, starstar)
+
+    if not is_keyword(arg):
         raise err("expected keyword in formals, got %r" % arg)
 
     # keyword formals after *: are considered keyword-only
