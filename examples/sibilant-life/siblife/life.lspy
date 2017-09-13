@@ -15,7 +15,7 @@
 
 (defimportfrom array array)
 (defimportfrom copy copy)
-(defimportfrom itertools product repeat)
+(defimportfrom itertools product repeat starmap)
 (defimportfrom random random)
 
 
@@ -27,13 +27,11 @@
 	  (setf self.height height)
 	  (setf self.wrap wrap)
 
-	  (setf self.data (array "B" (repeat 0 (* height width))))
-
-	  None)
+	  (self.clear))
 
 
      (def function clear (self)
-	  (var size  (* self.height self.width))
+	  (var size (* self.width self.height))
 	  (setf self.data (array "B" (repeat 0 size)))
 	  None)
 
@@ -42,46 +40,55 @@
 	  (def function rnd (dead)
 	       (if (< threshold (random)) 1 dead))
 
-	  (var size  (* self.height self.width))
+	  (var size (* self.width self.height))
 	  (setf self.data (array "B" (map rnd (repeat 0 size))))
 	  None)
 
 
-     (def function toggle (self x y)
+     (def function coord (self x y)
 	  (vars (w self.width) (h self.height))
 
 	  (unless self.wrap
 	    (unless (and (within? x 0 w) (within? y 0 h))
-	      (return 0)))
+	      (return None)))
 
-	  (var index (+ (* w (% y h)) (% x w)))
-	  (setf (item self.data index) (not (item self.data index)))
-	  None)
+	  (var index (+ (* h (% x w)) (% y h)))
+	  ;; (print "  coord:" x y ", index:" index)
+	  index)
+
+
+     (def function toggle (self x y)
+	  (var index (self.coord x y))
+
+	  (when (none? index)
+	    (return 0))
+
+	  (var cell (not (item self.data index)))
+	  (setf (item self.data index) cell)
+
+	  cell)
 
 
      (def function get (self x y)
-	  (vars (w self.width) (h self.height))
+	  (var index (self.coord x y))
 
-	  (unless self.wrap
-	    (unless (and (within? x 0 w) (within? y 0 h))
-	      (return 0)))
+	  (when (none? index)
+	    (return 0))
 
-	  (var index (+ (* w (% y h)) (% x w)))
 	  (item self.data index))
 
 
      (def function set (self x y value)
-	  (vars (w self.width) (h self.height))
+	  (var index (self.coord x y))
 
-	  (unless self.wrap
-	    (unless (and (within? x 0 w) (within? y 0 h))
-	      (return 0)))
+	  (when (none? index)
+	    (return None))
 
-	  (var index (+ (* w (% y h)) (% x w)))
 	  (setf (item self.data index) value))
 
 
      (def function get-group (self x y)
+	  ;; (print "get-group" x y)
 	  (starmap self.get (product (values (- x 1) x (+ x 1))
 				     (values (- y 1) y (+ y 1)))))
 
@@ -107,7 +114,6 @@
 	  (var kid (copy self))
 	  (kid.age))
 
-
      None)
 
 
@@ -122,13 +128,19 @@
      ;; count of living members of the group
      (var living (reduce (lambda (accu val)
 			   (if val then: (+ 1 accu) else: accu))
-			 group))
+			 group 0))
+
+     ;; (print "  group:" group)
+     ;; (print "  cell:" center)
+     ;; (print "  living members:" living)
 
      (if center
 	 then: (if (or (< living 3) (> living 4))
 		   then: 0
-		   else: (+ center 1))
-	 else: (if (== living 3) 1 0)))
+		   else: (min (+ center 1) 9))
+	 else: (if (== living 3)
+		   then: 1
+		   else: 0)))
 
 
 (def function within? (value min_i max)
