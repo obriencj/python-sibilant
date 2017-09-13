@@ -393,8 +393,6 @@ def setup(glbls):
     _op(lambda value: hasattr(value, "__iter__"),
         "iterable?", rename=True)
 
-    _ty(slice, "slice")
-
 
     # === some python builtin functions ===
 
@@ -418,6 +416,11 @@ def setup(glbls):
     _ty(complex, "complex")
     _ty(fraction, "fraction")
     _ty(range, "range")
+    _ty(slice, "slice")
+    _op(chr, "chr")
+    _op(ord, "ord")
+    _op(min, "min")
+    _op(max, "max")
 
     _op(repr, "repr")
     _op(help, "help")
