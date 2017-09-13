@@ -77,6 +77,7 @@ _symbol_not = symbol("not")
 _symbol_invert = symbol("~")
 _symbol_iter = symbol("iter")
 
+_symbol_slice = symbol("slice")
 _symbol_raise = symbol("raise")
 
 
@@ -94,33 +95,27 @@ def setup(glbls):
     _all_ = []
 
 
-    def operator():
+    def operator(namesym, runtime, *aliases):
+        name = str(namesym)
 
-        def operator(namesym, runtime, *aliases):
-            name = str(namesym)
+        runtime = partial(runtime)
+        runtime.__name__ = name
 
-            runtime = partial(runtime)
-            runtime.__name__ = name
+        def deco(compilefn):
+            compilefn.__name__ = name
+            inst = Operator(name, compilefn, runtime)
 
-            def deco(compilefn):
-                compilefn.__name__ = name
-                inst = Operator(name, compilefn, runtime)
+            _all_.append(name)
+            glbls[name] = inst
 
-                _all_.append(name)
-                glbls[name] = inst
+            for alias in aliases:
+                alias = str(alias)
+                _all_.append(alias)
+                glbls[alias] = inst
 
-                for alias in aliases:
-                    alias = str(alias)
-                    _all_.append(alias)
-                    glbls[alias] = inst
+            return inst
 
-                return inst
-
-            return deco
-
-        return operator
-
-    operator = operator()
+        return deco
 
 
     # --- conditionally reducing operators ---
