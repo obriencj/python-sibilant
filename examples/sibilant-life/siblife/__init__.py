@@ -29,7 +29,8 @@ import sibilant.importer  # noqa
 
 
 if __name__ == "__main__":
-    import sys, siblife.cli
+    import sys
+    import siblife.cli
     sys.exit(siblife.cli.main())
 
 

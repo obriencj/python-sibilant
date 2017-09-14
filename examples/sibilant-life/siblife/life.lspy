@@ -60,15 +60,15 @@
 
 
      (def function tracked (self cleanup: True)
-	  (vars coord cell)
+	  (vars coord cell (data self.data))
 
 	  (if cleanup
-	      else: (yield-from (self.data.items))
-	      then: (for-each (item (list (self.data.items)))
+	      then: (for-each (item (list (data.items)))
 			      (yield item)
 			      (setq-values (coord cell) item)
 			      (unless cell
-				(self.data.pop coord)))))
+				(data.pop coord)))
+	      else: (yield-from (data.items))))
 
 
      (def function toggle (self x y)
@@ -79,7 +79,7 @@
 	  None)
 
 
-     (def function coord (self x y)
+     (def function coord-key (self x y)
 	  (vars (w self.width) (h self.height))
 
 	  (unless self.wrap
@@ -90,7 +90,7 @@
 
 
      (def function get-cell (self x y)
-	  (var key (self.coord x y))
+	  (var key (self.coord-key x y))
 
 	  (if (none? key)
 	      then: 0
@@ -98,7 +98,7 @@
 
 
      (def function set-cell (self x y value)
-	  (var key (self.coord x y))
+	  (var key (self.coord-key x y))
 
 	  (unless (none? key)
 	    (setf (item self.data key) value)))
@@ -140,7 +140,7 @@
 	  ;; for each of the followup coordinates, calculate if it's
 	  ;; alive or not.
 	  (for-each ((x y) followup)
-		    (setq key (self.coord x y))
+		    (setq key (self.coord-key x y))
 		    (unless (none? key)
 		      (setf (item dat key) (life-rule (self.get-group x y)))))
 

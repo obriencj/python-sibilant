@@ -56,7 +56,7 @@
 
 (def function get-renderer (by-name)
      (cond
-      ((== by-name "smilie")
+      ((== by-name "smilies")
        smilie-renderer)
 
       ((== by-name "digits")
