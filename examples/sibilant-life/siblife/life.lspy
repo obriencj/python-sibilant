@@ -1,0 +1,194 @@
+;; This library is free software; you can redistribute it and/or modify
+;; it under the terms of the GNU Lesser General Public License as
+;; published by the Free Software Foundation; either version 3 of the
+;; License, or (at your option) any later version.
+;;
+;; This library is distributed in the hope that it will be useful, but
+;; WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;; Lesser General Public License for more details.
+;;
+;; You should have received a copy of the GNU Lesser General Public
+;; License along with this library; if not, see
+;; <http://www.gnu.org/licenses/>.
+
+
+(defimportfrom array array)
+(defimportfrom copy copy)
+(defimportfrom itertools product repeat starmap)
+(defimportfrom random random seed)
+
+
+(def class LifeBoard (object)
+
+     (def function __init__ (self width height wrap: False)
+
+	  (setf self.width width)
+	  (setf self.height height)
+	  (setf self.wrap wrap)
+
+	  (setf self.data (dict))
+
+	  (self.clear))
+
+
+     (def function clear (self)
+	  (var keys (tuple (self.data.keys)))
+	  (var dat self.data)
+
+	  ;; we set all the tracked values to dead, this will allow
+	  ;; any display to see which coordinates to turn off, and the
+	  ;; next call to tracked will clear the data
+	  (for-each (key keys)
+		    (setf (item dat key) 0))
+
+	  None)
+
+
+     (def function randomize (self threshold: 0.5)
+	  (self.clear)
+	  (seed)
+
+	  (var all-coords (product (range 0 self.width)
+				   (range 0 self.height)))
+
+	  (for-each ((x y) all-coords)
+		    (when (< threshold (random))
+		      (self.set-cell x y 1)))
+
+	  None)
+
+
+     (def function tracked (self cleanup: True)
+	  (vars coord cell)
+
+	  (if cleanup
+	      else: (yield-from (self.data.items))
+	      then: (for-each (item (list (self.data.items)))
+			      (yield item)
+			      (setq-values (coord cell) item)
+			      (unless cell
+				(self.data.pop coord)))))
+
+
+     (def function toggle (self x y)
+	  (var coord (values x y))
+
+	  (var cell (self.data.get coord None))
+	  (setf (item self.data coord) (if cell 0 1))
+	  None)
+
+
+     (def function coord (self x y)
+	  (vars (w self.width) (h self.height))
+
+	  (unless self.wrap
+	    (unless (and (within? x 0 w) (within? y 0 h))
+	      (return None)))
+
+	  (values (% x w) (% y h)))
+
+
+     (def function get-cell (self x y)
+	  (var key (self.coord x y))
+
+	  (if (none? key)
+	      then: 0
+	      else: (self.data.get key 0)))
+
+
+     (def function set-cell (self x y value)
+	  (var key (self.coord x y))
+
+	  (unless (none? key)
+	    (setf (item self.data key) value)))
+
+
+     (def function group-coord (self x y)
+	  (product (values (- x 1) x (+ x 1))
+		   (values (- y 1) y (+ y 1))))
+
+
+     (def function get-group (self x y)
+	  (starmap self.get-cell (self.group-coord x y)))
+
+
+     (def function get-all-groups (self)
+	  (starmap self.get-group (product (range 0 self.width)
+					   (range 0 self.height))))
+
+
+     (def function age (self)
+	  (doc "update the state of this board to represent the next"
+	       "generation")
+
+	  (vars (dat (dict)) (followup (set)))
+	  (vars key x y)
+
+	  ;; update all the cells that we already know are alive, and
+	  ;; collect their neighbors
+	  (for-each ((key value) (self.tracked cleanup: False))
+		    (setq-values (x y) key)
+		    (setf (item dat key) (life-rule (self.get-group x y)))
+		    (followup.update (set (self.group-coord x y))))
+
+	  ;; cut out the cells we've already processed from the
+	  ;; followup coordinates
+	  (followup.difference_update
+	   (set (self.data.keys)))
+
+	  ;; for each of the followup coordinates, calculate if it's
+	  ;; alive or not.
+	  (for-each ((x y) followup)
+		    (setq key (self.coord x y))
+		    (unless (none? key)
+		      (setf (item dat key) (life-rule (self.get-group x y)))))
+
+	  ;; and that's our new data, done deal.
+	  (setf self.data dat)
+
+	  None)
+
+
+     (def function child (self)
+	  (doc "create a copy of this board and age it to the next"
+	       "generation")
+
+	  (var kid (copy self))
+	  (kid.age))
+
+     None)
+
+
+(def function life-rule (group)
+
+     ;; group starts as a generator, need to actualize it
+     (setq group (tuple group))
+
+     ;; state of the center of the group
+     (var center (item group 4))
+
+     ;; count of living members of the group
+     (var living (reduce (lambda (accu val)
+			   (if val then: (+ 1 accu) else: accu))
+			 group 0))
+
+     ;; (print "  group:" group)
+     ;; (print "  cell:" center)
+     ;; (print "  living members:" living)
+
+     (if center
+	 then: (if (or (< living 3) (> living 4))
+		   then: 0
+		   else: (min (+ center 1) 9))
+	 else: (if (== living 3)
+		   then: 1
+		   else: 0)))
+
+
+(def function within? (value min_i max)
+     (and (<= min_i value) (< value max)))
+
+
+;;
+;; The end.
