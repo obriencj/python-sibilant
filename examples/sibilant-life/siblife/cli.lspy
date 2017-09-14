@@ -25,7 +25,7 @@
 
 
 (defun cli (options)
-  (siblife.curse.main options.wrap))
+  (siblife.curse.main options))
 
 
 (defun create-option-parser (argv)
@@ -37,6 +37,20 @@
 
   (parser.add_argument "--wrap" action: "store_true" default: False
 		       help: "Game board wraps at edges")
+
+  (var g (parser.add_mutually_exclusive_group))
+
+  (g.add_argument "--smilies" action: "store_const" dest: "renderer"
+		  const: "smilies"
+		  help: "use the smilies renderer")
+
+  (g.add_argument "--digits" action: "store_const" dest: "renderer"
+		  const: "digits"
+		  help: "use the digits renderer")
+
+  (g.add_argument "--default" action: "store_const" dest: "renderer"
+		  const: "default" default: "default"
+		  help: "use the default renderer")
 
   parser)
 

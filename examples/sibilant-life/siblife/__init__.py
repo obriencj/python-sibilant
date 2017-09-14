@@ -28,5 +28,10 @@ Sibilant Example Project
 import sibilant.importer  # noqa
 
 
+if __name__ == "__main__":
+    import sys, siblife.cli
+    sys.exit(siblife.cli.main())
+
+
 #
 # The end.

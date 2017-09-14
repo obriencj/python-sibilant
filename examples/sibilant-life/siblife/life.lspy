@@ -16,7 +16,7 @@
 (defimportfrom array array)
 (defimportfrom copy copy)
 (defimportfrom itertools product repeat starmap)
-(defimportfrom random random)
+(defimportfrom random random seed)
 
 
 (def class LifeBoard (object)
@@ -27,21 +27,55 @@
 	  (setf self.height height)
 	  (setf self.wrap wrap)
 
+	  (setf self.data (dict))
+
 	  (self.clear))
 
 
      (def function clear (self)
-	  (var size (* self.width self.height))
-	  (setf self.data (array "B" (repeat 0 size)))
+	  (var keys (tuple (self.data.keys)))
+	  (var dat self.data)
+
+	  ;; we set all the tracked values to dead, this will allow
+	  ;; any display to see which coordinates to turn off, and the
+	  ;; next call to tracked will clear the data
+	  (for-each (key keys)
+		    (setf (item dat key) 0))
+
 	  None)
 
 
      (def function randomize (self threshold: 0.5)
-	  (def function rnd (dead)
-	       (if (< threshold (random)) 1 dead))
+	  (self.clear)
+	  (seed)
 
-	  (var size (* self.width self.height))
-	  (setf self.data (array "B" (map rnd (repeat 0 size))))
+	  (var all-coords (product (range 0 self.width)
+				   (range 0 self.height)))
+
+	  (for-each ((x y) all-coords)
+		    (when (< threshold (random))
+		      (self.set-cell x y 1)))
+
+	  None)
+
+
+     (def function tracked (self cleanup: True)
+	  (vars coord cell)
+
+	  (if cleanup
+	      else: (yield-from (self.data.items))
+	      then: (for-each (item (list (self.data.items)))
+			      (yield item)
+			      (setq-values (coord cell) item)
+			      (unless cell
+				(self.data.pop coord)))))
+
+
+     (def function toggle (self x y)
+	  (var coord (values x y))
+
+	  (var cell (self.data.get coord None))
+	  (setf (item self.data coord) (if cell 0 1))
 	  None)
 
 
@@ -52,45 +86,31 @@
 	    (unless (and (within? x 0 w) (within? y 0 h))
 	      (return None)))
 
-	  (var index (+ (* h (% x w)) (% y h)))
-	  ;; (print "  coord:" x y ", index:" index)
-	  index)
+	  (values (% x w) (% y h)))
 
 
-     (def function toggle (self x y)
-	  (var index (self.coord x y))
+     (def function get-cell (self x y)
+	  (var key (self.coord x y))
 
-	  (when (none? index)
-	    (return 0))
-
-	  (var cell (not (item self.data index)))
-	  (setf (item self.data index) cell)
-
-	  cell)
+	  (if (none? key)
+	      then: 0
+	      else: (self.data.get key 0)))
 
 
-     (def function get (self x y)
-	  (var index (self.coord x y))
+     (def function set-cell (self x y value)
+	  (var key (self.coord x y))
 
-	  (when (none? index)
-	    (return 0))
-
-	  (item self.data index))
+	  (unless (none? key)
+	    (setf (item self.data key) value)))
 
 
-     (def function set (self x y value)
-	  (var index (self.coord x y))
-
-	  (when (none? index)
-	    (return None))
-
-	  (setf (item self.data index) value))
+     (def function group-coord (self x y)
+	  (product (values (- x 1) x (+ x 1))
+		   (values (- y 1) y (+ y 1))))
 
 
      (def function get-group (self x y)
-	  ;; (print "get-group" x y)
-	  (starmap self.get (product (values (- x 1) x (+ x 1))
-				     (values (- y 1) y (+ y 1)))))
+	  (starmap self.get-cell (self.group-coord x y)))
 
 
      (def function get-all-groups (self)
@@ -102,9 +122,32 @@
 	  (doc "update the state of this board to represent the next"
 	       "generation")
 
-	  (setf self.data
-		(array "B" (map life-rule (self.get-all-groups))))
-	  self)
+	  (vars (dat (dict)) (followup (set)))
+	  (vars key x y)
+
+	  ;; update all the cells that we already know are alive, and
+	  ;; collect their neighbors
+	  (for-each ((key value) (self.tracked cleanup: False))
+		    (setq-values (x y) key)
+		    (setf (item dat key) (life-rule (self.get-group x y)))
+		    (followup.update (set (self.group-coord x y))))
+
+	  ;; cut out the cells we've already processed from the
+	  ;; followup coordinates
+	  (followup.difference_update
+	   (set (self.data.keys)))
+
+	  ;; for each of the followup coordinates, calculate if it's
+	  ;; alive or not.
+	  (for-each ((x y) followup)
+		    (setq key (self.coord x y))
+		    (unless (none? key)
+		      (setf (item dat key) (life-rule (self.get-group x y)))))
+
+	  ;; and that's our new data, done deal.
+	  (setf self.data dat)
+
+	  None)
 
 
      (def function child (self)
