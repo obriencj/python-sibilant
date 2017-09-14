@@ -854,7 +854,7 @@ def _special_for_each(code, source, tc=False):
         code.pseudop_label(next_label)
         code.pseudop_for_iter(block.pop_label)
 
-        _helper_setq_values(code, bindings)
+        _helper_setq_values(code, bindings, True)
 
         whatever = code.gen_label()
         with code.block_finally(whatever):
@@ -893,7 +893,7 @@ def _special_setq_values(code, source, tc=False):
         raise code.error("too many arguments to setq-values", source)
 
     code.add_expression(expr, False)
-    _helper_setq_values(code, bindings)
+    _helper_setq_values(code, bindings, False)
 
     # setq-values evaluates to None
     code.pseudop_const(None)
@@ -934,8 +934,10 @@ def _helper_binding_split(code, bindings):
     return left, mid, right
 
 
-def _helper_setq_values(code, bindings):
+def _helper_setq_values(code, bindings, declare):
     if is_symbol(bindings):
+        if declare:
+            code.declare_var(str(bindings))
         code.pseudop_set_var(str(bindings))
         return
 
@@ -951,14 +953,18 @@ def _helper_setq_values(code, bindings):
 
             for b in left:
                 if is_symbol(b):
+                    if declare:
+                        code.declare_var(str(b))
                     code.pseudop_set_var(str(b))
                 elif is_pair(b):
-                    _helper_setq_values(code, b)
+                    _helper_setq_values(code, b, declare)
                 else:
                     msg = "bindings must be symbols or pairs, not %r" % b
                     raise code.error(msg, bindings)
 
             if is_symbol(mid):
+                if declare:
+                    code.declare_var(str(b))
                 code.pseudop_set_var(str(mid))
             else:
                 msg = "start bindings must be symbols, not %r" % mid
@@ -966,9 +972,11 @@ def _helper_setq_values(code, bindings):
 
             for b in right:
                 if is_symbol(b):
+                    if declare:
+                        code.declare_var(str(b))
                     code.pseudop_set_var(str(b))
                 elif is_pair(b):
-                    _helper_setq_values(code, b)
+                    _helper_setq_values(code, b, declare)
                 else:
                     msg = "bindings must be symbols or pairs, not %r" % b
                     raise code.error(msg, bindings)
@@ -977,9 +985,11 @@ def _helper_setq_values(code, bindings):
             code.pseudop_unpack_sequence(bcount)
             for b in bindings.unpack():
                 if is_symbol(b):
+                    if declare:
+                        code.declare_var(str(b))
                     code.pseudop_set_var(str(b))
                 elif is_pair(b):
-                    _helper_setq_values(code, b)
+                    _helper_setq_values(code, b, declare)
                 else:
                     msg = "bindings must be symbols or pairs, not %r" % b
                     raise code.error(msg, bindings)
@@ -988,9 +998,11 @@ def _helper_setq_values(code, bindings):
         code.pseudop_unpack_ex(bcount - 1, 0)
         for b in bindings.unpack():
             if is_symbol(b):
+                if declare:
+                    code.declare_var(str(b))
                 code.pseudop_set_var(str(b))
             elif is_pair(b):
-                _helper_setq_values(code, b)
+                _helper_setq_values(code, b, declare)
             else:
                 msg = "improper bindings must be symbols or pairs, not %r" % b
                 raise code.error(msg, bindings)
