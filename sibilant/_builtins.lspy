@@ -312,21 +312,8 @@
   values from VALS.
   ")
 
-  (vars bins vals)
-  (setq-values (bins vals) (cons.unpack bind_vals))
-
-  (def function flatten (seq)
-       (var x (list))
-       (for-each (v seq)
-		 (cond
-		  ((nil? v) None)
-		  ((pair? v) (x.extend (flatten (cons.unpack v))))
-		  ((symbol? v) (x.append v))))
-       x)
-
   `(let ()
-     (vars ,@(flatten bins))
-     (setq-values ,bins ,vals)
+     (define-values ,@bind_vals)
      ,@body))
 
 
