@@ -37,6 +37,7 @@ _symbol_attr = symbol("attr")
 _symbol_set_attr = symbol("set-attr")
 _symbol_setq = symbol("setq")
 _symbol_setq_values = symbol("setq-values")
+_symbol_define_values = symbol("define-values")
 _symbol_global = symbol("global")
 _symbol_define = symbol("define")
 _symbol_var = symbol("var")
@@ -896,6 +897,33 @@ def _special_setq_values(code, source, tc=False):
     _helper_setq_values(code, bindings, False)
 
     # setq-values evaluates to None
+    code.pseudop_const(None)
+
+    return None
+
+
+@special(_symbol_define_values)
+def _special_define_values(code, source, tc=False):
+    """
+    (define-values BINDINGS VALUES_EXPR)
+
+    where BINDINGS is a nested pair of symbols in the same structure
+    as values from VALS. Each binding will be declared in the local
+    scope prior to assignment.
+    """
+
+    try:
+        called_by, (bindings, (expr, rest)) = source
+    except ValueError:
+        raise code.error("too few arguments to define-values", source)
+
+    if not is_nil(rest):
+        raise code.error("too many arguments to define-values", source)
+
+    code.add_expression(expr, False)
+    _helper_setq_values(code, bindings, True)
+
+    # define-values evaluates to None
     code.pseudop_const(None)
 
     return None
