@@ -25,6 +25,7 @@ def setup():
     # lookups. Here, all of the functions being applied are available
     # from freevars
 
+
     from functools import partial, wraps
     _ty = type
     _ga = getattr
@@ -98,6 +99,23 @@ def setup():
     trampoline.__qualname__ = "sibilant.tco.trampoline"
     tailcall.__qualname__ = "sibilant.tco.tailcall"
     tco_disable.__qualname__ = "sibilant.tco.tco_disable"
+
+
+    try:
+        from ._tco import ctrampoline, ctailcall
+
+    except ImportError:
+        pass
+
+    else:
+        ctrampoline = partial(ctrampoline, partial, TailCall)
+        ctailcall = partial(ctrampoline, partial, TailCall)
+
+        update_wrapper(ctrampoline, trampoline)
+        update_wrapper(ctailcall, tailcall)
+
+        trampoline = ctrampoline
+        tailcall = ctailcall
 
     return trampoline, tailcall, tco_disable
 
