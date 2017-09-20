@@ -23,6 +23,7 @@ license: LGPL v.3
 
 from functools import partial
 from io import StringIO
+from types import CodeType
 from unittest import TestCase
 
 import sibilant.builtins
@@ -214,6 +215,58 @@ class BuiltinsEval(TestCase):
         """
         stmt, env = compile_expr(src, source_sym=data, tacos=5)
         self.assertEqual(stmt(), 5)
+
+
+class BuiltinsCompile(TestCase):
+
+    def test_compile_str(self):
+        src = """
+        (compile "(+ 1 2 tacos)")
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertIs(type(res), CodeType)
+        self.assertEqual(eval(res, {"tacos": 5}), 8)
+
+
+    def test_compile_stream(self):
+        data = """
+        (+ 1 2 tacos)
+        """
+        data = StringIO(data)
+
+        src = """
+        (compile source_stream)
+        """
+        stmt, env = compile_expr(src, source_stream=data)
+        res = stmt()
+        self.assertIs(type(res), CodeType)
+        self.assertEqual(eval(res, {"tacos": 5}), 8)
+
+
+    def test_compile_pair(self):
+        data = cons(symbol("+"), 1, 2, symbol("tacos"), nil)
+
+        src = """
+        (compile source_obj)
+        """
+        stmt, env = compile_expr(src, source_obj=data, tacos=5)
+        res = stmt()
+        self.assertIs(type(res), CodeType)
+        self.assertEqual(eval(res, {"tacos": 5}), 8)
+
+
+    def test_compile_symbol(self):
+        data = symbol("tacos")
+
+        src = """
+        (compile source_sym)
+        """
+        stmt, env = compile_expr(src, source_sym=data)
+        res = stmt()
+        self.assertIs(type(res), CodeType)
+        self.assertEqual(eval(res, {"tacos": 5}), 5)
+
 
 
 #
