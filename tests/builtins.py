@@ -22,6 +22,7 @@ license: LGPL v.3
 
 
 from functools import partial
+from io import StringIO
 from unittest import TestCase
 
 import sibilant.builtins
@@ -168,9 +169,51 @@ class BuiltinsSetBang(TestCase):
 
 class BuiltinsMacroExpand(TestCase):
 
-
     def test_macroexpand_1(self):
         pass
+
+
+class BuiltinsEval(TestCase):
+
+    def test_eval_str(self):
+        src = """
+        (eval "(+ 1 2 tacos)")
+        """
+        stmt, env = compile_expr(src, tacos=5)
+        self.assertEqual(stmt(), 8)
+
+
+    def test_eval_stream(self):
+        data = """
+        (+ 1 2 tacos)
+        """
+        data = StringIO(data)
+
+        src = """
+        (eval source_stream)
+        """
+        stmt, env = compile_expr(src, source_stream=data, tacos=5)
+        self.assertEqual(stmt(), 8)
+
+
+    def test_eval_pair(self):
+        data = cons(symbol("+"), 1, 2, symbol("tacos"), nil)
+
+        src = """
+        (eval source_obj)
+        """
+        stmt, env = compile_expr(src, source_obj=data, tacos=5)
+        self.assertEqual(stmt(), 8)
+
+
+    def test_eval_symbol(self):
+        data = symbol("tacos")
+
+        src = """
+        (eval source_sym)
+        """
+        stmt, env = compile_expr(src, source_sym=data, tacos=5)
+        self.assertEqual(stmt(), 5)
 
 
 #

@@ -379,7 +379,7 @@
 
   ")
 
-  `(let ((src ,source) (glbls ,env))
+  `(let ((src ,source) (glbls ,env) (fname ,filename))
      (defimportfrom io IOBase)
      (defimportfrom sibilant.parse
        source_stream source_str)
@@ -387,17 +387,17 @@
        fake_module_from_env init_module parse_time compile_time)
 
      (define steam
-       (cond ((isinstance src str) (source_str src))
-	     ((isinstance src IOBase) (source_stream src))
+       (cond ((isinstance src str) (source_str src fname))
+	     ((isinstance src IOBase) (source_stream src fname))
 	     ((or (pair? src) (symbol? src) (keyword? src))
 	      None)
 	     (else: src)))
 
      (define mod (fake_module_from_env glbls))
-     (init_module mod stream None ,filename)
+     (init_module mod stream None fname)
 
      (unless (or (pair? src) (symbol? src) (keyword? src))
-       (setq src (parse_time mod src)))
+       (setq src (parse_time mod)))
 
      (compile_time mod src)))
 
@@ -408,7 +408,7 @@
 
   ")
 
-  `(let ((src ,source) (glbls ,env))
+  `(let ((src ,source) (glbls ,env) (fname ,filename))
      (defimportfrom io IOBase)
      (defimportfrom types CodeType)
      (defimportfrom sibilant.parse
@@ -417,12 +417,12 @@
        fake_module_from_env init_module parse_time compile_time run_time)
 
      (cond
-      ((isinstance src CodeType) (py-eval src glbls filename))
+      ((isinstance src CodeType) (py-eval src glbls fname))
 
       (else:
        (define stream
-	 (cond ((isinstance src str) (source_str src))
-	       ((isinstance src IOBase) (source_stream src))
+	 (cond ((isinstance src str) (source_str src fname))
+	       ((isinstance src IOBase) (source_stream src fname))
 	       ((or (pair? src) (symbol? src) (keyword? src))
 		None)
 	       (else: src)))
@@ -431,7 +431,7 @@
        (init_module mod stream None ,filename)
 
        (unless (or (pair? src) (symbol? src) (keyword? src))
-	 (setq src (parse_time mod src)))
+	 (setq src (parse_time mod)))
 
        (run_time mod (compile_time mod src))))))
 
