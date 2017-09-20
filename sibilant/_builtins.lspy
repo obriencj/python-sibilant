@@ -291,11 +291,13 @@
 
 
 (defmacro vars (*: variables)
-  (doc "(vars BINDINGS...)"
-       ""
-       "where each BINDING is either a symbol or a pair in (SYM EXPR)"
-       "format. Declares each binding symbol in the current scope, and"
-       "optionally assigns it the value from EXPR")
+  (doc "
+  (vars BINDINGS...)
+
+  where each BINDING is either a symbol or a pair in (SYM EXPR)
+  format. Declares each binding symbol in the current scope, and
+  optionally assigns it the value from EXPR
+  ")
 
   `(begin ,@(map (lambda (d)
 		   (if (symbol? d)
@@ -364,6 +366,18 @@
 ;; === python object system classes ==
 
 (defmacro class (name bases . body)
+  (doc "
+  (class NAME (parents... ) . BODY)
+
+  Create a new python type instance with the given name, and parent
+  class inheritance. The expressions of BODY are evaluated in order in
+  their own local scope. The resulting locals are used to define the
+  class members (functions, fields, etc.)
+
+  Use (def class NAME (parents... ) . BODY) to bothe create and bind
+  the class in the local namespace.
+  ")
+
   `(flet ((create-class (name fields *: bases metaclass: type)
 			(metaclass name bases fields))
 	  (create-fields (__module__) (begin ,@body) (locals)))
@@ -377,6 +391,18 @@
   (doc "
   (compile SOURCE)
 
+  Returns a python code object
+
+  SOURCE may be one of the following:
+   * IOBase stream from which to read and compile a single expression
+   * str from which to parse and compile a single expression
+   * cons pair representing source forms
+   * symbol or keyword object
+
+  (compile SOURCE env: DICT filename: \"filename.lspy\")
+
+  Compiles SOURCE with DICT as the globals, with the source filename
+  set to filename.lspy
   ")
 
   `(let ((src ,source) (glbls ,env) (fname ,filename))
@@ -406,6 +432,19 @@
   (doc "
   (eval SOURCE)
 
+  Evaluates SOURCE with the current globals.
+
+  SOURCE may be one of the following:
+   * Python code object
+   * IOBase stream from which to read and compile a single expression
+   * str from which to parse and compile a single expression
+   * cons pair representing source forms
+   * symbol or keyword object
+
+  (eval SOURCE env: DICT filename: \"filename.lspy\")
+
+  Evaluates SOURCE with DICT as the globals, with the source filename
+  set to filename.lspy
   ")
 
   `(let ((src ,source) (glbls ,env) (fname ,filename))
