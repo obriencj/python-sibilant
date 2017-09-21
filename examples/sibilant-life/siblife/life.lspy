@@ -33,6 +33,11 @@
 
 
      (def function clear (self)
+	  (doc "
+          Clears all the data in the current board. Each position is
+          set to the default state of dead.
+          ")
+
 	  (var keys (tuple (self.data.keys)))
 	  (var dat self.data)
 
@@ -46,6 +51,14 @@
 
 
      (def function randomize (self threshold: 0.5)
+	  (doc "
+          Clears all the data in the current board. Each position on
+          the board is then populated if a random value is greater
+          than the given threasholy value. A lower threshold will
+          result in more of the board being filled, while a higher
+          threshold will result in a more sparse board.
+          ")
+
 	  (self.clear)
 	  (seed)
 
@@ -60,6 +73,19 @@
 
 
      (def function tracked (self cleanup: True)
+	  (doc "
+          Yields pairs of coordinates and cell values, where each
+          coordinate is an integer representing the x and y axis.
+
+          The returned items represent all of the known living cells,
+          plus any recently deceased cells (in order to let any UI
+          know to flip their display from living to dead).
+
+          If cleanup is True (which is the default) then any recently
+          deceased cells will be removed from the underlying data set
+          afterwards.
+          ")
+
 	  (vars coord cell (data self.data))
 
 	  (if cleanup
@@ -72,6 +98,10 @@
 
 
      (def function toggle (self x y)
+	  (doc "
+          Flip a living cell to dead, or a dead cell to alive.
+          ")
+
 	  (var coord (values x y))
 
 	  (var cell (self.data.get coord None))
@@ -80,6 +110,12 @@
 
 
      (def function coord-key (self x y)
+	  (doc "
+          Converts a coordinate into a key for internal storage, or
+          None if the coordinate is not within the bounds of the board
+          and wrapping is not enabled.
+          ")
+
 	  (vars (w self.width) (h self.height))
 
 	  (unless self.wrap
@@ -126,7 +162,7 @@
 	  (vars key x y)
 
 	  ;; update all the cells that we already know are alive, and
-	  ;; collect their neighbors
+	  ;; collect their neighbors for followup processing
 	  (for-each ((key value) (self.tracked cleanup: False))
 		    (setq-values (x y) key)
 		    (setf (item dat key) (life-rule (self.get-group x y)))
@@ -134,8 +170,7 @@
 
 	  ;; cut out the cells we've already processed from the
 	  ;; followup coordinates
-	  (followup.difference_update
-	   (set (self.data.keys)))
+	  (followup.difference_update (set (self.data.keys)))
 
 	  ;; for each of the followup coordinates, calculate if it's
 	  ;; alive or not.
@@ -155,12 +190,17 @@
 	       "generation")
 
 	  (var kid (copy self))
-	  (kid.age))
+	  (kid.age)
+	  kid)
 
      None)
 
 
 (def function life-rule (group)
+     (doc "
+     Given a group of nine cells, return the next state of the center
+     cell following the rules for Conway's Game of Life.
+     ")
 
      ;; group starts as a generator, need to actualize it
      (setq group (tuple group))
@@ -172,10 +212,6 @@
      (var living (reduce (lambda (accu val)
 			   (if val then: (+ 1 accu) else: accu))
 			 group 0))
-
-     ;; (print "  group:" group)
-     ;; (print "  cell:" center)
-     ;; (print "  living members:" living)
 
      (if center
 	 then: (if (or (< living 3) (> living 4))
