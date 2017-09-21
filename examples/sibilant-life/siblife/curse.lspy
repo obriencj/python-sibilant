@@ -153,6 +153,30 @@
      None)
 
 
+(def function multi-step (stdscr board menu-y counter)
+
+     (erase-menu stdscr menu-y)
+     (stdscr.addstr menu-y 6 " Hit any key to stop and redraw ")
+
+     (stdscr.refresh)
+     (stdscr.nodelay 1)
+
+     (for-each (index (range 1 (+ 1 counter)))
+	       (stdscr.addstr 0 0 (str index))
+	       (stdscr.refresh)
+	       (board.age)
+
+	       (unless (== -1 (stdscr.getch))
+		 (break)))
+
+     (board.display)
+
+     (stdscr.nodelay 0)
+     (display-menu stdscr menu-y)
+
+     None)
+
+
 (def function continuous-mode (stdscr board menu-y)
 
      (erase-menu stdscr menu-y)
@@ -220,6 +244,10 @@
 
 	  ((in "Ss" event)
 	   (step stdscr board))
+
+	  ((in "1234567890" event)
+	   (multi-step stdscr board menu-y
+		       (** 10 (str.index "1234567890" event))))
 
 	  (else: None)))
 
