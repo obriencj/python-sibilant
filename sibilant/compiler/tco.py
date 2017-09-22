@@ -102,14 +102,14 @@ def setup():
 
 
     try:
-        from ._tco import ctrampoline, ctailcall
+        from ._tco import ctrampoline, ctailcall, ctco_bounce
 
     except ImportError:
         pass
 
     else:
-        ctrampoline = partial(ctrampoline, partial, TailCall)
-        ctailcall = partial(ctrampoline, partial, TailCall)
+        ctrampoline = partial(ctrampoline, partial, TailCall, ctco_bounce)
+        ctailcall = partial(ctailcall, partial, TailCall)
 
         update_wrapper(ctrampoline, trampoline)
         update_wrapper(ctailcall, tailcall)

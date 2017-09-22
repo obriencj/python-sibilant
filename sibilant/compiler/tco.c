@@ -26,7 +26,11 @@
 #include <Python.h>
 
 
-static PyObject *c_tailcall(PyObject *self, PyObject *args) {
+#define TCO_ENABLE "_tco_enable"
+#define TCO_ORIGINAL "_tco_original"
+
+
+static PyObject *tailcall(PyObject *self, PyObject *args) {
   PyObject *partial = NULL;
   PyObject *TailCall = NULL;
   PyObject *fun = NULL;
@@ -38,8 +42,8 @@ static PyObject *c_tailcall(PyObject *self, PyObject *args) {
     return NULL;
   }
 
-  tmp = PyObject_GetAttrStr(fun, "_tco_enable");
-  if (tmp == None) {
+  tmp = PyObject_GetAttrStr(fun, TCO_ENABLE);
+  if (tmp == NULL) {
     PyErr_Clear();
     return fun;
 
@@ -51,7 +55,7 @@ static PyObject *c_tailcall(PyObject *self, PyObject *args) {
     Py_DECREF(tmp);
   }
 
-  tmp = PyObject_GetAttrStr(fun, "_tco_original");
+  tmp = PyObject_GetAttrStr(fun, TCO_ORIGINAL);
   if (tmp == None) {
     PyErr_Clear();
 
@@ -61,37 +65,57 @@ static PyObject *c_tailcall(PyObject *self, PyObject *args) {
   }
 
   bounce = PyObject_CallObject(partial, "OO", TailCall, fun);
-  PyObject_SetAttrStr(bounce, "_tco_original", fun);
+  PyObject_SetAttrStr(bounce, TCO_ORIGINAL, fun);
+
+  Py_DECREF(fun);
 
   return bounce;
 }
 
 
-static PyObject *cell_set_value(PyObject *self, PyObject *args) {
-  PyObject *cell = NULL;
-  PyObject *val = NULL;
+static PyObject *trampoline(PyObject *self, PyObject *args) {
+  PyObject *partial = NULL;
+  PyObject *TailCall = NULL;
+  PyObject *bounce = NULL;
+  PyObject *fun = NULL;
 
-  if (! PyArg_ParseTuple(args, "O!O", &PyCell_Type, &cell, &val))
+  PyObject *tmp = NULL;
+
+  if (! PyArg_ParseTuple(args, "OOOO", &partial, &TailCall, &bounce, &fun)) {
     return NULL;
+  }
 
-  PyCell_Set(cell, val);
+  tmp = PyObject_GetAttrStr(fun, TCO_ORIGINAL);
+  if (tmp == None) {
+    PyErr_Clear();
 
-  Py_RETURN_NONE;
+  } else {
+    Py_DECREF(fun);
+    fun = tmp;
+  }
+
+  result = PyObject_CallObject(partial, "OOO", bounce, TailCall, fun);
+
+
+  return fun;
 }
 
 
 static PyMethodDef methods[] = {
-  { "ctailcall", c_tailcall, METH_VARARGS,
+  { "ctailcall", tailcall, METH_VARARGS,
     "" },
 
-  { "ctrampoline", c_trampoline, METH_VARARGS,
+  { "ctrampoline", trampoline, METH_VARARGS,
+    "" },
+
+  { "ctco_bounce", tco_bounce, METH_VARARGS,
     "" },
 
   { NULL, NULL, 0, NULL },
 };
 
 
-PyMODINIT_FUNC init_frame() {
+PyMODINIT_FUNC init_tco() {
   Py_InitModule("sibilant.compiler._tco", methods);
 }
 
