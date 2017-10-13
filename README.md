@@ -32,7 +32,7 @@ transformed into a parser and object model.
 ## Origins
 
 This was a project begun in 2007 and subsequently left abaondoned in
-early 2008,.
+early 2008.
 
 I believe the concept grew out of my hacking with the absurdity that
 is [Spexy]. But while Spexy was mostly a joke and a puzzle, Sibilant
