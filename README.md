@@ -12,23 +12,27 @@ dramatic changes.
 
 [LISP]: https://en.wikipedia.org/wiki/Lisp_(programming_language)
 
-[Python]: http://python.org/
+[Python]: https://python.org/
 
 
 ## But Why?
 
-Mostly "why not" and "I do what I want"
+Mostly "why not," and "I do what I want," with some "[for myself],"
+mixed in.
+
+[for myself]: http://obriencj.preoccupied.net/blog/2017/09/17/my-first-lisp-compiler/
 
 But also because I really love the idea of domain-specific languages.
-I wanted defmacro in Python so bad! So I made defmacro in Python to
-let me write some other things a little easier. The worst kind of
-lazy.
+Every single time I wrote a block of configuration for optparse or
+argparse I yearned for defmacro. Whenever I created structured
+unpacking of data, I wanted to just define the shapes and let those be
+transformed into a parser and object model.
 
 
 ## Origins
 
 This was a project begun in 2007 and subsequently left abaondoned in
-early 2008,.
+early 2008.
 
 I believe the concept grew out of my hacking with the absurdity that
 is [Spexy]. But while Spexy was mostly a joke and a puzzle, Sibilant
@@ -52,14 +56,17 @@ toyed with different ideas for some of the basic data types, but never
 got anywhere serious.
 
 Then suddenly in July of 2017 I went nuts and threw together the
-compiler in a week while drinking at a barcade.
+compiler in a week while drinking at a [barcade].
+
+[barcade]: https://theboxcarbar.com/raleigh/
 
 It has been a fantastic learning experience, and excellent mental
 exercise. While the Sibilant user base might always number in just the
-single digits, I could never consider the project a failure. The sheer
+single digits, I can never consider the project a failure. The sheer
 joy from when a particular feature comes to life for the first time,
-or the satisfaction of seeing the language develop are enough. I am
-excited to continue hacking at it.
+or the satisfaction of seeing the language develop are enough to merit
+declaring it a success. I am excited to continue hacking at it, what
+more is there?
 
 
 ## Python Version Support
@@ -68,16 +75,25 @@ CPython 3.5 and 3.6 are currently supported. Sibilant outputs python
 bytecode directly, and creates code, function, and module instances
 from there. The Python 3 line has changed its bytecode quite a bit
 between these two minor versions. It's possible that earlier versions
-of Python 3 could also be supported, but there are some syntax
-features that the sibilant implementation uses which would need to be
-changed. It's a low priority currently, but I'm definitely open to
-pull requests on that front if someone really needs 3.4 support.
+of Python 3 could also be supported, but there are some that the
+sibilant implementation uses which would need to be changed. It's a
+low priority currently, but I'm definitely open to pull requests on
+that front if someone really needs 3.4 support.
+
+[PyPy3] is [being considered], but a very key piece of necessary
+functionality (the ability to specify a custom `builtins` module) is
+disabled by default as an optimization.
+
+[PyPy3]: https://pypy.org/
+
+[being considered]: https://github.com/obriencj/python-sibilant/issues/51
 
 
 ## References
 
 Sibilant targets Python bytecode directly. I rely heavily on the
-auto-generated documentation for the `dis` module.
+auto-generated documentation for the `dis` module, and on its output
+for seeing just what the default compiler would do for some cases.
 
 * [Module `dis` in Python 3.6](https://docs.python.org/3.6/library/dis.html)
 * [Module `dis` in Python 3.5](https://docs.python.org/3.5/library/dis.html)
@@ -126,14 +142,15 @@ source code, and correctly show the line that the raise came from.
 
 ### Tail-call optimization
 
-Sibilant produces functions wrapped in a simple trampoline. Calls made
-in a tail position will result in a trampoline bounce to avoid eating
-up stack space. TCO does have the somewhat frustrating side-effect of
-collapsing the call stack, which can make tracebacks difficult to
-debug.  It is possible to disable TCO during compilation, and it is
-also possible to mark specific functions as invalid for TCO (such as
-locals and globals, which rely on observing their calling frame to
-provide their return value)
+The Sibilant compiler implements simple tail-call optimization via a
+trampoline. The trampoline will bounce tail-calls out of the calling
+frame where they will be evaluated, consuming no additional stack
+space. This form of TCO does have the somewhat frustrating side-effect
+of collapsing the call stack, which can make tracebacks difficult to
+debug. Sibilant will only perform TCO on calls to functions written
+with TCO enabled -- ie. Python function calls won't get bounced unless
+they were explicitly created with the sibilant `@trampoline`
+decorator.
 
 
 ### Parse-time Macros: reader macros
@@ -164,19 +181,24 @@ The `try` special form can be used as an expression, evaluating to the
 block that runs last.
 
 
-### Future Feature: Generators
+### the context manager interface
 
-Sibilant doesn't currently offer a way to create generators. It is
-definitely on the horizon. There's a few complicated features that
-need work ahead of time, such as a loop construct that will correctly
-function with nested scopes but which can be optimized when used
-inside of a single scope.
+The `with` special form can be used to enter a context manager and
+bind the result locally, then clean up once execution of the inner
+form ends. The expression evaluates to the last value of the body.
 
 
-### Future Feature: List Comprehensions
+### Looping
 
-Definitely need a special form for emitting a list comprehension
-and/or a generator expression.
+The `while` and `for-each` forms can be used to repeatedly execute a
+body of code. The `break` and `continue` forms can be used from within
+those blocks as well.
+
+
+### Generators
+
+Sibilant can create generators from `function`, `lambda`, and `let`
+forms, by using either the `yield` or `yield-from` expressions.
 
 
 ### Future Feature: Rewrite Sibilant in Sibilant
@@ -187,6 +209,19 @@ old compiler, and finally re-compile the new compiler using itself.
 
 The sibilant compiler will eventually become sibilantzero, to be
 relegated to a simple build dependency in producing sibilant proper.
+
+
+## Should You Use Sibilant?
+
+Probably not. Instead you should almost certainly use [Racket] from
+the beginning. However if you're really stuck to an existing Python
+environment, you just might be happy with Sibilant. There's bound to
+be something nice that it's missing which you want super badly -- [let
+me know] your cool use-case!
+
+[Racket]: https://racket-lang.org
+
+[let me know]: https://github.com/obriencj/python-sibilant/issues
 
 
 ## Contact
