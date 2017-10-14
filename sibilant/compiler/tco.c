@@ -108,14 +108,14 @@ static PyMethodDef methods[] = {
   { "ctrampoline", trampoline, METH_VARARGS,
     "" },
 
-  { "ctco_bounce", tco_bounce, METH_VARARGS,
+  { "ctco_trampoline", tco_trampoline, METH_VARARGS,
     "" },
 
   { NULL, NULL, 0, NULL },
 };
 
 
-PyMODINIT_FUNC init_tco() {
+PyMODINIT_FUNC init__tco() {
   Py_InitModule("sibilant.compiler._tco", methods);
 }
 
