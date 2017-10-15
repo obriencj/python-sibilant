@@ -149,8 +149,8 @@ def setup(glbls):
     _val(compiler.Macro, "macro")
     _op(compiler.is_macro, "macro?")
 
-    _val(compiler.Macrolet, "macrolet")
-    _op(compiler.is_macrolet, "macrolet?")
+    _val(compiler.Alias, "alias")
+    _op(compiler.is_alias, "alias?")
 
     _val(compiler.Operator, "operator")
     _op(compiler.is_operator, "operator?")

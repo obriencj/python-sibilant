@@ -30,10 +30,10 @@
 		 (macro ,(str name) (function ,name ,formals ,@body)))))))
 
 
-(defmacro defmacrolet (name . body)
-  (doc "Defines a Macrolet in the current module")
+(defmacro defalias (name . body)
+  (doc "Defines an Alias Macro in the current module")
   `(define-global ,name
-     (macrolet ,(str name) (function ,name () ,@body))))
+     (alias ,(str name) (function ,name () ,@body))))
 
 
 (defmacro defun (name params . body)
@@ -354,13 +354,13 @@
 
 ;; (set-atom-regex 'c__r "c[ad]{2,}r" (lambda (atom) `(c__r ,atom)))
 
-;; (defmacrolet first 'car)
-;; (defmacrolet second 'cadr)
-;; (defmacrolet third 'caddr)
-;; (defmacrolet fourth 'cadddr)
-;; (defmacrolet fifth 'caddddr)
-;; (defmacrolet sixth 'cadddddr)
-;; (defmacrolet seventh 'caddddddr)
+;; (defalias first 'car)
+;; (defalias second 'cadr)
+;; (defalias third 'caddr)
+;; (defalias fourth 'cadddr)
+;; (defalias fifth 'caddddr)
+;; (defalias sixth 'cadddddr)
+;; (defalias seventh 'caddddddr)
 
 
 ;; === python object system classes ==

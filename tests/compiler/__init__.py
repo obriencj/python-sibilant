@@ -34,6 +34,7 @@ from sibilant import (
 )
 
 from sibilant.compiler import (
+    is_alias, Alias,
     is_macro, Macro,
     is_special, Special,
     CodeFlag,

@@ -42,7 +42,7 @@ __all__ = (
     "Compiled", "is_compiled",
     "Special", "is_special",
     "Macro", "is_macro",
-    "Macrolet", "is_macrolet",
+    "Alias", "is_alias",
     "Operator", "is_operator",
     "gather_formals", "gather_parameters",
 )
@@ -177,8 +177,8 @@ def is_macro(obj):
     return isinstance(obj, Macro)
 
 
-class Macrolet(Macro):
-    __objname__ = "macrolet"
+class Alias(Macro):
+    __objname__ = "alias"
 
 
     def compile(self, compiler, source_obj, tc=False):
@@ -195,13 +195,13 @@ class Macrolet(Macro):
             return res
 
         else:
-            msg = "Error expanding macrolet %s from %r" % \
+            msg = "Error expanding alias %s from %r" % \
                   (self.__name__, source_obj)
             compiler.error(msg, source_obj)
 
 
-def is_macrolet(obj):
-    return isinstance(obj, Macrolet)
+def is_alias(obj):
+    return isinstance(obj, Alias)
 
 
 class Operator(Compiled):
@@ -1888,7 +1888,7 @@ class ExpressionCodeSpace(CodeSpace):
         self.require_active()
 
         comp = self.find_compiled(sym)
-        if comp and is_macrolet(comp):
+        if comp and is_alias(comp):
             return comp.compile(self, sym, tc)
 
         elif sym is _symbol_None:
@@ -2251,7 +2251,7 @@ def _get_expander(env, source_obj):
     elif is_symbol(source_obj):
         namesym = source_obj
         found = _find_compiled(env, namesym)
-        if is_macrolet(found):
+        if is_alias(found):
             expander = partial(found.expand)
 
     elif is_proper(source_obj):
@@ -2259,7 +2259,7 @@ def _get_expander(env, source_obj):
 
         if is_symbol(namesym):
             found = _find_compiled(env, namesym)
-            if is_macrolet(found):
+            if is_alias(found):
                 def expander():
                     return cons(found.expand(), params)
 
