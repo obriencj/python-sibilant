@@ -30,7 +30,11 @@ import sibilant.builtins
 
 from sibilant import car, cdr, cons, nil, symbol
 
-from .compiler import compile_expr
+from .compiler import (
+    compile_expr,
+    is_macro, Macro,
+    is_alias, Alias,
+)
 
 
 class Object(object):
@@ -168,10 +172,55 @@ class BuiltinsSetBang(TestCase):
         self.assertEqual(env["tacos"], 9)
 
 
-class BuiltinsMacroExpand(TestCase):
+class BuiltinsMacroExpansion(TestCase):
 
-    def test_macroexpand_1(self):
-        pass
+    def test_macro(self):
+        src = """
+        (let ()
+          (defimport itertools)
+          (var counter (itertools.count))
+
+          (defmacro value++ () (next counter)))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, None)
+
+        value_macro = env["value++"]
+
+        self.assertTrue(is_macro(value_macro))
+
+        src = """
+        (values (value++) (value++) (value++))
+        """
+        stmt, env = compile_expr(src, **env)
+        res = stmt()
+        self.assertEqual(res, (0, 1, 2))
+
+
+    def test_alias(self):
+        src = """
+        (let ()
+          (defimport itertools)
+          (var counter (itertools.count))
+
+          (defalias value++ (next counter)))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, None)
+
+        value_macro = env["value++"]
+
+        self.assertTrue(is_macro(value_macro))
+        self.assertTrue(is_alias(value_macro))
+
+        src = """
+        (values value++ value++ value++)
+        """
+        stmt, env = compile_expr(src, **env)
+        res = stmt()
+        self.assertEqual(res, (0, 1, 2))
 
 
 class BuiltinsEval(TestCase):
