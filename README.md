@@ -161,10 +161,13 @@ the source stream before it becomes a source object
 
 ### Compile-time Macros: defmacro
 
-Compile time macros defined via defmacro are the simple, low-level
+Compile time macros defined via `defmacro` are the simple, low-level
 variety, transforming the `cons` list from the parsed source code and
 emitting a new list representing the expanded form. An implementation
 of `macroexpand-1` is included for macro debugging purposes.
+
+Macros which expand from a `symbol` rather than a `cons` list can be
+created via `defalias`. Alias macros take no arguments.
 
 
 ### Compile-time optimized operators
