@@ -41,7 +41,7 @@ class Object(object):
     pass
 
 
-class BuiltinsSetBang(TestCase):
+class BuiltinsSetf(TestCase):
 
     def test_setf_var(self):
         src = """
@@ -102,7 +102,7 @@ class BuiltinsSetBang(TestCase):
         self.assertEqual(res, cons(9, 2))
 
 
-    def test_setbang_cdr(self):
+    def test_setf_cdr(self):
 
         src = """
         (begin
@@ -114,7 +114,7 @@ class BuiltinsSetBang(TestCase):
         self.assertEqual(res, cons(1, 9))
 
 
-    def test_setbang_item(self):
+    def test_setf_item(self):
 
         src = """
         (begin
@@ -126,7 +126,7 @@ class BuiltinsSetBang(TestCase):
         self.assertEqual(res, [1, 9, 3])
 
 
-    def test_setbang_setf(self):
+    def test_setf_member(self):
 
         o = Object()
         src = """
@@ -170,6 +170,27 @@ class BuiltinsSetBang(TestCase):
         stmt, env = compile_expr(src, tacos=5)
         self.assertEqual(stmt(), 999)
         self.assertEqual(env["tacos"], 9)
+
+
+    def test_setbang_item_slice(self):
+
+        seq = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+        src = """
+        (setf (item-slice seq 0 3) (values 123 456 789))
+        """
+        stmt, env = compile_expr(src, seq=seq)
+        self.assertEqual(stmt(), None)
+        self.assertEqual(seq, [123, 456, 789, 4, 5, 6, 7, 8, 9])
+
+        seq = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+        src = """
+        (setf (item-slice seq step: 3) (values 123 456 789))
+        """
+        stmt, env = compile_expr(src, seq=seq)
+        self.assertEqual(stmt(), None)
+        self.assertEqual(seq, [123, 2, 3, 456, 5, 6, 789, 8, 9])
 
 
 class BuiltinsMacroExpansion(TestCase):
