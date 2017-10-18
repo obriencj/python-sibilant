@@ -144,7 +144,7 @@
 			(build-list ,(str member)))
 		,member))))
 
-    `(begin ,@coll)))
+    `(begin ,@coll None)))
 
 
 ;; === runtime macroexpand ===
@@ -181,11 +181,18 @@
       ,name (dest val) `(,',setter ,@dest ,val)))
 
   (defmacro setf (target value)
+
+    ;; since sibilant is designed to expand macros lazily, we need to
+    ;; jump ahead a bit and make sure that our target gets expanded
+    ;; right now so that we can find the right dispatch method.
+    (setq target (macroexpandq None target))
+
     (cond
      ((symbol? target)
       (if (in (str target) ".")
-	  (let ((spltrgt (target.rsplit "." 1)))
-	    `(set-attr ,(item spltrgt 0) ,(item spltrgt 1) ,value))
+	  (begin
+	   (var spltrgt (target.rsplit "." 1))
+	   `(set-attr ,(item spltrgt 0) ,(item spltrgt 1) ,value))
 	`(setq ,target ,value)))
 
      ((and (proper? target) (in *gv-forms* (car target)))
@@ -206,6 +213,10 @@
   (gv-define-setter caar (val x) `(set-car (car ,x) ,val))
 
   None)
+
+
+(defmacro item-slice (sequence start: 'None stop: 'None step: 1)
+  `(item ,sequence (slice ,start ,stop ,step)))
 
 
 ;; === def general targets ===
