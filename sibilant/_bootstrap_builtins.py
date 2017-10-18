@@ -159,6 +159,8 @@ def setup(glbls):
     _op(tco.tailcall, "tailcall")
     _op(tco.tco_disable, "tco-disable")
 
+    _op(compiler.current, "active-compiler")
+
 
     # === some python builtin types ===
 

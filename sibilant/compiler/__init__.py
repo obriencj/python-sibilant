@@ -14,6 +14,7 @@
 
 
 import dis
+import threading
 
 from abc import ABCMeta, abstractmethod
 from contextlib import contextmanager
@@ -53,6 +54,21 @@ _keyword_starstar = keyword("**")
 
 
 COMPILER_DEBUG = False
+
+
+_active = threading.local()
+
+
+def current():
+    try:
+        return _active.compiler
+    except AttributeError:
+        _active.compiler = None
+        return None
+
+
+def set_current(compiler):
+    _active.compiler = compiler
 
 
 class CompilerException(Exception):
@@ -888,11 +904,14 @@ class CodeSpace(metaclass=ABCMeta):
         """
 
         self.env = env
+        old_compiler = current()
+        set_current(self)
 
         try:
             yield self
 
         finally:
+            set_current(old_compiler)
             self.reset()
 
 
@@ -2275,12 +2294,18 @@ def _get_expander(env, source_obj):
 
 
 def iter_macroexpand(env, source_obj, position=None):
+    if env is None:
+        compiler = current()
+        env = None if compiler is None else compiler.env
+
+    if env is None:
+        raise CompilerException("macroexpand requires non-None env when"
+                                " no compiler is active")
+
     if position is None and is_pair(source_obj):
         position = source_obj.get_position()
 
     expander = _get_expander(env, source_obj)
-    expanded = source_obj
-
     while expander:
         expanded = expander()
         yield expanded
