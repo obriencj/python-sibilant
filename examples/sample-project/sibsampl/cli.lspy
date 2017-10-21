@@ -14,17 +14,68 @@
 
 
 (defimport sys)
-(defimportfrom argparse ArgumentParser)
+(defimport timeit)
+
+(defimportfrom argparse
+  ArgumentParser
+  _AppendAction _AppendConstAction _StoreAction _StoreConstAction)
+
 (defimportfrom os.path basename)
 
 
-(defun item-slice (value :start None :stop None :step 1)
-  (item value (slice start stop step)))
+(defun fibonacci_tco (index carry: 0 accu: 1)
+  (if (== index 0) then: carry
+      else: (fibonacci_tco (- index 1) accu (+ accu carry))))
 
 
-(defun cli (options)
-  (print "something is:" options.something)
-  (print "reversed:" (item-slice options.something :step -1)))
+(defun fibonacci_loop (index)
+  (vars (carry 0) (accu 1))
+
+  (while (< 0 index)
+    (setq-values
+     (index carry accu)
+     (values (- index 1) accu (+ accu carry))))
+
+  carry)
+
+
+(defun funtime (title fun number)
+  (var s (timeit.timeit stmt: fun number: number))
+  (print (str.format "{title} over {num} loops -> {secs} seconds"
+		     title: title num: number secs: s)))
+
+
+(defun cli-command-timeit (options)
+  (vars (f options.fib) (n options.number))
+
+  (vars (d1 (fibonacci_loop f))
+	(d2 (fibonacci_tco f)))
+
+  ;; kinda wish I had assert...
+  ;; TODO implement 'assert'
+  (unless (== d1 d2)
+    (raise (Exception "SHIT BROKE")))
+
+  (print (% "answer is %r" d1))
+
+  (funtime "fibonacci_loop" (partial fibonacci_loop f) n)
+  (funtime "fibonacci_tco" (partial fibonacci_tco f) n)
+
+  None)
+
+
+(defun cli-subp-timeit (parent)
+  (var subp (subparser
+	     parent "timeit"
+	     cli-func: cli-command-timeit))
+
+  (subp.add_argument "--number" action: "store" type: int
+		     default: timeit.default_number)
+
+  (subp.add_argument "--fib" action: "store" type: int
+		     default: 5000)
+
+  subp)
 
 
 (defun create-option-parser (argv)
@@ -37,7 +88,42 @@
   (parser.add_argument "something" nargs: "*" action: "store"
 		       type: str help: "something or another")
 
+  (cli-subp-timeit parser)
   parser)
+
+
+(define _inherit_actions
+  (values _AppendAction _AppendConstAction
+	  _StoreAction _StoreConstAction))
+
+
+(defun subparser (parser name cli-func: None help: None)
+  ;; argparse has some crap behaviour that I regularly find myself
+  ;; needing to override with this function. I should really move this
+  ;; into a sibilant.site.argparse module...
+
+  (var subs
+    (if parser._subparsers
+	then: (item parser._subparsers._actions -1)
+	else: (parser.add_subparsers)))
+
+  (var sp
+    (subs.add_parser (str name) help: help description: help))
+
+  (for-each (act parser._subparsers._actions)
+	    (when (isinstance act _inherit_actions)
+	      (sp._add_action act)))
+
+  (sp._defaults.update parser._defaults)
+
+  (when (none? cli-func)
+    (setq cli-func (lambda (options)
+		     (sp.print_usage sys.stderr)
+		     1)))
+
+  (sp.set_defaults cli-func: cli-func)
+
+  sp)
 
 
 (defun main (argv: None)
@@ -51,7 +137,7 @@
 		(item-slice argv 1)))
 
   (try
-   (cli options)
+   (options.cli-func options)
 
    ((KeyboardInterrupt as: ki)
     (print file: sys.stderr)
