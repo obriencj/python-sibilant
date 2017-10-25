@@ -1854,41 +1854,76 @@ class ExpressionCodeSpace(CodeSpace):
         # if we made it this far, head has already been compiled and
         # returned None (meaning it was just a plain-ol expression),
         # so we can proceed with normal apply semantics
-
-        # --- new ---
-
-        self.helper_tailcall_tos(tc)
-        self.helper_compile_call(tail, position)
-
-        # --- old ---
-        # for cl in tail.unpack():
-        #     self.add_expression(cl)
-        #
-        # self.pseudop_position_of(expr)
-        # self.pseudop_call(tail.count())
+        self.compile_call_tos(tail, position, tc)
 
         return None
 
 
-    def helper_tailcall_tos(self, tc):
+    def compile_call_tos(self, args, position=None, tc=False):
+        if tc:
+            self.helper_tailcall_tos(args, position)
+        self.helper_compile_call(args, position)
+
+
+    def helper_tailcall_tos(self, args, position):
         """
         Should be invoked upon TOS functions objects that could
         potentially recur. tc indicates whether the TOS is in a valid
         tailcall position.
         """
 
-        if tc and self.tco_enabled and \
-           not self.generator and \
-           self.mode is not Mode.MODULE:
+        # we need to detect a special case:
 
-            self.pseudop_get_var("tailcall")
-            self.pseudop_rot_two()
-            self.pseudop_call(1)
-            self.declare_tailcall()
+        # 1. if the TOS is the same as freevar[0], then this is a
+        # recursive invocation. Instead of using the tailcall wrapper,
+        # unpack the parameters and jump to zero.
+
+        # 2. otherwise, use the tailcall wrapper on TOS and invoke as
+        # normal.
+
+        if not self.tco_enabled or \
+           self.generator or \
+           self.mode is Mode.MODULE:
+            return False
+
+        tclabel = self.gen_label()
+
+        if self.free_vars and self.free_vars[0] == self.name:
+            # this is a function, not a lambda, we can self-ref. Test
+            # whether the function we're going to tailcall to is
+            # ourself. If it is, we can just jump to zero after
+            # setting the local vars to the values of the expressions.
+            self.pseudop_dup()
+            self.pseudop_get_var(self.name)
+            self.pseudop_compare_is()
+            self.pseudop_pop_jump_if_false(tclabel)
+
+            # TODO: need better arg assignment
+            # TODO: keyword args
+            # TODO: unspecified arguments with default values
+
+            for arg in args.unpack():
+                self.add_expression(arg, False)
+
+            for var in reversed(self.args):
+                self.pseudop_set_var(var)
+
+            self.pseudop_pop()  # throw away the ref to func
+            self.pseudop_jump(0)
+
+        # either this isn't a self-referential function, or it is and
+        # the tailcall isn't recursive, so we'll use the trampoline
+        # instead.
+        self.pseudop_label(tclabel)
+        self.pseudop_get_var("tailcall")
+        self.pseudop_rot_two()
+        self.pseudop_call(1)
+
+        self.declare_tailcall()
 
 
     @abstractmethod
-    def helper_compile_call(self, args):
+    def helper_compile_call(self, tail, position):
         """
         The function to be called is presumed to already be on the stack
         before this is helper is invoked. The helper should assemble the
@@ -2120,7 +2155,7 @@ def gather_formals(args, declared_at=None):
         arg = next(iargs, undefined)
 
     if arg is not undefined:
-        raise err(("leftover formals %r" % arg))
+        raise err("leftover formals %r" % arg)
 
     return (positional, defaults, kwonly, star, starstar)
 
@@ -2162,7 +2197,7 @@ def gather_parameters(args, declared_at=None):
 
     elif isinstance(args, (list, tuple)):
         improper = False
-        args = cons(*args, nil)
+        args = cons(*args, nil) if args else nil
 
     elif is_proper(args):
         improper = False

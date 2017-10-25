@@ -580,10 +580,9 @@ def _special_function(code, source, tc=False):
     called_by, (namesym, cl) = source
     args, body = cl
 
-    # todo create the function inside of a closure that has a
-    # single local cell, which is the new function's name. this
-    # will give the function the ability to reference its cell via
-    # that cell.
+    # create the function inside of a closure that has a single local
+    # cell, which is the new function's name. this will give the
+    # function the ability to reference itself via that cell.
 
     name = str(namesym)
     declared_at = source.get_position()
@@ -599,6 +598,7 @@ def _special_function(code, source, tc=False):
         subc.pseudop_return()
         kid_code = subc.complete()
 
+    # kid_code returns our function object
     code.pseudop_lambda(kid_code)
     code.pseudop_call(0)
 
@@ -675,16 +675,7 @@ def _special_let(code, source, tc=False):
     # after both the named or unnamed variations, we now have the let
     # bound as a callable at TOS
 
-    # tailcall enable this function application. has no effect if tc
-    # is False. Normally it's the compiler's job to perform this step,
-    # but since we're creating our own function application call, we
-    # need to do it manually.
-    code.helper_tailcall_tos(tc)
-
-    for val in vals:
-        code.add_expression(val)
-
-    code.pseudop_call(len(vals))
+    code.compile_call_tos(vals, declared_at, tc)
 
     # no additional transform needed
     return None
