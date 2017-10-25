@@ -22,13 +22,45 @@
 
 (defimportfrom os.path basename)
 
+(defimportfrom functools lru_cache)
 
-(defun fibonacci_tco (index carry: 0 accu: 1)
+
+;; naive memoized fibonacci implementation. I really need to add a way
+;; to do pythonic decorators with my (def function ...) syntax
+(define fibonacci_
+  ((lru_cache (** 2 10))
+   (lambda (index)
+     (if (< index 2) then: index
+	 else: (+ (fibonacci_ (- index 1)) (fibonacci_ (- index 2)))))))
+
+;; since the purpose here is in timing things, we need to make sure to
+;; clear the lru_cache between invocations.
+(def function fibonacci (index)
+     (var result (fibonacci_ index))
+     (fibonacci_.cache_clear)
+     result)
+
+
+;; the tail-call recursive impl
+(def function fibonacci_tcr (index carry: 0 accu: 1)
+  (if (== index 0) then: carry
+      else: (fibonacci_tcr (- index 1) accu (+ accu carry))))
+
+
+;; tail-call optimized BUT NOT RECURSIVE (had to make two functions to
+;; make that happen). This will not run out of stack space thanks to
+;; the trampoline, but it's also going to be slow because of all those
+;; bounces.
+(def function fibonacci_tco (index carry: 0 accu: 1)
+  (if (== index 0) then: carry
+      else: (fibonacci_tco_2 (- index 1) accu (+ accu carry))))
+(def function fibonacci_tco_2 (index carry: 0 accu: 1)
   (if (== index 0) then: carry
       else: (fibonacci_tco (- index 1) accu (+ accu carry))))
 
 
-(defun fibonacci_loop (index)
+;; looping version
+(def function fibonacci_loop (index)
   (vars (carry 0) (accu 1))
 
   (while (< 0 index)
@@ -39,32 +71,43 @@
   carry)
 
 
-(defun funtime (title fun number)
-  (var s (timeit.timeit stmt: fun number: number))
-  (print (str.format "{title} over {num} loops -> {secs} seconds"
-		     title: title num: number secs: s)))
+(def function funtime (title fun number)
+  (try
+   (begin
+    (var s (timeit.timeit stmt: fun number: number))
+    (print (str.format "{title} over {num} loops -> {secs:6.4f}"
+		       title: title num: number secs: s)))
+   ((BaseException as: be)
+    (print (str.format "{title} -> {problem}"
+		       title: title problem: be)))))
 
 
-(defun cli-command-timeit (options)
+(def function cli-command-timeit (options)
   (vars (f options.fib) (n options.number))
 
-  (vars (d1 (fibonacci_loop f))
-	(d2 (fibonacci_tco f)))
+  (vars
+   (d0 (try (fibonacci f) ((BaseException) None)))
+   (d1 (fibonacci_loop f))
+   (d2 (fibonacci_tco f))
+   (d3 (fibonacci_tcr f)))
 
   ;; kinda wish I had assert...
   ;; TODO implement 'assert'
-  (unless (== d1 d2)
+  (unless (and (== d1 d2) (== d1 d3) (or (none? d0) (== d0 d1)))
     (raise (Exception "SHIT BROKE")))
 
+  (print (% "calculating fibonacci of %r" f))
   (print (% "answer is %r" d1))
 
-  (funtime "fibonacci_loop" (partial fibonacci_loop f) n)
-  (funtime "fibonacci_tco" (partial fibonacci_tco f) n)
+  (funtime "fibonacci memoized" (partial fibonacci f) n)
+  (funtime "fibonacci via loop" (partial fibonacci_loop f) n)
+  (funtime "fibonacci with TCO" (partial fibonacci_tco f) n)
+  (funtime "fibonacci with TCR" (partial fibonacci_tcr f) n)
 
   None)
 
 
-(defun cli-subp-timeit (parent)
+(def function cli-subp-timeit (parent)
   (var subp (subparser
 	     parent "timeit"
 	     cli-func: cli-command-timeit))
@@ -78,7 +121,7 @@
   subp)
 
 
-(defun create-option-parser (argv)
+(def function create-option-parser (argv)
   (doc "the sibapp CLI argument parser")
 
   (var parser (ArgumentParser
@@ -97,7 +140,7 @@
 	  _StoreAction _StoreConstAction))
 
 
-(defun subparser (parser name cli-func: None help: None)
+(def function subparser (parser name cli-func: None help: None)
   ;; argparse has some crap behaviour that I regularly find myself
   ;; needing to override with this function. I should really move this
   ;; into a sibilant.site.argparse module...
@@ -126,7 +169,7 @@
   sp)
 
 
-(defun main (argv: None)
+(def function main (argv: None)
   (doc "entry point for the sibapp CLI")
 
   ;; grab sys.argv if we aren't given something else
