@@ -29,7 +29,7 @@ class CPython36(ExpressionCodeSpace):
         offset = 0
         coll = []
 
-        labels = {}
+        labels = {0: 0}
 
         def add_label(name):
             labels[name] = offset
