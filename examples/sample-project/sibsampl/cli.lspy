@@ -14,68 +14,77 @@
 
 
 (defimport sys)
+
 (defimport timeit)
 
 (defimportfrom argparse
   ArgumentParser
-  _AppendAction _AppendConstAction _StoreAction _StoreConstAction)
-
-(defimportfrom os.path basename)
+  _AppendAction _AppendConstAction
+  _StoreAction _StoreConstAction)
 
 (defimportfrom functools lru_cache)
 
-
-;; naive memoized fibonacci implementation. I really need to add a way
-;; to do pythonic decorators with my (def function ...) syntax
-(define fibonacci_
-  ((lru_cache (** 2 10))
-   (lambda (index)
-     (if (< index 2) then: index
-	 else: (+ (fibonacci_ (- index 1)) (fibonacci_ (- index 2)))))))
-
-;; since the purpose here is in timing things, we need to make sure to
-;; clear the lru_cache between invocations.
-(def function fibonacci (index)
-     (var result (fibonacci_ index))
-     (fibonacci_.cache_clear)
-     result)
+(defimportfrom os.path basename)
 
 
-;; the tail-call recursive impl
-(def function fibonacci_tcr (index carry: 0 accu: 1)
+;; the natural, tail-call recursive impl
+(def function fibonacci (index carry: 0 accu: 1)
   (if (== index 0) then: carry
-      else: (fibonacci_tcr (- index 1) accu (+ accu carry))))
+      else: (fibonacci (- index 1) accu (+ accu carry))))
+
+
+;; non-tailcall, memoized fibonacci implementation.
+(define fibonacci_lru
+
+  (define fibonacci_
+    ((lru_cache (** 2 10))
+     ;; note to self: I really need to add a way to do pythonic decorators
+     ;; with my (def function ...) syntax
+
+     (lambda (index)
+       (if (< index 2) then: index
+	   else: (+ (fibonacci_ (- index 1)) (fibonacci_ (- index 2)))))))
+
+  (function fibonacci_lru (index)
+	    ;; since the purpose here is in timing things, we need to
+	    ;; make sure to clear the lru_cache between invocations.
+	    (fibonacci_.cache_clear)
+	    (fibonacci_ index)))
 
 
 ;; tail-call optimized BUT NOT RECURSIVE (had to make two functions to
 ;; make that happen). This will not run out of stack space thanks to
 ;; the trampoline, but it's also going to be slow because of all those
 ;; bounces.
-(def function fibonacci_tco (index carry: 0 accu: 1)
-  (if (== index 0) then: carry
-      else: (fibonacci_tco_2 (- index 1) accu (+ accu carry))))
-(def function fibonacci_tco_2 (index carry: 0 accu: 1)
-  (if (== index 0) then: carry
-      else: (fibonacci_tco (- index 1) accu (+ accu carry))))
+(define fibonacci_tco
+  (labels
+      ((fib-1 (index carry accu)
+	      (if (== index 0) then: carry
+		  else: (fib-2 (- index 1) accu (+ accu carry))))
+       (fib-2 (index carry accu)
+	      (if (== index 0) then: carry
+		  else: (fib-1 (- index 1) accu (+ accu carry)))))
+
+    (function fibonacci_tco (index)
+	      (fib-1 index 0 1))))
 
 
 ;; looping version
-(def function fibonacci_loop (index)
+(def function fibonacci_while (index)
   (vars (carry 0) (accu 1))
 
   (while (< 0 index)
     (setq-values
      (index carry accu)
-     (values (- index 1) accu (+ accu carry))))
-
-  carry)
+     (values (- index 1) accu (+ accu carry)))
+    carry))
 
 
 (def function funtime (title fun number)
   (try
    (begin
     (var s (timeit.timeit stmt: fun number: number))
-    (print (str.format "{title} over {num} loops -> {secs:6.4f}"
+    (print (str.format "{title} over {num} loops -> {secs:7.4f} seconds"
 		       title: title num: number secs: s)))
    ((BaseException as: be)
     (print (str.format "{title} -> {problem}"
@@ -83,13 +92,13 @@
 
 
 (def function cli-command-timeit (options)
-  (vars (f options.fib) (n options.number))
+  (vars (f options.of) (n options.times))
 
   (vars
-   (d0 (try (fibonacci f) ((BaseException) None)))
-   (d1 (fibonacci_loop f))
+   (d0 (try (fibonacci_lru f) ((BaseException) None)))
+   (d1 (fibonacci_while f))
    (d2 (fibonacci_tco f))
-   (d3 (fibonacci_tcr f)))
+   (d3 (fibonacci f)))
 
   ;; kinda wish I had assert...
   ;; TODO implement 'assert'
@@ -99,10 +108,10 @@
   (print (% "calculating fibonacci of %r" f))
   (print (% "answer is %r" d1))
 
-  (funtime "fibonacci memoized" (partial fibonacci f) n)
-  (funtime "fibonacci via loop" (partial fibonacci_loop f) n)
+  (funtime "fibonacci with TCR" (partial fibonacci f) n)
   (funtime "fibonacci with TCO" (partial fibonacci_tco f) n)
-  (funtime "fibonacci with TCR" (partial fibonacci_tcr f) n)
+  (funtime "fibonacci with LRU" (partial fibonacci_lru f) n)
+  (funtime "fibonacci no recur" (partial fibonacci_while f) n)
 
   None)
 
@@ -112,11 +121,13 @@
 	     parent "timeit"
 	     cli-func: cli-command-timeit))
 
-  (subp.add_argument "--number" action: "store" type: int
-		     default: timeit.default_number)
+  (subp.add_argument "--times" action: "store" type: int
+		     help: "calculate this many times (default 1000)"
+		     default: 1000)
 
-  (subp.add_argument "--fib" action: "store" type: int
-		     default: 5000)
+  (subp.add_argument "--of" action: "store" type: int
+		     help: "calculate fibonacci of (default 2000)"
+		     default: 2000)
 
   subp)
 
@@ -127,9 +138,6 @@
   (var parser (ArgumentParser
 	       prog: (basename (item argv 0))
 	       description: "This is sibapp"))
-
-  (parser.add_argument "something" nargs: "*" action: "store"
-		       type: str help: "something or another")
 
   (cli-subp-timeit parser)
   parser)
