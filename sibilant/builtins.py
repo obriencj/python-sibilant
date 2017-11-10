@@ -22,7 +22,7 @@ license: LGPL v.3
 """
 
 
-def _setup():
+def _setup(glbls):
     import sys
     from os.path import join, dirname
     from pkgutil import get_data
@@ -54,7 +54,6 @@ def _setup():
     sys.modules["sibilant"]._builtins = builtins
     sys.modules["sibilant._builtins"] = builtins
 
-    glbls = globals()
     _all = set()
     for module in (bootstrap, builtins):
         for key, val in module.__dict__.items():
@@ -62,10 +61,10 @@ def _setup():
                 glbls[key] = val
                 _all.add(key)
 
-    glbls["__all__"] = tuple(_all)
+    return tuple(_all)
 
 
-_setup()
+__all__ = _setup(globals())
 del _setup
 
 
