@@ -1893,6 +1893,16 @@ class ExpressionCodeSpace(CodeSpace):
             # whether the function we're going to tailcall to is
             # ourself. If it is, we can just jump to zero after
             # setting the local vars to the values of the expressions.
+
+            # TODO: I need a better way to tell if the function about
+            # to be invoked is the same actual function that we're
+            # already evaluating in. Unfortunately, that information
+            # isn't in the frame itself... but we might be able to
+            # steal it with a native extension that peeks at the stack
+            # values. However, that's pretty ugly. But I was going to
+            # write some of the TCO stuff as native functions anyway,
+            # so maybe that's okay.
+
             self.pseudop_dup()
             self.pseudop_get_var(self.name)
             self.pseudop_compare_is()
@@ -1901,6 +1911,9 @@ class ExpressionCodeSpace(CodeSpace):
             # TODO: need better arg assignment
             # TODO: keyword args
             # TODO: unspecified arguments with default values
+
+            # if args has keywords in it, then we need to map out each arg
+            # expression to a var
 
             for arg in args.unpack():
                 self.add_expression(arg, False)
