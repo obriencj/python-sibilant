@@ -68,7 +68,7 @@
 
 (def class LifeScreen (object)
 
-     (def function __init__ (self screen wrap: False renderer: None)
+     (def method __init__ (self screen wrap: False renderer: None)
 
 	  (when (none? renderer)
 	    (setf renderer (make-char-renderer)))
@@ -91,7 +91,7 @@
 	  None)
 
 
-     (def function display (self)
+     (def method display (self)
 	  (var board self.board)
 	  (var render self.renderer)
 	  (var screen self.screen)

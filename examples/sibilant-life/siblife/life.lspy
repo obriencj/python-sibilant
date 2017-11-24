@@ -19,9 +19,13 @@
 (defimportfrom random random seed)
 
 
+(defmacro within? (min_i max value)
+  `(and (<= ,min_i ,value) (< ,value ,max)))
+
+
 (def class LifeBoard (object)
 
-     (def function __init__ (self width height wrap: False)
+     (def method __init__ (self width height wrap: False)
 
 	  (setf self.width width)
 	  (setf self.height height)
@@ -29,10 +33,12 @@
 
 	  (setf self.data (dict))
 
-	  (self.clear))
+	  (self.clear)
+
+	  None)
 
 
-     (def function clear (self)
+     (def method clear (self)
 	  (doc "
           Clears all the data in the current board. Each position is
           set to the default state of dead.
@@ -50,7 +56,7 @@
 	  None)
 
 
-     (def function randomize (self threshold: 0.5)
+     (def method randomize (self threshold: 0.5)
 	  (doc "
           Clears all the data in the current board. Each position on
           the board is then populated if a random value is greater
@@ -72,7 +78,7 @@
 	  None)
 
 
-     (def function tracked (self cleanup: True)
+     (def method tracked (self cleanup: True)
 	  (doc "
           Yields pairs of coordinates and cell values, where each
           coordinate is an integer representing the x and y axis.
@@ -94,22 +100,22 @@
 			      (setq-values (coord cell) item)
 			      (unless cell
 				(data.pop coord)))
-	      else: (yield-from (data.items))))
+	      else: (data.items)))
 
 
-     (def function toggle (self x y)
+     (def method toggle (self x y)
 	  (doc "
           Flip a living cell to dead, or a dead cell to alive.
           ")
 
 	  (var coord (values x y))
-
 	  (var cell (self.data.get coord None))
+
 	  (setf (item self.data coord) (if cell 0 1))
 	  None)
 
 
-     (def function coord-key (self x y)
+     (def method coord-key (self x y)
 	  (doc "
           Converts a coordinate into a key for internal storage, or
           None if the coordinate is not within the bounds of the board
@@ -119,13 +125,13 @@
 	  (vars (w self.width) (h self.height))
 
 	  (unless self.wrap
-	    (unless (and (within? x 0 w) (within? y 0 h))
+	    (unless (and (within? 0 w x) (within? 0 h y))
 	      (return None)))
 
 	  (values (% x w) (% y h)))
 
 
-     (def function get-cell (self x y)
+     (def method get-cell (self x y)
 	  (var key (self.coord-key x y))
 
 	  (if (none? key)
@@ -133,28 +139,28 @@
 	      else: (self.data.get key 0)))
 
 
-     (def function set-cell (self x y value)
+     (def method set-cell (self x y value)
 	  (var key (self.coord-key x y))
 
 	  (unless (none? key)
 	    (setf (item self.data key) value)))
 
 
-     (def function group-coord (self x y)
+     (def method group-coord (self x y)
 	  (product (values (- x 1) x (+ x 1))
 		   (values (- y 1) y (+ y 1))))
 
 
-     (def function get-group (self x y)
+     (def method get-group (self x y)
 	  (starmap self.get-cell (self.group-coord x y)))
 
 
-     (def function get-all-groups (self)
+     (def method get-all-groups (self)
 	  (starmap self.get-group (product (range 0 self.width)
 					   (range 0 self.height))))
 
 
-     (def function age (self)
+     (def method age (self)
 	  (doc "update the state of this board to represent the next"
 	       "generation")
 
@@ -185,7 +191,7 @@
 	  None)
 
 
-     (def function child (self)
+     (def method child (self)
 	  (doc "create a copy of this board and age it to the next"
 	       "generation")
 
@@ -220,10 +226,6 @@
 	 else: (if (== living 3)
 		   then: 1
 		   else: 0)))
-
-
-(def function within? (value min_i max)
-     (and (<= min_i value) (< value max)))
 
 
 ;;

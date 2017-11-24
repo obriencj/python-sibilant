@@ -25,6 +25,8 @@ from functools import partial, reduce
 from itertools import islice
 from weakref import WeakValueDictionary
 
+import operator
+
 
 __all__ = (
     "SibilantException", "NotYetImplemented",
@@ -658,18 +660,9 @@ class BuiltinPredicate(partial):
         return "<builtin predicate %s>" % self.__name__
 
 
-def _setup_nil():
-    import operator
-
-    # This is intended as a singleton
-    nil = Nil()
-    is_nil = BuiltinPredicate("nil?", operator.is_, nil)
-
-    return nil, is_nil
-
-
-nil, is_nil = _setup_nil()
-del _setup_nil
+# This is intended as a singleton
+nil = Nil()
+is_nil = BuiltinPredicate("nil?", operator.is_, nil)
 
 
 def car(c):
