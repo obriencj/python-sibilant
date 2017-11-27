@@ -50,7 +50,6 @@ _symbol_begin = symbol("begin")
 _symbol_cond = symbol("cond")
 _symbol_lambda = symbol("lambda")
 _symbol_function = symbol("function")
-_symbol_method = symbol("method")
 _symbol_with = symbol("with")
 _symbol_let = symbol("let")
 _symbol_for_each = symbol("for-each")
@@ -607,47 +606,6 @@ def _special_function(code, source, tc=False):
     return None
 
 
-@special(_symbol_method)
-def _special_method(code, source, tc=False):
-    """
-    (method NAME (FORMAL...) BODY...)
-
-    Creates a method with a binding to itself as NAME, taking FORMAL
-    arguments, and executing the BODY expressions in order. The result
-    of the final expression is returned.
-    """
-
-    called_by, (namesym, cl) = source
-    args, body = cl
-
-    # todo create the function inside of a closure that has a
-    # single local cell, which is the new function's name. this
-    # will give the function the ability to reference its cell via
-    # that cell.
-
-    name = str(namesym)
-    declared_at = source.get_position()
-
-    code.pseudop_position_of(source)
-
-    kid = code.child_context(declared_at=declared_at)
-    with kid as subc:
-        subc.declare_var(name)
-        _helper_function(subc, name, args, body,
-                         declared_at=declared_at,
-                         method=True)
-        subc.pseudop_dup()
-        subc.pseudop_set_var(name)
-        subc.pseudop_return()
-        kid_code = subc.complete()
-
-    code.pseudop_lambda(kid_code)
-    code.pseudop_call(0)
-
-    # no additional transform needed
-    return None
-
-
 @special(_symbol_let)
 def _special_let(code, source, tc=False):
     """
@@ -732,7 +690,7 @@ def _special_let(code, source, tc=False):
     return None
 
 
-def _helper_function(code, name, args, body, declared_at=None, method=False):
+def _helper_function(code, name, args, body, declared_at=None):
 
     tco = code.tco_enabled
 
@@ -781,8 +739,7 @@ def _helper_function(code, name, args, body, declared_at=None, method=False):
 
         tco = subc.tco_enabled and not subc.generator and subc.tailcalls
         if tco:
-            code.pseudop_get_var("methodtrampoline" if method
-                                 else "trampoline")
+            code.pseudop_get_var("trampoline")
             code.pseudop_rot_two()
             code.pseudop_call(1)
 

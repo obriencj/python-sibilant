@@ -37,7 +37,7 @@ def setup():
     # setup function.
 
 
-    from functools import partial, partialmethod
+    from functools import partial
     _getattr = getattr
     _type = type
 
@@ -58,10 +58,14 @@ def setup():
         return work
 
 
-    class FunctionTrampoline(partial):
-        """
-        A tail-call trampoline wrapper for a function
-        """
+    def tco_methodtrampoline(inst, work, *args, **kwds):
+        work = work(inst, *args, **kwds)
+        while _type(work) is TailCall:
+            work = work()
+        return work
+
+
+    class Trampoline(partial):
 
         def __new__(cls, fun):
             # note we don't check for _tco_disable here, because by the
@@ -76,41 +80,51 @@ def setup():
             fun = _getattr(fun, "_tco_original", fun)
 
             part = partial.__new__(cls, tco_trampoline, fun)
+
             part._tco_original = fun
             part._tco_enable = True
+
+            part.__name__ = fun.__name__
+            part.__doc__ = fun.__doc__
+            part.__qualname__ = fun.__qualname__
+
             return part
 
+
+    Trampoline.__qualname__ = "Trampoline"
+
+
+    class FunctionTrampoline(Trampoline):
+        """
+        A tail-call trampoline wrapper for a function
+        """
+
+
+        def __get__(self, inst, owner):
+            return self if inst is None else \
+                MethodTrampoline(self._tco_original.__get__(inst, owner))
+
+
         def __repr__(self):
-            return "<trampoline function %s>" % self._tco_original.__name__
+            return "<trampoline function %s at 0x%x>" % \
+                (self.__name__, id(self))
 
 
-    class MethodTrampoline(partialmethod):
+    FunctionTrampoline.__qualname__ = "FunctionTrampoline"
+
+
+    class MethodTrampoline(Trampoline):
         """
         A tail-call trampoline wrapper for a method
         """
 
-        def __init__(self, fun):
-            # note we don't check for _tco_disable here, because by the
-            # time we get this far, the function has been compiled
-            # expecting to have a trampoline under it, and it will return
-            # TailCall objects. Without the trampoline, those would end up
-            # in the normal return flow, and would break a bunch of
-            # things.
-
-            # if fun is already a wrapped tailcall, or it's a wrapped
-            # trampoline, we'll unwrap it first.
-            fun = _getattr(fun, "_tco_original", fun)
-
-            partialmethod.__init__(self, tco_trampoline, fun)
-            self._tco_original = fun
-            self._tco_enable = True
 
         def __repr__(self):
-            return "<trampoline method %s>" % self._tco_original.__name__
+            return "<trampoline bound method %s of %r>" % \
+                (self.__qualname__, self._tco_original.__self__)
 
 
-    trampoline = FunctionTrampoline
-    methodtrampoline = MethodTrampoline
+    MethodTrampoline.__qualname__ = "MethodTrampoline"
 
 
     def tailcall(fun):
@@ -127,14 +141,12 @@ def setup():
         return tco_bounce
 
 
-    trampoline.__qualname__ = "sibilant.tco.trampoline"
-    trampoline.__qualname__ = "sibilant.tco.methodtrampoline"
     tailcall.__qualname__ = "sibilant.tco.tailcall"
 
-    return trampoline, methodtrampoline, tailcall
+    return FunctionTrampoline, tailcall
 
 
-trampoline, methodtrampoline, tailcall = setup()
+trampoline, tailcall = setup()
 del setup
 
 

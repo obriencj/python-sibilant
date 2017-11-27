@@ -156,7 +156,6 @@ def setup(glbls):
     _op(compiler.is_operator, "operator?")
 
     _op(tco.trampoline, "trampoline")
-    _op(tco.methodtrampoline, "methodtrampoline")
     _op(tco.tailcall, "tailcall")
     _op(tco.tco_disable, "tco-disable")
 
