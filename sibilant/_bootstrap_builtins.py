@@ -260,117 +260,6 @@ def setup(glbls):
     _op(_apply, "apply", rename=True)
 
 
-    map_ = map
-
-    def _map(fun, *arglist):
-        """
-        (map FUN VALUES...)
-
-        Iterator that applies FUN using positional arguments from each
-        of the itrable VALUES. Stops when the shortest iterable is
-        exhausted.
-
-        If a VALUES is a cons pair, it will be unpacked instead of
-        iterated
-        """
-
-        arglist = ((a.unpack() if is_pair(a) else a) for a in arglist)
-        return map_(fun, *arglist)
-
-    _op(_map, "map", rename=True)
-
-
-    zip_ = zip
-
-    def _zip(*iters):
-        """
-        (zip VALUES...)
-
-        Return a zip object iterable whose items are tuples where the
-        i-th element comes from the i-th VALUES argument. Stops when the
-        shortest iterable is exhausted.
-
-        If a VALUES is a cons pair, it will be unpacked instead of
-        iterated
-        """
-
-        iters = ((i.unpack() if is_pair(i) else i) for i in iters)
-        return zip_(*iters)
-
-    _op(_zip, "zip", rename=True)
-
-
-    filter_ = filter
-
-    def _filter(test, seq):
-        """
-        (filter RULE VALUE)
-
-        Iterator yielding items from VALUE that pass RULE. RULE may be
-        a unary predicate function, or None to indicate that items
-        which are truthful should be yielded (same as using bool)
-
-        If VALUE is a cons pair, it will be unpacked instead of
-        iterated
-        """
-
-        if is_pair(seq):
-            seq = seq.unpack()
-        return filter_(test, seq)
-
-    _op(_filter, "filter", rename=True)
-
-
-    enumerate_ = enumerate
-
-    def _enumerate(value, start=0):
-        """
-        (enumerate VALUE)
-        (enumerate VALUE start: N)
-
-        Iterator returning tuples of (INDEX, ITEM) where each ITEM is
-        from iterating through VALUE, and INDEX starts from N
-        (defaulting to 0 if unspecified) incrementing upwards by 1.
-
-        If VALUE is a cons pair, it will be unpacked instead of
-        iterated
-        """
-
-        if is_pair(value):
-            value = value.unpack()
-        return enumerate_(value, start)
-
-    _op(_enumerate, "enumerate", rename=True)
-
-
-    reduce_ = reduce
-    unset = object()
-
-    def _reduce(fun, values, init=unset):
-        """
-        (reduce FUN SEQUENCE)
-        (reduce FUN SEQUENCE init: INIT)
-
-        Apply a function FUN of two arguments cumulatively to the
-        items of SEQUENCE, from left to right, so as to reduce the
-        sequence to a single value. If INIT is present, it is placed
-        before the items of the sequence in the calculation, and
-        serves as a default should the sequence be empty.
-
-        If SEQUENCE is a cons pair, it will be unpacked instead of
-        iterated
-        """
-
-        if is_pair(values):
-            values = values.unpack()
-        if init is unset:
-            return reduce_(fun, values)
-        else:
-            return reduce_(fun, values, init)
-
-    _op(_reduce, "reduce", rename=True)
-
-
     _op((lambda *vals: vals), "build-tuple", rename=True)
     _op((lambda *vals: vals), "values", rename=True)
     _ty(tuple, "tuple")
@@ -397,6 +286,12 @@ def setup(glbls):
 
 
     # === some python builtin functions ===
+
+    _op(map, "map")
+    _op(zip, "zip")
+    _op(filter, "filter")
+    _op(reduce, "reduce")
+    _op(enumerate, "enumerate")
 
     _op(callable, "callable?")
     _op(next, "next")
