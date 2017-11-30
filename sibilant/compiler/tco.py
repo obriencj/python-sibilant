@@ -58,13 +58,6 @@ def setup():
         return work
 
 
-    def tco_methodtrampoline(inst, work, *args, **kwds):
-        work = work(inst, *args, **kwds)
-        while _type(work) is TailCall:
-            work = work()
-        return work
-
-
     class Trampoline(partial):
 
         def __new__(cls, fun):
