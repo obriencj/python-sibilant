@@ -52,17 +52,10 @@ def setup(glbls):
     import sibilant.compiler.specials as specials
     import sibilant.compiler.operators as operators
 
-    from sibilant import is_pair
+    from sibilant import is_pair, TypePredicate
 
 
     _all_ = []
-
-
-    class builtin_partial(partial):
-        def __repr__(self):
-            return "<sibilant builtin %r>" % self.__name__
-
-        __str__ = __repr__
 
 
     def _op(opf, name=None, rename=False):
@@ -83,7 +76,7 @@ def setup(glbls):
 
     def _ty(type_, name):
         _val(type_, name)
-        _op(builtin_partial(type_.__instancecheck__), name + "?", True)
+        _op(TypePredicate(name + "?", type_), None, True)
 
 
     # === mass re-export from other modules ==
