@@ -20,10 +20,6 @@
 (defimport siblife.curse)
 
 
-(defmacro item-slice (value start: 'None stop: 'None step: 1)
-  `(item ,value (slice ,start ,stop ,step)))
-
-
 (defun cli (options)
   (siblife.curse.main options))
 

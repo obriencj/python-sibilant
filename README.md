@@ -82,11 +82,15 @@ that front if someone really needs 3.4 support.
 
 [PyPy3] is [being considered], but a very key piece of necessary
 functionality (the ability to specify a custom `builtins` module) is
-disabled by default as an optimization.
+[disabled] by [default] as an optimization.
 
 [PyPy3]: https://pypy.org/
 
 [being considered]: https://github.com/obriencj/python-sibilant/issues/51
+
+[disabled]: https://bitbucket.org/pypy/pypy/issues/2653/
+
+[default]: http://doc.pypy.org/en/latest/config/objspace.honor__builtins__.html
 
 
 ## References

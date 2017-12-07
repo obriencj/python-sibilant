@@ -25,15 +25,17 @@ Sibilant, Scheme for Python
 
 
 from sys import exit, version_info
-from setuptools import setup
+from setuptools import setup, Extension
 
 
-if (3, 6) <= version_info <= (3, 7):
-    pass
-elif (3, 5) <= version_info <= (3, 6):
+if (3, 5) <= version_info < (3, 7):
     pass
 else:
     exit("unsupported version: %r" % version_info)
+
+
+ext_ctco = Extension("sibilant.compiler.ctco",
+                     ["sibilant/compiler/ctco.c"])
 
 
 setup(name = "sibilant",
@@ -47,6 +49,10 @@ setup(name = "sibilant",
       package_data = {
           "sibilant": ["*.lspy"],
       },
+
+      ext_modules = [
+          ext_ctco,
+      ],
 
       test_suite = "tests",
 

@@ -21,9 +21,11 @@ Sibilant, a Scheme for Python
 """
 
 
-from functools import reduce
+from functools import partial, reduce
 from itertools import islice
 from weakref import WeakValueDictionary
+
+import operator
 
 
 __all__ = (
@@ -40,6 +42,16 @@ __all__ = (
 
     "reapply", "repeat",
 )
+
+
+class TypePredicate(partial):
+    def __new__(cls, name, typeobj):
+        obj = partial.__new__(cls, typeobj.__instancecheck__)
+        obj.__name__ = name or (typeobj.__name__ + "?")
+        return obj
+
+    def __repr__(self):
+        return "<builtin type predicate %s>" % self.__name__
 
 
 class SibilantException(Exception):
@@ -110,10 +122,7 @@ class Symbol(InternedAtom):
 
 
 symbol = Symbol
-
-
-def is_symbol(value):
-    return type(value) is Symbol
+is_symbol = TypePredicate("symbol?", Symbol)
 
 
 class Keyword(InternedAtom):
@@ -134,10 +143,7 @@ class Keyword(InternedAtom):
 
 
 keyword = Keyword
-
-
-def is_keyword(value):
-    return type(value) is Keyword
+is_keyword = TypePredicate("keyword?", Keyword)
 
 
 class Pair(object):
@@ -156,9 +162,12 @@ class Pair(object):
     def __init__(self, head, *tail, recursive=False):
         ltype = type(self)
 
-        if tail:
-            def cons(t, h):
-                return ltype(h, t)
+        if len(tail) == 1:
+            tail = tail[0]
+
+        elif tail:
+            def cons(tail, head):
+                return ltype(head, tail)
 
             if recursive:
                 tail = reduce(cons, reversed(tail), self)
@@ -174,6 +183,7 @@ class Pair(object):
 
         self._car = head
         self._cdr = tail
+        self._src_pos = None
 
 
     def __getitem__(self, index):
@@ -434,10 +444,7 @@ class Pair(object):
 
 
     def clear_position(self, follow=False):
-        try:
-            del self._src_pos
-        except:
-            pass
+        self._src_pos = None
 
         if not follow:
             return
@@ -449,10 +456,7 @@ class Pair(object):
             if type(pair) is not _Pair:
                 break
 
-            try:
-                del pair._src_pos
-            except:
-                pass
+            pair._src_pos = None
 
             value = pair._cdr
             if type(value) is _Pair:
@@ -480,9 +484,7 @@ class Pair(object):
 
 
     def fill_position(self, position, follow=True):
-        try:
-            self._src_pos
-        except:
+        if self._src_pos is None:
             self._src_pos = position
 
         if not follow:
@@ -495,10 +497,10 @@ class Pair(object):
             if type(pair) is not _Pair:
                 break
 
-            try:
-                position = pair._src_pos
-            except:
+            if pair._src_pos is None:
                 pair._src_pos = position
+            else:
+                position = pair._src_pos
 
             value = pair._cdr
             if type(value) is _Pair:
@@ -506,25 +508,19 @@ class Pair(object):
 
 
     def get_position(self):
-        try:
-            return self._src_pos
-        except:
-            return None
+        return self._src_pos
 
 
 cons = Pair
-
-
-def is_pair(value):
-    return isinstance(value, Pair)
+is_pair = TypePredicate("pair?", Pair)
 
 
 def is_proper(value):
-    return isinstance(value, Pair) and value.is_proper()
+    return is_pair(value) and value.is_proper()
 
 
 def is_recursive(value):
-    return isinstance(value, Pair) and value.is_recursive()
+    return is_pair(value) and value.is_recursive()
 
 
 def build_proper(*values):
@@ -654,18 +650,19 @@ class Nil(Pair):
         pass
 
 
-def _setup_nil():
-    # This is intended as a singleton
-    nil = Nil()
+class BuiltinPredicate(partial):
+    def __new__(cls, name, call, *args, **kwds):
+        check = partial.__new__(cls, call, *args, **kwds)
+        check.__name__ = name
+        return check
+
+    def __repr__(self):
+        return "<builtin predicate %s>" % self.__name__
 
 
-    def is_nil(value):
-        return value is nil
-
-    return nil, is_nil
-
-
-nil, is_nil = _setup_nil()
+# This is intended as a singleton
+nil = Nil()
+is_nil = BuiltinPredicate("nil?", operator.is_, nil)
 
 
 def car(c):
