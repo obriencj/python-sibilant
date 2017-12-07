@@ -25,9 +25,19 @@ def setup():
     # lookups. Here, all of the functions being applied are available
     # from freevars
 
-
+    from sys import _xoptions
     from functools import partial, update_wrapper
+
     _getattr = getattr
+
+
+    if _xoptions.get("sibilant.ctco", "True") == "True":
+        try:
+            from .ctco import trampoline, tailcall
+        except ImportError:
+            pass
+        else:
+            return trampoline, tailcall
 
 
     class TailCall(partial):
@@ -38,12 +48,9 @@ def setup():
         pass
 
 
-    is_tailcall = TailCall.__instancecheck__
-
-
     def tco_trampoline(work, *args, **kwds):
         work = work(*args, **kwds)
-        while is_tailcall(work):
+        while work.__class__ is TailCall:
             work = work()
         return work
 
@@ -92,23 +99,8 @@ def setup():
         return tco_bounce
 
 
-    try:
-        from ._tco import ctrampoline, ctailcall, ctco_trampoline
-
-    except ImportError:
-        trampoline.__qualname__ = "sibilant.tco.trampoline"
-        tailcall.__qualname__ = "sibilant.tco.tailcall"
-
-    else:
-        ctrampoline = partial(ctrampoline, partial, TailCall, ctco_trampoline)
-        ctailcall = partial(ctailcall, partial, TailCall)
-
-        update_wrapper(ctrampoline, trampoline)
-        update_wrapper(ctailcall, tailcall)
-
-        trampoline = ctrampoline
-        tailcall = ctailcall
-
+    trampoline.__qualname__ = "sibilant.compiler.tco.trampoline"
+    tailcall.__qualname__ = "sibilant.compiler.tco.tailcall"
     return trampoline, tailcall
 
 
