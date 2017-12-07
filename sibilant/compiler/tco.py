@@ -36,10 +36,8 @@ def setup():
     # we'll create that class and the big three functions within this
     # setup function.
 
-
     from sys import _xoptions
     from functools import partial
-
 
     if _xoptions.get("sibilant.ctco", "True") == "True":
         try:
@@ -48,6 +46,8 @@ def setup():
             pass
         else:
             return trampoline, tailcall
+
+    _getattr = getattr
 
 
     class TailCall(partial):
@@ -137,12 +137,11 @@ def setup():
         fun = _getattr(fun, "_tco_original", fun)
 
         tco_bounce = partial(TailCall, fun)
-        tco_bounce._tco_original = fun
+        # tco_bounce._tco_original = fun
 
         return tco_bounce
 
 
-    trampoline.__qualname__ = "sibilant.compiler.tco.trampoline"
     tailcall.__qualname__ = "sibilant.compiler.tco.tailcall"
     return FunctionTrampoline, tailcall
 
