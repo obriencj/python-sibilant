@@ -19,6 +19,10 @@
 (defimportfrom random random seed)
 
 
+(defmacro within? (min_i max_i value_i)
+  `(and (<= ,min_i ,value_i) (< ,value_i ,max_i)))
+
+
 (def class LifeBoard (object)
 
      (def function __init__ (self width height wrap: False)
@@ -103,8 +107,8 @@
           ")
 
 	  (var coord (values x y))
-
 	  (var cell (self.data.get coord None))
+
 	  (setf (item self.data coord) (if cell 0 1))
 	  None)
 
@@ -119,7 +123,7 @@
 	  (vars (w self.width) (h self.height))
 
 	  (unless self.wrap
-	    (unless (and (within? x 0 w) (within? y 0 h))
+	    (unless (and (within? 0 w x) (within? 0 h y))
 	      (return None)))
 
 	  (values (% x w) (% y h)))
@@ -220,10 +224,6 @@
 	 else: (if (== living 3)
 		   then: 1
 		   else: 0)))
-
-
-(def function within? (value min_i max)
-     (and (<= min_i value) (< value max)))
 
 
 ;;

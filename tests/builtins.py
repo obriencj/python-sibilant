@@ -30,14 +30,18 @@ import sibilant.builtins
 
 from sibilant import car, cdr, cons, nil, symbol
 
-from .compiler import compile_expr
+from .compiler import (
+    compile_expr,
+    is_macro, Macro,
+    is_alias, Alias,
+)
 
 
 class Object(object):
     pass
 
 
-class BuiltinsSetBang(TestCase):
+class BuiltinsSetf(TestCase):
 
     def test_setf_var(self):
         src = """
@@ -98,7 +102,7 @@ class BuiltinsSetBang(TestCase):
         self.assertEqual(res, cons(9, 2))
 
 
-    def test_setbang_cdr(self):
+    def test_setf_cdr(self):
 
         src = """
         (begin
@@ -110,7 +114,7 @@ class BuiltinsSetBang(TestCase):
         self.assertEqual(res, cons(1, 9))
 
 
-    def test_setbang_item(self):
+    def test_setf_item(self):
 
         src = """
         (begin
@@ -122,7 +126,7 @@ class BuiltinsSetBang(TestCase):
         self.assertEqual(res, [1, 9, 3])
 
 
-    def test_setbang_setf(self):
+    def test_setf_member(self):
 
         o = Object()
         src = """
@@ -168,10 +172,76 @@ class BuiltinsSetBang(TestCase):
         self.assertEqual(env["tacos"], 9)
 
 
-class BuiltinsMacroExpand(TestCase):
+    def test_setbang_item_slice(self):
 
-    def test_macroexpand_1(self):
-        pass
+        seq = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+        src = """
+        (setf (item-slice seq 0 3) (values 123 456 789))
+        """
+        stmt, env = compile_expr(src, seq=seq)
+        self.assertEqual(stmt(), None)
+        self.assertEqual(seq, [123, 456, 789, 4, 5, 6, 7, 8, 9])
+
+        seq = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+        src = """
+        (setf (item-slice seq step: 3) (values 123 456 789))
+        """
+        stmt, env = compile_expr(src, seq=seq)
+        self.assertEqual(stmt(), None)
+        self.assertEqual(seq, [123, 2, 3, 456, 5, 6, 789, 8, 9])
+
+
+class BuiltinsMacroExpansion(TestCase):
+
+    def test_macro(self):
+        src = """
+        (let ()
+          (defimport itertools)
+          (var counter (itertools.count))
+
+          (defmacro value++ () (next counter)))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, None)
+
+        value_macro = env["value++"]
+
+        self.assertTrue(is_macro(value_macro))
+
+        src = """
+        (values (value++) (value++) (value++))
+        """
+        stmt, env = compile_expr(src, **env)
+        res = stmt()
+        self.assertEqual(res, (0, 1, 2))
+
+
+    def test_alias(self):
+        src = """
+        (let ()
+          (defimport itertools)
+          (var counter (itertools.count))
+
+          (defalias value++ (next counter)))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, None)
+
+        value_macro = env["value++"]
+
+        self.assertTrue(is_macro(value_macro))
+        self.assertTrue(is_alias(value_macro))
+
+        src = """
+        (values value++ value++ value++)
+        """
+        stmt, env = compile_expr(src, **env)
+        res = stmt()
+        self.assertEqual(res, (0, 1, 2))
 
 
 class BuiltinsEval(TestCase):

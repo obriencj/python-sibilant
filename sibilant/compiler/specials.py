@@ -24,7 +24,7 @@ from .. import (
     get_position, fill_position,
 )
 
-from . import gather_formals
+from . import Special, gather_formals
 
 
 __all__ = []
@@ -42,7 +42,6 @@ _symbol_global = symbol("global")
 _symbol_define = symbol("define")
 _symbol_var = symbol("var")
 _symbol_define_global = symbol("define-global")
-_symbol_defmacro = symbol("defmacro")
 _symbol_quote = symbol("quote")
 _symbol_quasiquote = symbol("quasiquote")
 _symbol_unquote = symbol("unquote")
@@ -68,30 +67,22 @@ _keyword_finally = keyword("finally")
 _keyword_star = keyword("*:")
 
 
-def special():
-    from . import Special
-    glbls = globals()
+def special(namesym, *aliases, glbls=globals()):
+    name = str(namesym)
 
-    def special(namesym, *aliases):
-        name = str(namesym)
+    def deco(compilefn):
+        compilefn.__name__ = name
+        inst = Special(str(namesym), compilefn)
 
-        def deco(compilefn):
-            compilefn.__name__ = name
-            inst = Special(str(namesym), compilefn)
+        __all__.append(name)
+        glbls[name] = inst
 
-            __all__.append(name)
-            glbls[name] = inst
+        for alias in aliases:
+            alias = str(alias)
+            __all__.append(alias)
+            glbls[alias] = inst
 
-            for alias in aliases:
-                alias = str(alias)
-                __all__.append(alias)
-                glbls[alias] = inst
-
-        return deco
-
-    return special
-
-special = special()
+    return deco
 
 
 # --- special forms ---

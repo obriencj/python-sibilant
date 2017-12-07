@@ -82,11 +82,15 @@ that front if someone really needs 3.4 support.
 
 [PyPy3] is [being considered], but a very key piece of necessary
 functionality (the ability to specify a custom `builtins` module) is
-disabled by default as an optimization.
+[disabled] by [default] as an optimization.
 
 [PyPy3]: https://pypy.org/
 
 [being considered]: https://github.com/obriencj/python-sibilant/issues/51
+
+[disabled]: https://bitbucket.org/pypy/pypy/issues/2653/
+
+[default]: http://doc.pypy.org/en/latest/config/objspace.honor__builtins__.html
 
 
 ## References
@@ -161,10 +165,13 @@ the source stream before it becomes a source object
 
 ### Compile-time Macros: defmacro
 
-Compile time macros defined via defmacro are the simple, low-level
+Compile time macros defined via `defmacro` are the simple, low-level
 variety, transforming the `cons` list from the parsed source code and
 emitting a new list representing the expanded form. An implementation
 of `macroexpand-1` is included for macro debugging purposes.
+
+Macros which expand from a `symbol` rather than a `cons` list can be
+created via `defalias`. Alias macros take no arguments.
 
 
 ### Compile-time optimized operators

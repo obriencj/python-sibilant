@@ -14,6 +14,7 @@
 
 
 import dis
+import threading
 
 from abc import ABCMeta, abstractmethod
 from contextlib import contextmanager
@@ -42,7 +43,7 @@ __all__ = (
     "Compiled", "is_compiled",
     "Special", "is_special",
     "Macro", "is_macro",
-    "Macrolet", "is_macrolet",
+    "Alias", "is_alias",
     "Operator", "is_operator",
     "gather_formals", "gather_parameters",
 )
@@ -53,6 +54,21 @@ _keyword_starstar = keyword("**")
 
 
 COMPILER_DEBUG = False
+
+
+_active = threading.local()
+
+
+def current():
+    try:
+        return _active.compiler
+    except AttributeError:
+        _active.compiler = None
+        return None
+
+
+def set_current(compiler):
+    _active.compiler = compiler
 
 
 class CompilerException(Exception):
@@ -177,8 +193,8 @@ def is_macro(obj):
     return isinstance(obj, Macro)
 
 
-class Macrolet(Macro):
-    __objname__ = "macrolet"
+class Alias(Macro):
+    __objname__ = "alias"
 
 
     def compile(self, compiler, source_obj, tc=False):
@@ -195,13 +211,13 @@ class Macrolet(Macro):
             return res
 
         else:
-            msg = "Error expanding macrolet %s from %r" % \
+            msg = "Error expanding alias %s from %r" % \
                   (self.__name__, source_obj)
             compiler.error(msg, source_obj)
 
 
-def is_macrolet(obj):
-    return isinstance(obj, Macrolet)
+def is_alias(obj):
+    return isinstance(obj, Alias)
 
 
 class Operator(Compiled):
@@ -888,11 +904,14 @@ class CodeSpace(metaclass=ABCMeta):
         """
 
         self.env = env
+        old_compiler = current()
+        set_current(self)
 
         try:
             yield self
 
         finally:
+            set_current(old_compiler)
             self.reset()
 
 
@@ -1888,7 +1907,7 @@ class ExpressionCodeSpace(CodeSpace):
         self.require_active()
 
         comp = self.find_compiled(sym)
-        if comp and is_macrolet(comp):
+        if comp and is_alias(comp):
             return comp.compile(self, sym, tc)
 
         elif sym is _symbol_None:
@@ -2251,7 +2270,7 @@ def _get_expander(env, source_obj):
     elif is_symbol(source_obj):
         namesym = source_obj
         found = _find_compiled(env, namesym)
-        if is_macrolet(found):
+        if is_alias(found):
             expander = partial(found.expand)
 
     elif is_proper(source_obj):
@@ -2259,7 +2278,7 @@ def _get_expander(env, source_obj):
 
         if is_symbol(namesym):
             found = _find_compiled(env, namesym)
-            if is_macrolet(found):
+            if is_alias(found):
                 def expander():
                     return cons(found.expand(), params)
 
@@ -2275,12 +2294,18 @@ def _get_expander(env, source_obj):
 
 
 def iter_macroexpand(env, source_obj, position=None):
+    if env is None:
+        compiler = current()
+        env = None if compiler is None else compiler.env
+
+    if env is None:
+        raise CompilerException("macroexpand requires non-None env when"
+                                " no compiler is active")
+
     if position is None and is_pair(source_obj):
         position = source_obj.get_position()
 
     expander = _get_expander(env, source_obj)
-    expanded = source_obj
-
     while expander:
         expanded = expander()
         yield expanded

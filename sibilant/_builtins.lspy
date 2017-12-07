@@ -30,10 +30,10 @@
 		 (macro ,(str name) (function ,name ,formals ,@body)))))))
 
 
-(defmacro defmacrolet (name . body)
-  (doc "Defines a Macrolet in the current module")
+(defmacro defalias (name . body)
+  (doc "Defines an Alias Macro in the current module")
   `(define-global ,name
-     (macrolet ,(str name) (function ,name () ,@body))))
+     (alias ,(str name) (function ,name () ,@body))))
 
 
 (defmacro defun (name params . body)
@@ -144,7 +144,7 @@
 			(build-list ,(str member)))
 		,member))))
 
-    `(begin ,@coll)))
+    `(begin ,@coll None)))
 
 
 ;; === runtime macroexpand ===
@@ -181,11 +181,18 @@
       ,name (dest val) `(,',setter ,@dest ,val)))
 
   (defmacro setf (target value)
+
+    ;; since sibilant is designed to expand macros lazily, we need to
+    ;; jump ahead a bit and make sure that our target gets expanded
+    ;; right now so that we can find the right dispatch method.
+    (setq target (macroexpandq None target))
+
     (cond
      ((symbol? target)
       (if (in (str target) ".")
-	  (let ((spltrgt (target.rsplit "." 1)))
-	    `(set-attr ,(item spltrgt 0) ,(item spltrgt 1) ,value))
+	  (begin
+	   (var spltrgt (target.rsplit "." 1))
+	   `(set-attr ,(item spltrgt 0) ,(item spltrgt 1) ,value))
 	`(setq ,target ,value)))
 
      ((and (proper? target) (in *gv-forms* (car target)))
@@ -206,6 +213,10 @@
   (gv-define-setter caar (val x) `(set-car (car ,x) ,val))
 
   None)
+
+
+(defmacro item-slice (sequence start: 'None stop: 'None step: 1)
+  `(item ,sequence (slice ,start ,stop ,step)))
 
 
 ;; === def general targets ===
@@ -271,6 +282,7 @@
 
 (begin
  (gd-define-simple-target function 'function)
+ (gd-define-simple-target method 'method)
  (gd-define-simple-target class 'class)
  ;; todo: import
 
@@ -280,12 +292,14 @@
 ;; === flet and values ===
 
 (defmacro labels (declarations . body)
+  (setq declarations (to-tuple declarations))
   `(let (,@(map (lambda (d) `(,(car d) None)) declarations))
      ,@(map (lambda (d) `(def function ,@d)) declarations)
      ,@body))
 
 
 (defmacro flet (declarations . body)
+  (setq declarations (to-tuple declarations))
   `(let (,@(map (lambda (d) `(,(car d) (lambda ,@(cdr d)))) declarations))
      ,@body))
 
@@ -299,6 +313,7 @@
   optionally assigns it the value from EXPR
   ")
 
+  (setq variables (to-tuple variables))
   `(begin ,@(map (lambda (d)
 		   (if (symbol? d)
 		       then: `(var ,d)
@@ -354,13 +369,13 @@
 
 ;; (set-atom-regex 'c__r "c[ad]{2,}r" (lambda (atom) `(c__r ,atom)))
 
-;; (defmacrolet first 'car)
-;; (defmacrolet second 'cadr)
-;; (defmacrolet third 'caddr)
-;; (defmacrolet fourth 'cadddr)
-;; (defmacrolet fifth 'caddddr)
-;; (defmacrolet sixth 'cadddddr)
-;; (defmacrolet seventh 'caddddddr)
+;; (defalias first 'car)
+;; (defalias second 'cadr)
+;; (defalias third 'caddr)
+;; (defalias fourth 'cadddr)
+;; (defalias fifth 'caddddr)
+;; (defalias sixth 'cadddddr)
+;; (defalias seventh 'caddddddr)
 
 
 ;; === python object system classes ==
@@ -380,10 +395,11 @@
 
   `(flet ((create-class (name fields *: bases metaclass: type)
 			(metaclass name bases fields))
-	  (create-fields (__module__) (begin ,@body) (locals)))
+	  (create-members (__module__)
+			  (begin ,@body) (locals)))
 
      (create-class ,(str name)
-		   (create-fields __name__)
+		   (create-members __name__)
 		   ,@bases)))
 
 
