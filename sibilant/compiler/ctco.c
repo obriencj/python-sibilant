@@ -330,6 +330,7 @@ static PyTypeObject MethodTrampolineType = {
 static PyObject *tailcall(PyObject *self, PyObject *args) {
   PyObject *fun = NULL;
   PyObject *tmp = NULL;
+  TailCall *tc = NULL;
 
   if (unlikely(! PyArg_ParseTuple(args, "O", &fun))) {
     return NULL;
@@ -359,11 +360,13 @@ static PyObject *tailcall(PyObject *self, PyObject *args) {
     fun = tmp;
   }
 
-  tmp = PyObject_CallFunctionObjArgs((PyObject *) &TailCallType,
-				     fun, NULL);
-  Py_DECREF(fun);
+  tc = PyObject_New(TailCall, &TailCallType);
+  if (unlikely(! tc)) {
+    return NULL;
+  }
 
-  return tmp;
+  tc->fun = fun;
+  return (PyObject *) tc;
 }
 
 
