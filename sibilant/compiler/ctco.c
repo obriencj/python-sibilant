@@ -33,11 +33,23 @@
 #define TCO_ORIGINAL "_tco_original"
 
 
-// static PyObject *partial = NULL;
+#if (defined(__GNUC__) &&					\
+     (__GNUC__ > 2 || (__GNUC__ == 2 && (__GNUC_MINOR__ > 95))))
+  #define likely(x)   __builtin_expect(!!(x), 1)
+  #define unlikely(x) __builtin_expect(!!(x), 0)
+#else
+  #define likely(x)   (x)
+  #define unlikely(x) (x)
+#endif
+
+
 static PyTypeObject FunctionTrampolineType;
 static PyTypeObject MethodTrampolineType;
+static PyTypeObject TailCallType;
 
 static PyObject *__get__ = NULL;
+static PyObject *_tco_enable = NULL;
+static PyObject *_tco_original = NULL;
 
 
 typedef struct {
@@ -54,7 +66,7 @@ static int tailcall_init(PyObject *self, PyObject *args, PyObject *kwds) {
   PyObject *fun = NULL;
   static char *kwlist[] = { "fun", NULL };
 
-  if (! PyArg_ParseTupleAndKeywords(args, kwds, "O", kwlist, &fun))
+  if (unlikely(! PyArg_ParseTupleAndKeywords(args, kwds, "O", kwlist, &fun)))
     return -1;
 
   Py_INCREF(fun);
@@ -135,7 +147,7 @@ static int trampoline_init(PyObject *self,
   PyObject *fun = NULL;
   static char *kwlist[] = { "fun", NULL };
 
-  if (! PyArg_ParseTupleAndKeywords(args, kwds, "O", kwlist, &fun))
+  if (unlikely(! PyArg_ParseTupleAndKeywords(args, kwds, "O", kwlist, &fun)))
     return -1;
 
   Py_INCREF(fun);
@@ -160,7 +172,7 @@ static PyObject *trampoline_call(PyObject *self,
 
   work = PyObject_Call(work, args, kwds);
 
-  while (work && work->ob_type == &TailCallType) {
+  while (likely(work) && work->ob_type == &TailCallType) {
     res = (TailCall *) work;
     work = PyObject_Call(res->fun, res->args, res->kwds);
     Py_DECREF(res);
@@ -172,8 +184,10 @@ static PyObject *trampoline_call(PyObject *self,
 
 static PyObject *trampoline_tco_original(PyObject *self) {
   PyObject *tco_original = ((Trampoline *)self)->tco_original;
-  if (! tco_original) {
+
+  if (unlikely(! tco_original)) {
     return NULL;
+
   } else {
     Py_INCREF(tco_original);
     return tco_original;
@@ -190,8 +204,10 @@ static PyObject *trampoline_tco_enable(PyObject *self) {
 
 static PyObject *get_original(PyObject *self, char *name) {
   PyObject *tco_original = ((Trampoline *)self)->tco_original;
-  if (! tco_original) {
+
+  if (unlikely(! tco_original)) {
     return NULL;
+
   } else {
     return PyObject_GetAttrString(tco_original, name);
   }
@@ -233,14 +249,14 @@ static PyObject *descr_get(PyObject *self,
 			   PyObject *inst, PyObject *owner) {
   PyObject *tmp = NULL;
 
-  if ((! inst) || inst == Py_None) {
+  if (unlikely((! inst) || inst == Py_None)) {
     Py_INCREF(self);
     return self;
 
   } else {
-    tmp = ((Trampoline *)self)->tco_original;
+    tmp = ((Trampoline *) self)->tco_original;
     tmp = PyObject_CallMethodObjArgs(tmp, __get__, inst, owner, NULL);
-    if (! tmp)
+    if (unlikely (! tmp))
       return NULL;
 
     self = PyObject_CallFunctionObjArgs((PyObject *) &MethodTrampolineType,
@@ -315,13 +331,13 @@ static PyObject *tailcall(PyObject *self, PyObject *args) {
   PyObject *fun = NULL;
   PyObject *tmp = NULL;
 
-  if (! PyArg_ParseTuple(args, "O", &fun)) {
+  if (unlikely(! PyArg_ParseTuple(args, "O", &fun))) {
     return NULL;
   }
 
   Py_INCREF(fun);
 
-  tmp = PyObject_GetAttrString(fun, TCO_ENABLE);
+  tmp = PyObject_GetAttr(fun, _tco_enable);
   if (tmp == NULL) {
     PyErr_Clear();
     return fun;
@@ -334,7 +350,7 @@ static PyObject *tailcall(PyObject *self, PyObject *args) {
     return fun;
   }
 
-  tmp = PyObject_GetAttrString(fun, TCO_ORIGINAL);
+  tmp = PyObject_GetAttr(fun, _tco_original);
   if (tmp == NULL) {
     PyErr_Clear();
 
@@ -357,14 +373,14 @@ static PyObject *trampoline(PyObject *self, PyObject *args) {
 
   // replace all this with just a FunctionTrampoline(fun) call
 
-  if (! PyArg_ParseTuple(args, "O", &fun)) {
+  if (unlikely(! PyArg_ParseTuple(args, "O", &fun))) {
     return NULL;
   }
 
   Py_INCREF(fun);
 
-  tmp = PyObject_GetAttrString(fun, TCO_ORIGINAL);
-  if (tmp == NULL) {
+  tmp = PyObject_GetAttr(fun, _tco_original);
+  if (likely(! tmp)) {
     PyErr_Clear();
 
   } else {
@@ -407,6 +423,12 @@ static struct PyModuleDef ctco = {
 PyMODINIT_FUNC PyInit_ctco() {
   if (! __get__) {
     __get__ = PyUnicode_FromString("__get__");
+  }
+  if (! _tco_original) {
+    _tco_original = PyUnicode_FromString(TCO_ORIGINAL);
+  }
+  if (! _tco_enable) {
+    _tco_enable = PyUnicode_FromString(TCO_ENABLE);
   }
 
   TailCallType.tp_new = PyType_GenericNew;
