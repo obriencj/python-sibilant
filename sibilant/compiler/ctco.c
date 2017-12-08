@@ -33,10 +33,94 @@
 #define TCO_ORIGINAL "_tco_original"
 
 
-static PyObject *partial = NULL;
-static PyObject *TailCall = NULL;
+// static PyObject *partial = NULL;
 static PyTypeObject FunctionTrampolineType;
 static PyTypeObject MethodTrampolineType;
+
+static PyObject *__get__ = NULL;
+
+
+typedef struct {
+  PyObject_HEAD
+
+  PyObject *fun;
+  PyObject *args;
+  PyObject *kwds;
+} TailCall;
+
+
+static int tailcall_init(PyObject *self, PyObject *args, PyObject *kwds) {
+
+  PyObject *fun = NULL;
+  static char *kwlist[] = { "fun", NULL };
+
+  if (! PyArg_ParseTupleAndKeywords(args, kwds, "O", kwlist, &fun))
+    return -1;
+
+  Py_INCREF(fun);
+  ((TailCall *) self)->fun = fun;
+  ((TailCall *) self)->args = NULL;
+  ((TailCall *) self)->kwds = NULL;
+
+  return 0;
+}
+
+
+static void tailcall_dealloc(PyObject *self) {
+  TailCall *s = (TailCall *) self;
+
+  Py_XDECREF(s->fun);
+  Py_XDECREF(s->args);
+  Py_XDECREF(s->kwds);
+
+  Py_TYPE(self)->tp_free(self);
+}
+
+
+static PyObject *tailcall_call(PyObject *self,
+			       PyObject *args, PyObject *kwds) {
+
+  TailCall *s = (TailCall *) self;
+
+  Py_INCREF(args);
+  s->args = args;
+
+  Py_XINCREF(kwds);
+  s->kwds = kwds;
+
+  Py_INCREF(self);
+  return self;
+}
+
+
+static PyTypeObject TailCallType = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+
+    "sibilant.compiler.ctco.TailCall",
+    sizeof(TailCall),
+    0,
+
+    .tp_init = tailcall_init,
+    .tp_dealloc = tailcall_dealloc,
+    .tp_call = tailcall_call,
+    .tp_flags = Py_TPFLAGS_DEFAULT,
+
+    .tp_print = NULL,
+    .tp_getattr = NULL,
+    .tp_setattr = NULL,
+    .tp_as_async = NULL,
+    .tp_descr_get = NULL,
+    .tp_getset = NULL,
+    .tp_repr = NULL,
+    .tp_as_number = NULL,
+    .tp_as_sequence = NULL,
+    .tp_as_mapping = NULL,
+    .tp_hash = NULL,
+    .tp_str = NULL,
+    .tp_getattro = NULL,
+    .tp_setattro = NULL,
+    .tp_as_buffer = NULL,
+};
 
 
 typedef struct {
@@ -64,23 +148,22 @@ static int trampoline_init(PyObject *self,
 static void trampoline_dealloc(PyObject *self) {
 
   Py_CLEAR(((Trampoline *) self)->tco_original);
-  Py_TYPE(self)->tp_free((PyObject*) self);
+  Py_TYPE(self)->tp_free(self);
 }
 
 
 static PyObject *trampoline_call(PyObject *self,
 				 PyObject *args, PyObject *kwds) {
 
-  PyObject *work = ((Trampoline *)self)->tco_original;
-  PyObject *tmp;
+  PyObject *work = ((Trampoline *) self)->tco_original;
+  TailCall *res = NULL;
 
-  tmp = PyObject_Call(work, args, kwds);
-  work = tmp;
+  work = PyObject_Call(work, args, kwds);
 
-  while (work && (PyObject *) work->ob_type == TailCall) {
-    tmp = PyObject_CallObject(work, NULL);
-    Py_DECREF(work);
-    work = tmp;
+  while (work && work->ob_type == &TailCallType) {
+    res = (TailCall *) work;
+    work = PyObject_Call(res->fun, res->args, res->kwds);
+    Py_DECREF(res);
   }
 
   return work;
@@ -156,7 +239,7 @@ static PyObject *descr_get(PyObject *self,
 
   } else {
     tmp = ((Trampoline *)self)->tco_original;
-    tmp = PyObject_CallMethod(tmp, "__get__", "OO", inst, owner);
+    tmp = PyObject_CallMethodObjArgs(tmp, __get__, inst, owner, NULL);
     if (! tmp)
       return NULL;
 
@@ -260,7 +343,8 @@ static PyObject *tailcall(PyObject *self, PyObject *args) {
     fun = tmp;
   }
 
-  tmp = PyObject_CallFunctionObjArgs(partial, TailCall, fun, NULL);
+  tmp = PyObject_CallFunctionObjArgs((PyObject *) &TailCallType,
+				     fun, NULL);
   Py_DECREF(fun);
 
   return tmp;
@@ -321,21 +405,15 @@ static struct PyModuleDef ctco = {
 
 
 PyMODINIT_FUNC PyInit_ctco() {
-  PyObject *tmp = NULL;
-
-  if (! partial) {
-    // import a ref to partial
-    tmp = PyImport_ImportModule("functools");
-    partial = PyObject_GetAttrString(tmp, "partial");
-    Py_DECREF(tmp);
+  if (! __get__) {
+    __get__ = PyUnicode_FromString("__get__");
   }
 
-  if (! TailCall) {
-    // create a new TailCall subtype of partial
-    tmp = Py_BuildValue("(s(O){})", "TailCall", partial);
-    TailCall = PyObject_Call((PyObject *) &PyType_Type, tmp, NULL);
-    Py_DECREF(tmp);
-  }
+  TailCallType.tp_new = PyType_GenericNew;
+  TailCallType.tp_getattro = PyObject_GenericGetAttr;
+  if (PyType_Ready(&TailCallType) < 0)
+    return NULL;
+  Py_INCREF(&TailCallType);
 
   FunctionTrampolineType.tp_new = PyType_GenericNew;
   FunctionTrampolineType.tp_getattro = PyObject_GenericGetAttr;
