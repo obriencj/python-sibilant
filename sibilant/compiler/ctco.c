@@ -397,7 +397,7 @@ static struct PyModuleDef ctco = {
 };
 
 
-PyMODINIT_FUNC PyInit_ctco() {
+PyMODINIT_FUNC PyInit_ctco(void) {
   if (! __get__) {
     __get__ = PyUnicode_FromString("__get__");
   }
