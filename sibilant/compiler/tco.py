@@ -36,10 +36,21 @@ def setup():
     # we'll create that class and the big three functions within this
     # setup function.
 
-
+    from sys import _xoptions
     from functools import partial
+
+    if _xoptions.get("sibilant.ctco", "True") == "True":
+        try:
+            from .ctco import trampoline, tailcall
+            return trampoline, tailcall
+
+        except ImportError:
+            # we wanted to load the ctco stuff, but we couldn't, so we
+            # will fall back to the pythonic implementation
+            pass
+
+
     _getattr = getattr
-    _type = type
 
 
     class TailCall(partial):
@@ -52,8 +63,13 @@ def setup():
 
 
     def tco_trampoline(work, *args, **kwds):
+        # this is the workhorse function, the trampoline loop
+        # itself. The sentinel signal that the trampoline should keep
+        # running is that the work function returned a TailCall
+        # instance. So long as the work is a TailCall, keep bouncing.
+
         work = work(*args, **kwds)
-        while _type(work) is TailCall:
+        while work.__class__ is TailCall:
             work = work()
         return work
 
@@ -92,7 +108,6 @@ def setup():
         A tail-call trampoline wrapper for a function
         """
 
-
         def __get__(self, inst, owner):
             return self if inst is None else \
                 MethodTrampoline(self._tco_original.__get__(inst, owner))
@@ -111,7 +126,6 @@ def setup():
         A tail-call trampoline wrapper for a method
         """
 
-
         def __repr__(self):
             return "<trampoline bound method %s of %r>" % \
                 (self.__qualname__, self._tco_original.__self__)
@@ -121,6 +135,11 @@ def setup():
 
 
     def tailcall(fun):
+        # invocations of this function are what get injected at
+        # compile-time to allow a function to become tail call
+        # optimized. This simply defers the execution of a function so
+        # that it may be invoked from the trampoline frame instead.
+
         if not _getattr(fun, "_tco_enable", False):
             return fun
 
@@ -129,12 +148,11 @@ def setup():
         fun = _getattr(fun, "_tco_original", fun)
 
         tco_bounce = partial(TailCall, fun)
-        tco_bounce._tco_original = fun
 
         return tco_bounce
 
 
-    tailcall.__qualname__ = "sibilant.tco.tailcall"
+    tailcall.__qualname__ = "sibilant.compiler.tco.tailcall"
 
     return FunctionTrampoline, tailcall
 
