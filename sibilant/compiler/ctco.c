@@ -61,23 +61,6 @@ typedef struct {
 } TailCall;
 
 
-static int tailcall_init(PyObject *self, PyObject *args, PyObject *kwds) {
-
-  PyObject *fun = NULL;
-  static char *kwlist[] = { "fun", NULL };
-
-  if (unlikely(! PyArg_ParseTupleAndKeywords(args, kwds, "O", kwlist, &fun)))
-    return -1;
-
-  Py_INCREF(fun);
-  ((TailCall *) self)->fun = fun;
-  ((TailCall *) self)->args = NULL;
-  ((TailCall *) self)->kwds = NULL;
-
-  return 0;
-}
-
-
 static void tailcall_dealloc(PyObject *self) {
   TailCall *s = (TailCall *) self;
 
@@ -112,11 +95,11 @@ static PyTypeObject TailCallType = {
     sizeof(TailCall),
     0,
 
-    .tp_init = tailcall_init,
     .tp_dealloc = tailcall_dealloc,
     .tp_call = tailcall_call,
     .tp_flags = Py_TPFLAGS_DEFAULT,
 
+    .tp_init = NULL,
     .tp_print = NULL,
     .tp_getattr = NULL,
     .tp_setattr = NULL,
@@ -139,22 +122,6 @@ typedef struct {
   PyObject_HEAD
   PyObject *tco_original;
 } Trampoline;
-
-
-static int trampoline_init(PyObject *self,
-			   PyObject *args, PyObject *kwds) {
-
-  PyObject *fun = NULL;
-  static char *kwlist[] = { "fun", NULL };
-
-  if (unlikely(! PyArg_ParseTupleAndKeywords(args, kwds, "O", kwlist, &fun)))
-    return -1;
-
-  Py_INCREF(fun);
-  ((Trampoline *) self)->tco_original = fun;
-
-  return 0;
-}
 
 
 static void trampoline_dealloc(PyObject *self) {
@@ -248,21 +215,26 @@ static PyGetSetDef trampoline_getset[] = {
 static PyObject *descr_get(PyObject *self,
 			   PyObject *inst, PyObject *owner) {
   PyObject *tmp = NULL;
+  Trampoline *tramp = NULL;
 
   if (unlikely((! inst) || inst == Py_None)) {
     Py_INCREF(self);
     return self;
 
   } else {
+    // tmp = self._tco_original.__get__(inst, owner)
     tmp = ((Trampoline *) self)->tco_original;
     tmp = PyObject_CallMethodObjArgs(tmp, __get__, inst, owner, NULL);
     if (unlikely (! tmp))
       return NULL;
 
-    self = PyObject_CallFunctionObjArgs((PyObject *) &MethodTrampolineType,
-					tmp, NULL);
-    Py_DECREF(tmp);
-    return self;
+    tramp = PyObject_New(Trampoline, &MethodTrampolineType);
+    if (unlikely(! tramp)) {
+      return NULL;
+    }
+
+    tramp->tco_original = tmp;
+    return (PyObject *) tramp;
   }
 }
 
@@ -274,13 +246,13 @@ static PyTypeObject FunctionTrampolineType = {
     sizeof(Trampoline),
     0,
 
-    .tp_init = trampoline_init,
     .tp_dealloc = trampoline_dealloc,
     .tp_descr_get = descr_get,
     .tp_getset = trampoline_getset,
     .tp_call = trampoline_call,
     .tp_flags = Py_TPFLAGS_DEFAULT,
 
+    .tp_init = NULL,
     .tp_print = NULL,
     .tp_getattr = NULL,
     .tp_setattr = NULL,
@@ -304,13 +276,13 @@ static PyTypeObject MethodTrampolineType = {
     sizeof(Trampoline),
     0,
 
-    .tp_init = trampoline_init,
     .tp_dealloc = trampoline_dealloc,
     .tp_descr_get = NULL,
     .tp_getset = trampoline_getset,
     .tp_call = trampoline_call,
     .tp_flags = Py_TPFLAGS_DEFAULT,
 
+    .tp_init = NULL,
     .tp_print = NULL,
     .tp_getattr = NULL,
     .tp_setattr = NULL,
@@ -373,8 +345,7 @@ static PyObject *tailcall(PyObject *self, PyObject *args) {
 static PyObject *trampoline(PyObject *self, PyObject *args) {
   PyObject *fun = NULL;
   PyObject *tmp = NULL;
-
-  // replace all this with just a FunctionTrampoline(fun) call
+  Trampoline *tramp = NULL;
 
   if (unlikely(! PyArg_ParseTuple(args, "O", &fun))) {
     return NULL;
@@ -382,6 +353,7 @@ static PyObject *trampoline(PyObject *self, PyObject *args) {
 
   Py_INCREF(fun);
 
+  // tmp = getattr(fun, "_tco_original", fun)
   tmp = PyObject_GetAttr(fun, _tco_original);
   if (likely(! tmp)) {
     PyErr_Clear();
@@ -391,11 +363,13 @@ static PyObject *trampoline(PyObject *self, PyObject *args) {
     fun = tmp;
   }
 
-  tmp = PyObject_CallFunctionObjArgs((PyObject *) &FunctionTrampolineType,
-				     fun, NULL);
-  Py_DECREF(fun);
+  tramp = PyObject_New(Trampoline, &FunctionTrampolineType);
+  if (unlikely(! tramp)) {
+    return NULL;
+  }
 
-  return tmp;
+  tramp->tco_original = fun;
+  return (PyObject *) tramp;
 }
 
 
