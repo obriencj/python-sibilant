@@ -264,7 +264,7 @@ def setup(glbls):
 
     def _build_dict(*pairs):
         pairs = ((p.unpack() if is_pair(p) else p) for p in pairs)
-        return dict(*pairs)
+        return dict(pairs)
 
 
     _ty(dict, "dict")
