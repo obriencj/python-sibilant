@@ -83,7 +83,7 @@ def cli(options):
 
     if filename:
         with source_open(filename) as source:
-            init_module(mod, source, None)
+            init_module(mod, source, None, filename=filename)
             load_module(mod)
 
         if options.interactive:

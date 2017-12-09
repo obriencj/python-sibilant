@@ -18,6 +18,7 @@ from os.path import split, getmtime, getsize
 from types import ModuleType
 
 from sibilant.compiler import Mode, code_space_for_version
+from sibilant.compiler.tco import trampoline, tailcall
 from sibilant.parse import default_reader, source_open, source_str
 
 
@@ -28,6 +29,11 @@ __all__ = (
     "run_time", "partial_run_time",
     "exec_marshal_module", "marshal_wrapper", "compile_to_file",
 )
+
+
+def _tco_bounce(fun):
+    fun._tco_enable = True
+    return fun
 
 
 def new_module(name):
@@ -184,6 +190,7 @@ def get_module_evaluator(module):
     except:
         mod_globals = module.__dict__
 
+        @_tco_bounce
         def evaluator(code):
             return eval(code, mod_globals)
 
@@ -192,11 +199,13 @@ def get_module_evaluator(module):
     return evaluator
 
 
+@trampoline
 def run_time(module, code_obj):
     evaluator = get_module_evaluator(module)
-    return evaluator(code_obj)
+    return tailcall(evaluator)(code_obj)
 
 
+@_tco_bounce
 def partial_run_time(module, code_obj):
     evaluator = get_module_evaluator(module)
     return partial(evaluator, code_obj)
@@ -220,6 +229,7 @@ def iter_load_module(module, parse_time=parse_time,
         yield load_module_1(module, parse_time, compile_time, run_time)
 
 
+@trampoline
 def load_module_1(module, parse_time=parse_time,
                   compile_time=compile_time, run_time=run_time):
 
@@ -230,7 +240,7 @@ def load_module_1(module, parse_time=parse_time,
 
     else:
         code_obj = compile_time(module, source_expr)
-        return run_time(module, code_obj)
+        return tailcall(run_time)(module, code_obj)
 
 
 def exec_marshal_module(glbls, code_objs):
