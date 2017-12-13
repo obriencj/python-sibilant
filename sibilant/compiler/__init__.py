@@ -1888,7 +1888,7 @@ class ExpressionCodeSpace(CodeSpace):
 
         tclabel = self.gen_label()
 
-        if self.free_vars and self.free_vars[0] == self.name:
+        if self.free_vars and self.free_vars[0] == "":
             # this is a function, not a lambda, we can self-ref. Test
             # whether the function we're going to tailcall to is
             # ourself. If it is, we can just jump to zero after
@@ -1904,16 +1904,15 @@ class ExpressionCodeSpace(CodeSpace):
             # so maybe that's okay.
 
             self.pseudop_dup()
-            self.pseudop_get_var(self.name)
+            self.pseudop_get_var("")
             self.pseudop_compare_is()
             self.pseudop_pop_jump_if_false(tclabel)
 
             # TODO: need better arg assignment
             # TODO: keyword args
             # TODO: unspecified arguments with default values
-
-            # if args has keywords in it, then we need to map out each arg
-            # expression to a var
+            # TODO: if args has keywords in it, then we need to map
+            # out each arg expression to a var
 
             for arg in args.unpack():
                 self.add_expression(arg, False)
@@ -2279,6 +2278,48 @@ def gather_parameters(args, declared_at=None):
         raise err("leftover parameters %r" % arg)
 
     return (positional, keywords, defaults, star, starstar)
+
+
+def unpack_formals(args, kwds,
+                   positionals, variadic, kwonly,
+                   keywords, defaults, kwvariadic):
+
+    lpos = len(positionals)
+    largs = len(args)
+    kwvar = dict(kwds)
+
+    if lpos == largs:
+        args = list(args)
+        var = () if variadic else None
+    elif lpos < largs:
+        if variadic:
+            args = list(args[:lpos])
+            var = args[lpos:]
+        else:
+            raise TypeError("too many positional arguments")
+    else:
+        args = list(args)
+        var = () if variadic else None
+        try:
+            for a in positionals[largs:]:
+                args.append(kwvar.pop(a))
+        except KeyError:
+            raise TypeError("missing required argument %s" % a)
+
+    kwds = {}
+    try:
+        for a in kwonly:
+            kwds[a] = kwvar.pop(a)
+    except KeyError:
+        raise TypeError("missing required keyword-only argument %s" % a)
+
+    for a in keywords:
+        kwds[a] = kwvar.pop(a, defaults[a])
+
+    if kwvar and not kwvariadic:
+        raise TypeError("unexpected arguments, %r" % list(kwvar.keys()))
+
+    return args, var, kwds, (kwvar if kwvariadic else None)
 
 
 def _find_compiled(env, namesym):
