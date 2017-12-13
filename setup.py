@@ -71,7 +71,7 @@ setup(name = "sibilant",
       description = "LISP dialect for Python",
 
       provides = ["sibilant", ],
-      requires = ["appdirs", ],
+      install_requires = ["appdirs", ],
       platforms = ["python3 >= 3.5", ],
 
       zip_safe = True,
