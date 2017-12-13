@@ -27,6 +27,16 @@
 (defimportfrom os.path basename)
 
 
+;; these might be good in builtins, they're nearly perfect analogues for
+;; generator expressions and list-comprehensions
+
+(defmacro iter-each (bindings . body)
+  `(let () (for-each ,bindings (yield (begin ,@body)))))
+
+(defmacro list-each (bindings . body)
+  `(list (iter-each ,bindings ,@body)))
+
+
 ;; the natural, tail-call recursive impl
 (def function fibonacci (index carry: 0 accu: 1)
   (if (== index 0) then: carry
@@ -80,15 +90,30 @@
     carry))
 
 
-(def function funtime (title fun number)
-  (try
-   (begin
-    (var s (timeit.timeit stmt: fun number: number))
-    (print (str.format "{title} over {num} loops -> {secs:7.4f} seconds"
-		       title: title num: number secs: s)))
-   ((BaseException as: be)
-    (print (str.format "{title} -> {problem}"
-		       title: title problem: be)))))
+(def function funtime (fib value loops)
+     (try
+      (timeit.timeit stmt: (partial fib value)
+		     number: loops)
+      ((BaseException as: be) (print be) 0.0)))
+
+
+(define fmt
+  (attr
+   "{title} over {num} loops -> {secs:7.4f} seconds ({percent:0.2f}% runtime)"
+   format))
+
+
+(def function time-fibs (value loops *: fibs)
+     (var results (list-each (fib (map second fibs))
+			     (funtime fib value loops)))
+     (var total (apply + results))
+     (var count (len results))
+
+     (for-each ((index (title fib)) (enumerate fibs))
+	       (var secs (item results index))
+	       (print (fmt title: title num: loops
+			   secs: secs
+			   percent: (/ secs total)))))
 
 
 (def function cli-command-timeit (options)
@@ -108,10 +133,11 @@
   (print (% "calculating fibonacci of %r" f))
   (print (% "answer is %r" d1))
 
-  (funtime "fibonacci with TCR" (partial fibonacci f) n)
-  (funtime "fibonacci with TCO" (partial fibonacci_tco f) n)
-  (funtime "fibonacci with LRU" (partial fibonacci_lru f) n)
-  (funtime "fibonacci no recur" (partial fibonacci_while f) n)
+  (time-fibs f n
+   `("fibonacci with TCR" ,fibonacci)
+   `("fibonacci with TCO" ,fibonacci_tco)
+   `("fibonacci with LRU" ,fibonacci_lru)
+   `("fibonacci no recur" ,fibonacci_while))
 
   None)
 
