@@ -37,6 +37,9 @@ else:
 ext_ctco = Extension("sibilant.compiler.ctco",
                      ["sibilant/compiler/ctco.c"])
 
+ext_ctypes = Extension("sibilant.ctypes",
+                       ["sibilant/ctypes.c"])
+
 
 setup(name = "sibilant",
       version = "0.9.0",
@@ -52,6 +55,11 @@ setup(name = "sibilant",
 
       ext_modules = [
           ext_ctco,
+          ext_ctypes,
+      ],
+
+      headers = [
+          "sibilant/ctypes.h",
       ],
 
       test_suite = "tests",
