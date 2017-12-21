@@ -16,7 +16,7 @@
 
 
 #ifndef SIBILANT_CTYPES_H
-#define SIBILANT_CTYPES_H 1
+#define SIBILANT_CTYPES_H
 
 #include <Python.h>
 
@@ -27,31 +27,34 @@ typedef struct SibPair {
   PyObject *head;
   PyObject *tail;
   PyObject *position;
-  PyObject *refs;
-} Pair;
+  PyObject *weakrefs;
+} SibPair;
 
 
 typedef struct SibInternedAtom {
   PyObject_HEAD
 
   PyObject *name;
-  PyObject *refs;
-} InternedAtom;
+  PyObject *weakrefs;
+} SibInternedAtom;
 
 
-static PyTypeObject SibPairType;
-static PyTypeObject SibNilType;
-static PyTypeObject SibSymbolType;
-static PyTypeObject SibKeywordType;
+PyTypeObject SibPairType;
+PyTypeObject SibNilType;
+PyTypeObject SibSymbolType;
+PyTypeObject SibKeywordType;
 
 
-static PyObject *SibSymbol_New(PyObject *name);
+PyObject *sib_symbol(PyObject *name);
 
-static PyObject *SibKeyword_New(PyObject *name);
+PyObject *sib_keyword(PyObject *name);
 
-static PyObject *SibPair_New(PyObject *head, PyObject *tail);
+PyObject *sib_pair(PyObject *head, PyObject *tail);
 
-static PyObject *SibNil_Get();
+
+PyObject _SibNil;
+
+#define Sib_Nil ((PyObject *) &_SibNil)
 
 
 #endif
