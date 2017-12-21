@@ -162,24 +162,21 @@ class Pair(object):
     def __init__(self, head, *tail, recursive=False):
         ltype = type(self)
 
-        if len(tail) == 1:
-            tail = tail[0]
+        if tail:
+            if len(tail) == 1:
+                tail = tail[0]
 
-        elif tail:
-            def cons(tail, head):
-                return ltype(head, tail)
-
-            if recursive:
-                tail = reduce(cons, reversed(tail), self)
             else:
-                tail = reduce(cons, reversed(tail))
+                def cons(tail, head):
+                    return ltype(head, tail)
 
-        elif recursive:
-            tail = self
+                if recursive:
+                    tail = reduce(cons, reversed(tail), self)
+                else:
+                    tail = reduce(cons, reversed(tail))
 
         else:
-            raise TypeError("Pair requires at least one tail, or must"
-                            " be recursive")
+            tail = self if recursive else nil
 
         self._car = head
         self._cdr = tail
@@ -533,7 +530,7 @@ def build_proper(*values):
 
 def unpack(pair):
     try:
-        yield from pair.unpack()
+        return pair.unpack()
     except AttributeError:
         return iter(pair)
 
@@ -763,7 +760,12 @@ def last(seq, empty=None):
 
 # === quasiquote magic ===
 
+
 def copy_pair(pair):
+    """
+    Produces a shallow copy of a cons pair chain.
+    """
+
     if pair is nil:
         return nil
 
@@ -776,7 +778,12 @@ def copy_pair(pair):
     return result
 
 
-def join_pairs(pairs):
+def merge_pairs(pairs):
+    """
+    Given a sequence of cons pairs, merge them into a single long
+    chain. This alters the pairs in order to link them together.
+    """
+
     result = nil
     work = result
 
@@ -799,18 +806,23 @@ def join_pairs(pairs):
 
 
 def build_unpack_pair(*seqs):
+    """
+    Given a series of sequences, create a cons pair chain with the
+    contents of each sequence chained together, in order.
+    """
+
     pairs = []
 
     for seq in seqs:
-        if is_pair(seq):
-            seq = copy_pair(seq)
-        elif seq:
-            seq = cons(*seq, nil)
-        else:
+        if not seq:
             continue
+        elif is_pair(seq):
+            seq = copy_pair(seq)
+        else:
+            seq = cons(*seq, nil)
         pairs.append(seq)
 
-    return join_pairs(pairs)
+    return merge_pairs(pairs)
 
 
 #
