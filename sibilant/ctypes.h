@@ -52,9 +52,11 @@ PyObject *sib_keyword(PyObject *name);
 PyObject *sib_pair(PyObject *head, PyObject *tail);
 
 
-PyObject _SibNil;
+SibPair _SibNil;
 
 #define Sib_Nil ((PyObject *) &_SibNil)
+
+#define Sib_Nilp(val) (((void *) val) == (void *) &_SibNil)
 
 
 #endif

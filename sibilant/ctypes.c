@@ -26,62 +26,101 @@
 #endif
 
 
-#if 0
-#define DEBUGMSG(msg, obj) { \
-  printf("** " msg " "); \
-  PyObject_Print(((PyObject *) (obj)), stdout, 0);	\
-  printf("\n"); \
+#if 1
+#define DEBUGMSG(msg, obj) {					\
+    printf("** " msg " ");					\
+    (obj) && PyObject_Print(((PyObject *) (obj)), stdout, 0);	\
+    printf("\n");						\
   }
 #else
 #define DEBUGMSG(msg, obj) {}
 #endif
 
 
+/* === interned atom === */
+
+
+#define ATOM_NAME(o) (((SibInternedAtom *)self)->name)
+
+
+static PyObject *_str_split = NULL;
+static PyObject *_str_rsplit = NULL;
+
+
+static inline PyObject *atom_new(PyObject *name,
+				 PyObject *intern,
+				 PyTypeObject *type) {
+
+  SibInternedAtom *n = NULL;
+
+  if(! name) {
+    PyErr_SetString(PyExc_TypeError, "interned atom requires a name");
+    return NULL;
+
+  } else if (! PyUnicode_CheckExact(name)) {
+    name = PyObject_Str(name);
+
+  } else{
+    Py_INCREF(name);
+  }
+
+  n = (SibInternedAtom *) PyDict_GetItem(intern, name);
+
+  if (! n) {
+    n = (SibInternedAtom *) PyObject_New(SibInternedAtom, type);
+    n->name = name;
+    n->weakrefs = NULL;
+
+    // DEBUGMSG("allocating and interning new atom", n);
+
+    PyDict_SetItem(intern, name, (PyObject *) n);
+
+    // make the intern a borrowed ref. This allows refcount to drop to
+    // zero, at which point the deallocation of the symbol will clear
+    // it from the intern dict.
+    Py_DECREF(n);
+
+  } else {
+    // DEBUGMSG("returning previously interned atom", n);
+
+    Py_INCREF(n);
+    Py_DECREF(name);
+  }
+
+  return (PyObject *) n;
+}
+
+
+static PyObject *atom_repr(PyObject *self) {
+  return PyUnicode_FromFormat("<%s %R>",
+			      self->ob_type->tp_name,
+			      ATOM_NAME(self));
+}
+
+
+static PyObject *atom_str(PyObject *self) {
+  PyObject *name = ATOM_NAME(self);
+  Py_INCREF(name);
+  return name;
+}
+
+
+static void atom_rewrap(PyObject *vals, unaryfunc conv) {
+  for (int index = PyList_Size(vals); index--; ) {
+    PyList_SetItem(vals, index, conv(PyList_GET_ITEM(vals, index)));
+  }
+}
+
+
+/* === symbol === */
+
+
 static PyObject *intern_syms = NULL;
-static PyObject *intern_kwds = NULL;
 
 
-static void pair_dealloc(PyObject *self) {
-  SibPair *s = (SibPair *) self;
-
-  if (s->weakrefs != NULL)
-    PyObject_ClearWeakRefs(self);
-
-  Py_DECREF(s->head);
-  Py_DECREF(s->tail);
-  Py_XDECREF(s->position);
-
-  Py_TYPE(self)->tp_free(self);
+PyObject *sib_symbol(PyObject *name) {
+  return atom_new(name, intern_syms, &SibSymbolType);
 }
-
-
-static Py_ssize_t pair_length(PyObject *n) {
-  return 2;
-}
-
-
-static PySequenceMethods pair_as_sequence = {
-  .sq_length = pair_length,
-};
-
-
-PyTypeObject SibPairType = {
-  PyVarObject_HEAD_INIT(NULL, 0)
-
-  "sibilant.pair",
-  sizeof(SibPair),
-  0,
-
-  .tp_flags = Py_TPFLAGS_DEFAULT,
-  .tp_dealloc = pair_dealloc,
-  .tp_weaklistoffset = offsetof(SibPair, weakrefs),
-
-  //.tp_iter = pair_iter,
-  .tp_as_sequence = &pair_as_sequence,
-
-  // .tp_print = pair_print,
-  // .tp_repr = pair_repr,
-};
 
 
 static void symbol_dealloc(PyObject *self) {
@@ -102,28 +141,137 @@ static PyObject *symbol_new(PyTypeObject *type,
 
   PyObject *name = NULL;
 
-  if (! PyArg_ParseTuple(args, "O", &name))
+  if (kwds && PyDict_Size(kwds)) {
+    PyErr_SetString(PyExc_TypeError, "symbol takes no named arguments");
+    return NULL;
+  }
+
+  if (! PyArg_ParseTuple(args, "O:symbol", &name))
     return NULL;
 
   return sib_symbol(name);
 }
 
 
+static PyObject *symbol_split(PyObject *self,
+			      PyObject *args, PyObject *kwds) {
+
+  PyObject *name = ATOM_NAME(self);
+  PyObject *method = NULL;
+  PyObject *result = NULL;
+
+  method = PyObject_GetAttr(name, _str_split);
+  if (! method)
+    return NULL;
+
+  result = PyObject_Call(method, args, kwds);
+  Py_CLEAR(method);
+  if (! result)
+    return NULL;
+
+  atom_rewrap(result, sib_symbol);
+  return result;
+}
+
+
+static PyObject *symbol_rsplit(PyObject *self,
+			       PyObject *args, PyObject *kwds) {
+
+  PyObject *name = ATOM_NAME(self);
+  PyObject *method = NULL;
+  PyObject *result = NULL;
+
+  method = PyObject_GetAttr(name, _str_rsplit);
+  if (! method)
+    return NULL;
+
+  result = PyObject_Call(method, args, kwds);
+  Py_CLEAR(method);
+  if (! result)
+    return NULL;
+
+  atom_rewrap(result, sib_symbol);
+  return result;
+}
+
+
+static PyMethodDef symbol_methods[] = {
+  { "split", (PyCFunction) symbol_split, METH_VARARGS|METH_KEYWORDS,
+    "S.split(sep=None, maxsplit=-1) -> list of keywords" },
+
+  { "rsplit", (PyCFunction) symbol_rsplit, METH_VARARGS|METH_KEYWORDS,
+    "S.rsplit(sep=None, maxsplit=-1) -> list of keywords" },
+
+  { NULL, NULL, 0, NULL },
+};
+
+
 PyTypeObject SibSymbolType = {
   PyVarObject_HEAD_INIT(NULL, 0)
 
-  "sibilant.symbol",
+  "symbol",
   sizeof(SibInternedAtom),
   0,
 
   .tp_flags = Py_TPFLAGS_DEFAULT,
+  .tp_methods = symbol_methods,
   .tp_new = symbol_new,
   .tp_dealloc = symbol_dealloc,
   .tp_weaklistoffset = offsetof(SibInternedAtom, weakrefs),
 
-  // .tp_print = atom_print,
-  // .tp_repr = atom_repr,
+  .tp_repr = atom_repr,
+  .tp_str = atom_str,
 };
+
+
+/* === keyword === */
+
+
+static PyObject *intern_kwds = NULL;
+static PyObject *_str_strip = NULL;
+static PyObject *_str_colon = NULL;
+
+
+PyObject *sib_keyword(PyObject *name) {
+  PyObject *clean;
+  PyObject *result;
+
+  if(! name) {
+    PyErr_SetString(PyExc_TypeError, "keywrod requires a name");
+    return NULL;
+
+  } else if (! PyUnicode_CheckExact(name)) {
+    name = PyObject_Str(name);
+
+  } else{
+    Py_INCREF(name);
+  }
+
+  clean = PyObject_CallMethodObjArgs(name, _str_strip, _str_colon, NULL);
+  result = atom_new(clean, intern_kwds, &SibKeywordType);
+
+  Py_DECREF(name);
+  Py_DECREF(clean);
+
+  return result;
+}
+
+
+static PyObject *keyword_new(PyTypeObject *type,
+			     PyObject *args, PyObject *kwds) {
+
+  PyObject *name = NULL;
+
+  if (kwds && PyDict_Size(kwds)) {
+    PyErr_SetString(PyExc_TypeError, "keyword takes no named arguments");
+    return NULL;
+  }
+
+  if (! PyArg_ParseTuple(args, "O:keyword", &name))
+    return NULL;
+
+  return sib_keyword(name);
+}
 
 
 static void keyword_dealloc(PyObject *self) {
@@ -139,38 +287,191 @@ static void keyword_dealloc(PyObject *self) {
 }
 
 
-static PyObject *keyword_new(PyTypeObject *type,
-			     PyObject *args, PyObject *kwds) {
+static PyObject *keyword_split(PyObject *self,
+			       PyObject *args, PyObject *kwds) {
 
-  PyObject *name = NULL;
+  PyObject *name = ATOM_NAME(self);
+  PyObject *method = NULL;
+  PyObject *result = NULL;
 
-  if (! PyArg_ParseTuple(args, "O", &name))
+  method = PyObject_GetAttr(name, _str_split);
+  if (! method)
     return NULL;
 
-  return sib_keyword(name);
+  result = PyObject_Call(method, args, kwds);
+  Py_CLEAR(method);
+  if (! result)
+    return NULL;
+
+  atom_rewrap(result, sib_keyword);
+  return result;
 }
+
+
+static PyObject *keyword_rsplit(PyObject *self,
+				PyObject *args, PyObject *kwds) {
+
+  PyObject *name = ATOM_NAME(self);
+  PyObject *method = NULL;
+  PyObject *result = NULL;
+
+  method = PyObject_GetAttr(name, _str_rsplit);
+  if (! method)
+    return NULL;
+
+  result = PyObject_Call(method, args, kwds);
+  Py_CLEAR(method);
+  if (! result)
+    return NULL;
+
+  atom_rewrap(result, sib_keyword);
+  return result;
+}
+
+
+static PyMethodDef keyword_methods[] = {
+  { "split", (PyCFunction) keyword_split, METH_VARARGS|METH_KEYWORDS,
+    "K.split(sep=None, maxsplit=-1) -> list of keywords" },
+
+  { "rsplit", (PyCFunction) keyword_rsplit, METH_VARARGS|METH_KEYWORDS,
+    "K.rsplit(sep=None, maxsplit=-1) -> list of keywords" },
+
+  { NULL, NULL, 0, NULL },
+};
 
 
 PyTypeObject SibKeywordType = {
   PyVarObject_HEAD_INIT(NULL, 0)
 
-  "sibilant.keyword",
+  "keyword",
   sizeof(SibInternedAtom),
   0,
 
   .tp_flags = Py_TPFLAGS_DEFAULT,
+  .tp_methods = keyword_methods,
   .tp_new = keyword_new,
   .tp_dealloc = keyword_dealloc,
   .tp_weaklistoffset = offsetof(SibInternedAtom, weakrefs),
 
-  // .tp_print = atom_print,
-  // .tp_repr = atom_repr,
+  .tp_repr = atom_repr,
+  .tp_str = atom_str,
 };
 
 
-static void nil_dealloc(PyObject *self) {
-  ;
+/* === pair === */
+
+
+#define CONS(h, t) sib_pair((h), (t))
+
+#define CAR(p) (((SibPair *) (p))->head)
+
+#define CDR(p) (((SibPair *) (p))->tail)
+
+#define SETCAR(p, v) {				\
+    Py_INCREF(v);				\
+    Py_XDECREF(CAR(p));				\
+    CAR(p) = v;					\
+  }
+
+#define SETCDR(p, v) {				\
+    Py_INCREF(v);				\
+    Py_XDECREF(CDR(p));				\
+    CDR(p) = v;					\
+  }
+
+
+static PyObject *pair_new(PyTypeObject *type,
+			  PyObject *args, PyObject *kwds) {
+
+  PyObject *head = NULL;
+  PyObject *tail = NULL;
+
+  if (kwds && PyDict_Size(kwds)) {
+    PyErr_SetString(PyExc_TypeError, "pair takes no named arguments");
+    return NULL;
+  }
+
+  if (! PyArg_ParseTuple(args, "OO:pair", &head, &tail))
+    return NULL;
+
+  return sib_pair(head, tail);
 }
+
+
+static void pair_dealloc(PyObject *self) {
+  SibPair *s = (SibPair *) self;
+
+  if (s->weakrefs != NULL)
+    PyObject_ClearWeakRefs(self);
+
+  Py_XDECREF(s->head);
+  Py_XDECREF(s->tail);
+  Py_XDECREF(s->position);
+
+  Py_TYPE(self)->tp_free(self);
+}
+
+
+static Py_ssize_t pair_length(PyObject *self) {
+  return 2;
+}
+
+
+static PySequenceMethods pair_as_sequence = {
+  .sq_length = pair_length,
+};
+
+
+PyTypeObject SibPairType = {
+  PyVarObject_HEAD_INIT(NULL, 0)
+
+  "pair",
+  sizeof(SibPair),
+  0,
+
+  .tp_flags = Py_TPFLAGS_DEFAULT,
+  .tp_new = pair_new,
+  .tp_dealloc = pair_dealloc,
+  .tp_weaklistoffset = offsetof(SibPair, weakrefs),
+
+  //.tp_iter = pair_iter,
+  .tp_as_sequence = &pair_as_sequence,
+
+  // .tp_print = pair_print,
+  // .tp_repr = pair_repr,
+};
+
+
+PyObject *sib_pair(PyObject *head, PyObject *tail) {
+  SibPair *self = NULL;
+
+  if (! (head && tail)) {
+    PyErr_SetString(PyExc_TypeError, "pair requires a head and a tail");
+    return NULL;
+  }
+
+  self = PyObject_New(SibPair, &SibPairType);
+  self->position = NULL;
+  self->weakrefs = NULL;
+
+  Py_INCREF(head);
+  self->head = head;
+
+  Py_INCREF(tail);
+  self->tail = tail;
+
+  // DEBUGMSG("made a pair", self);
+  // DEBUGMSG(" head is", CAR(self));
+  // DEBUGMSG(" tail is", CDR(self));
+
+  return (PyObject *) self;
+}
+
+
+/* --- NilType --- */
+
+
+static PyObject *_str_nil = NULL;
 
 
 static PyObject *nil_new(PyTypeObject *type,
@@ -186,7 +487,18 @@ static PyObject *nil_new(PyTypeObject *type,
 }
 
 
-static Py_ssize_t nil_length(PyObject *n) {
+static void nil_dealloc(PyObject *self) {
+  ;
+}
+
+
+static PyObject *nil_repr(PyObject *self) {
+  Py_INCREF(_str_nil);
+  return _str_nil;
+}
+
+
+static Py_ssize_t nil_length(PyObject *selfs) {
   return 0;
 }
 
@@ -209,98 +521,122 @@ static PyNumberMethods nil_as_number = {
 PyTypeObject SibNilType = {
   PyVarObject_HEAD_INIT(NULL, 0)
 
-  "sibilant.nil",
-  0,
+  "NilType",
+  sizeof(SibPair),
   0,
 
   .tp_flags = Py_TPFLAGS_DEFAULT,
+  .tp_base = &SibPairType,
   .tp_new = nil_new,
   .tp_dealloc = nil_dealloc,
-  //.tp_repr = nil_repr,
+  .tp_weaklistoffset = offsetof(SibPair, weakrefs),
+
+  .tp_repr = nil_repr,
+  .tp_str = nil_repr,
   //.tp_iter = nil_iter,
   .tp_as_number = &nil_as_number,
   .tp_as_sequence = &nil_as_sequence,
 };
 
 
-PyObject _SibNil = {
-  _PyObject_EXTRA_INIT
-  1, &SibNilType
+SibPair _SibNil = {
+  {
+    _PyObject_EXTRA_INIT
+    1, &SibNilType,
+  },
+  .head = NULL,
+  .tail = NULL,
+  .position = NULL,
+  .weakrefs = NULL,
 };
 
 
-inline PyObject *sib_symbol(PyObject *name) {
-  SibInternedAtom *n = NULL;
+/* -- module -- */
 
-  if(! name) {
-    PyErr_SetString(PyExc_TypeError, "symbol requires a name");
+
+static PyObject *m_cons(PyObject *mod, PyObject *args, PyObject *kwds) {
+  PyObject *pair = NULL;
+
+  return pair;
+}
+
+
+static PyObject *m_car(PyObject *mod, PyObject *args) {
+  PyObject *pair = NULL;
+  PyObject *result;
+
+  if (! PyArg_ParseTuple(args, "O!:car", &SibPairType, &pair))
     return NULL;
 
-  } else if (! PyUnicode_CheckExact(name)) {
-    name = PyObject_Str(name);
-
-  } else{
-    Py_INCREF(name);
+  if (Sib_Nilp(pair)) {
+    PyErr_SetString(PyExc_TypeError, "cannot get car of nil");
+    return NULL;
   }
 
-  n = (SibInternedAtom *) PyDict_GetItem(intern_syms, name);
-
-  if (! n) {
-    n = (SibInternedAtom *) PyObject_New(SibInternedAtom, &SibSymbolType);
-    n->name = name;
-    n->weakrefs = NULL;
-
-    DEBUGMSG("allocating and interning new symbol", n);
-
-    PyDict_SetItem(intern_syms, name, (PyObject *) n);
-
-    // make the intern a borrowed ref. This allows refcount to drop to
-    // zero, at which point the deallocation of the symbol will clear
-    // it from the intern dict.
-    Py_DECREF(n);
-
-  } else {
-    DEBUGMSG("returning previously interned symbol", n);
-
-    Py_INCREF(n);
-    Py_DECREF(name);
-  }
-
-  return (PyObject *) n;
+  result = CAR(pair);
+  Py_INCREF(result);
+  return result;
 }
 
 
-inline PyObject *sib_keyword(PyObject *name) {
-  SibInternedAtom *n = NULL;
+static PyObject *m_setcar(PyObject *mod, PyObject *args) {
+  PyObject *pair = NULL;
+  PyObject *val = NULL;
 
-  if (! n) {
-    n = PyObject_New(SibInternedAtom, &SibKeywordType);
+  if (! PyArg_ParseTuple(args, "O!O:setcar", &SibPairType, &pair, &val))
+    return NULL;
 
-    Py_INCREF(name);
-    n->name = name;
+  if (Sib_Nilp(pair)) {
+    PyErr_SetString(PyExc_TypeError, "cannot set car of nil");
+    return NULL;
   }
 
-  return (PyObject *) n;
+  SETCAR(pair, val);
+  Py_RETURN_NONE;
 }
 
 
-inline PyObject *sib_pair(PyObject *head, PyObject *tail) {
-  SibPair *self = NULL;
+static PyObject *m_setcdr(PyObject *mod, PyObject *args) {
+  PyObject *pair = NULL;
+  PyObject *val = NULL;
 
-  self = PyObject_New(SibPair, &SibPairType);
+  if (! PyArg_ParseTuple(args, "O!O:setcdr", &SibPairType, &pair, &val))
+    return NULL;
 
-  Py_INCREF(head);
-  self->head = head;
+  if (Sib_Nilp(pair)) {
+    PyErr_SetString(PyExc_TypeError, "cannot set cdr of nil");
+    return NULL;
+  }
 
-  Py_INCREF(tail);
-  self->tail = tail;
+  SETCDR(pair, val);
+  Py_RETURN_NONE;
+}
 
-  return (PyObject *) self;
+
+static PyObject *m_cdr(PyObject *mod, PyObject *args) {
+  PyObject *pair = NULL;
+  PyObject *result;
+
+  if (! PyArg_ParseTuple(args, "O!:cdr", &SibPairType, &pair))
+    return NULL;
+
+  if (Sib_Nilp(pair)) {
+    PyErr_SetString(PyExc_TypeError, "cannot get cdr of nil");
+    return NULL;
+  }
+
+  result = CDR(pair);
+  Py_INCREF(result);
+  return result;
 }
 
 
 static PyMethodDef methods[] = {
-
+  { "cons", (PyCFunction) m_cons, METH_VARARGS|METH_KEYWORDS, "" },
+  { "car", m_car, METH_VARARGS, "" },
+  { "cdr", m_cdr, METH_VARARGS, "" },
+  { "setcar", m_setcar, METH_VARARGS, "" },
+  { "setcdr", m_setcdr, METH_VARARGS, "" },
   { NULL, NULL, 0, NULL },
 };
 
@@ -318,11 +654,16 @@ static struct PyModuleDef ctypes = {
 };
 
 
+#define STR_CONST(which, val) {			\
+    if (! (which))				\
+      which = PyUnicode_FromString(val);	\
+  }
+
+
 PyMODINIT_FUNC PyInit_ctypes(void) {
 
   PyObject *mod, *dict;
 
-  SibPairType.tp_new = PyType_GenericNew;
   if (PyType_Ready(&SibPairType) < 0)
     return NULL;
 
@@ -335,9 +676,11 @@ PyMODINIT_FUNC PyInit_ctypes(void) {
   if (PyType_Ready(&SibSymbolType) < 0)
     return NULL;
 
-  mod = PyModule_Create(&ctypes);
-  if (! mod)
-    return NULL;
+  STR_CONST(_str_nil, "nil");
+  STR_CONST(_str_split, "split");
+  STR_CONST(_str_rsplit, "rsplit");
+  STR_CONST(_str_strip, "strip");
+  STR_CONST(_str_colon, ":");
 
   if (! intern_syms) {
     intern_syms = PyDict_New();
@@ -350,6 +693,10 @@ PyMODINIT_FUNC PyInit_ctypes(void) {
     if (! intern_kwds)
       return NULL;
   }
+
+  mod = PyModule_Create(&ctypes);
+  if (! mod)
+    return NULL;
 
   dict = PyModule_GetDict(mod);
   PyDict_SetItemString(dict, "nil", Sib_Nil);
