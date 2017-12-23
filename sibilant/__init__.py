@@ -121,10 +121,6 @@ class Symbol(InternedAtom):
     _reprf = "<symbol %r>"
 
 
-symbol = Symbol
-is_symbol = TypePredicate("symbol?", Symbol)
-
-
 class Keyword(InternedAtom):
     """
     keyword type.
@@ -142,8 +138,20 @@ class Keyword(InternedAtom):
         return super().__new__(cls, str(name).strip(":"))
 
 
-keyword = Keyword
-is_keyword = TypePredicate("keyword?", Keyword)
+try:
+    from ctypes import symbol, keyword
+
+    del InternedAtom
+    del Symbol
+    del Keyword
+
+except ImportError:
+    symbol = Symbol
+    keyword = Keyword
+
+
+is_symbol = TypePredicate("symbol?", symbol)
+is_keyword = TypePredicate("keyword?", keyword)
 
 
 class Pair(object):
@@ -159,25 +167,7 @@ class Pair(object):
     __slots__ = ("_car", "_cdr", "_src_pos", )
 
 
-    def __init__(self, head, *tail, recursive=False):
-        ltype = type(self)
-
-        if tail:
-            if len(tail) == 1:
-                tail = tail[0]
-
-            else:
-                def cons(tail, head):
-                    return ltype(head, tail)
-
-                if recursive:
-                    tail = reduce(cons, reversed(tail), self)
-                else:
-                    tail = reduce(cons, reversed(tail))
-
-        else:
-            tail = self if recursive else nil
-
+    def __init__(self, head, tail):
         self._car = head
         self._cdr = tail
         self._src_pos = None
@@ -508,8 +498,38 @@ class Pair(object):
         return self._src_pos
 
 
-cons = Pair
-is_pair = TypePredicate("pair?", Pair)
+# try:
+#     from .ctypes import pair
+#     del Pair
+#
+# except ImportError:
+#    pair = Pair
+
+
+pair = Pair
+is_pair = TypePredicate("pair?", pair)
+
+
+def cons(head, *tail, recursive=False):
+    ltype = type(self)
+
+    if tail:
+        if len(tail) == 1:
+            tail = tail[0]
+
+        else:
+            def cons(tail, head):
+                return ltype(head, tail)
+
+            if recursive:
+                tail = reduce(cons, reversed(tail), self)
+            else:
+                tail = reduce(cons, reversed(tail))
+
+    else:
+        tail = self if recursive else nil
+
+    return pair(head, tail)
 
 
 def is_proper(value):
