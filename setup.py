@@ -34,63 +34,70 @@ else:
     exit("unsupported version: %r" % version_info)
 
 
-ext_ctco = Extension("sibilant.compiler.ctco",
-                     ["sibilant/compiler/ctco.c"])
+ext_ctco = Extension(
+    name = "sibilant.compiler.ctco",
+    sources = ["sibilant/compiler/ctco.c"],
+    extra_compile_args=["--std=c99"],
+)
 
-ext_ctypes = Extension("sibilant.ctypes",
-                       ["sibilant/ctypes.c"])
+ext_ctypes = Extension(
+    name = "sibilant.ctypes",
+    sources = ["sibilant/ctypes.c"],
+    extra_compile_args=["--std=c99"],
+)
 
 
-setup(name = "sibilant",
-      version = "0.9.0",
+setup(
+    name = "sibilant",
+    version = "0.9.0",
 
-      packages = [
-          "sibilant",
-          "sibilant.compiler",
-      ],
+    packages = [
+        "sibilant",
+        "sibilant.compiler",
+    ],
 
-      package_data = {
-          "sibilant": ["*.lspy"],
-      },
+    package_data = {
+        "sibilant": ["*.lspy"],
+    },
 
-      ext_modules = [
-          ext_ctco,
-          ext_ctypes,
-      ],
+    ext_modules = [
+        ext_ctco,
+        ext_ctypes,
+    ],
 
-      headers = [
-          "sibilant/ctypes.h",
-      ],
+    headers = [
+        "sibilant/ctypes.h",
+    ],
 
-      test_suite = "tests",
+    test_suite = "tests",
 
-      entry_points = {
-          "console_scripts": [
-              'sibilant=sibilant.cli:main',
-          ],
-      },
+    entry_points = {
+        "console_scripts": [
+            'sibilant=sibilant.cli:main',
+        ],
+    },
 
-      # PyPI information
-      author = "Christopher O'Brien",
-      author_email = "obriencj@gmail.com",
-      url = "https://github.com/obriencj/python-sibilant",
-      license = "GNU Lesser General Public License",
+    # PyPI information
+    author = "Christopher O'Brien",
+    author_email = "obriencj@gmail.com",
+    url = "https://github.com/obriencj/python-sibilant",
+    license = "GNU Lesser General Public License",
 
-      description = "LISP dialect for Python",
+    description = "LISP dialect for Python",
 
-      provides = ["sibilant", ],
-      install_requires = ["appdirs", ],
-      platforms = ["python3 >= 3.5", ],
+    provides = ["sibilant", ],
+    install_requires = ["appdirs", ],
+    platforms = ["python3 >= 3.5", ],
 
-      zip_safe = True,
+    zip_safe = True,
 
-      classifiers = [
-          "Intended Audience :: Developers",
-          "Programming Language :: Python :: 3 :: Only",
-          "Programming Language :: Python :: 3.5",
-          "Programming Language :: Python :: 3.6",
-          "Programming Language :: Python :: Implementation :: CPython",
-          "Topic :: Software Development", ],
+    classifiers = [
+        "Intended Audience :: Developers",
+        "Programming Language :: Python :: 3 :: Only",
+        "Programming Language :: Python :: 3.5",
+        "Programming Language :: Python :: 3.6",
+        "Programming Language :: Python :: Implementation :: CPython",
+        "Topic :: Software Development", ],
 )
 
 
