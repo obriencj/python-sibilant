@@ -141,13 +141,14 @@ class Keyword(InternedAtom):
 try:
     from ctypes import symbol, keyword
 
-    del InternedAtom
-    del Symbol
-    del Keyword
-
 except ImportError:
     symbol = Symbol
     keyword = Keyword
+
+else:
+    del InternedAtom
+    del Symbol
+    del Keyword
 
 
 is_symbol = TypePredicate("symbol?", symbol)
@@ -511,7 +512,7 @@ is_pair = TypePredicate("pair?", pair)
 
 
 def cons(head, *tail, recursive=False):
-    ltype = type(self)
+    self = pair(head, None)
 
     if tail:
         if len(tail) == 1:
@@ -519,7 +520,7 @@ def cons(head, *tail, recursive=False):
 
         else:
             def cons(tail, head):
-                return ltype(head, tail)
+                return pair(head, tail)
 
             if recursive:
                 tail = reduce(cons, reversed(tail), self)
@@ -529,7 +530,8 @@ def cons(head, *tail, recursive=False):
     else:
         tail = self if recursive else nil
 
-    return pair(head, tail)
+    self._cdr = tail
+    return self
 
 
 def is_proper(value):
