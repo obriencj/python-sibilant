@@ -39,7 +39,15 @@ typedef struct SibInternedAtom {
 } SibInternedAtom;
 
 
+typedef struct {
+  PyObject_HEAD
+  PyObject *pair;
+  int index;
+} SibPairIterator;
+
+
 PyTypeObject SibPairType;
+PyTypeObject SibPairIteratorType;
 PyTypeObject SibNilType;
 PyTypeObject SibSymbolType;
 PyTypeObject SibKeywordType;

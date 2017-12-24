@@ -47,9 +47,9 @@ static PyObject *_str_split = NULL;
 static PyObject *_str_rsplit = NULL;
 
 
-static inline PyObject *atom_new(PyObject *name,
-				 PyObject *intern,
-				 PyTypeObject *type) {
+static PyObject *atom_new(PyObject *name,
+			  PyObject *intern,
+			  PyTypeObject *type) {
 
   SibInternedAtom *n = NULL;
 
@@ -417,9 +417,61 @@ static Py_ssize_t pair_length(PyObject *self) {
 }
 
 
+static PyObject *pair_getitem(PyObject *self, Py_ssize_t index) {
+  PyObject *result = NULL;
+
+  switch(index) {
+  case 0:
+    result = CAR(self);
+    break;
+  case 1:
+    result = CDR(self);
+    break;
+  default:
+    PyErr_SetString(PyExc_IndexError, "pair index out of range");
+  }
+
+  Py_XINCREF(result);
+  return result;
+}
+
+
+static int pair_setitem(PyObject *self, Py_ssize_t index, PyObject *val) {
+  int result = 0;
+
+  switch(index) {
+  case 0:
+    SETCAR(self, val);
+    break;
+  case 1:
+    SETCDR(self, val);
+    break;
+  default:
+    PyErr_SetString(PyExc_IndexError, "pair index out of range");
+    result = -1;
+  }
+
+  return result;
+}
+
+
 static PySequenceMethods pair_as_sequence = {
   .sq_length = pair_length,
+  .sq_item = pair_getitem,
+  .sq_ass_item = pair_setitem,
 };
+
+
+static PyObject *pair_iter(PyObject *self) {
+  SibPairIterator *i = NULL;
+
+  i = (SibPairIterator *) PyObject_New(SibPairIterator, &SibPairIteratorType);
+  Py_INCREF(self);
+  i->pair = self;
+  i->index = 0;
+
+  return (PyObject *) i;
+}
 
 
 PyTypeObject SibPairType = {
@@ -434,7 +486,7 @@ PyTypeObject SibPairType = {
   .tp_dealloc = pair_dealloc,
   .tp_weaklistoffset = offsetof(SibPair, weakrefs),
 
-  //.tp_iter = pair_iter,
+  .tp_iter = pair_iter,
   .tp_as_sequence = &pair_as_sequence,
 
   // .tp_print = pair_print,
@@ -468,6 +520,54 @@ PyObject *sib_pair(PyObject *head, PyObject *tail) {
 }
 
 
+/* -- PairIteratorType -- */
+
+
+static void piter_dealloc(PyObject *self) {
+  SibPairIterator *s = (SibPairIterator *) self;
+  Py_XDECREF(s->pair);
+  Py_TYPE(self)->tp_free(self);
+}
+
+
+static PyObject *piter_iternext(PyObject *self) {
+  SibPairIterator *s = (SibPairIterator *) self;
+  PyObject *pair = s->pair;
+  PyObject *result = NULL;
+
+  if (pair) {
+    switch(s->index) {
+    case 0:
+      result = CAR(pair);
+      s->index = 1;
+      break;
+    case 1:
+      result = CDR(pair);
+      s->index = 2;
+    default:
+      Py_CLEAR(s->pair);
+    }
+  }
+
+  Py_XINCREF(result);
+  return result;
+}
+
+
+PyTypeObject SibPairIteratorType = {
+  PyVarObject_HEAD_INIT(NULL, 0)
+
+  "pair_iterator",
+  sizeof(SibPairIterator),
+  0,
+
+  .tp_flags = Py_TPFLAGS_DEFAULT,
+  .tp_dealloc = piter_dealloc,
+  .tp_iter = PyObject_SelfIter,
+  .tp_iternext = piter_iternext,
+};
+
+
 /* --- NilType --- */
 
 
@@ -498,13 +598,38 @@ static PyObject *nil_repr(PyObject *self) {
 }
 
 
+static PyObject *nil_iter(PyObject *self) {
+  SibPairIterator *i = NULL;
+
+  i = (SibPairIterator *) PyObject_New(SibPairIterator, &SibPairIteratorType);
+  i->index = 0;
+  i->pair = NULL;
+
+  return (PyObject *) i;
+}
+
+
 static Py_ssize_t nil_length(PyObject *selfs) {
   return 0;
 }
 
 
+static PyObject *nil_getitem(PyObject *self, Py_ssize_t index) {
+  PyErr_SetString(PyExc_IndexError, "nil has no items");
+  return NULL;
+}
+
+
+static int nil_setitem(PyObject *self, Py_ssize_t index, PyObject *val) {
+  PyErr_SetString(PyExc_IndexError, "nil has no items");
+  return -1;
+}
+
+
 static PySequenceMethods nil_as_sequence = {
   .sq_length = nil_length,
+  .sq_item = nil_getitem,
+  .sq_ass_item = nil_setitem,
 };
 
 
@@ -533,7 +658,7 @@ PyTypeObject SibNilType = {
 
   .tp_repr = nil_repr,
   .tp_str = nil_repr,
-  //.tp_iter = nil_iter,
+  .tp_iter = nil_iter,
   .tp_as_number = &nil_as_number,
   .tp_as_sequence = &nil_as_sequence,
 };
@@ -632,11 +757,21 @@ static PyObject *m_cdr(PyObject *mod, PyObject *args) {
 
 
 static PyMethodDef methods[] = {
-  { "cons", (PyCFunction) m_cons, METH_VARARGS|METH_KEYWORDS, "" },
-  { "car", m_car, METH_VARARGS, "" },
-  { "cdr", m_cdr, METH_VARARGS, "" },
-  { "setcar", m_setcar, METH_VARARGS, "" },
-  { "setcdr", m_setcdr, METH_VARARGS, "" },
+  { "cons", (PyCFunction) m_cons, METH_VARARGS|METH_KEYWORDS,
+    "cons(head, *tail, recursive=Fasle)" },
+
+  { "car", m_car, METH_VARARGS,
+    "car(P)" },
+
+  { "cdr", m_cdr, METH_VARARGS,
+    "cdr(P)" },
+
+  { "setcar", m_setcar, METH_VARARGS,
+    "setcar(P, head)" },
+
+  { "setcdr", m_setcdr, METH_VARARGS,
+    "setcdr(P, tail)" },
+
   { NULL, NULL, 0, NULL },
 };
 
