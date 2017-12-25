@@ -380,6 +380,19 @@ PyTypeObject SibKeywordType = {
   }
 
 
+static PyObject *_str_empty = NULL;
+static PyObject *_str_space = NULL;
+static PyObject *_str_cons_paren = NULL;
+static PyObject *_str_comma_space = NULL;
+static PyObject *_str_open_paren = NULL;
+static PyObject *_str_close_paren = NULL;
+static PyObject *_str_recursive_true = NULL;
+static PyObject *_str_space_elipsis = NULL;
+static PyObject *_str_space_dot_space = NULL;
+static PyObject *_str_quote = NULL;
+static PyObject *_str_esc_quote = NULL;
+
+
 static PyObject *pair_new(PyTypeObject *type,
 			  PyObject *args, PyObject *kwds) {
 
@@ -474,6 +487,127 @@ static PyObject *pair_iter(PyObject *self) {
 }
 
 
+static PyObject *pair_repr(PyObject *self) {
+  PyObject *tmp = NULL;
+  PyObject *col = PyList_New(0);
+  PyObject *found = PyDict_New();
+  size_t index = 0;
+
+  PyObject *rest = self;
+  PyObject *rest_id;
+
+  PyList_Append(col, _str_cons_paren);
+
+  while (rest->ob_type == &SibPairType) {
+    rest_id = PyLong_FromVoidPtr(rest);
+
+    if (PyDict_Contains(found, rest_id)) {
+      PyList_Append(col, _str_recursive_true);
+
+      if (rest != self) {
+	tmp = PyDict_GetItem(found, rest_id);
+	PyList_Insert(col, PyLong_AsSize_t(tmp) - 1, _str_cons_paren);
+	PyList_Append(col, _str_close_paren);
+      }
+      Py_DECREF(rest_id);
+      rest = NULL;
+      break;
+
+    } else {
+      index += 2;
+
+      tmp = PyLong_FromSize_t(index);
+      PyDict_SetItem(found, rest_id, tmp);
+      Py_DECREF(tmp);
+
+      tmp = PyObject_Repr(CAR(rest));
+      PyList_Append(col, tmp);
+      PyList_Append(col, _str_comma_space);
+      Py_DECREF(tmp);
+
+      rest = CDR(rest);
+      Py_DECREF(rest_id);
+    }
+  }
+
+  if (rest) {
+    PyList_Append(col, PyObject_Repr(rest));
+  }
+
+  PyList_Append(col, _str_close_paren);
+
+  tmp = PyUnicode_Join(_str_empty, col);
+  Py_DECREF(col);
+  Py_DECREF(found);
+
+  return tmp;
+}
+
+
+static PyObject *quoted(PyObject *u) {
+  PyObject *tmp, *result;
+
+  tmp = PyUnicode_Replace(u, _str_quote, _str_esc_quote, -1);
+  result = PyUnicode_FromFormat("\"%U\"", tmp);
+  Py_DECREF(tmp);
+
+  return result;
+}
+
+
+static PyObject *pair_str(PyObject *self) {
+  PyObject *tmp = NULL;
+  PyObject *col = PyList_New(0);
+  PyObject *found = PySet_New(NULL);
+
+  PyObject *rest = NULL;
+  PyObject *rest_id = NULL;
+
+  for (rest = self; !Sib_Nilp(rest); rest = CDR(rest)) {
+    if (rest->ob_type == &SibPairType) {
+      rest_id = PyLong_FromVoidPtr(rest);
+
+      if (PySet_Contains(found, rest_id)) {
+	PyList_Append(col, _str_space_elipsis);
+	break;
+
+      } else {
+	PySet_Add(found, rest_id);
+	PyList_Append(col, _str_space);
+
+	tmp = CAR(rest);
+	if (PyUnicode_CheckExact(tmp)) {
+	  tmp = quoted(tmp);
+	} else {
+	  tmp = PyObject_Str(tmp);
+	}
+
+	PyList_Append(col, tmp);
+	Py_DECREF(tmp);
+      }
+
+    } else {
+      /* end of improper list */
+      PyList_Append(col, _str_space_dot_space);
+      tmp = PyObject_Str(rest);
+      PyList_Append(col, tmp);
+      Py_DECREF(tmp);
+      break;
+    }
+  }
+
+  Py_INCREF(_str_open_paren);
+  PyList_SetItem(col, 0, _str_open_paren);
+  PyList_Append(col, _str_close_paren);
+
+  tmp = PyUnicode_Join(_str_empty, col);
+  Py_DECREF(col);
+  Py_DECREF(found);
+
+  return tmp;
+}
+
+
 PyTypeObject SibPairType = {
   PyVarObject_HEAD_INIT(NULL, 0)
 
@@ -489,8 +623,8 @@ PyTypeObject SibPairType = {
   .tp_iter = pair_iter,
   .tp_as_sequence = &pair_as_sequence,
 
-  // .tp_print = pair_print,
-  // .tp_repr = pair_repr,
+  .tp_repr = pair_repr,
+  .tp_str = pair_str,
 };
 
 
@@ -816,6 +950,18 @@ PyMODINIT_FUNC PyInit_ctypes(void) {
   STR_CONST(_str_rsplit, "rsplit");
   STR_CONST(_str_strip, "strip");
   STR_CONST(_str_colon, ":");
+
+  STR_CONST(_str_empty, "");
+  STR_CONST(_str_space, " ");
+  STR_CONST(_str_cons_paren, "cons(");
+  STR_CONST(_str_comma_space, ", ");
+  STR_CONST(_str_open_paren, "(");
+  STR_CONST(_str_close_paren, ")");
+  STR_CONST(_str_recursive_true, "recursive=True");
+  STR_CONST(_str_space_elipsis, " ...");
+  STR_CONST(_str_space_dot_space, " . ");
+  STR_CONST(_str_quote, "\"");
+  STR_CONST(_str_esc_quote, "\\\"");
 
   if (! intern_syms) {
     intern_syms = PyDict_New();
