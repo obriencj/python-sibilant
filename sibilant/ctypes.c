@@ -1023,6 +1023,9 @@ static PyObject *pair_clear_position(PyObject *self,
   static char *keywords[] = { "follow", NULL };
   int follow = 0;
 
+  if (Sib_Nilp(self))
+    Py_RETURN_NONE;
+
   if (! PyArg_ParseTupleAndKeywords(args, kwds, "|p", keywords, &follow))
     return NULL;
 
@@ -1048,6 +1051,9 @@ static PyObject *pair_set_position(PyObject *self,
   SibPair *s = (SibPair *) self;
   static char *keywords[] = { "postition", "follow", NULL };
   int follow = 0;
+
+  if (Sib_Nilp(self))
+    Py_RETURN_NONE;
 
   if (! PyArg_ParseTupleAndKeywords(args, kwds, "O|p", keywords,
 				    &position, &follow))
@@ -1383,6 +1389,33 @@ static PyObject *m_setcdr(PyObject *mod, PyObject *args) {
 }
 
 
+static PyObject *m_reapply(PyObject *mod, PyObject *args, PyObject *kwds) {
+  PyObject *fun, *data, *result;
+  long count = 0;
+
+  static char *keywords[] = { "fun", "data", "count", NULL };
+
+  if (! PyArg_ParseTupleAndKeywords(args, kwds, "OOl:reapply", keywords,
+				    &fun, &data, &count))
+    return NULL;
+
+  Py_INCREF(data);
+  result = data;
+
+  while (count-- > 0) {
+    result = PyObject_CallFunctionObjArgs(fun, data);
+    Py_DECREF(data);
+
+    if (! result)
+      break;
+
+    data = result;
+  }
+
+  return result;
+}
+
+
 static PyMethodDef methods[] = {
   { "cons", (PyCFunction) m_cons, METH_VARARGS|METH_KEYWORDS,
     "cons(head, *tail, recursive=Fasle)" },
@@ -1398,6 +1431,9 @@ static PyMethodDef methods[] = {
 
   { "setcdr", m_setcdr, METH_VARARGS,
     "setcdr(P, tail)" },
+
+  { "reapply", (PyCFunction) m_reapply, METH_VARARGS|METH_KEYWORDS,
+    "reapply(func, data, count)" },
 
   { NULL, NULL, 0, NULL },
 };
