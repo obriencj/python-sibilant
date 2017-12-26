@@ -447,7 +447,7 @@ class Pair(object):
 
             pair._src_pos = None
 
-            value = pair._cdr
+            value = pair._car
             if type(value) is _Pair:
                 clear_pos(value, True)
 
@@ -467,7 +467,7 @@ class Pair(object):
 
             pair._src_pos = position
 
-            value = pair._cdr
+            value = pair._car
             if type(value) is _Pair:
                 set_pos(value, position, True)
 
@@ -491,25 +491,13 @@ class Pair(object):
             else:
                 position = pair._src_pos
 
-            value = pair._cdr
+            value = pair._car
             if type(value) is _Pair:
                 fill_pos(value, position, True)
 
 
     def get_position(self):
         return self._src_pos
-
-
-# try:
-#     from .ctypes import pair
-#     del Pair
-#
-# except ImportError:
-#    pair = Pair
-
-
-pair = Pair
-is_pair = TypePredicate("pair?", pair)
 
 
 def cons(head, *tail, recursive=False):
@@ -531,7 +519,7 @@ def cons(head, *tail, recursive=False):
     else:
         tail = self if recursive else nil
 
-    self._cdr = tail
+    setcdr(self, tail)
     return self
 
 
@@ -682,7 +670,6 @@ class BuiltinPredicate(partial):
 
 # This is intended as a singleton
 nil = Nil()
-is_nil = BuiltinPredicate("nil?", operator.is_, nil)
 
 
 def car(c):
@@ -730,6 +717,22 @@ def setcdr(c, value):
     else:
         c._cdr = value
         return value
+
+
+try:
+    from .ctypes import car, cdr, setcar, setcdr  # noqa
+    from .ctypes import nil, pair
+
+except ImportError:
+    pair = Pair
+
+else:
+    del Pair
+    del Nil
+
+
+is_pair = TypePredicate("pair?", pair)
+is_nil = BuiltinPredicate("nil?", operator.is_, nil)
 
 
 def repeatedly(value):
@@ -812,17 +815,16 @@ def merge_pairs(pairs):
 
     for pair in pairs:
         if result is nil:
-            result = pair
-            work = result
+            work = result = pair
 
-        elif work._cdr is nil:
-            work._cdr = pair
+        elif cdr(work) is nil:
+            setcdr(work, pair)
 
         else:
-            work._cdr = cons(work._cdr, pair)
+            setcdr(work, cons(cdr(work), pair))
 
         for i in pair.follow():
-            if is_pair(i):
+            if is_pair(i) and i is not nil:
                 work = i
 
     return result

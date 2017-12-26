@@ -901,6 +901,215 @@ static PyObject *pair_unpack(PyObject *self, PyObject *_noargs) {
 }
 
 
+static PyObject *pair_is_proper(PyObject *self, PyObject *_noargs) {
+  PyObject *seen = PySet_New(NULL);
+  PyObject *pair_id;
+  long result = 0;
+
+  for ( ; SibPair_CheckExact(self); self = CDR(self)) {
+    pair_id = PyLong_FromVoidPtr(self);
+
+    if (PySet_Contains(seen, pair_id)) {
+      /* seen it, therefore recursive */
+      Py_DECREF(pair_id);
+      result = 1;
+      break;
+
+    } else {
+      PySet_Add(seen, pair_id);
+      Py_DECREF(pair_id);
+    }
+  }
+
+  /* it's either recursive and thus proper, or the last item needs to
+     have been a nil, or it's improper */
+  Py_DECREF(seen);
+  return PyBool_FromLong(result || Sib_Nilp(self));
+}
+
+
+static PyObject *pair_is_recursive(PyObject *self, PyObject *_noargs) {
+  PyObject *seen = PySet_New(NULL);
+  PyObject *pair_id;
+  long result = 0;
+
+  for ( ; SibPair_CheckExact(self); self = CDR(self)) {
+    pair_id = PyLong_FromVoidPtr(self);
+
+    if (PySet_Contains(seen, pair_id)) {
+      /* seen it, therefore recursive */
+      Py_DECREF(pair_id);
+      result = 1;
+      break;
+
+    } else {
+      PySet_Add(seen, pair_id);
+      Py_DECREF(pair_id);
+    }
+  }
+
+  Py_DECREF(seen);
+  return PyBool_FromLong(result);
+}
+
+
+static void pwalk_setpos(PyObject *pair, PyObject *seen, PyObject *pos) {
+  PyObject *pair_id;
+  SibPair *sp;
+
+  for (; SibPair_CheckExact(pair); pair = CDR(pair)) {
+    sp = (SibPair *) pair;
+
+    pair_id = PyLong_FromVoidPtr(pair);
+
+    if (PySet_Contains(seen, pair_id)) {
+      Py_DECREF(pair_id);
+      break;
+
+    } else {
+      PySet_Add(seen, pair_id);
+      Py_DECREF(pair_id);
+    }
+
+    Py_XDECREF(sp->position);
+    Py_XINCREF(pos);
+    sp->position = pos;
+
+    if (SibPair_CheckExact(CAR(sp))) {
+      pwalk_setpos(CAR(sp), seen, pos);
+    }
+  }
+}
+
+
+static void pwalk_fillpos(PyObject *pair, PyObject *seen, PyObject *pos) {
+  PyObject *pair_id;
+  SibPair *sp;
+
+  for (; SibPair_CheckExact(pair); pair = CDR(pair)) {
+    sp = (SibPair *) pair;
+
+    pair_id = PyLong_FromVoidPtr(pair);
+
+    if (PySet_Contains(seen, pair_id)) {
+      Py_DECREF(pair_id);
+      break;
+
+    } else {
+      PySet_Add(seen, pair_id);
+      Py_DECREF(pair_id);
+    }
+
+    if (sp->position) {
+      pos = sp->position;
+
+    } else {
+      Py_INCREF(pos);
+      sp->position = pos;
+    }
+
+    if (SibPair_CheckExact(CAR(sp))) {
+      pwalk_fillpos(CAR(sp), seen, pos);
+    }
+  }
+}
+
+
+static PyObject *pair_clear_position(PyObject *self,
+				     PyObject *args, PyObject *kwds) {
+
+  PyObject *seen;
+  SibPair *s = (SibPair *) self;
+  static char *keywords[] = { "follow", NULL };
+  int follow = 0;
+
+  if (! PyArg_ParseTupleAndKeywords(args, kwds, "|p", keywords, &follow))
+    return NULL;
+
+  if (follow) {
+    seen = PySet_New(NULL);
+    pwalk_setpos(self, seen, NULL);
+    Py_DECREF(seen);
+
+  } else {
+    if (s->position)
+      Py_CLEAR(s->position);
+  }
+
+  Py_RETURN_NONE;
+}
+
+
+static PyObject *pair_set_position(PyObject *self,
+				   PyObject *args, PyObject *kwds) {
+
+  PyObject *seen;
+  PyObject *position = NULL;
+  SibPair *s = (SibPair *) self;
+  static char *keywords[] = { "postition", "follow", NULL };
+  int follow = 0;
+
+  if (! PyArg_ParseTupleAndKeywords(args, kwds, "O|p", keywords,
+				    &position, &follow))
+    return NULL;
+
+  if (follow) {
+    seen = PySet_New(NULL);
+    pwalk_setpos(self, seen, position);
+    Py_DECREF(seen);
+
+  } else {
+    Py_XDECREF(s->position);
+    s->position = position;
+    Py_INCREF(s->position);
+  }
+
+  Py_RETURN_NONE;
+}
+
+
+static PyObject *pair_fill_position(PyObject *self,
+				    PyObject *args, PyObject *kwds) {
+
+  PyObject *seen;
+  PyObject *position = NULL;
+  SibPair *s = (SibPair *) self;
+  static char *keywords[] = { "position", "follow", NULL };
+  int follow = 0;
+
+  if (! PyArg_ParseTupleAndKeywords(args, kwds, "O|p", keywords,
+				    &position, &follow))
+    return NULL;
+
+  if (follow) {
+    seen = PySet_New(NULL);
+    pwalk_fillpos(self, seen, position);
+    Py_DECREF(seen);
+
+  } else {
+    if (! s->position) {
+      s->position = position;
+      Py_INCREF(s->position);
+    }
+  }
+
+  Py_RETURN_NONE;
+}
+
+
+static PyObject *pair_get_position(PyObject *self, PyObject *_noargs) {
+  SibPair *s = (SibPair *) self;
+
+  if (s->position) {
+    Py_INCREF(s->position);
+    return s->position;
+
+  } else {
+    Py_RETURN_NONE;
+  }
+}
+
+
 static PyMethodDef pair_methods[] = {
   { "count", (PyCFunction) pair_count, METH_NOARGS,
     "P.count()" },
@@ -910,6 +1119,27 @@ static PyMethodDef pair_methods[] = {
 
   { "unpack", (PyCFunction) pair_unpack, METH_NOARGS,
     "P.unpack()" },
+
+  { "is_proper", (PyCFunction) pair_is_proper, METH_NOARGS,
+    "P.is_proper()" },
+
+  { "is_recursive", (PyCFunction) pair_is_recursive, METH_NOARGS,
+    "P.is_recursive()" },
+
+  { "clear_position", (PyCFunction) pair_clear_position,
+    METH_VARARGS|METH_KEYWORDS,
+    "P.clear_position(follow=True)" },
+
+  { "set_position", (PyCFunction) pair_set_position,
+    METH_VARARGS|METH_KEYWORDS,
+    "P.set_position(follow=True)" },
+
+  { "fill_position", (PyCFunction) pair_fill_position,
+    METH_VARARGS|METH_KEYWORDS,
+    "P.fill_position(follow=True)" },
+
+  { "get_position", (PyCFunction) pair_get_position, METH_NOARGS,
+    "P.get_position()" },
 
   { NULL, NULL, 0, NULL },
 };
