@@ -26,7 +26,7 @@
 #endif
 
 
-#if 1
+#if 0
 #define DEBUGMSG(msg, obj) {					\
     printf("** " msg " ");					\
     (obj) && PyObject_Print(((PyObject *) (obj)), stdout, 0);	\
@@ -547,6 +547,8 @@ static PyObject *pair_new(PyTypeObject *type,
 
 static void pair_dealloc(PyObject *self) {
   SibPair *s = (SibPair *) self;
+
+  // DEBUGMSG("pair_dealloc", self);
 
   if (s->weakrefs != NULL)
     PyObject_ClearWeakRefs(self);
@@ -1208,10 +1210,6 @@ PyObject *sib_pair(PyObject *head, PyObject *tail) {
 
   Py_INCREF(tail);
   self->tail = tail;
-
-  // DEBUGMSG("made a pair", self);
-  // DEBUGMSG(" head is", CAR(self));
-  // DEBUGMSG(" tail is", CDR(self));
 
   PyObject_GC_Track((PyObject *) self);
   return (PyObject *) self;
