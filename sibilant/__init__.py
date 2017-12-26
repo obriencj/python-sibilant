@@ -208,16 +208,15 @@ class Pair(object):
     def __eq__(self, other):
         _Pair = type(self)
 
-        if type(other) is not _Pair:
+        if self is other:
+            return True
+        elif type(other) is not _Pair:
             return False
 
         left = self
         right = other
 
-        lf = dict()
-        rf = dict()
-
-        index = 1
+        seen = dict()
 
         while left is not right:
             if (left is nil) or (right is nil):
@@ -225,20 +224,21 @@ class Pair(object):
             elif (type(left) is not _Pair):
                 return left == right
 
+            left_id = id(left)
+            right_id = id(right)
+
             a, left = left
             b, right = right
-            if a != b:
-                return False
-            lin = lf.get(id(left), 0)
-            rin = rf.get(id(right), 0)
-            if lin != rin:
-                return False
-            elif lin:
+
+            if seen.get(left_id, None) == right_id:
                 return True
+            elif seen.get(right_id, None) == right_id:
+                return True
+            elif a != b:
+                return False
             else:
-                lf[id(left)] = index
-                rf[id(right)] = index
-                index += 1
+                seen[left_id] = right_id
+                seen[right_id] = left_id
         else:
             return True
 
@@ -367,9 +367,10 @@ class Pair(object):
 
     def follow(self):
         """
-        iterator that emits cdr(self), until reaching a trailing
-        nil or recursive link. If the pair is improper, the last
-        result will not be a pair.
+        iterator that begins with self, and then emits cdr(self),
+        cddr(self), etc, until reaching a trailing nil or recursive
+        link. If the pair is improper, the last result will not be a
+        pair.
         """
 
         _Pair = type(self)
