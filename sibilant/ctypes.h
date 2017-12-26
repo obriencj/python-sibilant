@@ -39,18 +39,23 @@ typedef struct SibInternedAtom {
 } SibInternedAtom;
 
 
-typedef struct {
-  PyObject_HEAD
-  PyObject *pair;
-  int index;
-} SibPairIterator;
-
-
 PyTypeObject SibPairType;
-PyTypeObject SibPairIteratorType;
 PyTypeObject SibNilType;
 PyTypeObject SibSymbolType;
 PyTypeObject SibKeywordType;
+
+
+#define SibPair_Check(obj)					\
+  ((obj) && PyType_IsSubtype((obj)->ob_type, &SibPairType))
+
+#define SibPair_CheckExact(obj)					\
+  ((obj) && ((obj)->ob_type == &SibPairType))
+
+#define SibSymbol_Check(obj)					\
+  ((obj) && PyType_IsSubtype((obj)->ob_type, &SibSymbolType))
+
+#define SibKeyword_Check(obj)					\
+  ((obj) && PyType_IsSubtype((obj)->ob_type, &SibKeywordType))
 
 
 PyObject *sib_symbol(PyObject *name);
@@ -58,6 +63,25 @@ PyObject *sib_symbol(PyObject *name);
 PyObject *sib_keyword(PyObject *name);
 
 PyObject *sib_pair(PyObject *head, PyObject *tail);
+
+
+#define CONS(h, t) sib_pair((h), (t))
+
+#define CAR(p) (((SibPair *) (p))->head)
+
+#define CDR(p) (((SibPair *) (p))->tail)
+
+#define SETCAR(p, v) {				\
+    Py_INCREF(v);				\
+    Py_XDECREF(CAR(p));				\
+    CAR(p) = v;					\
+  }
+
+#define SETCDR(p, v) {				\
+    Py_INCREF(v);				\
+    Py_XDECREF(CDR(p));				\
+    CDR(p) = v;					\
+  }
 
 
 SibPair _SibNil;

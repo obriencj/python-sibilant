@@ -358,26 +358,158 @@ PyTypeObject SibKeywordType = {
 };
 
 
+/* === PairIteratorType === */
+
+
+typedef struct {
+  PyObject_HEAD
+  PyObject *pair;
+  int index;
+} SibPairIterator;
+
+
+static void piter_dealloc(PyObject *self) {
+  SibPairIterator *s = (SibPairIterator *) self;
+  Py_XDECREF(s->pair);
+  Py_TYPE(self)->tp_free(self);
+}
+
+
+static PyObject *piter_iternext(PyObject *self) {
+  SibPairIterator *s = (SibPairIterator *) self;
+  PyObject *pair = s->pair;
+  PyObject *result = NULL;
+
+  if (pair) {
+    switch(s->index) {
+    case 0:
+      result = CAR(pair);
+      s->index = 1;
+      break;
+    case 1:
+      result = CDR(pair);
+      s->index = 2;
+    default:
+      Py_CLEAR(s->pair);
+    }
+  }
+
+  Py_XINCREF(result);
+  return result;
+}
+
+
+static PyTypeObject SibPairIteratorType = {
+  PyVarObject_HEAD_INIT(NULL, 0)
+
+  "pair_iterator",
+  sizeof(SibPairIterator),
+  0,
+
+  .tp_flags = Py_TPFLAGS_DEFAULT,
+  .tp_dealloc = piter_dealloc,
+  .tp_iter = PyObject_SelfIter,
+  .tp_iternext = piter_iternext,
+};
+
+
+/* === PairFollowerType === */
+
+
+typedef struct {
+  PyObject_HEAD
+  PyObject *current;
+  PyObject *seen;
+  long just_items;
+} SibPairFollower;
+
+
+static void pfoll_dealloc(PyObject *self) {
+  SibPairFollower *s = (SibPairFollower *) self;
+  Py_XDECREF(s->current);
+  Py_XDECREF(s->seen);
+  Py_TYPE(self)->tp_free(self);
+}
+
+
+static PyObject *pfoll_iternext(PyObject *self) {
+  SibPairFollower *s = (SibPairFollower *) self;
+  PyObject *current;
+  PyObject *curr_id;
+  PyObject *result = NULL;
+
+  /* borrowed ref */
+  current = s->current;
+
+  if (! current) {
+    /* then it's done */
+    return NULL;
+  }
+
+  if (s->seen) {
+    /* we're set up to keep a record of what pairs we've already
+       seen, to prevent recursion */
+    curr_id = PyLong_FromVoidPtr(current);
+
+    if (PySet_Contains(s->seen, curr_id)) {
+      /* if we've already seen this one, we're done */
+      Py_DECREF(curr_id);
+      Py_CLEAR(s->current);
+      return NULL;
+
+    } else {
+      /* otherwise mark it as seen, and continue */
+      PySet_Add(s->seen, curr_id);
+      Py_DECREF(curr_id);
+    }
+  }
+
+  /* get ready for the next */
+  if (SibPair_CheckExact(current)) {
+    /* note we don't DECREF the old s->current, we'll be giving out
+       that reference as our result this time around */
+    s->current = CDR(current);
+    Py_INCREF(s->current);
+
+  } else {
+    s->current = NULL;
+  }
+
+  if (s->just_items) {
+    /* if we're in items mode, then we want the CAR if current is a
+       pair, otherwise if current is non-nil we return it. */
+    if (SibPair_CheckExact(current)) {
+      result = CAR(current);
+      Py_INCREF(result);
+    } else if (Sib_Nilp(current)) {
+      result = NULL;
+      Py_DECREF(current);
+    } else {
+      result = current;
+    }
+  } else {
+    result = current;
+  }
+
+  return result;
+}
+
+
+static PyTypeObject SibPairFollowerType = {
+  PyVarObject_HEAD_INIT(NULL, 0)
+
+  "pair_follower",
+  sizeof(SibPairFollower),
+  0,
+
+  .tp_flags = Py_TPFLAGS_DEFAULT,
+  .tp_dealloc = pfoll_dealloc,
+  .tp_iter = PyObject_SelfIter,
+  .tp_iternext = pfoll_iternext,
+};
+
+
 /* === pair === */
-
-
-#define CONS(h, t) sib_pair((h), (t))
-
-#define CAR(p) (((SibPair *) (p))->head)
-
-#define CDR(p) (((SibPair *) (p))->tail)
-
-#define SETCAR(p, v) {				\
-    Py_INCREF(v);				\
-    Py_XDECREF(CAR(p));				\
-    CAR(p) = v;					\
-  }
-
-#define SETCDR(p, v) {				\
-    Py_INCREF(v);				\
-    Py_XDECREF(CDR(p));				\
-    CDR(p) = v;					\
-  }
 
 
 static PyObject *_str_empty = NULL;
@@ -388,7 +520,9 @@ static PyObject *_str_open_paren = NULL;
 static PyObject *_str_close_paren = NULL;
 static PyObject *_str_recursive_true = NULL;
 static PyObject *_str_space_elipsis = NULL;
+static PyObject *_str_elipsis = NULL;
 static PyObject *_str_space_dot_space = NULL;
+static PyObject *_str_dot_space = NULL;
 static PyObject *_str_quote = NULL;
 static PyObject *_str_esc_quote = NULL;
 
@@ -502,6 +636,7 @@ static PyObject *pair_repr(PyObject *self) {
     rest_id = PyLong_FromVoidPtr(rest);
 
     if (PyDict_Contains(found, rest_id)) {
+      /* recursive pair detected */
       PyList_Append(col, _str_recursive_true);
 
       if (rest != self) {
@@ -558,47 +693,77 @@ static PyObject *quoted(PyObject *u) {
 static PyObject *pair_str(PyObject *self) {
   PyObject *tmp = NULL;
   PyObject *col = PyList_New(0);
-  PyObject *found = PySet_New(NULL);
+  PyObject *found = PyDict_New();
+  size_t index = 0;
 
-  PyObject *rest = NULL;
-  PyObject *rest_id = NULL;
+  PyObject *rest = self;
+  PyObject *rest_id;
 
-  for (rest = self; !Sib_Nilp(rest); rest = CDR(rest)) {
-    if (rest->ob_type == &SibPairType) {
-      rest_id = PyLong_FromVoidPtr(rest);
+  PyList_Append(col, _str_open_paren);
 
-      if (PySet_Contains(found, rest_id)) {
-	PyList_Append(col, _str_space_elipsis);
-	break;
+  for (rest = self; SibPair_CheckExact(rest); rest = CDR(rest)) {
+    rest_id = PyLong_FromVoidPtr(rest);
 
-      } else {
-	PySet_Add(found, rest_id);
-	PyList_Append(col, _str_space);
+    if (PyDict_Contains(found, rest_id)) {
+      /* recursive pair detected */
+      PyList_Append(col, _str_elipsis);
+      PyList_Append(col, _str_close_paren);
 
-	tmp = CAR(rest);
-	if (PyUnicode_CheckExact(tmp)) {
-	  tmp = quoted(tmp);
-	} else {
-	  tmp = PyObject_Str(tmp);
-	}
-
-	PyList_Append(col, tmp);
-	Py_DECREF(tmp);
+      if (rest != self) {
+	tmp = PyDict_GetItem(found, rest_id);
+	PyList_Insert(col, PyLong_AsSize_t(tmp) - 1, _str_open_paren);
+	PyList_Insert(col, PyLong_AsSize_t(tmp) - 1, _str_dot_space);
+	PyList_Append(col, _str_close_paren);
       }
+      Py_DECREF(rest_id);
+
+      /* set rest to NULL so we don't try to close it like we would a
+	 normal proper or improper list */
+      rest = NULL;
+      break;
 
     } else {
-      /* end of improper list */
-      PyList_Append(col, _str_space_dot_space);
-      tmp = PyObject_Str(rest);
+      index += 2;
+
+      tmp = PyLong_FromSize_t(index);
+      PyDict_SetItem(found, rest_id, tmp);
+      Py_DECREF(tmp);
+      Py_DECREF(rest_id);
+
+      tmp = CAR(rest);
+      if (PyUnicode_CheckExact(tmp)) {
+	tmp = quoted(tmp);
+      } else {
+	tmp = PyObject_Str(tmp);
+      }
+
       PyList_Append(col, tmp);
       Py_DECREF(tmp);
-      break;
+
+      PyList_Append(col, _str_space);
     }
   }
 
-  Py_INCREF(_str_open_paren);
-  PyList_SetItem(col, 0, _str_open_paren);
-  PyList_Append(col, _str_close_paren);
+  if(Sib_Nilp(rest)) {
+    /* end of a proper list */
+
+    Py_INCREF(_str_close_paren);
+    PyList_SetItem(col, index, _str_close_paren);
+
+  } else if (rest) {
+    /* end of an improper list */
+
+    tmp = rest;
+    if (PyUnicode_CheckExact(tmp)) {
+      tmp = quoted(tmp);
+    } else {
+      tmp = PyObject_Str(tmp);
+    }
+    PyList_Append(col, _str_dot_space);
+    PyList_Append(col, tmp);
+    PyList_Append(col, _str_close_paren);
+    Py_DECREF(tmp);
+  }
 
   tmp = PyUnicode_Join(_str_empty, col);
   Py_DECREF(col);
@@ -606,6 +771,148 @@ static PyObject *pair_str(PyObject *self) {
 
   return tmp;
 }
+
+
+static long pair_eq(PyObject *left, PyObject *right) {
+  PyObject *seen = NULL;
+  PyObject *left_id, *right_id;
+  long answer = 1;
+  void *left_seen, *right_seen;
+
+  if (left == right)
+    return 1;
+
+  seen = PyDict_New();
+
+  while (left != right) {
+    if (Sib_Nilp(left) || Sib_Nilp(right)) {
+      answer = 0;
+      break;
+
+    } else if (left->ob_type != &SibPairType) {
+      answer = PyObject_RichCompareBool(left, right, Py_EQ);
+      break;
+    }
+
+    left_id = PyLong_FromVoidPtr(left);
+    right_id = PyLong_FromVoidPtr(right);
+
+    left_seen = PyDict_GetItem(seen, left_id);
+    right_seen = PyDict_GetItem(seen, right_id);
+
+    if ((left_seen && PyLong_AsVoidPtr(left_seen) == right) ||
+        (right_seen && PyLong_AsVoidPtr(right_seen) == left)) {
+
+      /* we've already compared these two against one another */
+      Py_DECREF(left_id);
+      Py_DECREF(right_id);
+      break;
+
+    } else if (! PyObject_RichCompareBool(CAR(left), CAR(right), Py_EQ)) {
+      /* haven't been compared before, but they're not equal */
+      answer = 0;
+      Py_DECREF(left_id);
+      Py_DECREF(right_id);
+      break;
+
+    } else {
+      /* equal, so make note that we've compared these to each other */
+      PyDict_SetItem(seen, left_id, right_id);
+      PyDict_SetItem(seen, right_id, left_id);
+      Py_DECREF(left_id);
+      Py_DECREF(right_id);
+    }
+
+    left = CDR(left);
+    right = CDR(right);
+  }
+
+  Py_DECREF(seen);
+  return answer;
+}
+
+
+static PyObject *pair_richcomp(PyObject *self, PyObject *other, int op) {
+  if (op == Py_EQ) {
+    return PyBool_FromLong(pair_eq(self, other));
+
+  } else if (op == Py_NE) {
+    return PyBool_FromLong(! pair_eq(self, other));
+
+  } else {
+    PyErr_SetString(PyExc_TypeError, "unsupported pair comparison");
+    return NULL;
+  }
+}
+
+
+static PyObject *pair_count(PyObject *self, PyObject *_noargs) {
+  PyObject *seen = PySet_New(NULL);
+  PyObject *tmp;
+  long count = 0;
+
+  for(; self->ob_type == &SibPairType; self = CDR(self)) {
+
+    tmp = PyLong_FromVoidPtr(self);
+
+    if (PySet_Contains(seen, tmp)) {
+      Py_DECREF(tmp);
+      self = NULL;
+      break;
+
+    } else {
+      PySet_Add(seen, tmp);
+      Py_DECREF(tmp);
+      count++;
+    }
+  }
+
+  if (self && ! Sib_Nilp(self))
+    count++;
+
+  Py_DECREF(seen);
+  return PyLong_FromLong(count);
+}
+
+
+static PyObject *pair_follow(PyObject *self, PyObject *_noargs) {
+  SibPairFollower *i = NULL;
+
+  i = (SibPairFollower *) PyObject_New(SibPairFollower, &SibPairFollowerType);
+  Py_INCREF(self);
+  i->current = self;
+  i->seen = PySet_New(NULL);
+  i->just_items = 0;
+
+  return (PyObject *) i;
+}
+
+
+static PyObject *pair_unpack(PyObject *self, PyObject *_noargs) {
+  SibPairFollower *i = NULL;
+
+  i = (SibPairFollower *) PyObject_New(SibPairFollower, &SibPairFollowerType);
+  Py_INCREF(self);
+  i->current = self;
+  i->seen = PySet_New(NULL);
+  i->just_items = 1;
+
+  return (PyObject *) i;
+}
+
+
+static PyMethodDef pair_methods[] = {
+  { "count", (PyCFunction) pair_count, METH_NOARGS,
+    "P.count()" },
+
+  { "follow", (PyCFunction) pair_follow, METH_NOARGS,
+    "P.follow()" },
+
+  { "unpack", (PyCFunction) pair_unpack, METH_NOARGS,
+    "P.unpack()" },
+
+  { NULL, NULL, 0, NULL },
+};
 
 
 PyTypeObject SibPairType = {
@@ -616,6 +923,7 @@ PyTypeObject SibPairType = {
   0,
 
   .tp_flags = Py_TPFLAGS_DEFAULT,
+  .tp_methods = pair_methods,
   .tp_new = pair_new,
   .tp_dealloc = pair_dealloc,
   .tp_weaklistoffset = offsetof(SibPair, weakrefs),
@@ -625,6 +933,7 @@ PyTypeObject SibPairType = {
 
   .tp_repr = pair_repr,
   .tp_str = pair_str,
+  .tp_richcompare = pair_richcomp,
 };
 
 
@@ -654,55 +963,7 @@ PyObject *sib_pair(PyObject *head, PyObject *tail) {
 }
 
 
-/* -- PairIteratorType -- */
-
-
-static void piter_dealloc(PyObject *self) {
-  SibPairIterator *s = (SibPairIterator *) self;
-  Py_XDECREF(s->pair);
-  Py_TYPE(self)->tp_free(self);
-}
-
-
-static PyObject *piter_iternext(PyObject *self) {
-  SibPairIterator *s = (SibPairIterator *) self;
-  PyObject *pair = s->pair;
-  PyObject *result = NULL;
-
-  if (pair) {
-    switch(s->index) {
-    case 0:
-      result = CAR(pair);
-      s->index = 1;
-      break;
-    case 1:
-      result = CDR(pair);
-      s->index = 2;
-    default:
-      Py_CLEAR(s->pair);
-    }
-  }
-
-  Py_XINCREF(result);
-  return result;
-}
-
-
-PyTypeObject SibPairIteratorType = {
-  PyVarObject_HEAD_INIT(NULL, 0)
-
-  "pair_iterator",
-  sizeof(SibPairIterator),
-  0,
-
-  .tp_flags = Py_TPFLAGS_DEFAULT,
-  .tp_dealloc = piter_dealloc,
-  .tp_iter = PyObject_SelfIter,
-  .tp_iternext = piter_iternext,
-};
-
-
-/* --- NilType --- */
+/* === NilType === */
 
 
 static PyObject *_str_nil = NULL;
@@ -810,7 +1071,7 @@ SibPair _SibNil = {
 };
 
 
-/* -- module -- */
+/* === module === */
 
 
 static PyObject *m_cons(PyObject *mod, PyObject *args, PyObject *kwds) {
@@ -820,20 +1081,38 @@ static PyObject *m_cons(PyObject *mod, PyObject *args, PyObject *kwds) {
 }
 
 
-static PyObject *m_car(PyObject *mod, PyObject *args) {
-  PyObject *pair = NULL;
-  PyObject *result;
+static PyObject *m_car(PyObject *mod, PyObject *pair) {
+  PyObject *result = NULL;
 
-  if (! PyArg_ParseTuple(args, "O!:car", &SibPairType, &pair))
-    return NULL;
+  if (! SibPair_Check(pair)) {
+    PyErr_SetString(PyExc_TypeError, "car argument must be pair");
 
-  if (Sib_Nilp(pair)) {
+  } else if (Sib_Nilp(pair)) {
     PyErr_SetString(PyExc_TypeError, "cannot get car of nil");
-    return NULL;
+
+  } else {
+    result = CAR(pair);
+    Py_INCREF(result);
   }
 
-  result = CAR(pair);
-  Py_INCREF(result);
+  return result;
+}
+
+
+static PyObject *m_cdr(PyObject *mod, PyObject *pair) {
+  PyObject *result = NULL;
+
+  if (! SibPair_Check(pair)) {
+    PyErr_SetString(PyExc_TypeError, "cdr argument must be pair");
+
+  } else if (Sib_Nilp(pair)) {
+    PyErr_SetString(PyExc_TypeError, "cannot get cdr of nil");
+
+  } else {
+    result = CDR(pair);
+    Py_INCREF(result);
+  }
+
   return result;
 }
 
@@ -842,16 +1121,17 @@ static PyObject *m_setcar(PyObject *mod, PyObject *args) {
   PyObject *pair = NULL;
   PyObject *val = NULL;
 
-  if (! PyArg_ParseTuple(args, "O!O:setcar", &SibPairType, &pair, &val))
+  if (! PyArg_ParseTuple(args, "O!O:setcar", &SibPairType, &pair, &val)) {
     return NULL;
 
-  if (Sib_Nilp(pair)) {
+  } else if (Sib_Nilp(pair)) {
     PyErr_SetString(PyExc_TypeError, "cannot set car of nil");
     return NULL;
-  }
 
-  SETCAR(pair, val);
-  Py_RETURN_NONE;
+ } else {
+    SETCAR(pair, val);
+    Py_RETURN_NONE;
+  }
 }
 
 
@@ -859,34 +1139,17 @@ static PyObject *m_setcdr(PyObject *mod, PyObject *args) {
   PyObject *pair = NULL;
   PyObject *val = NULL;
 
-  if (! PyArg_ParseTuple(args, "O!O:setcdr", &SibPairType, &pair, &val))
+  if (! PyArg_ParseTuple(args, "O!O:setcdr", &SibPairType, &pair, &val)) {
     return NULL;
 
-  if (Sib_Nilp(pair)) {
+  } else if (Sib_Nilp(pair)) {
     PyErr_SetString(PyExc_TypeError, "cannot set cdr of nil");
     return NULL;
+
+  } else {
+    SETCDR(pair, val);
+    Py_RETURN_NONE;
   }
-
-  SETCDR(pair, val);
-  Py_RETURN_NONE;
-}
-
-
-static PyObject *m_cdr(PyObject *mod, PyObject *args) {
-  PyObject *pair = NULL;
-  PyObject *result;
-
-  if (! PyArg_ParseTuple(args, "O!:cdr", &SibPairType, &pair))
-    return NULL;
-
-  if (Sib_Nilp(pair)) {
-    PyErr_SetString(PyExc_TypeError, "cannot get cdr of nil");
-    return NULL;
-  }
-
-  result = CDR(pair);
-  Py_INCREF(result);
-  return result;
 }
 
 
@@ -894,10 +1157,10 @@ static PyMethodDef methods[] = {
   { "cons", (PyCFunction) m_cons, METH_VARARGS|METH_KEYWORDS,
     "cons(head, *tail, recursive=Fasle)" },
 
-  { "car", m_car, METH_VARARGS,
+  { "car", m_car, METH_O,
     "car(P)" },
 
-  { "cdr", m_cdr, METH_VARARGS,
+  { "cdr", m_cdr, METH_O,
     "cdr(P)" },
 
   { "setcar", m_setcar, METH_VARARGS,
@@ -936,6 +1199,12 @@ PyMODINIT_FUNC PyInit_ctypes(void) {
   if (PyType_Ready(&SibPairType) < 0)
     return NULL;
 
+  if (PyType_Ready(&SibPairIteratorType) < 0)
+    return NULL;
+
+  if (PyType_Ready(&SibPairFollowerType) < 0)
+    return NULL;
+
   if (PyType_Ready(&SibNilType) < 0)
     return NULL;
 
@@ -959,7 +1228,9 @@ PyMODINIT_FUNC PyInit_ctypes(void) {
   STR_CONST(_str_close_paren, ")");
   STR_CONST(_str_recursive_true, "recursive=True");
   STR_CONST(_str_space_elipsis, " ...");
+  STR_CONST(_str_elipsis, "...");
   STR_CONST(_str_space_dot_space, " . ");
+  STR_CONST(_str_dot_space, ". ");
   STR_CONST(_str_quote, "\"");
   STR_CONST(_str_esc_quote, "\\\"");
 
