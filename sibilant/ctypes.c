@@ -846,6 +846,22 @@ static PyObject *pair_richcomp(PyObject *self, PyObject *other, int op) {
 }
 
 
+static int pair_traverse(PyObject *self, visitproc visit, void *arg) {
+  Py_VISIT(CAR(self));
+  Py_VISIT(CDR(self));
+  Py_VISIT(((SibPair *) self)->position);
+  return 0;
+}
+
+
+static int pair_clear(PyObject *self) {
+  Py_CLEAR(CAR(self));
+  Py_CLEAR(CDR(self));
+  Py_CLEAR(((SibPair *) self)->position);
+  return 0;
+}
+
+
 static PyObject *pair_count(PyObject *self, PyObject *_noargs) {
   PyObject *seen = PySet_New(NULL);
   PyObject *tmp;
@@ -1158,11 +1174,13 @@ PyTypeObject SibPairType = {
   sizeof(SibPair),
   0,
 
-  .tp_flags = Py_TPFLAGS_DEFAULT,
+  .tp_flags = Py_TPFLAGS_DEFAULT|Py_TPFLAGS_HAVE_GC,
   .tp_methods = pair_methods,
   .tp_new = pair_new,
   .tp_dealloc = pair_dealloc,
   .tp_weaklistoffset = offsetof(SibPair, weakrefs),
+  .tp_traverse = pair_traverse,
+  .tp_clear = pair_clear,
 
   .tp_iter = pair_iter,
   .tp_as_sequence = &pair_as_sequence,
@@ -1181,7 +1199,7 @@ PyObject *sib_pair(PyObject *head, PyObject *tail) {
     return NULL;
   }
 
-  self = PyObject_New(SibPair, &SibPairType);
+  self = PyObject_GC_New(SibPair, &SibPairType);
   self->position = NULL;
   self->weakrefs = NULL;
 
@@ -1195,6 +1213,7 @@ PyObject *sib_pair(PyObject *head, PyObject *tail) {
   // DEBUGMSG(" head is", CAR(self));
   // DEBUGMSG(" tail is", CDR(self));
 
+  PyObject_GC_Track((PyObject *) self);
   return (PyObject *) self;
 }
 
