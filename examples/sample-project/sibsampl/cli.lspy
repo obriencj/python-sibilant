@@ -43,6 +43,14 @@
       else: (fibonacci (- index 1) accu (+ accu carry))))
 
 
+;; recursive, but no tailcall
+(def function fibonacci_notc (index carry: 0 accu: 1)
+  (var result
+       (if (== index 0) then: carry
+	   else: (fibonacci (- index 1) accu (+ accu carry))))
+  result)
+
+
 ;; non-tailcall, memoized fibonacci implementation.
 (define fibonacci_lru
 
@@ -117,6 +125,8 @@
 
 
 (def function cli-command-timeit (options)
+  (defimportfrom sys getrecursionlimit setrecursionlimit)
+
   (vars (f options.of) (n options.times))
 
   (vars
@@ -133,12 +143,17 @@
   (print (% "calculating fibonacci of %r" f))
   (print (% "answer is %r" d1))
 
-  (time-fibs f n
-   `("fibonacci with TCR" ,fibonacci)
-   `("fibonacci with TCO" ,fibonacci_tco)
-   `("fibonacci with LRU" ,fibonacci_lru)
-   `("fibonacci no recur" ,fibonacci_while))
+  (var old-limit (getrecursionlimit))
+  (setrecursionlimit (+ (min 2000 (* 2 f)) old-limit))
 
+  (time-fibs f n
+   `("fibonacci with TCR   " ,fibonacci)
+   `("fibonacci with TCO   " ,fibonacci_tco)
+   `("fibonacci without TC " ,fibonacci_notc)
+   `("fibonacci with LRU   " ,fibonacci_lru)
+   `("fibonacci no recur   " ,fibonacci_while))
+
+  (setrecursionlimit old-limit)
   None)
 
 
