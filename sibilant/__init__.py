@@ -105,11 +105,8 @@ def build_proper(*values):
     return cons(*values, nil) if values else nil
 
 
-def unpack(pair):
-    try:
-        return pair.unpack()
-    except AttributeError:
-        return iter(pair)
+def unpack(value):
+    return value.unpack() if is_pair(value) else iter(value)
 
 
 def get_position(value, default=None):
@@ -167,18 +164,6 @@ def last(seq, empty=None):
     for val in iter(seq):
         pass
     return val
-
-
-# === quasiquote magic ===
-
-
-def copy_pair(p):
-    """
-    Produces a shallow copy of a cons pair chain.
-    """
-
-    # this also allows the copy.copy API to work
-    return p.__copy__()
 
 
 #
