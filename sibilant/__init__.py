@@ -26,8 +26,8 @@ from functools import partial, reduce
 import operator
 
 from .ctypes import symbol, keyword
-from .ctypes import car, cdr, setcar, setcdr
-from .ctypes import nil, pair
+from .ctypes import pair, nil, car, cdr, setcar, setcdr
+from .ctypes import merge_pairs
 from .ctypes import reapply
 
 
@@ -202,32 +202,6 @@ def copy_pair(p):
 
     # this also allows the copy.copy API to work
     return p.__copy__()
-
-
-def merge_pairs(pairs):
-    """
-    Given a sequence of cons pairs, merge them into a single long
-    chain. This alters the pairs in order to link them together.
-    """
-
-    result = nil
-    work = result
-
-    for p in pairs:
-        if result is nil:
-            work = result = p
-
-        elif cdr(work) is nil:
-            setcdr(work, p)
-
-        else:
-            setcdr(work, cons(cdr(work), p))
-
-        for i in p.follow():
-            if is_pair(i) and i is not nil:
-                work = i
-
-    return result
 
 
 def build_unpack_pair(*seqs):

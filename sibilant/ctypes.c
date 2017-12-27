@@ -1478,6 +1478,81 @@ static PyObject *m_reapply(PyObject *mod, PyObject *args, PyObject *kwds) {
 }
 
 
+static PyObject *m_merge_pairs(PyObject *mod, PyObject *pairs) {
+  PyObject *result = NULL;
+  PyObject *work = NULL;
+  PyObject *iterator = NULL;
+  PyObject *item = NULL;
+  PyObject *tmp = NULL;
+  PyObject *seen = NULL;
+  PyObject *seen_id = NULL;
+
+  iterator = PyObject_GetIter(pairs);
+  if (! iterator)
+    return NULL;
+
+  while ((item = PyIter_Next(iterator))) {
+    //DEBUGMSG("merge-pairs item", item);
+
+    if (! SibPair_Check(item)) {
+      PyErr_SetString(PyExc_TypeError, "expected sequence of pairs");
+      Py_DECREF(item);
+      break;
+    }
+
+    if (! result) {
+      Py_INCREF(item);
+      result = item;
+      work = item;
+      continue;
+    }
+
+    /* advance to the last pair of work */
+    tmp = CDR(work);
+    if (SibPair_CheckExact(tmp)) {
+      seen = PySet_New(NULL);
+      do {
+	seen_id = PyLong_FromVoidPtr(tmp);
+	if (PySet_Contains(seen, seen_id)) {
+	  Py_DECREF(seen_id);
+	  break;
+	} else {
+	  PySet_Add(seen, seen_id);
+	  Py_DECREF(seen_id);
+	}
+	work = tmp;
+	tmp = CDR(work);
+      } while (SibPair_CheckExact(tmp));
+      Py_DECREF(seen);
+    }
+
+    if (SibPair_Check(tmp)) {
+      /* either the nil end of a proper list, or the first recursive link
+	 which we'll now break */
+      SETCDR(work, item);
+    } else {
+      tmp = sib_pair(CDR(work), item);
+      SETCDR(work, tmp);
+      Py_DECREF(tmp);
+    }
+
+    Py_DECREF(item);
+  }
+  Py_DECREF(iterator);
+
+  if (PyErr_Occurred())
+    return NULL;
+
+  if (! result) {
+    result = Sib_Nil;
+    Py_INCREF(result);
+  }
+
+  // DEBUGMSG("merged into", result);
+  return result;
+}
+
+
 static PyMethodDef methods[] = {
   { "cons", (PyCFunction) m_cons, METH_VARARGS|METH_KEYWORDS,
     "cons(head, *tail, recursive=Fasle)" },
@@ -1496,6 +1571,9 @@ static PyMethodDef methods[] = {
 
   { "reapply", (PyCFunction) m_reapply, METH_VARARGS|METH_KEYWORDS,
     "reapply(func, data, count)" },
+
+  { "merge_pairs", (PyCFunction) m_merge_pairs, METH_O,
+    "merge_pairs(pairs_seq)" },
 
   { NULL, NULL, 0, NULL },
 };
