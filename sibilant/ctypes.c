@@ -26,7 +26,7 @@
 #endif
 
 
-#if 0
+#if 1
 #define DEBUGMSG(msg, obj) {					\
     printf("** " msg " ");					\
     (obj) && PyObject_Print(((PyObject *) (obj)), stdout, 0);	\
@@ -864,6 +864,48 @@ static int pair_clear(PyObject *self) {
 }
 
 
+static PyObject *pair_copy(PyObject *self, PyObject *_noargs) {
+  PyObject *result = NULL;
+  PyObject *tmp = NULL;
+  PyObject *last = NULL;
+
+  for (; SibPair_CheckExact(self); self = CDR(self)) {
+    tmp = sib_pair(CAR(self), Sib_Nil);
+
+    if (! result)
+      result = tmp;
+
+    if (last) {
+      SETCDR(last, tmp);
+      Py_DECREF(tmp);
+    }
+
+    last = tmp;
+
+    tmp = ((SibPair *) self)->position;
+    if (tmp) {
+      Py_INCREF(tmp);
+      ((SibPair *) last)->position = tmp;
+    }
+  }
+
+  if (last)
+    SETCDR(last, self);
+
+  if (! result) {
+    if (Sib_Nilp(self)) {
+      Py_INCREF(self);
+      result = self;
+    } else {
+      PyErr_SetString(PyExc_TypeError, "expected pair");
+      result = NULL;
+    }
+  }
+
+  return result;
+}
+
+
 static PyObject *pair_count(PyObject *self, PyObject *_noargs) {
   PyObject *seen = PySet_New(NULL);
   PyObject *tmp;
@@ -1135,6 +1177,9 @@ static PyObject *pair_get_position(PyObject *self, PyObject *_noargs) {
 
 
 static PyMethodDef pair_methods[] = {
+  { "__copy__", (PyCFunction) pair_copy, METH_NOARGS,
+    "P.__copy__()" },
+
   { "count", (PyCFunction) pair_count, METH_NOARGS,
     "P.count()" },
 

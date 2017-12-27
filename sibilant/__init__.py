@@ -200,16 +200,8 @@ def copy_pair(p):
     Produces a shallow copy of a cons pair chain.
     """
 
-    if p is nil:
-        return nil
-
-    head, tail = p
-    if is_pair(tail):
-        tail = copy_pair(tail)
-
-    result = pair(head, tail)
-    result.set_position(p.get_position())
-    return result
+    # this also allows the copy.copy API to work
+    return p.__copy__()
 
 
 def merge_pairs(pairs):
