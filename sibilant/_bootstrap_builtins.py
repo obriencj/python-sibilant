@@ -43,6 +43,7 @@ def setup(glbls):
 
     import sys
 
+    from copy import copy, deepcopy
     from fractions import Fraction as fraction
     from functools import partial, reduce, wraps
 
@@ -116,9 +117,10 @@ def setup(glbls):
     _val(sibilant.keyword, "keyword")
     _op(sibilant.is_keyword, "keyword?")
 
-    _op(sibilant.copy_pair, "copy-pair")
-    _op(sibilant.copy_pair, "join-pairs")
+    _op(sibilant.merge_pairs, "merge_pairs")
     _op(sibilant.build_unpack_pair, "build-unpack-pair")
+
+    _op(sibilant.reapply, "reapply")
 
     _op(sibilant.first, "first")
     _op(sibilant.second, "second", rename=True)
@@ -157,8 +159,10 @@ def setup(glbls):
 
     # === some python builtin types ===
 
-    _op(partial, "partial")
+    _ty(partial, "partial")
     _op(wraps, "wraps")
+    _op(copy, "copy")
+    _op(deepcopy, "deep-copy")
 
 
     def _as_tuple(value):
@@ -253,8 +257,8 @@ def setup(glbls):
     _op(_apply, "apply", rename=True)
 
 
-    _op((lambda *vals: vals), "build-tuple", rename=True)
-    _op((lambda *vals: vals), "values", rename=True)
+    _op(sibilant.build_tuple, "values")
+    _op(sibilant.build_tuple, "build-tuple")
     _ty(tuple, "tuple")
 
 
@@ -280,11 +284,11 @@ def setup(glbls):
 
     # === some python builtin functions ===
 
-    _op(map, "map")
-    _op(zip, "zip")
-    _op(filter, "filter")
+    _ty(map, "map")
+    _ty(zip, "zip")
+    _ty(filter, "filter")
     _op(reduce, "reduce")
-    _op(enumerate, "enumerate")
+    _ty(enumerate, "enumerate")
 
     _op(callable, "callable?")
     _op(next, "next")
