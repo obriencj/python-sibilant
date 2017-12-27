@@ -95,26 +95,11 @@ static PyTypeObject TailCallType = {
     sizeof(TailCall),
     0,
 
+    .tp_new = PyType_GenericNew,
     .tp_dealloc = tailcall_dealloc,
     .tp_call = tailcall_call,
     .tp_flags = Py_TPFLAGS_DEFAULT,
-
-    .tp_init = NULL,
-    .tp_print = NULL,
-    .tp_getattr = NULL,
-    .tp_setattr = NULL,
-    .tp_as_async = NULL,
-    .tp_descr_get = NULL,
-    .tp_getset = NULL,
-    .tp_repr = NULL,
-    .tp_as_number = NULL,
-    .tp_as_sequence = NULL,
-    .tp_as_mapping = NULL,
-    .tp_hash = NULL,
-    .tp_str = NULL,
-    .tp_getattro = NULL,
-    .tp_setattro = NULL,
-    .tp_as_buffer = NULL,
+    .tp_getattro = PyObject_GenericGetAttr,
 };
 
 
@@ -246,26 +231,13 @@ static PyTypeObject FunctionTrampolineType = {
     sizeof(Trampoline),
     0,
 
+    .tp_new = PyType_GenericNew,
     .tp_dealloc = trampoline_dealloc,
     .tp_descr_get = descr_get,
     .tp_getset = trampoline_getset,
     .tp_call = trampoline_call,
     .tp_flags = Py_TPFLAGS_DEFAULT,
-
-    .tp_init = NULL,
-    .tp_print = NULL,
-    .tp_getattr = NULL,
-    .tp_setattr = NULL,
-    .tp_as_async = NULL,
-    .tp_repr = NULL,
-    .tp_as_number = NULL,
-    .tp_as_sequence = NULL,
-    .tp_as_mapping = NULL,
-    .tp_hash = NULL,
-    .tp_str = NULL,
-    .tp_getattro = NULL,
-    .tp_setattro = NULL,
-    .tp_as_buffer = NULL,
+    .tp_getattro = PyObject_GenericGetAttr,
 };
 
 
@@ -276,69 +248,64 @@ static PyTypeObject MethodTrampolineType = {
     sizeof(Trampoline),
     0,
 
+    .tp_new = PyType_GenericNew,
     .tp_dealloc = trampoline_dealloc,
     .tp_descr_get = NULL,
     .tp_getset = trampoline_getset,
     .tp_call = trampoline_call,
     .tp_flags = Py_TPFLAGS_DEFAULT,
-
-    .tp_init = NULL,
-    .tp_print = NULL,
-    .tp_getattr = NULL,
-    .tp_setattr = NULL,
-    .tp_as_async = NULL,
-    .tp_repr = NULL,
-    .tp_as_number = NULL,
-    .tp_as_sequence = NULL,
-    .tp_as_mapping = NULL,
-    .tp_hash = NULL,
-    .tp_str = NULL,
-    .tp_getattro = NULL,
-    .tp_setattro = NULL,
-    .tp_as_buffer = NULL,
+    .tp_getattro = PyObject_GenericGetAttr,
 };
 
 
 static PyObject *tailcall(PyObject *self, PyObject *args) {
   PyObject *fun = NULL;
   PyObject *tmp = NULL;
-  TailCall *tc = NULL;
 
   if (unlikely(! PyArg_ParseTuple(args, "O", &fun))) {
     return NULL;
   }
 
-  Py_INCREF(fun);
+  tmp = (PyObject *) fun->ob_type;
+  if ((tmp == (PyObject *) &FunctionTrampolineType) ||
+      (tmp == (PyObject *) &MethodTrampolineType)) {
 
-  tmp = PyObject_GetAttr(fun, _tco_enable);
-  if (tmp == NULL) {
-    PyErr_Clear();
-    return fun;
-
-  } else if (PyObject_IsTrue(tmp)) {
-    Py_DECREF(tmp);
-
-  } else {
-    Py_DECREF(tmp);
-    return fun;
-  }
-
-  tmp = PyObject_GetAttr(fun, _tco_original);
-  if (tmp == NULL) {
-    PyErr_Clear();
-
-  } else {
-    Py_DECREF(fun);
+    tmp = ((Trampoline *) fun)->tco_original;
+    Py_INCREF(tmp);
     fun = tmp;
+
+  } else {
+    Py_INCREF(fun);
+
+    tmp = PyObject_GetAttr(fun, _tco_enable);
+    if (tmp == NULL) {
+      PyErr_Clear();
+      return fun;
+
+    } else if (PyObject_IsTrue(tmp)) {
+      Py_DECREF(tmp);
+
+    } else {
+      Py_DECREF(tmp);
+      return fun;
+    }
+
+    tmp = PyObject_GetAttr(fun, _tco_original);
+    if (tmp == NULL) {
+      PyErr_Clear();
+
+    } else {
+      Py_DECREF(fun);
+      fun = tmp;
+    }
   }
 
-  tc = PyObject_New(TailCall, &TailCallType);
-  if (unlikely(! tc)) {
+  tmp = (PyObject *) PyObject_New(TailCall, &TailCallType);
+  if (unlikely(! tmp))
     return NULL;
-  }
 
-  tc->fun = fun;
-  return (PyObject *) tc;
+  ((TailCall *) tmp)->fun = fun;
+  return tmp;
 }
 
 
@@ -408,23 +375,14 @@ PyMODINIT_FUNC PyInit_ctco(void) {
     _tco_enable = PyUnicode_FromString(TCO_ENABLE);
   }
 
-  TailCallType.tp_new = PyType_GenericNew;
-  TailCallType.tp_getattro = PyObject_GenericGetAttr;
   if (PyType_Ready(&TailCallType) < 0)
     return NULL;
-  Py_INCREF(&TailCallType);
 
-  FunctionTrampolineType.tp_new = PyType_GenericNew;
-  FunctionTrampolineType.tp_getattro = PyObject_GenericGetAttr;
   if (PyType_Ready(&FunctionTrampolineType) < 0)
     return NULL;
-  Py_INCREF(&FunctionTrampolineType);
 
-  MethodTrampolineType.tp_new = PyType_GenericNew;
-  MethodTrampolineType.tp_getattro = PyObject_GenericGetAttr;
   if (PyType_Ready(&MethodTrampolineType) < 0)
     return NULL;
-  Py_INCREF(&MethodTrampolineType);
 
   return PyModule_Create(&ctco);
 }
