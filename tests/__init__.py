@@ -25,10 +25,9 @@ from functools import partial
 from unittest import TestCase
 
 from sibilant import (
-    cons, nil, is_pair, is_proper, is_nil,
+    cons, pair, nil, is_pair, is_proper, is_nil,
     car, cdr, setcar, setcdr, last,
     symbol, is_symbol, keyword, is_keyword,
-    Pair, Nil, Symbol, Keyword,
 )
 
 
@@ -110,12 +109,14 @@ class ConsTest(TestCase):
 
     def test_nil(self):
         # singleton nil check
+        Nil = type(nil)
+
         self.assertEqual(id(nil), id(Nil()))
         self.assertEqual(id(Nil()), id(Nil()))
         self.assertTrue(nil is Nil())
 
         # behavior
-        self.assertIsInstance(nil, Pair)
+        self.assertIsInstance(nil, pair)
         self.assertTrue(is_pair(nil))
         self.assertTrue(is_nil(nil))
         self.assertTrue(is_proper(nil))
@@ -153,8 +154,8 @@ class ConsTest(TestCase):
         self.assertEqual(str(a), "(1 2 3 ...)")
         self.assertEqual(repr(a), "cons(1, 2, 3, recursive=True)")
 
-        b = Pair(0, a)
-        c = Pair(0, a)
+        b = pair(0, a)
+        c = pair(0, a)
         self.assertEqual(b, c)
         self.assertNotEqual(a, b)
         self.assertNotEqual(a, c)
@@ -177,9 +178,7 @@ class ConsTest(TestCase):
         self.assertEqual(car(cdr(cdr(cdr(a)))),
                          car((cdr(cdr(cdr(cdr(a)))))))
 
-        # TODO: is this really how scheme would print this, when only
-        # the 3 would repeat?
-        self.assertEqual(str(a), "(1 2 3 ...)")
+        self.assertEqual(str(a), "(1 2 . (3 ...))")
         self.assertEqual(repr(a), "cons(1, 2, cons(3, recursive=True))")
 
         b = cons(0, a)
@@ -204,7 +203,7 @@ class SymbolTest(TestCase):
         z = symbol(x)
 
         self.assertTrue(is_symbol(x))
-        self.assertIsInstance(x, Symbol)
+        self.assertIsInstance(x, symbol)
 
         self.assertEqual(x, x)
         self.assertEqual(x, y)
@@ -295,7 +294,7 @@ class KeywordTest(TestCase):
         z = keyword(x)
 
         self.assertTrue(is_keyword(x))
-        self.assertIsInstance(x, Keyword)
+        self.assertIsInstance(x, keyword)
 
         self.assertEqual(x, x)
         self.assertEqual(x, y)

@@ -34,55 +34,70 @@ else:
     exit("unsupported version: %r" % version_info)
 
 
-ext_ctco = Extension("sibilant.compiler.ctco",
-                     ["sibilant/compiler/ctco.c"])
+ext_ctco = Extension(
+    name = "sibilant.compiler.ctco",
+    sources = ["sibilant/compiler/ctco.c"],
+    extra_compile_args=["--std=c99"],
+)
+
+ext_ctypes = Extension(
+    name = "sibilant.ctypes",
+    sources = ["sibilant/ctypes.c"],
+    extra_compile_args=["--std=c99"],
+)
 
 
-setup(name = "sibilant",
-      version = "0.9.0",
+setup(
+    name = "sibilant",
+    version = "0.9.0",
 
-      packages = [
-          "sibilant",
-          "sibilant.compiler",
-      ],
+    packages = [
+        "sibilant",
+        "sibilant.compiler",
+    ],
 
-      package_data = {
-          "sibilant": ["*.lspy"],
-      },
+    package_data = {
+        "sibilant": ["*.lspy"],
+    },
 
-      ext_modules = [
-          ext_ctco,
-      ],
+    ext_modules = [
+        ext_ctco,
+        ext_ctypes,
+    ],
 
-      test_suite = "tests",
+    headers = [
+        "sibilant/ctypes.h",
+    ],
 
-      entry_points = {
-          "console_scripts": [
-              'sibilant=sibilant.cli:main',
-          ],
-      },
+    test_suite = "tests",
 
-      # PyPI information
-      author = "Christopher O'Brien",
-      author_email = "obriencj@gmail.com",
-      url = "https://github.com/obriencj/python-sibilant",
-      license = "GNU Lesser General Public License",
+    entry_points = {
+        "console_scripts": [
+            'sibilant=sibilant.cli:main',
+        ],
+    },
 
-      description = "LISP dialect for Python",
+    # PyPI information
+    author = "Christopher O'Brien",
+    author_email = "obriencj@gmail.com",
+    url = "https://github.com/obriencj/python-sibilant",
+    license = "GNU Lesser General Public License",
 
-      provides = ["sibilant", ],
-      requires = ["appdirs", ],
-      platforms = ["python3 >= 3.5", ],
+    description = "LISP dialect for Python",
 
-      zip_safe = True,
+    provides = ["sibilant", ],
+    install_requires = ["appdirs", ],
+    platforms = ["python3 >= 3.5", ],
 
-      classifiers = [
-          "Intended Audience :: Developers",
-          "Programming Language :: Python :: 3 :: Only",
-          "Programming Language :: Python :: 3.5",
-          "Programming Language :: Python :: 3.6",
-          "Programming Language :: Python :: Implementation :: CPython",
-          "Topic :: Software Development", ],
+    zip_safe = True,
+
+    classifiers = [
+        "Intended Audience :: Developers",
+        "Programming Language :: Python :: 3 :: Only",
+        "Programming Language :: Python :: 3.5",
+        "Programming Language :: Python :: 3.6",
+        "Programming Language :: Python :: Implementation :: CPython",
+        "Topic :: Software Development", ],
 )
 
 

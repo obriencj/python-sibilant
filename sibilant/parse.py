@@ -21,7 +21,7 @@ license: LGPL v.3
 """
 
 
-from . import symbol, keyword, cons, nil, is_pair
+from . import symbol, keyword, cons, nil, is_pair, setcdr
 
 from contextlib import contextmanager
 from fractions import Fraction as fraction
@@ -359,7 +359,7 @@ class Reader(object):
                     raise stream.error("invalid list syntax",
                                        position)
                 else:
-                    work._cdr = value
+                    setcdr(work, value)
 
                 # make sure that the list ends immediately after the
                 # dotted value.
@@ -383,7 +383,7 @@ class Reader(object):
                 # append to the current list
                 new_work = cons(value, nil)
                 new_work.set_position(position)
-                work._cdr = new_work
+                setcdr(work, new_work)
                 work = new_work
 
         return VALUE, result
