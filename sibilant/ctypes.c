@@ -18,7 +18,7 @@
 #include "ctypes.h"
 
 
-#define DOCSTR "Native Sibilant core types"
+#define DOCSTR "Native Sibilant core types and functions"
 
 
 #ifndef offsetof
@@ -26,7 +26,7 @@
 #endif
 
 
-#if 1
+#if 0
 #define DEBUGMSG(msg, obj) {					\
     printf("** " msg " ");					\
     (obj) && PyObject_Print(((PyObject *) (obj)), stdout, 0);	\
@@ -197,10 +197,10 @@ static PyObject *symbol_rsplit(PyObject *self,
 
 static PyMethodDef symbol_methods[] = {
   { "split", (PyCFunction) symbol_split, METH_VARARGS|METH_KEYWORDS,
-    "S.split(sep=None, maxsplit=-1) -> list of keywords" },
+    "S.split(sep=None, maxsplit=-1) -> list of symbols" },
 
   { "rsplit", (PyCFunction) symbol_rsplit, METH_VARARGS|METH_KEYWORDS,
-    "S.rsplit(sep=None, maxsplit=-1) -> list of keywords" },
+    "S.rsplit(sep=None, maxsplit=-1) -> list of symbols" },
 
   { NULL, NULL, 0, NULL },
 };
@@ -1669,28 +1669,40 @@ static PyObject *m_build_tuple(PyObject *mod, PyObject *values) {
 
 static PyMethodDef methods[] = {
   { "cons", (PyCFunction) m_cons, METH_VARARGS|METH_KEYWORDS,
-    "cons(head, *tail, recursive=Fasle)" },
+    "cons(head, *tail, recursive=Fasle) -> new pair\n"
+    "If no tail is specified, and recursive is False (the default),\n"
+    "then a nil will be presumed." },
 
   { "car", m_car, METH_O,
-    "car(P)" },
+    "car(P) -> object\n"
+    "Returns the head element of a sibilant pair instance P."},
 
   { "cdr", m_cdr, METH_O,
-    "cdr(P)" },
+    "cdr(P) -> object\n"
+    "Returns the tail element of a sibilant pair instance P." },
 
   { "setcar", m_setcar, METH_VARARGS,
-    "setcar(P, head)" },
+    "setcar(P, obj) -> None\n"
+    "Assigns the head element of a sibilant pair instance P to obj." },
 
   { "setcdr", m_setcdr, METH_VARARGS,
-    "setcdr(P, tail)" },
+    "setcdr(P, obj) -> None\n"
+    "Assigns the tail element of a sibilant pair instance P to obj." },
 
   { "reapply", (PyCFunction) m_reapply, METH_VARARGS|METH_KEYWORDS,
-    "reapply(func, data, count)" },
+    "reapply(func, data, count) -> result data\n"
+    "Calls `data = func(data)` count times (or until an exception is\n"
+    "raised), and returns the final data value." },
 
   { "merge_pairs", (PyCFunction) m_merge_pairs, METH_O,
-    "merge_pairs(pairs_seq)" },
+    "merge_pairs(pairs_seq) -> modified first pair\n"
+    "pairs_seq is a sequence of sibilant pairs. Modifies the final\n"
+    "element of each pair list to join the pairs together." },
 
   { "build_unpack_pair", (PyCFunction) m_build_unpack_pair, METH_VARARGS,
-    "build_unpack_pair(*pair_or_seq)" },
+    "build_unpack_pair(*pair_or_seq) -> new pair\n"
+    "Creates a new sibilant pair list from a collection of pair or\n"
+    "non-pair sequences." },
 
   { "build_tuple", (PyCFunction) m_build_tuple, METH_VARARGS,
     "build_tuple(*args) -> args" },
