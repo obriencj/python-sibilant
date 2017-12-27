@@ -119,6 +119,7 @@ def setup(glbls):
 
     _op(sibilant.merge_pairs, "merge_pairs")
     _op(sibilant.build_unpack_pair, "build-unpack-pair")
+
     _op(sibilant.reapply, "reapply")
 
     _op(sibilant.first, "first")
@@ -256,8 +257,8 @@ def setup(glbls):
     _op(_apply, "apply", rename=True)
 
 
-    _op((lambda *vals: vals), "build-tuple", rename=True)
-    _op((lambda *vals: vals), "values", rename=True)
+    _op(sibilant.build_tuple, "values")
+    _op(sibilant.build_tuple, "build-tuple")
     _ty(tuple, "tuple")
 
 

@@ -1661,6 +1661,12 @@ static PyObject *m_build_unpack_pair(PyObject *mod, PyObject *seqs) {
 }
 
 
+static PyObject *m_build_tuple(PyObject *mod, PyObject *values) {
+  Py_INCREF(values);
+  return values;
+}
+
+
 static PyMethodDef methods[] = {
   { "cons", (PyCFunction) m_cons, METH_VARARGS|METH_KEYWORDS,
     "cons(head, *tail, recursive=Fasle)" },
@@ -1685,6 +1691,9 @@ static PyMethodDef methods[] = {
 
   { "build_unpack_pair", (PyCFunction) m_build_unpack_pair, METH_VARARGS,
     "build_unpack_pair(*pair_or_seq)" },
+
+  { "build_tuple", (PyCFunction) m_build_tuple, METH_VARARGS,
+    "build_tuple(*args) -> args" },
 
   { NULL, NULL, 0, NULL },
 };
