@@ -45,9 +45,10 @@
 
 ;; recursive, but no tailcall
 (def function fibonacci_notc (index carry: 0 accu: 1)
-  (var result
-       (if (== index 0) then: carry
-	   else: (fibonacci (- index 1) accu (+ accu carry))))
+  (var result)
+  (if (== index 0)
+      then: (setq result carry)
+      else: (setq result (fibonacci_notc (- index 1) accu (+ accu carry))))
   result)
 
 
@@ -127,7 +128,7 @@
 (def function cli-command-timeit (options)
   (defimportfrom sys getrecursionlimit setrecursionlimit)
 
-  (vars (f options.of) (n options.times))
+  (vars (f options.of) (n options.times) (l options.limit))
 
   (vars
    (d0 (try (fibonacci_lru f) ((BaseException) None)))
@@ -144,14 +145,17 @@
   (print (% "answer is %r" d1))
 
   (var old-limit (getrecursionlimit))
-  (setrecursionlimit (+ (min 2000 (* 2 f)) old-limit))
+  (when l
+    (setrecursionlimit (+ old-limit l))
+    (print (% "increased recursion limit from %i to %i"
+	      (values old-limit (+ old-limit l)))))
 
   (time-fibs f n
    `("fibonacci with TCR   " ,fibonacci)
    `("fibonacci with TCO   " ,fibonacci_tco)
-   `("fibonacci without TC " ,fibonacci_notc)
-   `("fibonacci with LRU   " ,fibonacci_lru)
-   `("fibonacci no recur   " ,fibonacci_while))
+   `("fibonacci no TC      " ,fibonacci_notc)
+   `("fibonacci LRU cache  " ,fibonacci_lru)
+   `("fibonacci loop       " ,fibonacci_while))
 
   (setrecursionlimit old-limit)
   None)
@@ -169,6 +173,10 @@
   (subp.add_argument "--of" action: "store" type: int
 		     help: "calculate fibonacci of (default 2000)"
 		     default: 2000)
+
+  (subp.add_argument "--limit" action: "store" type: int
+		     help: "increate recursion limit (default 0)"
+		     default: 0)
 
   subp)
 
