@@ -518,6 +518,7 @@ static PyObject *_str_cons_paren = NULL;
 static PyObject *_str_comma_space = NULL;
 static PyObject *_str_open_paren = NULL;
 static PyObject *_str_close_paren = NULL;
+static PyObject *_str_recursive = NULL;
 static PyObject *_str_recursive_true = NULL;
 static PyObject *_str_space_elipsis = NULL;
 static PyObject *_str_elipsis = NULL;
@@ -1373,9 +1374,54 @@ SibPair _SibNil = {
 
 
 static PyObject *m_cons(PyObject *mod, PyObject *args, PyObject *kwds) {
-  PyObject *pair = NULL;
+  PyObject *result = NULL;
+  PyObject *work = NULL;
+  int recursive = 0;
+  int count = PyTuple_Size(args);
 
-  return pair;
+  if (count < 1) {
+    PyErr_SetString(PyExc_TypeError,
+		    "cons requires at least one positional argument");
+    return NULL;
+  }
+
+  if (kwds) {
+    result = PyDict_GetItem(kwds, _str_recursive);
+    if (result) {
+      if (PyDict_Size(kwds) > 1) {
+	PyErr_SetString(PyExc_TypeError,
+			"cons accepts one keyword argument: recursive");
+	return NULL;
+      }
+
+      recursive = PyObject_IsTrue(result);
+      if (recursive < 0)
+	return NULL;
+
+    } else {
+      if (PyDict_Size(kwds) > 0) {
+	PyErr_SetString(PyExc_TypeError,
+			"cons accepts one keyword argument: recursive");
+	return NULL;
+      }
+    }
+  }
+
+  result = sib_pair(PyTuple_GET_ITEM(args, 0), Sib_Nil);
+
+  if (count == 1) {
+    if (recursive)
+      SETCDR(result, result);
+    return result;
+
+  } else {
+    work = recursive? result: PyTuple_GET_ITEM(args, --count);
+    while (--count) {
+      work = sib_pair(PyTuple_GET_ITEM(args, count), work);
+    }
+    SETCDR(result, work);
+    return result;
+  }
 }
 
 
@@ -1494,7 +1540,10 @@ static PyObject *m_merge_pairs(PyObject *mod, PyObject *pairs) {
   while ((item = PyIter_Next(iterator))) {
     //DEBUGMSG("merge-pairs item", item);
 
-    if (! SibPair_Check(item)) {
+    if (Sib_Nilp(item))
+      continue;
+
+    if (! SibPair_CheckExact(item)) {
       PyErr_SetString(PyExc_TypeError, "expected sequence of pairs");
       Py_DECREF(item);
       break;
@@ -1553,6 +1602,65 @@ static PyObject *m_merge_pairs(PyObject *mod, PyObject *pairs) {
 }
 
 
+static PyObject *m_build_unpack_pair(PyObject *mod, PyObject *seqs) {
+  Py_ssize_t index = PyTuple_GET_SIZE(seqs);
+  PyObject *collect = PyTuple_New(index);
+  PyObject *fast;
+  Py_ssize_t fast_index;
+  PyObject *item, *tmp;
+
+  while (index--) {
+    item = PyTuple_GET_ITEM(seqs, index);
+
+    if (Sib_Nilp(item)) {
+      Py_INCREF(item);
+
+    } else if (SibPair_CheckExact(item)) {
+      item = pair_copy(item, NULL);
+
+    } else {
+      fast = PySequence_Fast(item, "build_unpack_pair requires pairs or"
+			     " sequences");
+      if (! fast) {
+	Py_DECREF(collect);
+	return NULL;
+      }
+
+      fast_index = PySequence_Fast_GET_SIZE(fast);
+
+      if (fast_index == 0) {
+	item = Sib_Nil;
+	Py_INCREF(item);
+
+      } else if (fast_index == 1) {
+	item = sib_pair(PySequence_Fast_GET_ITEM(fast, 0),
+			Sib_Nil);
+
+      } else {
+	tmp = PyTuple_New(fast_index + 1);
+	Py_INCREF(Sib_Nil);
+	PyTuple_SET_ITEM(tmp, fast_index, Sib_Nil);
+	while (fast_index--) {
+	  item = PySequence_Fast_GET_ITEM(fast, fast_index);
+	  Py_INCREF(item);
+	  PyTuple_SET_ITEM(tmp, fast_index, item);
+	}
+	item = m_cons(mod, tmp, NULL);
+	Py_DECREF(tmp);
+      }
+
+      Py_DECREF(fast);
+    }
+
+    PyTuple_SET_ITEM(collect, index, item);
+  }
+
+  tmp = m_merge_pairs(mod, collect);
+  Py_DECREF(collect);
+  return tmp;
+}
+
+
 static PyMethodDef methods[] = {
   { "cons", (PyCFunction) m_cons, METH_VARARGS|METH_KEYWORDS,
     "cons(head, *tail, recursive=Fasle)" },
@@ -1574,6 +1682,9 @@ static PyMethodDef methods[] = {
 
   { "merge_pairs", (PyCFunction) m_merge_pairs, METH_O,
     "merge_pairs(pairs_seq)" },
+
+  { "build_unpack_pair", (PyCFunction) m_build_unpack_pair, METH_VARARGS,
+    "build_unpack_pair(*pair_or_seq)" },
 
   { NULL, NULL, 0, NULL },
 };
@@ -1632,6 +1743,7 @@ PyMODINIT_FUNC PyInit_ctypes(void) {
   STR_CONST(_str_comma_space, ", ");
   STR_CONST(_str_open_paren, "(");
   STR_CONST(_str_close_paren, ")");
+  STR_CONST(_str_recursive, "recursive");
   STR_CONST(_str_recursive_true, "recursive=True");
   STR_CONST(_str_space_elipsis, " ...");
   STR_CONST(_str_elipsis, "...");

@@ -21,13 +21,13 @@ Sibilant, a Scheme for Python
 """
 
 
-from functools import partial, reduce
+from functools import partial
 
 import operator
 
 from .ctypes import symbol, keyword
-from .ctypes import pair, nil, car, cdr, setcar, setcdr
-from .ctypes import merge_pairs
+from .ctypes import pair, nil, cons, car, cdr, setcar, setcdr
+from .ctypes import merge_pairs, build_unpack_pair
 from .ctypes import reapply
 
 
@@ -87,29 +87,6 @@ is_keyword = TypePredicate("keyword?", keyword)
 
 is_pair = TypePredicate("pair?", pair)
 is_nil = BuiltinPredicate("nil?", operator.is_, nil)
-
-
-def cons(head, *tail, recursive=False):
-    self = pair(head, None)
-
-    if tail:
-        if len(tail) == 1:
-            tail = tail[0]
-
-        else:
-            def cons(tail, head):
-                return pair(head, tail)
-
-            if recursive:
-                tail = reduce(cons, reversed(tail), self)
-            else:
-                tail = reduce(cons, reversed(tail))
-
-    else:
-        tail = self if recursive else nil
-
-    setcdr(self, tail)
-    return self
 
 
 def is_proper(value):
@@ -202,26 +179,6 @@ def copy_pair(p):
 
     # this also allows the copy.copy API to work
     return p.__copy__()
-
-
-def build_unpack_pair(*seqs):
-    """
-    Given a series of sequences, create a cons pair chain with the
-    contents of each sequence chained together, in order.
-    """
-
-    pairs = []
-
-    for seq in seqs:
-        if not seq:
-            continue
-        elif is_pair(seq):
-            seq = copy_pair(seq)
-        else:
-            seq = cons(*seq, nil)
-        pairs.append(seq)
-
-    return merge_pairs(pairs)
 
 
 #
