@@ -41,7 +41,7 @@ __all__ = (
     "is_nil", "is_pair", "is_proper", "is_recursive",
 
     "build_proper", "unpack",
-    "copy_pairs", "join_pairs", "build_unpack_pair",
+    "copy_pair", "merge_pairs", "build_unpack_pair",
 
     "reapply", "repeat",
 )
