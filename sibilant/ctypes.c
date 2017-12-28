@@ -866,12 +866,34 @@ static int pair_clear(PyObject *self) {
 
 
 static PyObject *pair_copy(PyObject *self, PyObject *_noargs) {
+  PyObject *seen = NULL;
   PyObject *result = NULL;
   PyObject *tmp = NULL;
   PyObject *last = NULL;
+  PyObject *self_id = NULL;
+
+  if (Sib_Nilp(self)) {
+    Py_INCREF(self);
+    return self;
+  }
+
+  seen = PyDict_New();
 
   for (; SibPair_CheckExact(self); self = CDR(self)) {
-    tmp = sib_pair(CAR(self), Sib_Nil);
+
+    self_id = PyLong_FromVoidPtr(self);
+    tmp = PyDict_GetItem(seen, self_id);
+    if (tmp) {
+      Py_DECREF(self_id);
+      SETCDR(last, tmp);
+      last = NULL; /* prevent re-setting cdr after loop */
+      break;
+
+    } else {
+      tmp = sib_pair(CAR(self), Sib_Nil);
+      PyDict_SetItem(seen, self_id, tmp);
+      Py_DECREF(self_id);
+    }
 
     if (! result)
       result = tmp;
@@ -890,6 +912,9 @@ static PyObject *pair_copy(PyObject *self, PyObject *_noargs) {
     }
   }
 
+  Py_DECREF(seen);
+
+  /* either nil or a non-pair leftover */
   if (last)
     SETCDR(last, self);
 
@@ -908,9 +933,15 @@ static PyObject *pair_copy(PyObject *self, PyObject *_noargs) {
 
 
 static PyObject *pair_count(PyObject *self, PyObject *_noargs) {
-  PyObject *seen = PySet_New(NULL);
+  PyObject *seen;
   PyObject *tmp;
   long count = 0;
+
+  if (Sib_Nilp(self)) {
+    return PyLong_FromLong(count);
+  }
+
+  seen = PySet_New(NULL);
 
   for(; self->ob_type == &SibPairType; self = CDR(self)) {
 
@@ -1605,9 +1636,9 @@ static PyObject *m_merge_pairs(PyObject *mod, PyObject *pairs) {
 static PyObject *m_build_unpack_pair(PyObject *mod, PyObject *seqs) {
   Py_ssize_t index = PyTuple_GET_SIZE(seqs);
   PyObject *collect = PyTuple_New(index);
-  PyObject *fast;
-  Py_ssize_t fast_index;
-  PyObject *item, *tmp;
+  PyObject *fast = NULL;
+  Py_ssize_t fast_index = 0;
+  PyObject *item = NULL, *tmp = NULL;
 
   while (index--) {
     item = PyTuple_GET_ITEM(seqs, index);
