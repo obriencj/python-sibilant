@@ -189,10 +189,11 @@ def get_module_evaluator(module):
 
     except:
         mod_globals = module.__dict__
+        teval = trampoline(eval)
 
-        @_tco_bounce
+        @trampoline
         def evaluator(code):
-            return eval(code, mod_globals)
+            return tailcall(teval)(code, mod_globals)
 
         module.__evaluator__ = evaluator
 
