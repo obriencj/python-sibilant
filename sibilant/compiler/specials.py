@@ -1116,7 +1116,7 @@ def _special_return(code, source, tc=False):
 
         # the expression being returned is always valid tco if the
         # code is thusly enabled
-        code.add_expression(value, True)
+        code.add_expression(value, tc)
         code.pseudop_return()
 
     # just to calm max-stack down, we'll pretend return is a perfectly
