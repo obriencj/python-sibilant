@@ -1872,66 +1872,99 @@ class ExpressionCodeSpace(CodeSpace):
         tailcall position.
         """
 
-        # we need to detect a special case:
-
-        # 1. if the TOS is the same as freevar[0], then this is a
-        # recursive invocation. Instead of using the tailcall wrapper,
-        # unpack the parameters and jump to zero.
-
-        # 2. otherwise, use the tailcall wrapper on TOS and invoke as
-        # normal.
-
         if not self.tco_enabled or \
            self.generator or \
            self.mode is Mode.MODULE:
             return False
 
-        tclabel = self.gen_label()
-
-        if self.free_vars and self.free_vars[0] == "":
-            # this is a function, not a lambda, we can self-ref. Test
-            # whether the function we're going to tailcall to is
-            # ourself. If it is, we can just jump to zero after
-            # setting the local vars to the values of the expressions.
-
-            # TODO: I need a better way to tell if the function about
-            # to be invoked is the same actual function that we're
-            # already evaluating in. Unfortunately, that information
-            # isn't in the frame itself... but we might be able to
-            # steal it with a native extension that peeks at the stack
-            # values. However, that's pretty ugly. But I was going to
-            # write some of the TCO stuff as native functions anyway,
-            # so maybe that's okay.
-
-            self.pseudop_dup()
-            self.pseudop_get_var("")
-            self.pseudop_compare_is()
-            self.pseudop_pop_jump_if_false(tclabel)
-
-            # TODO: need better arg assignment
-            # TODO: keyword args
-            # TODO: unspecified arguments with default values
-            # TODO: if args has keywords in it, then we need to map
-            # out each arg expression to a var
-
-            for arg in args.unpack():
-                self.add_expression(arg, False)
-
-            for var in reversed(self.args):
-                self.pseudop_set_var(var)
-
-            self.pseudop_pop()  # throw away the ref to func
-            self.pseudop_jump(0)
+        self.helper_tailrecur_tos(args, position)
 
         # either this isn't a self-referential function, or it is and
         # the tailcall isn't recursive, so we'll use the trampoline
         # instead.
-        self.pseudop_label(tclabel)
         self.pseudop_get_var("tailcall")
         self.pseudop_rot_two()
         self.pseudop_call(1)
 
         self.declare_tailcall()
+
+
+    def helper_tailrecur_tos(self, args, position):
+        # test for possible recursion optimization.
+
+        # first check, make sure we've got a self-ref available. If we
+        # don't then we cannot ensure it's actually a recursive call
+        # at runtime, so a jump0 is unsafe.
+        if not (self.free_vars and self.free_vars[0] == ""):
+            return
+
+        # next, let's see if the parameters being passed line up with
+        # the formals we're set up with
+
+        parameters = gather_parameters(args, position)
+        pos, kwds, vals, star, starstar = parameters
+
+        if self.varargs or self.varkeywords or star or starstar:
+            # no support for variadics, it's too tricky to inline. A
+            # trampoline bounce isn't any slower than us calling to
+            # other functions to figure out how to reform variadics
+            # prior to a jump0, so just let the trampoline do its
+            # bounce.
+            return
+
+        self_args = self.args
+
+        # first, skim off the argument name bindings for the
+        # positional arguments
+        bindings = self_args[:len(pos)]
+
+        # now we need to go through the keyword arguments in order and
+        # record their binding
+        for arg in map(str, kwds):
+            if arg in bindings:
+                # keyword parameter dups positional parameter name,
+                # fall back on trampoline
+                return
+            elif arg not in self_args:
+                # unknown keyword parameter, fall back on trampoline
+                return
+            else:
+                bindings.append(arg)
+
+        if len(self_args) != len(bindings):
+            # if the bindings and argument count doesn't line up, then
+            # again it's easier to just let the trampoline bounce and
+            # have python figure out the args (and potentially raise a
+            # TypeError). Default values take too much effort for now.
+            return
+
+        # if we made it this far, then we have a mapping of the
+        # arguments we were given to the argument names, and thus can
+        # evaluate in order and assign to the correct local variable,
+        # then jump to 0, provided a quick runtime sanity check
+        # passes, verifying that we are indeed calling the same
+        # function that we're already executing.
+
+        tclabel = self.gen_label()
+
+        self.pseudop_dup()
+        self.pseudop_get_var("")
+        self.pseudop_compare_is()
+        self.pseudop_pop_jump_if_false(tclabel)
+        self.pseudop_pop()
+
+        # evaluate all of the arguments in order
+        for arg in pos:
+            self.add_expression(arg, False)
+        for arg in vals:
+            self.add_expression(arg, False)
+
+        # now bind them to the vars that we discovered
+        for var in reversed(bindings):
+            self.pseudop_set_var(var)
+
+        self.pseudop_jump(0)
+        self.pseudop_label(tclabel)
 
 
     @abstractmethod
