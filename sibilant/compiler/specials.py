@@ -580,10 +580,11 @@ def _special_function(code, source, tc=False):
     called_by, (namesym, cl) = source
     args, body = cl
 
-    # todo create the function inside of a closure that has a
-    # single local cell, which is the new function's name. this
-    # will give the function the ability to reference its cell via
-    # that cell.
+    # create the function inside of a closure that has two local
+    # cells, which is the new function's name and an empty-string
+    # name. this will give the function the ability to reference
+    # itself via that cell, and also gives us a way to get a reference
+    # to the function itself for tailcall recusion testing.
 
     name = str(namesym)
     declared_at = source.get_position()
@@ -592,13 +593,19 @@ def _special_function(code, source, tc=False):
 
     kid = code.child_context(declared_at=declared_at)
     with kid as subc:
+        subc.declare_var("")
         subc.declare_var(name)
-        _helper_function(subc, name, args, body, declared_at=declared_at)
+        _helper_function(subc, name, args, body,
+                         self_ref="",
+                         declared_at=declared_at)
+        subc.pseudop_dup()
+        subc.pseudop_set_var("")
         subc.pseudop_dup()
         subc.pseudop_set_var(name)
         subc.pseudop_return()
         kid_code = subc.complete()
 
+    # kid_code returns our function object
     code.pseudop_lambda(kid_code)
     code.pseudop_call(0)
 
@@ -654,12 +661,16 @@ def _special_let(code, source, tc=False):
         # it a binding to itself by its name as a freevar
         kid = code.child_context(declared_at=declared_at)
         with kid as subc:
+            subc.declare_var("")
             subc.declare_var(named)
 
             fnamed = "<let %r>" % named
             _helper_function(subc, fnamed, args, body,
+                             self_ref="",
                              declared_at=declared_at)
 
+            subc.pseudop_dup()
+            subc.pseudop_set_var("")
             subc.pseudop_dup()
             subc.pseudop_set_var(named)
             subc.pseudop_return()
@@ -675,22 +686,15 @@ def _special_let(code, source, tc=False):
     # after both the named or unnamed variations, we now have the let
     # bound as a callable at TOS
 
-    # tailcall enable this function application. has no effect if tc
-    # is False. Normally it's the compiler's job to perform this step,
-    # but since we're creating our own function application call, we
-    # need to do it manually.
-    code.helper_tailcall_tos(tc)
-
-    for val in vals:
-        code.add_expression(val)
-
-    code.pseudop_call(len(vals))
+    pvals = cons(*vals, nil) if vals else nil
+    code.compile_call_tos(pvals, declared_at, tc)
 
     # no additional transform needed
     return None
 
 
-def _helper_function(code, name, args, body, declared_at=None):
+def _helper_function(code, name, args, body,
+                     self_ref=None, declared_at=None):
 
     tco = code.tco_enabled
 
@@ -704,10 +708,10 @@ def _helper_function(code, name, args, body, declared_at=None):
     argnames = list(map(str, pos))
 
     if defaults:
-        argnames.extend(map(str, (k for k, v in defaults)))
+        argnames.extend(str(k[0]) for k in defaults)
 
     if kwonly:
-        argnames.extend(map(str, (k for k, v in kwonly)))
+        argnames.extend(str(k[0]) for k in kwonly)
 
     if star:
         varargs = True
@@ -733,6 +737,8 @@ def _helper_function(code, name, args, body, declared_at=None):
                              tco_enabled=tco)
 
     with kid as subc:
+        if self_ref is not None:
+            subc.request_var(self_ref)
         _helper_begin(subc, body, tco)
         subc.pseudop_return()
         code.pseudop_lambda(subc.complete(), defaults, kwonly)

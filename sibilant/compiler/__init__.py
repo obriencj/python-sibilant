@@ -1854,41 +1854,121 @@ class ExpressionCodeSpace(CodeSpace):
         # if we made it this far, head has already been compiled and
         # returned None (meaning it was just a plain-ol expression),
         # so we can proceed with normal apply semantics
-
-        # --- new ---
-
-        self.helper_tailcall_tos(tc)
-        self.helper_compile_call(tail, position)
-
-        # --- old ---
-        # for cl in tail.unpack():
-        #     self.add_expression(cl)
-        #
-        # self.pseudop_position_of(expr)
-        # self.pseudop_call(tail.count())
+        self.compile_call_tos(tail, position, tc)
 
         return None
 
 
-    def helper_tailcall_tos(self, tc):
+    def compile_call_tos(self, args, position=None, tc=False):
+        if tc:
+            self.helper_tailcall_tos(args, position)
+        self.helper_compile_call(args, position)
+
+
+    def helper_tailcall_tos(self, args, position):
         """
         Should be invoked upon TOS functions objects that could
         potentially recur. tc indicates whether the TOS is in a valid
         tailcall position.
         """
 
-        if tc and self.tco_enabled and \
-           not self.generator and \
-           self.mode is not Mode.MODULE:
+        if not self.tco_enabled or \
+           self.generator or \
+           self.mode is Mode.MODULE:
+            return False
 
-            self.pseudop_get_var("tailcall")
-            self.pseudop_rot_two()
-            self.pseudop_call(1)
-            self.declare_tailcall()
+        self.helper_tailrecur_tos(args, position)
+
+        # either this isn't a self-referential function, or it is and
+        # the tailcall isn't recursive, so we'll use the trampoline
+        # instead.
+        self.pseudop_get_var("tailcall")
+        self.pseudop_rot_two()
+        self.pseudop_call(1)
+
+        self.declare_tailcall()
+
+
+    def helper_tailrecur_tos(self, args, position):
+        # test for possible recursion optimization.
+
+        # first check, make sure we've got a self-ref available. If we
+        # don't then we cannot ensure it's actually a recursive call
+        # at runtime, so a jump0 is unsafe.
+        if not (self.free_vars and self.free_vars[0] == ""):
+            return
+
+        # next, let's see if the parameters being passed line up with
+        # the formals we're set up with
+
+        parameters = gather_parameters(args, position)
+        pos, kwds, vals, star, starstar = parameters
+
+        if self.varargs or self.varkeywords or star or starstar:
+            # no support for variadics, it's too tricky to inline. A
+            # trampoline bounce isn't any slower than us calling to
+            # other functions to figure out how to reform variadics
+            # prior to a jump0, so just let the trampoline do its
+            # bounce.
+            return
+
+        self_args = self.args
+
+        # first, skim off the argument name bindings for the
+        # positional arguments
+        bindings = self_args[:len(pos)]
+
+        # now we need to go through the keyword arguments in order and
+        # record their binding
+        for arg in map(str, kwds):
+            if arg in bindings:
+                # keyword parameter dups positional parameter name,
+                # fall back on trampoline
+                return
+            elif arg not in self_args:
+                # unknown keyword parameter, fall back on trampoline
+                return
+            else:
+                bindings.append(arg)
+
+        if len(self_args) != len(bindings):
+            # if the bindings and argument count doesn't line up, then
+            # again it's easier to just let the trampoline bounce and
+            # have python figure out the args (and potentially raise a
+            # TypeError). Default values take too much effort for now.
+            return
+
+        # if we made it this far, then we have a mapping of the
+        # arguments we were given to the argument names, and thus can
+        # evaluate in order and assign to the correct local variable,
+        # then jump to 0, provided a quick runtime sanity check
+        # passes, verifying that we are indeed calling the same
+        # function that we're already executing.
+
+        tclabel = self.gen_label()
+
+        self.pseudop_dup()
+        self.pseudop_get_var("")
+        self.pseudop_compare_is()
+        self.pseudop_pop_jump_if_false(tclabel)
+        self.pseudop_pop()
+
+        # evaluate all of the arguments in order
+        for arg in pos:
+            self.add_expression(arg, False)
+        for arg in vals:
+            self.add_expression(arg, False)
+
+        # now bind them to the vars that we discovered
+        for var in reversed(bindings):
+            self.pseudop_set_var(var)
+
+        self.pseudop_jump(0)
+        self.pseudop_label(tclabel)
 
 
     @abstractmethod
-    def helper_compile_call(self, args):
+    def helper_compile_call(self, tail, position):
         """
         The function to be called is presumed to already be on the stack
         before this is helper is invoked. The helper should assemble the
@@ -2120,7 +2200,7 @@ def gather_formals(args, declared_at=None):
         arg = next(iargs, undefined)
 
     if arg is not undefined:
-        raise err(("leftover formals %r" % arg))
+        raise err("leftover formals %r" % arg)
 
     return (positional, defaults, kwonly, star, starstar)
 
@@ -2162,7 +2242,7 @@ def gather_parameters(args, declared_at=None):
 
     elif isinstance(args, (list, tuple)):
         improper = False
-        args = cons(*args, nil)
+        args = cons(*args, nil) if args else nil
 
     elif is_proper(args):
         improper = False
@@ -2231,6 +2311,48 @@ def gather_parameters(args, declared_at=None):
         raise err("leftover parameters %r" % arg)
 
     return (positional, keywords, defaults, star, starstar)
+
+
+def unpack_formals(args, kwds,
+                   positionals, variadic, kwonly,
+                   keywords, defaults, kwvariadic):
+
+    lpos = len(positionals)
+    largs = len(args)
+    kwvar = dict(kwds)
+
+    if lpos == largs:
+        args = list(args)
+        var = () if variadic else None
+    elif lpos < largs:
+        if variadic:
+            args = list(args[:lpos])
+            var = args[lpos:]
+        else:
+            raise TypeError("too many positional arguments")
+    else:
+        args = list(args)
+        var = () if variadic else None
+        try:
+            for a in positionals[largs:]:
+                args.append(kwvar.pop(a))
+        except KeyError:
+            raise TypeError("missing required argument %s" % a)
+
+    kwds = {}
+    try:
+        for a in kwonly:
+            kwds[a] = kwvar.pop(a)
+    except KeyError:
+        raise TypeError("missing required keyword-only argument %s" % a)
+
+    for a in keywords:
+        kwds[a] = kwvar.pop(a, defaults[a])
+
+    if kwvar and not kwvariadic:
+        raise TypeError("unexpected arguments, %r" % list(kwvar.keys()))
+
+    return args, var, kwds, (kwvar if kwvariadic else None)
 
 
 def _find_compiled(env, namesym):
