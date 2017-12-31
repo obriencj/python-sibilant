@@ -17,7 +17,7 @@
 
 
 """
-Sibilant, Scheme for Python
+Sibilant, a LISP for Python
 
 :author: Christopher O'Brien  <obriencj@gmail.com>
 :license: LGPL v.3
@@ -77,17 +77,18 @@ setup(
         ],
     },
 
+    install_requires = ["appdirs", ],
+
+    # targets only support Python 3.5+
+    python_requires = ">=3.5, <4",
+
+    description = "LISP dialect for Python",
+
     # PyPI information
     author = "Christopher O'Brien",
     author_email = "obriencj@gmail.com",
     url = "https://github.com/obriencj/python-sibilant",
     license = "GNU Lesser General Public License",
-
-    description = "LISP dialect for Python",
-
-    provides = ["sibilant", ],
-    install_requires = ["appdirs", ],
-    platforms = ["python3 >= 3.5", ],
 
     zip_safe = True,
 
@@ -97,7 +98,8 @@ setup(
         "Programming Language :: Python :: 3.5",
         "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: Implementation :: CPython",
-        "Topic :: Software Development", ],
+        "Topic :: Software Development",
+    ],
 )
 
 

@@ -26,6 +26,11 @@
 
 (defimportfrom os.path basename)
 
+(defimportfrom sibsampl
+  pyfibonacci_lru
+  pyfibonacci_notc
+  pyfibonacci_while)
+
 
 ;; these might be good in builtins, they're nearly perfect analogues for
 ;; generator expressions and list-comprehensions
@@ -56,7 +61,7 @@
 (define fibonacci_lru
 
   (define fibonacci_
-    ((lru_cache (** 2 10))
+    ((lru_cache 10000)
      ;; note to self: I really need to add a way to do pythonic decorators
      ;; with my (def function ...) syntax
 
@@ -136,9 +141,15 @@
    (d2 (fibonacci_tco f))
    (d3 (fibonacci f)))
 
+  (vars
+   (p0 (try (pyfibonacci_lru f) ((BaseException) None)))
+   (p1 (pyfibonacci_while f))
+   (p2 (try (pyfibonacci_notc f) ((BaseException) None))))
+
   ;; kinda wish I had assert...
   ;; TODO implement 'assert'
-  (unless (and (== d1 d2) (== d1 d3) (or (none? d0) (== d0 d1)))
+  (unless (and (== d1 d2) (== d1 d3) (== d1 p1)
+	       (or (none? d0) (== d0 d1)))
     (raise (Exception "SHIT BROKE")))
 
   (print (% "calculating fibonacci of %r" f))
@@ -154,8 +165,11 @@
    `("fibonacci with TCR   " ,fibonacci)
    `("fibonacci with TCO   " ,fibonacci_tco)
    `("fibonacci no TC      " ,fibonacci_notc)
-   `("fibonacci LRU cache  " ,fibonacci_lru)
-   `("fibonacci loop       " ,fibonacci_while))
+   `("fibonacci LRU        " ,fibonacci_lru)
+   `("fibonacci loop       " ,fibonacci_while)
+   `("fibonacci py LRU     " ,pyfibonacci_lru)
+   `("fibonacci py no TC   " ,pyfibonacci_notc)
+   `("fibonacci py loop    " ,pyfibonacci_while))
 
   (setrecursionlimit old-limit)
   None)
