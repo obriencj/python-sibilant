@@ -1782,13 +1782,15 @@ class ExpressionCodeSpace(CodeSpace):
                 try:
                     expr = self.compile_pair(expr, tc)
                 except TypeError as te:
-                    raise self.error("while compiling pair", expr) from te
+                    msg = "while compiling pair %r" % expr
+                    raise self.error(msg) from te
 
             elif is_symbol(expr):
                 try:
                     expr = self.compile_symbol(expr, tc)
                 except TypeError as te:
-                    raise self.error("while compiling symbol", expr) from te
+                    msg = "while compiling symbol %r" % expr
+                    raise self.error(msg) from te
 
             elif is_keyword(expr):
                 expr = self.compile_keyword(expr)
@@ -2399,13 +2401,13 @@ def _get_expander(env, source_obj):
     expander = None
 
     if source_obj is nil:
-        pass
+        return None
 
     elif is_symbol(source_obj):
         namesym = source_obj
         found = _find_compiled(env, namesym)
         if is_alias(found):
-            expander = partial(found.expand)
+            expander = found.expand
 
     elif is_proper(source_obj):
         namesym, params = source_obj
@@ -2414,10 +2416,15 @@ def _get_expander(env, source_obj):
             found = _find_compiled(env, namesym)
             if is_alias(found):
                 def expander():
-                    return cons(found.expand(), params)
+                    expanded = cons(found.expand(), params)
+                    expanded.set_position(source_obj.get_position())
+                    return expanded
 
             elif is_macro(found):
                 if found._proper:
+                    # FIXME: this is some garbage right here. we need
+                    # to make sure macros aren't being invoked this
+                    # way with a variadic.
                     position = params.get_position()
                     args, kwargs = simple_parameters(params, position)
                     expander = partial(found.expand, *args, **kwargs)
