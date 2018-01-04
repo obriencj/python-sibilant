@@ -19,7 +19,7 @@ import threading
 from abc import ABCMeta, abstractmethod
 from contextlib import contextmanager
 from enum import Enum
-from functools import partial
+from functools import partial, partialmethod
 from itertools import count
 from platform import python_implementation
 from sys import version_info
@@ -55,6 +55,8 @@ _keyword_starstar = keyword("**")
 
 COMPILER_DEBUG = False
 
+# this is an amount to pad out all max_stack allocations
+STACK_SAFETY = 2
 
 _active = threading.local()
 
@@ -1074,13 +1076,23 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop_set_var(varname)
 
 
-    def pseudop(self, *op_args):
+    def pseudop(self, *op_and_args):
         """
         Pushes a pseudo op and arguments into the code
         """
 
         assert self.blocks, "no blocks on stack"
-        self.blocks[-1].pseudops.append(op_args)
+        self.blocks[-1].pseudops.append(op_and_args)
+
+
+    def _op(argname, arg=None, *, _pseudop=pseudop):
+        # this is a temportary helper to shrink the declarations of
+        # the simpler operators. It's deleted after the operators are
+        # all defined
+        if arg is None:
+            return partialmethod(_pseudop, Pseudop[argname])
+        else:
+            return partialmethod(_pseudop, Pseudop[argname], arg)
 
 
     if COMPILER_DEBUG:
@@ -1104,14 +1116,6 @@ class CodeSpace(metaclass=ABCMeta):
     def pseudop_del_attr(self, name):
         self.request_name(name)
         self.pseudop(Pseudop.DEL_ATTR, name)
-
-
-    def pseudop_rot_two(self):
-        self.pseudop(Pseudop.ROT_TWO)
-
-
-    def pseudop_rot_three(self):
-        self.pseudop(Pseudop.ROT_THREE)
 
 
     def pseudop_faux_push(self, count=1):
@@ -1147,14 +1151,6 @@ class CodeSpace(metaclass=ABCMeta):
 
     def pseudop_call_var_kw(self, argc, kwdc=0):
         self.pseudop(Pseudop.CALL_VAR_KW, argc, kwdc)
-
-
-    def pseudop_unpack_sequence(self, argc):
-        self.pseudop(Pseudop.UNPACK_SEQUENCE, argc)
-
-
-    def pseudop_unpack_ex(self, left, right):
-        self.pseudop(Pseudop.UNPACK_EX, left, right)
 
 
     def pseudop_const(self, val):
@@ -1212,20 +1208,12 @@ class CodeSpace(metaclass=ABCMeta):
             count -= 1
 
 
-    # def pseudop_magic_pop_all(self):
-    #     assert self.blocks, "no blocks on stack"
-    #     self.blocks[-1].pseudops.append([Pseudop.MAGIC_POP_ALL, 0])
+    def pseudop_unpack_sequence(self, argc):
+        self.pseudop(Pseudop.UNPACK_SEQUENCE, argc)
 
 
-    def pseudop_dup(self):
-        self.pseudop(Pseudop.DUP)
-
-
-    def pseudop_return(self):
-        """
-        Pushes a pseudo op to return the top of stack
-        """
-        self.pseudop(Pseudop.RET_VAL)
+    def pseudop_unpack_ex(self, left, right):
+        self.pseudop(Pseudop.UNPACK_EX, left, right)
 
 
     def pseudop_return_none(self):
@@ -1290,6 +1278,26 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop(Pseudop.POP_JUMP_IF_FALSE, label_name)
 
 
+    def pseudop_setup_loop(self, done_label):
+        self.pseudop(Pseudop.SETUP_LOOP, done_label)
+
+
+    def pseudop_setup_with(self, try_label):
+        self.pseudop(Pseudop.SETUP_WITH, try_label)
+
+
+    def pseudop_setup_except(self, try_label):
+        self.pseudop(Pseudop.SETUP_EXCEPT, try_label)
+
+
+    def pseudop_setup_finally(self, final_label):
+        self.pseudop(Pseudop.SETUP_FINALLY, final_label)
+
+
+    def pseudop_raise(self, count=0):
+        self.pseudop(Pseudop.RAISE, count)
+
+
     def pseudop_build_tuple(self, count):
         self.pseudop(Pseudop.BUILD_TUPLE, count)
 
@@ -1314,188 +1322,60 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop(Pseudop.BUILD_MAP_UNPACK, count)
 
 
-    def pseudop_setup_loop(self, done_label):
-        self.pseudop(Pseudop.SETUP_LOOP, done_label)
-
-
-    def pseudop_setup_with(self, try_label):
-        self.pseudop(Pseudop.SETUP_WITH, try_label)
-
-
-    def pseudop_with_cleanup_start(self):
-        self.pseudop(Pseudop.WITH_CLEANUP_START)
-
-
-    def pseudop_with_cleanup_finish(self):
-        self.pseudop(Pseudop.WITH_CLEANUP_FINISH)
-
-
-    def pseudop_setup_except(self, try_label):
-        self.pseudop(Pseudop.SETUP_EXCEPT, try_label)
-
-
-    def pseudop_setup_finally(self, final_label):
-        self.pseudop(Pseudop.SETUP_FINALLY, final_label)
-
-
-    def pseudop_pop_block(self):
-        self.pseudop(Pseudop.POP_BLOCK)
-
-
-    def pseudop_pop_except(self):
-        self.pseudop(Pseudop.POP_EXCEPT)
-
-
-    def pseudop_end_finally(self):
-        self.pseudop(Pseudop.END_FINALLY)
-
-
-    def pseudop_unary_positive(self):
-        self.pseudop(Pseudop.UNARY_POSITIVE)
-
-
-    def pseudop_unary_negative(self):
-        self.pseudop(Pseudop.UNARY_NEGATIVE)
-
-
-    def pseudop_unary_not(self):
-        self.pseudop(Pseudop.UNARY_NOT)
-
-
-    def pseudop_unary_invert(self):
-        self.pseudop(Pseudop.UNARY_INVERT)
-
-
-    def pseudop_binary_add(self):
-        self.pseudop(Pseudop.BINARY_ADD)
-
-
-    def pseudop_binary_subtract(self):
-        self.pseudop(Pseudop.BINARY_SUBTRACT)
-
-
-    def pseudop_binary_multiply(self):
-        self.pseudop(Pseudop.BINARY_MULTIPLY)
-
-
-    def pseudop_binary_matrix_multiply(self):
-        self.pseudop(Pseudop.BINARY_MATRIX_MULTIPLY)
-
-
-    def pseudop_binary_divide(self):
-        self.pseudop(Pseudop.BINARY_TRUE_DIVIDE)
-
-
-    def pseudop_binary_floor_divide(self):
-        self.pseudop(Pseudop.BINARY_FLOOR_DIVIDE)
-
-
-    def pseudop_binary_power(self):
-        self.pseudop(Pseudop.BINARY_POWER)
-
-
-    def pseudop_binary_modulo(self):
-        self.pseudop(Pseudop.BINARY_MODULO)
-
-
-    def pseudop_binary_lshift(self):
-        self.pseudop(Pseudop.BINARY_LSHIFT)
-
-
-    def pseudop_binary_rshift(self):
-        self.pseudop(Pseudop.BINARY_RSHIFT)
-
-
-    def pseudop_binary_and(self):
-        self.pseudop(Pseudop.BINARY_AND)
-
-
-    def pseudop_binary_xor(self):
-        self.pseudop(Pseudop.BINARY_XOR)
-
-
-    def pseudop_binary_or(self):
-        self.pseudop(Pseudop.BINARY_OR)
-
-
-    def pseudop_iter(self):
-        self.pseudop(Pseudop.ITER)
-
-
-    def pseudop_for_iter(self, label):
-        self.pseudop(Pseudop.FOR_ITER, label)
-
-
-    def pseudop_get_yield_from_iter(self):
-        self.pseudop(Pseudop.GET_YIELD_FROM_ITER)
-
-
-    def pseudop_item(self):
-        self.pseudop(Pseudop.GET_ITEM)
-
-
-    def pseudop_set_item(self):
-        self.pseudop(Pseudop.SET_ITEM)
-
-
-    def pseudop_del_item(self):
-        self.pseudop(Pseudop.DEL_ITEM)
-
-
-    def pseudop_compare_lt(self):
-        self.pseudop(Pseudop.COMPARE_OP, 0)
-
-
-    def pseudop_compare_lte(self):
-        self.pseudop(Pseudop.COMPARE_OP, 1)
-
-
-    def pseudop_compare_eq(self):
-        self.pseudop(Pseudop.COMPARE_OP, 2)
-
-
-    def pseudop_compare_not_eq(self):
-        self.pseudop(Pseudop.COMPARE_OP, 3)
-
-
-    def pseudop_compare_gt(self):
-        self.pseudop(Pseudop.COMPARE_OP, 4)
-
-
-    def pseudop_compare_gte(self):
-        self.pseudop(Pseudop.COMPARE_OP, 5)
-
-
-    def pseudop_compare_in(self):
-        self.pseudop(Pseudop.COMPARE_OP, 6)
-
-
-    def pseudop_compare_not_in(self):
-        self.pseudop(Pseudop.COMPARE_OP, 7)
-
-
-    def pseudop_compare_is(self):
-        self.pseudop(Pseudop.COMPARE_OP, 8)
-
-
-    def pseudop_compare_is_not(self):
-        self.pseudop(Pseudop.COMPARE_OP, 9)
-
-
-    def pseudop_compare_exception(self):
-        self.pseudop(Pseudop.COMPARE_OP, 10)
-
-
-    def pseudop_raise(self, count):
-        self.pseudop(Pseudop.RAISE, count)
-
-
-    def pseudop_break_loop(self):
-        self.pseudop(Pseudop.BREAK_LOOP)
-
-
-    def pseudop_continue_loop(self, jump):
-        self.pseudop(Pseudop.CONTINUE_LOOP, jump)
+    pseudop_with_cleanup_start = _op("WITH_CLEANUP_START")
+    pseudop_with_cleanup_finish = _op("WITH_CLEANUP_FINISH")
+    pseudop_break_loop = _op("BREAK_LOOP")
+    pseudop_continue_loop = _op("CONTINUE_LOOP")
+
+    pseudop_pop_block = _op("POP_BLOCK")
+    pseudop_pop_except = _op("POP_EXCEPT")
+    pseudop_end_finally = _op("END_FINALLY")
+
+    pseudop_iter = _op("ITER")
+    pseudop_for_iter = _op("FOR_ITER")
+    pseudop_get_yield_from_iter = _op("GET_YIELD_FROM_ITER")
+
+    pseudop_rot_two = _op("ROT_TWO")
+    pseudop_rot_three = _op("ROT_THREE")
+    pseudop_dup = _op("DUP")
+    pseudop_return = _op("RET_VAL")
+
+    pseudop_get_item = _op("GET_ITEM")
+    pseudop_set_item = _op("SET_ITEM")
+    pseudop_del_item = _op("DEL_ITEM")
+
+    pseudop_unary_positive = _op("UNARY_POSITIVE")
+    pseudop_unary_negative = _op("UNARY_NEGATIVE")
+    pseudop_unary_not = _op("UNARY_NOT")
+    pseudop_unary_invert = _op("UNARY_INVERT")
+
+    pseudop_binary_add = _op("BINARY_ADD")
+    pseudop_binary_subtract = _op("BINARY_SUBTRACT")
+    pseudop_binary_multiply = _op("BINARY_MULTIPLY")
+    pseudop_binary_matrix_multiply = _op("BINARY_MATRIX_MULTIPLY")
+    pseudop_binary_divide = _op("BINARY_TRUE_DIVIDE")
+    pseudop_binary_floor_divide = _op("BINARY_FLOOR_DIVIDE")
+    pseudop_binary_power = _op("BINARY_POWER")
+    pseudop_binary_modulo = _op("BINARY_MODULO")
+    pseudop_binary_lshift = _op("BINARY_LSHIFT")
+    pseudop_binary_rshift = _op("BINARY_RSHIFT")
+    pseudop_binary_and = _op("BINARY_AND")
+    pseudop_binary_or = _op("BINARY_OR")
+    pseudop_binary_xor = _op("BINARY_XOR")
+
+    pseudop_compare_lt = _op("COMPARE_OP", 0)
+    pseudop_compare_lte = _op("COMPARE_OP", 1)
+    pseudop_compare_eq = _op("COMPARE_OP", 2)
+    pseudop_compare_not_eq = _op("COMPARE_OP", 3)
+    pseudop_compare_gt = _op("COMPARE_OP", 4)
+    pseudop_compare_gte = _op("COMPARE_OP", 5)
+    pseudop_compare_in = _op("COMPARE_OP", 6)
+    pseudop_compare_not_in = _op("COMPARE_OP", 7)
+    pseudop_compare_is = _op("COMPARE_OP", 8)
+    pseudop_compare_is_not = _op("COMPARE_OP", 9)
+    pseudop_compare_exception = _op("COMPARE_OP", 10)
+
+    del _op
 
 
     def helper_max_stack(self, op, args, push, pop):
@@ -1651,11 +1531,7 @@ class CodeSpace(metaclass=ABCMeta):
 
         argcount = len(self.args)
 
-        # this is the number of fast variables, plus the variables
-        # converted to cells for child scope usage
-        # nlocals = len(self.fast_vars) + len(self.cell_vars)
-
-        stacksize = self.max_stack() + 1
+        stacksize = self.max_stack() + max(1, STACK_SAFETY)
 
         flags = CodeFlag.OPTIMIZED.value | CodeFlag.NEWLOCALS.value
 
@@ -1783,14 +1659,14 @@ class ExpressionCodeSpace(CodeSpace):
                     expr = self.compile_pair(expr, tc)
                 except TypeError as te:
                     msg = "while compiling pair %r" % expr
-                    raise self.error(msg) from te
+                    raise self.error(msg, expr) from te
 
             elif is_symbol(expr):
                 try:
                     expr = self.compile_symbol(expr, tc)
                 except TypeError as te:
                     msg = "while compiling symbol %r" % expr
-                    raise self.error(msg) from te
+                    raise self.error(msg, expr) from te
 
             elif is_keyword(expr):
                 expr = self.compile_keyword(expr)
@@ -2054,7 +1930,7 @@ def _list_unique_append(onto_list, value):
             return index
     else:
         onto_list.append(value)
-        return len(onto_list)
+        return len(onto_list) - 1
 
 
 def compile_expression(source_obj, env, filename="<anon>",

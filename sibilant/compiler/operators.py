@@ -467,7 +467,7 @@ def setup(glbls):
         gets item from OBJ by key KEY
         """
 
-        _helper_binary(code, source, code.pseudop_item)
+        _helper_binary(code, source, code.pseudop_get_item)
 
 
     @operator(_symbol_del_item, pyop.delitem)
