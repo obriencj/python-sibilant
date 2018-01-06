@@ -139,10 +139,10 @@
 
      (def function test_build_dict (self)
 	  (var data (build-dict
-		     '("foo" 100)
-		     '("bar" 200)
-		     '(tacos "yummy")
-		     (values None 'wut)))
+		     ("foo" 100)
+		     ("bar" 200)
+		     ('tacos "yummy")
+		     (None 'wut)))
 
 	  (self.assertTrue (dict? data))
 	  (self.assertEqual (len data) 4)

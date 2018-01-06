@@ -993,6 +993,25 @@ static PyObject *pair_unpack(PyObject *self, PyObject *_noargs) {
 }
 
 
+/*
+static PyObject *pair_to_list(PyObject *self) {
+  PyObject *result;
+  SibPairFollower *i = NULL;
+
+  i = (SibPairFollower *) PyObject_New(SibPairFollower, &SibPairFollowerType);
+  Py_INCREF(self);
+  i->current = self;
+  i->seen = PySet_New(NULL);
+  i->just_items = 1;
+
+  result = PySequence_List((PyObject *) i);
+  Py_DECREF(i);
+
+  return result;
+}
+*/
+
+
 static PyObject *pair_is_proper(PyObject *self, PyObject *_noargs) {
   PyObject *seen = PySet_New(NULL);
   PyObject *pair_id;
@@ -1698,6 +1717,57 @@ static PyObject *m_build_tuple(PyObject *mod, PyObject *values) {
 }
 
 
+static PyObject *m_build_list(PyObject *mod, PyObject *values) {
+  return PySequence_List(values);
+}
+
+
+static PyObject *m_build_set(PyObject *mod, PyObject *values) {
+  return PySet_New(values);
+}
+
+
+static PyObject *m_build_dict(PyObject *mod, PyObject *values) {
+  PyObject *collect;
+  PyObject *result;
+  PyObject *item;
+
+  int count = PyTuple_GET_SIZE(values);
+
+  result = PyDict_New();
+  if (! count)
+    return result;
+
+  /* I duplicate values into a new tuple because I'm not entirely sure
+     just how safe it is to modify that in-place. */
+  collect = PyTuple_New(count);
+
+  while (count--) {
+    /* because we support items as either an arbitrary iterable with
+       len 2, or a pair (which may be proper), we need to potentially
+       convert pairs via unpack */
+    item = PyTuple_GET_ITEM(values, count);
+
+    if (SibPair_CheckExact(item) && SibPair_Check(CDR(item))) {
+      /* pair of more than one link, convert to iterator */
+      PyTuple_SET_ITEM(collect, count, pair_unpack(item, NULL));
+
+    } else {
+      Py_INCREF(item);
+      PyTuple_SET_ITEM(collect, count, item);
+    }
+  }
+
+  if (PyDict_MergeFromSeq2(result, collect, 1)) {
+    Py_DECREF(result);
+    result = NULL;
+  }
+
+  Py_DECREF(collect);
+  return result;
+}
+
+
 static PyMethodDef methods[] = {
   { "cons", (PyCFunction) m_cons, METH_VARARGS|METH_KEYWORDS,
     "cons(head, *tail, recursive=Fasle) -> new pair\n"
@@ -1737,6 +1807,15 @@ static PyMethodDef methods[] = {
 
   { "build_tuple", (PyCFunction) m_build_tuple, METH_VARARGS,
     "build_tuple(*args) -> args" },
+
+  { "build_list", (PyCFunction) m_build_list, METH_VARARGS,
+    "build_list(*args) -> list(args)" },
+
+  { "build_set", (PyCFunction) m_build_set, METH_VARARGS,
+    "build_set(*args) -> set(args)" },
+
+  { "build_dict",  (PyCFunction) m_build_dict, METH_VARARGS,
+    "build_dict(*items) -> dict(items)" },
 
   { NULL, NULL, 0, NULL },
 };
