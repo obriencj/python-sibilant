@@ -35,11 +35,29 @@
 ;; these might be good in builtins, they're nearly perfect analogues for
 ;; generator expressions and list-comprehensions
 
-(defmacro iter-each (bindings . body)
-  `(let () (for-each ,bindings (yield (begin ,@body)))))
+(defmacro iter-each (bindings emit when: None unless: None)
+  (doc
+   "(iter-each (BINDINGS SEQUENCE) EXPRESSION)"
+   "(iter-each (BINDINGS SEQUENCE) EXPRESSION when: WHENTEST)"
+   "(iter-each (BINDINGS SEQUENCE) EXPRESSION unless: UNLESSTEST)"
+   ""
+   "Produces an iterator which will yield the result of EXPRESSION,"
+   "which is evaluated with the BINDINGS unpacked from each value from"
+   "iterating over SEQUENCE. The optional when and unless forms may"
+   "be specified as predicate expressions to be evaluated on each"
+   "iteration to determine if the given values should be skipped.")
 
-(defmacro list-each (bindings . body)
-  `(list (iter-each ,bindings ,@body)))
+  (setq emit `(yield ,emit))
+  (when unless (setq emit `(unless ,unless ,emit)))
+  (when when (setq emit `(when ,when ,emit)))
+  `(let () (for-each ,bindings ,emit)))
+
+(defmacro list-each params
+  (doc
+   "Like iter-each, but accumulates the result into a Python list")
+  `(list (iter-each ,@params)))
+
+;; (iter-each ((a b) (something)) (+ a b) unless: (nil? a))
 
 
 ;; the natural, tail-call recursive impl
@@ -202,7 +220,14 @@
 	       prog: (basename (item argv 0))
 	       description: "This is sibapp"))
 
+  ;; set the default command handler to print out help
+  (parser.set_defaults
+   cli-func: (lambda (options)
+	       (parser.print_usage sys.stderr)
+	       1))
+
   (cli-subp-timeit parser)
+
   parser)
 
 
@@ -222,7 +247,9 @@
 	else: (parser.add_subparsers)))
 
   (var sp
-    (subs.add_parser (str name) help: help description: help))
+    (subs.add_parser (str name)
+		     help: help
+		     description: help))
 
   (for-each (act parser._subparsers._actions)
 	    (when (isinstance act _inherit_actions)
@@ -231,9 +258,12 @@
   (sp._defaults.update parser._defaults)
 
   (when (none? cli-func)
+
+    ;; this sub command doesn't have an actual function to run, so
+    ;; let's make a help function specific for it to be called instead
     (setq cli-func (lambda (options)
-		     (sp.print_usage sys.stderr)
-		     1)))
+	 (sp.print_usage sys.stderr)
+	 1)))
 
   (sp.set_defaults cli-func: cli-func)
 
