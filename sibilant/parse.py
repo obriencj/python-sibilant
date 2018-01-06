@@ -45,26 +45,26 @@ _splice_sym = symbol("splice")
 _fraction_sym = symbol("fraction")
 
 
-_integer_like = partial(regex(r"-?\d+").match)
+_integer_like = regex(r"-?\d+").match
 
-_hex_like = partial(regex(r"0x[\da-f]+").match)
+_hex_like = regex(r"0x[\da-f]+").match
 
-_oct_like = partial(regex(r"0o[0-7]+").match)
+_oct_like = regex(r"0o[0-7]+").match
 
-_bin_like = partial(regex(r"0b[01]+").match)
+_bin_like = regex(r"0b[01]+").match
 
-_float_like = partial(regex(r"-?((\d*\.\d+|\d+\.\d*)(e-?\d+)?|"
-                            "(\d+e-?\d+))").match)
+_float_like = regex(r"-?((\d*\.\d+|\d+\.\d*)(e-?\d+)?|"
+                    "(\d+e-?\d+))").match
 
-_fraction_like = partial(regex(r"-?\d+/\d+").match)
+_fraction_like = regex(r"-?\d+/\d+").match
 
-_complex_like = partial(regex(r"-?\d*\.?\d+\+\d*\.?\d*[ij]").match)
+_complex_like = regex(r"-?\d*\.?\d+\+\d*\.?\d*[ij]").match
 
-_keyword_like = partial(regex(r"^(:.+|.+:)$").match)
+_keyword_like = regex(r"^(:.+|.+:)$").match
 
-_as_float = partial(float)
+_as_float = float
 
-_as_integer = partial(int)
+_as_integer = int
 
 _as_hex = partial(int, base=16)
 
@@ -97,6 +97,7 @@ def _as_complex(s):
         return complex(s)
 
 
+IN_PROGRESS = keyword("work-in-progress")
 VALUE = keyword("value")
 DOT = keyword("dot")
 SKIP = keyword("skip")
@@ -146,6 +147,24 @@ class Reader(object):
         elif event is EOF:
             # TODO: could probably raise error?
             return None
+        else:
+            raise reader_stream.error("invalid syntax", pos)
+
+
+    def read_and_position(self, reader_stream):
+        """
+        Returns a cons cell, symbol, or numeric value. Returns None if no
+        data left in stream. Raises ReaderSyntaxError to complain
+        about syntactic difficulties in the stream.
+        """
+
+        event, pos, value = self._read(reader_stream)
+
+        if event is VALUE:
+            return value, pos
+        elif event is EOF:
+            # TODO: could probably raise error?
+            return None, pos
         else:
             raise reader_stream.error("invalid syntax", pos)
 
