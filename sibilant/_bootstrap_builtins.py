@@ -229,7 +229,7 @@ def setup(glbls):
     _op(_count, "count", rename=True)
 
 
-    def _apply(fun, arglist=(), kwargs={}):
+    def apply(fun, arglist=(), kwargs={}):
         """
         (apply FUN)
         (apply FUN arglist: POSITIONALS)
@@ -254,29 +254,21 @@ def setup(glbls):
             arglist = arglist.unpack()
         return fun(*arglist, **kwargs)
 
-    _op(_apply, "apply", rename=True)
+    _op(apply, "apply", rename=True)
 
 
-    _op(sibilant.build_tuple, "values")
-    _op(sibilant.build_tuple, "build-tuple")
+    # _op(sibilant.build_tuple, "values")
+    # _op(sibilant.build_tuple, "build-tuple")
     _ty(tuple, "tuple")
 
-
-    _op((lambda *vals: list(vals)), "build-list", rename=True)
+    # _op(sibilant.build_list, "build-list")
     _ty(list, "list")
 
-
-    def _build_dict(*pairs):
-        pairs = ((p.unpack() if is_pair(p) else p) for p in pairs)
-        return dict(pairs)
-
-
+    # _op(sibilant.build_dict, "build-dict")
     _ty(dict, "dict")
-    _op(_build_dict, "build-dict", rename=True)
 
-
+    # _op(sibilant.build_set, "build-set")
     _ty(set, "set")
-    _op((lambda *vals: set(vals)), "build-set", rename=True)
 
     _op(lambda value: hasattr(value, "__iter__"),
         "iterable?", rename=True)

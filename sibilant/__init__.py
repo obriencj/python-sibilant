@@ -28,7 +28,8 @@ import operator
 from .ctypes import symbol, keyword
 from .ctypes import pair, nil, cons, car, cdr, setcar, setcdr
 from .ctypes import merge_pairs, build_unpack_pair
-from .ctypes import reapply, build_tuple
+from .ctypes import reapply
+from .ctypes import build_tuple, build_list, build_set, build_dict
 
 
 __all__ = (
@@ -43,7 +44,9 @@ __all__ = (
     "build_proper", "unpack",
     "copy_pair", "merge_pairs", "build_unpack_pair",
 
-    "reapply", "repeat", "build_tuple",
+    "reapply", "repeat",
+
+    "build_tuple", "build_list", "build_set", "build_dict",
 )
 
 

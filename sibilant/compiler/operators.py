@@ -80,6 +80,12 @@ _symbol_iter = symbol("iter")
 _symbol_slice = symbol("slice")
 _symbol_raise = symbol("raise")
 
+_symbol_values = symbol("values")
+_symbol_build_tuple = symbol("build-tuple")
+_symbol_build_list = symbol("build-list")
+_symbol_build_set = symbol("build-set")
+_symbol_build_dict = symbol("build-dict")
+
 
 def setup(glbls):
 
@@ -91,6 +97,10 @@ def setup(glbls):
     from operator import (
         add, sub, mul, truediv, floordiv,
     )
+
+    from sibilant import is_pair
+    from sibilant import build_tuple, build_list, build_set, build_dict
+
 
     _all_ = []
 
@@ -760,6 +770,98 @@ def setup(glbls):
 
         code.pseudop_position_of(source)
         code.pseudop_raise(c)
+
+        return None
+
+
+    @operator(_symbol_build_tuple, build_tuple, _symbol_values)
+    def _special_build_tuple(code, source, tc=False):
+        """
+        (build-tuple ITEM...)
+
+        evaluates ITEM expressions in order, and results in a tuple of
+        the results.
+        """
+
+        called_by, items = source
+
+        c = 0
+        for c, ce in enumerate(items.unpack(), 1):
+            code.add_expression(ce)
+
+        code.pseudop_build_tuple(c)
+
+        return None
+
+
+    @operator(_symbol_build_list, build_list)
+    def _special_build_list(code, source, tc=False):
+        """
+        (build-list ITEM...)
+
+        evaluates ITEM expressions in order, and results in a list of
+        the results.
+        """
+
+        called_by, items = source
+
+        c = 0
+        for c, ce in enumerate(items.unpack(), 1):
+            code.add_expression(ce)
+
+        code.pseudop_build_list(c)
+
+        return None
+
+
+    @operator(_symbol_build_set, build_set)
+    def _special_build_set(code, source, tc=False):
+        """
+        (build-set ITEM...)
+
+        evaluates ITEM expressions in order, and results in a set of
+        the results.
+        """
+
+        called_by, items = source
+
+        c = 0
+        for c, ce in enumerate(items.unpack(), 1):
+            code.add_expression(ce)
+
+        code.pseudop_build_set(c)
+
+        return None
+
+
+    @operator(_symbol_build_dict, build_dict)
+    def _special_build_dict(code, source, tc=False):
+        """
+        (build-dict (KEY VAL)...)
+
+        where KEYVAL is
+        * a sequence of exactly two items
+        * a proper pair of two items eg, (cons KEY VALUE nil)
+        * an improper pair with only one link eg, (cons KEY VALUE)
+        """
+
+        called_by, items = source
+
+        c = 0
+        for c, ce in enumerate(items.unpack(), 1):
+            if is_pair(ce):
+                cu = list(ce.unpack())
+                if len(cu) != 2:
+                    msg = "too many elements in build-unpack item #%i" % c
+                    code.error(msg, source)
+                else:
+                    code.add_expression(cu[0])
+                    code.add_expression(cu[1])
+            else:
+                code.add_expression(ce)
+                code.pseudop_unpack_sequence(2)
+
+        code.pseudop_build_map(c)
 
         return None
 

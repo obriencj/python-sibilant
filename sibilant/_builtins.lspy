@@ -313,7 +313,7 @@
   optionally assigns it the value from EXPR
   ")
 
-  (setq variables (to-tuple variables))
+  ;; (setq variables (to-tuple variables))
   `(begin ,@(map (lambda (d)
 		   (if (symbol? d)
 		       then: `(var ,d)

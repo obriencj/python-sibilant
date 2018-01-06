@@ -350,6 +350,8 @@ class Pseudop(Enum):
     BUILD_TUPLE_UNPACK = _auto()
     BUILD_MAP = _auto()
     BUILD_MAP_UNPACK = _auto()
+    BUILD_LIST = _auto()
+    BUILD_SET = _auto()
     SETUP_WITH = _auto()
     WITH_CLEANUP_START = _auto()
     WITH_CLEANUP_FINISH = _auto()
@@ -1443,7 +1445,9 @@ class CodeSpace(metaclass=ABCMeta):
             pop()
             push(args[0] + args[1] + 1)
 
-        elif op in (_Pseudop.BUILD_TUPLE,
+        elif op in (_Pseudop.BUILD_LIST,
+                    _Pseudop.BUILD_SET,
+                    _Pseudop.BUILD_TUPLE,
                     _Pseudop.BUILD_TUPLE_UNPACK,
                     _Pseudop.BUILD_MAP_UNPACK):
             pop(args[0])
@@ -2273,13 +2277,13 @@ def _get_expander(env, source_obj):
     expander = None
 
     if source_obj is nil:
-        pass
+        return None
 
     elif is_symbol(source_obj):
         namesym = source_obj
         found = _find_compiled(env, namesym)
         if is_alias(found):
-            expander = partial(found.expand)
+            expander = found.expand
 
     elif is_proper(source_obj):
         namesym, params = source_obj
@@ -2288,10 +2292,15 @@ def _get_expander(env, source_obj):
             found = _find_compiled(env, namesym)
             if is_alias(found):
                 def expander():
-                    return cons(found.expand(), params)
+                    expanded = cons(found.expand(), params)
+                    expanded.set_position(source_obj.get_position())
+                    return expanded
 
             elif is_macro(found):
                 if found._proper:
+                    # FIXME: this is some garbage right here. we need
+                    # to make sure macros aren't being invoked this
+                    # way with a variadic.
                     position = params.get_position()
                     args, kwargs = simple_parameters(params, position)
                     expander = partial(found.expand, *args, **kwargs)
