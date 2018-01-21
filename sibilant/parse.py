@@ -22,6 +22,7 @@ license: LGPL v.3
 
 
 from . import symbol, keyword, cons, nil, is_pair, setcdr
+from . import SibilantSyntaxError
 
 from contextlib import contextmanager
 from fractions import Fraction as fraction
@@ -31,7 +32,7 @@ from re import compile as regex
 
 
 __all__ = (
-    "SibilantSyntaxError", "ReaderSyntaxError",
+    "ReaderSyntaxError",
     "SourceStream", "source_open", "source_str", "source_stream",
     "Reader", "default_reader",
 )
@@ -45,26 +46,26 @@ _splice_sym = symbol("splice")
 _fraction_sym = symbol("fraction")
 
 
-_integer_like = partial(regex(r"-?\d+").match)
+_integer_like = regex(r"-?\d+").match
 
-_hex_like = partial(regex(r"0x[\da-f]+").match)
+_hex_like = regex(r"0x[\da-f]+").match
 
-_oct_like = partial(regex(r"0o[0-7]+").match)
+_oct_like = regex(r"0o[0-7]+").match
 
-_bin_like = partial(regex(r"0b[01]+").match)
+_bin_like = regex(r"0b[01]+").match
 
-_float_like = partial(regex(r"-?((\d*\.\d+|\d+\.\d*)(e-?\d+)?|"
-                            "(\d+e-?\d+))").match)
+_float_like = regex(r"-?((\d*\.\d+|\d+\.\d*)(e-?\d+)?|"
+                    "(\d+e-?\d+))").match
 
-_fraction_like = partial(regex(r"-?\d+/\d+").match)
+_fraction_like = regex(r"-?\d+/\d+").match
 
-_complex_like = partial(regex(r"-?\d*\.?\d+\+\d*\.?\d*[ij]").match)
+_complex_like = regex(r"-?\d*\.?\d+\+\d*\.?\d*[ij]").match
 
-_keyword_like = partial(regex(r"^(:.+|.+:)$").match)
+_keyword_like = regex(r"^(:.+|.+:)$").match
 
-_as_float = partial(float)
+_as_float = float
 
-_as_integer = partial(int)
+_as_integer = int
 
 _as_hex = partial(int, base=16)
 
@@ -97,6 +98,7 @@ def _as_complex(s):
         return complex(s)
 
 
+IN_PROGRESS = keyword("work-in-progress")
 VALUE = keyword("value")
 DOT = keyword("dot")
 SKIP = keyword("skip")
@@ -104,19 +106,10 @@ CLOSE_PAREN = keyword("close-pair")
 EOF = keyword("eof")
 
 
-class SibilantSyntaxError(SyntaxError):
-    def __init__(self, message, location=None, filename=None, text=None):
-        if filename:
-            if not location:
-                location = (1, 0)
-            super().__init__(message, (filename, *location, text))
-            self.print_file_and_line = True
-        else:
-            super().__init__(message)
-
-
 class ReaderSyntaxError(SibilantSyntaxError):
-    pass
+    """
+    An error in sibilant syntax during read time
+    """
 
 
 class Reader(object):
@@ -146,6 +139,24 @@ class Reader(object):
         elif event is EOF:
             # TODO: could probably raise error?
             return None
+        else:
+            raise reader_stream.error("invalid syntax", pos)
+
+
+    def read_and_position(self, reader_stream):
+        """
+        Returns a cons cell, symbol, or numeric value. Returns None if no
+        data left in stream. Raises ReaderSyntaxError to complain
+        about syntactic difficulties in the stream.
+        """
+
+        event, pos, value = self._read(reader_stream)
+
+        if event is VALUE:
+            return value, pos
+        elif event is EOF:
+            # TODO: could probably raise error?
+            return None, pos
         else:
             raise reader_stream.error("invalid syntax", pos)
 
@@ -491,24 +502,26 @@ class Reader(object):
 
 
 @contextmanager
-def source_open(filename):
+def source_open(filename, auto_skip_exec=True):
     with open(filename, "rt") as fs:
-        reader = SourceStream(fs, filename=filename)
-        reader.skip_exec()
+        reader = SourceStream(fs, filename=filename,
+                              auto_skip_exec=auto_skip_exec)
         yield reader
 
 
-def source_str(source_str, filename):
-    return SourceStream(StringIO(source_str), filename)
+def source_str(source_str, filename, auto_skip_exec=True):
+    return SourceStream(StringIO(source_str), filename,
+                        auto_skip_exec=auto_skip_exec)
 
 
-def source_stream(source_stream, filename):
-    return SourceStream(source_stream, filename)
+def source_stream(source_stream, filename, auto_skip_exec=True):
+    return SourceStream(source_stream, filename,
+                        auto_skip_exec=auto_skip_exec)
 
 
 class SourceStream(object):
 
-    def __init__(self, stream, filename):
+    def __init__(self, stream, filename, auto_skip_exec=True):
 
         if not stream.seekable():
             raise TypeError("SourceStream's stream argument must be seekable")
@@ -518,6 +531,9 @@ class SourceStream(object):
 
         self.lin = 1
         self.col = 0
+
+        if auto_skip_exec:
+            self.skip_exec()
 
 
     def position(self):

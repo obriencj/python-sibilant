@@ -65,6 +65,21 @@ class NotYetImplemented(SibilantException):
     pass
 
 
+class SibilantSyntaxError(SyntaxError):
+    """
+    An error in sibilant syntax, either during read or compile time.
+    """
+
+    def __init__(self, message, location=None, filename=None, text=None):
+        if filename:
+            if not location:
+                location = (1, 0)
+            super().__init__(message, (filename, *location, text))
+            self.print_file_and_line = True
+        else:
+            super().__init__(message)
+
+
 class TypePredicate(partial):
     def __new__(cls, name, typeobj):
         obj = partial.__new__(cls, typeobj.__instancecheck__)
