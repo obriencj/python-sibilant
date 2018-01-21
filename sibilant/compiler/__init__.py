@@ -26,17 +26,16 @@ from sys import version_info
 from types import CodeType
 
 from .. import (
-    SibilantException,
+    SibilantException, SibilantSyntaxError,
     symbol, is_symbol, keyword, is_keyword,
     cons, nil, is_pair, is_proper,
     get_position, fill_position,
 )
 
-from ..parse import SibilantSyntaxError
-
 
 __all__ = (
-    "SpecialSyntaxError", "UnsupportedVersion",
+    "UnsupportedVersion",
+    "CompilerSyntaxError",
     "Opcode", "Pseudop", "Block",
     "CodeSpace", "ExpressionCodeSpace",
     "code_space_for_version",
@@ -1955,7 +1954,7 @@ def compile_expression(source_obj, env, filename="<anon>",
     return code
 
 
-def gather_formals(args, declared_at=None):
+def gather_formals(args, declared_at=None, filename=None):
     """
     parses formals pair args into five values:
     (positional, keywords, defaults, stararg, starstararg)
@@ -1976,7 +1975,8 @@ def gather_formals(args, declared_at=None):
     undefined = object()
 
     def err(msg):
-        return SibilantSyntaxError(msg, declared_at)
+        return SibilantSyntaxError(msg, location=declared_at,
+                                   filename=filename)
 
     if is_symbol(args):
         return ((), (), (), args, None)
@@ -2110,7 +2110,7 @@ def simple_parameters(source_args, declared_at=None):
     return args, kwargs
 
 
-def gather_parameters(args, declared_at=None):
+def gather_parameters(args, declared_at=None, filename=None):
     """
     parses parameter args into five values:
     (positional, keywords, values, stararg, starstararg)
@@ -2125,7 +2125,8 @@ def gather_parameters(args, declared_at=None):
     undefined = object()
 
     def err(msg):
-        return SibilantSyntaxError(msg, declared_at)
+        return SibilantSyntaxError(msg, location=declared_at,
+                                   filename=filename)
 
     if is_symbol(args):
         return ((), (), (), args, None)

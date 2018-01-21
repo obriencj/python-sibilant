@@ -22,6 +22,7 @@ license: LGPL v.3
 
 
 from . import symbol, keyword, cons, nil, is_pair, setcdr
+from . import SibilantSyntaxError
 
 from contextlib import contextmanager
 from fractions import Fraction as fraction
@@ -31,7 +32,7 @@ from re import compile as regex
 
 
 __all__ = (
-    "SibilantSyntaxError", "ReaderSyntaxError",
+    "ReaderSyntaxError",
     "SourceStream", "source_open", "source_str", "source_stream",
     "Reader", "default_reader",
 )
@@ -105,19 +106,10 @@ CLOSE_PAREN = keyword("close-pair")
 EOF = keyword("eof")
 
 
-class SibilantSyntaxError(SyntaxError):
-    def __init__(self, message, location=None, filename=None, text=None):
-        if filename:
-            if not location:
-                location = (1, 0)
-            super().__init__(message, (filename, *location, text))
-            self.print_file_and_line = True
-        else:
-            super().__init__(message)
-
-
 class ReaderSyntaxError(SibilantSyntaxError):
-    pass
+    """
+    An error in sibilant syntax during read time
+    """
 
 
 class Reader(object):
@@ -510,24 +502,26 @@ class Reader(object):
 
 
 @contextmanager
-def source_open(filename):
+def source_open(filename, auto_skip_exec=True):
     with open(filename, "rt") as fs:
-        reader = SourceStream(fs, filename=filename)
-        reader.skip_exec()
+        reader = SourceStream(fs, filename=filename,
+                              auto_skip_exec=auto_skip_exec)
         yield reader
 
 
-def source_str(source_str, filename):
-    return SourceStream(StringIO(source_str), filename)
+def source_str(source_str, filename, auto_skip_exec=True):
+    return SourceStream(StringIO(source_str), filename,
+                        auto_skip_exec=auto_skip_exec)
 
 
-def source_stream(source_stream, filename):
-    return SourceStream(source_stream, filename)
+def source_stream(source_stream, filename, auto_skip_exec=True):
+    return SourceStream(source_stream, filename,
+                        auto_skip_exec=auto_skip_exec)
 
 
 class SourceStream(object):
 
-    def __init__(self, stream, filename):
+    def __init__(self, stream, filename, auto_skip_exec=True):
 
         if not stream.seekable():
             raise TypeError("SourceStream's stream argument must be seekable")
@@ -537,6 +531,9 @@ class SourceStream(object):
 
         self.lin = 1
         self.col = 0
+
+        if auto_skip_exec:
+            self.skip_exec()
 
 
     def position(self):
