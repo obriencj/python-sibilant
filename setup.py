@@ -28,12 +28,6 @@ from sys import exit, version_info
 from setuptools import setup, Extension
 
 
-if (3, 5) <= version_info < (3, 7):
-    pass
-else:
-    exit("unsupported version: %r" % version_info)
-
-
 ext_ctco = Extension(
     name = "sibilant._tco",
     sources = ["sibilant/_tco.c"],
@@ -67,7 +61,7 @@ setup(
     ],
 
     headers = [
-        "include/python_sibilant.h",
+        "include/py3-sibilant.h",
     ],
 
     test_suite = "tests",
@@ -78,10 +72,11 @@ setup(
         ],
     },
 
+    # todo: make this optional and just for cli
     install_requires = ["appdirs", ],
 
-    # targets only support Python 3.5+
-    python_requires = ">=3.5, <4",
+    # targets only support Python 3.5 through 3.6
+    python_requires = ">=3.5, <3.7",
 
     description = "LISP dialect for Python",
 
