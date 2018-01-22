@@ -25,11 +25,11 @@ from functools import partial
 
 import operator
 
-from .ctypes import symbol, keyword
-from .ctypes import pair, nil, cons, car, cdr, setcar, setcdr
-from .ctypes import merge_pairs, build_unpack_pair
-from .ctypes import reapply
-from .ctypes import build_tuple, build_list, build_set, build_dict
+from ._types import symbol, keyword
+from ._types import pair, nil, cons, car, cdr, setcar, setcdr
+from ._types import merge_pairs, build_unpack_pair
+from ._types import reapply
+from ._types import build_tuple, build_list, build_set, build_dict
 
 
 __all__ = (

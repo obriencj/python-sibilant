@@ -18,7 +18,7 @@ The built-in operators with compile-time optimizations
 """
 
 
-from .. import symbol, is_nil
+from . import symbol, is_nil
 
 
 _symbol_nil = symbol("nil")
@@ -87,9 +87,9 @@ _symbol_build_set = symbol("build-set")
 _symbol_build_dict = symbol("build-dict")
 
 
-def setup(glbls):
+def __setup__(glbls):
 
-    from . import Operator
+    from .compiler import Operator
 
     from functools import partial, reduce
 
@@ -872,9 +872,8 @@ def setup(glbls):
 
 # --- and finally, clean up ---
 
-__all__ = setup(globals())
-
-del setup
+__all__ = __setup__(globals())
+del __setup__
 
 
 #

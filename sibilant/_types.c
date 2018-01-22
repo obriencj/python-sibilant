@@ -15,7 +15,7 @@
 */
 
 
-#include "ctypes.h"
+#include <python_sibilant.h>
 
 
 #define DOCSTR "Native Sibilant core types and functions"
@@ -1823,7 +1823,7 @@ static PyMethodDef methods[] = {
 
 static struct PyModuleDef ctypes = {
   .m_base = PyModuleDef_HEAD_INIT,
-  .m_name = "sibilant.ctypes",
+  .m_name = "sibilant.lib._types",
   .m_doc = DOCSTR,
   .m_size = -1,
   .m_methods = methods,
@@ -1840,7 +1840,7 @@ static struct PyModuleDef ctypes = {
   }
 
 
-PyMODINIT_FUNC PyInit_ctypes(void) {
+PyMODINIT_FUNC PyInit__types(void) {
 
   PyObject *mod, *dict;
 

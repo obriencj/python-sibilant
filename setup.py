@@ -35,14 +35,15 @@ else:
 
 
 ext_ctco = Extension(
-    name = "sibilant.compiler.ctco",
-    sources = ["sibilant/compiler/ctco.c"],
+    name = "sibilant._tco",
+    sources = ["sibilant/_tco.c"],
     extra_compile_args=["--std=c99"],
 )
 
 ext_ctypes = Extension(
-    name = "sibilant.ctypes",
-    sources = ["sibilant/ctypes.c"],
+    name = "sibilant._types",
+    sources = ["sibilant/_types.c"],
+    include_dirs = ["include"],
     extra_compile_args=["--std=c99"],
 )
 
@@ -66,7 +67,7 @@ setup(
     ],
 
     headers = [
-        "sibilant/ctypes.h",
+        "include/python_sibilant.h",
     ],
 
     test_suite = "tests",

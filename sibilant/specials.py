@@ -18,13 +18,13 @@ The built-in compile-time special forms
 """
 
 
-from .. import (
+from . import (
     symbol, is_symbol, keyword, is_keyword,
     nil, is_nil, cons, cdr, is_pair, is_proper,
     get_position, fill_position,
 )
 
-from . import Special, gather_formals
+from .compiler import Special, gather_formals
 
 
 __all__ = []
@@ -1036,7 +1036,7 @@ def _helper_setq_values(code, bindings, declare):
 @special(_symbol_continue)
 def _special_continue(code, source, tc=False):
 
-    from . import Block
+    from .compiler import Block
 
     called_by, rest = source
 
@@ -1071,7 +1071,7 @@ def _special_continue(code, source, tc=False):
 @special(_symbol_break)
 def _special_break(code, source, tc=False):
 
-    from . import Block
+    from .compiler import Block
 
     called_by, rest = source
 

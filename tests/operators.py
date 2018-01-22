@@ -26,7 +26,7 @@ import dis
 from functools import partial
 from unittest import TestCase
 
-from . import (
+from .compiler import (
     compile_expr, make_accumulator, make_raise_accumulator,
     make_manager,
 )

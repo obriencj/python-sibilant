@@ -353,7 +353,7 @@ static PyMethodDef methods[] = {
 
 static struct PyModuleDef ctco = {
   .m_base = PyModuleDef_HEAD_INIT,
-  .m_name = "sibilant.compiler.ctco",
+  .m_name = "sibilant.lib._tco",
   .m_doc = DOCSTR,
   .m_size = -1,
   .m_methods = methods,
@@ -364,7 +364,7 @@ static struct PyModuleDef ctco = {
 };
 
 
-PyMODINIT_FUNC PyInit_ctco(void) {
+PyMODINIT_FUNC PyInit__tco(void) {
   if (! __get__) {
     __get__ = PyUnicode_FromString("__get__");
   }

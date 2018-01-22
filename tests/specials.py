@@ -27,7 +27,7 @@ from functools import partial
 from types import GeneratorType as generator
 from unittest import TestCase
 
-from . import (
+from .compiler import (
     compile_expr, compile_dis_expr,
     make_accumulator, make_raise_accumulator,
     make_manager,
