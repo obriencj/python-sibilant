@@ -28,13 +28,13 @@ from sys import exit, version_info
 from setuptools import setup, Extension
 
 
-ext_ctco = Extension(
+ext_tco = Extension(
     name = "sibilant._tco",
     sources = ["sibilant/_tco.c"],
     extra_compile_args=["--std=c99"],
 )
 
-ext_ctypes = Extension(
+ext_types = Extension(
     name = "sibilant._types",
     sources = ["sibilant/_types.c"],
     include_dirs = ["include"],
@@ -56,8 +56,8 @@ setup(
     },
 
     ext_modules = [
-        ext_ctco,
-        ext_ctypes,
+        ext_tco,
+        ext_types,
     ],
 
     headers = [
