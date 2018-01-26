@@ -1823,7 +1823,7 @@ static PyMethodDef methods[] = {
 
 static struct PyModuleDef ctypes = {
   .m_base = PyModuleDef_HEAD_INIT,
-  .m_name = "sibilant.lib._types",
+  .m_name = "sibilant._types",
   .m_doc = DOCSTR,
   .m_size = -1,
   .m_methods = methods,

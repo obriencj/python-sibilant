@@ -199,6 +199,18 @@ static PyGetSetDef trampoline_getset[] = {
 
 static PyObject *descr_get(PyObject *self,
 			   PyObject *inst, PyObject *owner) {
+
+  /**
+     When a function trampoline member is retrieved from an object
+     instance, this will be called to enable the function trampoline
+     to wrap itself as a method trampoline.
+
+     We do that by invoking the same __get__ call on our function
+     trampoline's underlying callable, and then allocating a method
+     trampoline to wrap it. The method trampoline only differs from a
+     function trampoline in that it will not re-wrap in this fashion.
+   */
+
   PyObject *tmp = NULL;
   Trampoline *tramp = NULL;
 
@@ -227,7 +239,7 @@ static PyObject *descr_get(PyObject *self,
 static PyTypeObject FunctionTrampolineType = {
     PyVarObject_HEAD_INIT(NULL, 0)
 
-    "sibilant.compiler.ctco.FunctionTrampoline",
+    "sibilant.tco.FunctionTrampoline",
     sizeof(Trampoline),
     0,
 
@@ -244,7 +256,7 @@ static PyTypeObject FunctionTrampolineType = {
 static PyTypeObject MethodTrampolineType = {
     PyVarObject_HEAD_INIT(NULL, 0)
 
-    "sibilant.compiler.ctco.MethodTrampoline",
+    "sibilant.tco.MethodTrampoline",
     sizeof(Trampoline),
     0,
 
@@ -353,7 +365,7 @@ static PyMethodDef methods[] = {
 
 static struct PyModuleDef ctco = {
   .m_base = PyModuleDef_HEAD_INIT,
-  .m_name = "sibilant.lib._tco",
+  .m_name = "sibilant._tco",
   .m_doc = DOCSTR,
   .m_size = -1,
   .m_methods = methods,
