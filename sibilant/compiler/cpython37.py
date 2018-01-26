@@ -16,7 +16,7 @@
 from .cpython36 import CPython36
 
 
-class CPython37(CPython37):
+class CPython37(CPython36):
     """
     SpecialCodeSpace emitting bytecode compatible with CPython version
     3.7
