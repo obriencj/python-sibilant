@@ -22,7 +22,7 @@ license: LGPL v.3
 """
 
 
-def _setup(glbls):
+def __setup__(glbls):
     import sys
     from os.path import join, dirname
     from pkgutil import get_data
@@ -41,21 +41,21 @@ def _setup(glbls):
     # definition. Finally, we'll merge the two modules together to
     # form the contents of this module.
 
-    bootstrap = __import__("sibilant._bootstrap_builtins")._bootstrap_builtins
+    bootstrap = __import__("sibilant.bootstrap").bootstrap
 
-    src = get_data(__name__, "_builtins.lspy").decode("utf8")
-    filename = join(dirname(__file__), "_builtins.lspy")
+    src = get_data(__name__, "basics.lspy").decode("utf8")
+    filename = join(dirname(__file__), "basics.lspy")
 
-    builtins = new_module("sibilant._builtins")
+    basics = new_module("sibilant.basics")
     source_stream = source_str(src, filename=filename)
-    init_module(builtins, source_stream, bootstrap, filename=filename)
-    load_module(builtins)
+    init_module(basics, source_stream, bootstrap, filename=filename)
+    load_module(basics)
 
-    sys.modules["sibilant"]._builtins = builtins
-    sys.modules["sibilant._builtins"] = builtins
+    sys.modules["sibilant"].basics = basics
+    sys.modules["sibilant.basics"] = basics
 
     _all = set()
-    for module in (bootstrap, builtins):
+    for module in (bootstrap, basics):
         for key, val in module.__dict__.items():
             if not key.startswith("__"):
                 glbls[key] = val
@@ -64,8 +64,8 @@ def _setup(glbls):
     return tuple(_all)
 
 
-__all__ = _setup(globals())
-del _setup
+__all__ = __setup__(globals())
+del __setup__
 
 
 #

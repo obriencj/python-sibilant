@@ -30,11 +30,11 @@ import sibilant.builtins
 
 from sibilant import car, cdr, cons, nil, symbol
 
-from .compiler import (
-    compile_expr,
-    is_macro, Macro,
-    is_alias, Alias,
+from sibilant.compiler import (
+    is_macro, Macro, is_alias, Alias,
 )
+
+from . import compile_expr
 
 
 class Object(object):

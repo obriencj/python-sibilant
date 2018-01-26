@@ -28,9 +28,9 @@ from unittest import TestCase
 
 import sibilant.builtins
 
-from sibilant.compiler.tco import trampoline, tailcall
+from sibilant.tco import trampoline, tailcall
 
-from . import compile_expr
+from .compiler import compile_expr
 
 
 @contextmanager

@@ -32,7 +32,7 @@ license: LGPL v.3
 """
 
 
-def setup(glbls):
+def __setup__(glbls):
 
     # since this is the basis for the builtins module (ie. the default
     # available namespace for everything sibilant executes), we need
@@ -49,9 +49,9 @@ def setup(glbls):
 
     import sibilant
     import sibilant.compiler as compiler
-    import sibilant.compiler.tco as tco
-    import sibilant.compiler.specials as specials
-    import sibilant.compiler.operators as operators
+    import sibilant.tco as tco
+    import sibilant.specials as specials
+    import sibilant.operators as operators
 
     from sibilant import is_pair, TypePredicate
 
@@ -327,9 +327,8 @@ def setup(glbls):
 
 # --- and finally, clean up ---
 
-__all__ = setup(globals())
-
-del setup
+__all__ = __setup__(globals())
+del __setup__
 
 
 #
