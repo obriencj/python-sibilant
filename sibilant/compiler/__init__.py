@@ -1610,7 +1610,14 @@ def code_space_for_version(ver=version_info,
     """
 
     if impl == 'CPython':
-        if (3, 6) <= ver <= (3, 7):
+        # TODO : user some sort of introspection instead of having to
+        # write an import for every case...
+
+        if (3, 7) <= ver <= (3, 8):
+            from .cpython37 import CPython37
+            return CPython37
+
+        elif (3, 6) <= ver <= (3, 7):
             from .cpython36 import CPython36
             return CPython36
 
