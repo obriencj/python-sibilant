@@ -14,7 +14,7 @@
 
 
 """
-unit tests for sibilant
+unit tests for sibilant core types
 
 author: Christopher O'Brien  <obriencj@gmail.com>
 license: LGPL v.3
