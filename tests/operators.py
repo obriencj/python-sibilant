@@ -21,20 +21,17 @@ license: LGPL v.3
 """
 
 
-import dis
-
-from functools import partial
 from unittest import TestCase
-
-from .compiler import (
-    compile_expr, make_accumulator, make_raise_accumulator,
-    make_manager,
-)
 
 from sibilant import symbol, cons, nil, is_nil
 from sibilant.compiler import (
     Special, is_special,
     Macro, is_macro,
+)
+
+from . import (
+    compile_expr, make_accumulator, make_raise_accumulator,
+    make_manager,
 )
 
 
