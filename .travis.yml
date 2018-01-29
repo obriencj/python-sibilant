@@ -15,7 +15,7 @@ notifications:
   irc:
     channels:
       - "chat.freenode.net#python-sibilant"
-    on_success: always
+    on_success: change
     on_failure: always
     use_notice: true
 
