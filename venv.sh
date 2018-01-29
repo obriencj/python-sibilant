@@ -1,17 +1,20 @@
 #! /usr/bin/env bash
 
 
-VENV=".venv"
+VENV="$HOME/.virtualenvs"
+BRANCH=$(git symbolic-ref --short -q HEAD)
 
-VPY="$VENV/bin/python"
-VSIB="$VENV/bin/sibilant"
+
+VENV_BRANCH="$VENV/sibilant-$BRANCH"
+VPY="$VENV_BRANCH/bin/python"
+VSIB="$VENV_BRANCH/bin/sibilant"
 
 
 if test "$1" == "help" ; then
     cat <<EOF
 Usage: $0 [COMMAND]
 
-Builds and deploys into a virtualenv under $VENV
+Builds and deploys into a virtualenv under $VENV_BRANCH
 
 COMMAND may be one of 'sibilant' or 'python' in order to immediately
 launch either the sibilant or python repl after installation.
@@ -21,7 +24,10 @@ EOF
     exit 1
 
 else
-    { virtualenv "$VENV" && "$VPY" setup.py clean build install ; } \
+    echo -e "Current branch is $BRANCH so deploying into:\n $VENV_BRANCH"
+    mkdir -p "$VENV_BRANCH"
+
+    { virtualenv "$VENV_BRANCH" && "$VPY" setup.py clean build install ; } \
 	|| exit $?
 
     if test "$1" == "sibilant" ; then
