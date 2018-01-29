@@ -90,7 +90,7 @@ def init_module(module, source_stream, builtins,
 def get_module_reader(module):
     try:
         reader = module.__reader__
-    except:
+    except AttributeError:
         reader = default_reader
         module.__reader__ = reader
 
@@ -100,7 +100,7 @@ def get_module_reader(module):
 def get_module_stream(module):
     try:
         stream = module.__stream__
-    except:
+    except AttributeError:
         stream = source_str("", "<empty>")
         module.__stream__ = stream
 
@@ -118,7 +118,7 @@ def get_module_compiler_factory_params(module):
     try:
         params = module.__compiler_factory_params__
 
-    except:
+    except AttributeError:
         params = {
             "name": getattr(module, "__name__", None),
             "filename": getattr(module, "__file__", None),
@@ -133,7 +133,7 @@ def get_module_compiler_factory(module):
     try:
         factory = module.__compiler_factory__
 
-    except:
+    except AttributeError:
         factory = code_space_for_version()
         module.__compiler_factory__ = factory
 
@@ -144,7 +144,7 @@ def get_module_compiler(module):
     try:
         compiler = module.__compiler__
 
-    except:
+    except AttributeError:
         factory = get_module_compiler_factory(module)
         params = get_module_compiler_factory_params(module)
         compiler = factory(**params)
@@ -187,7 +187,7 @@ def get_module_evaluator(module):
     try:
         evaluator = module.__evaluator__
 
-    except:
+    except AttributeError:
         mod_globals = module.__dict__
         teval = trampoline(eval)
 
