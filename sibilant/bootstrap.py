@@ -102,20 +102,19 @@ def __setup__(glbls):
 
     # == sibilant data types ===
 
+    _ty(sibilant.pair, "pair")
     _op(sibilant.cons, "cons")
     _op(sibilant.car, "car")
     _op(sibilant.setcar, "set-car")
     _op(sibilant.cdr, "cdr")
     _op(sibilant.setcdr, "set-cdr")
-    _op(sibilant.is_pair, "pair?")
     _op(sibilant.is_proper, "proper?")
     _op(sibilant.build_proper, "build-proper")
     _val(sibilant.nil, "nil")
     _op(sibilant.is_nil, "nil?")
-    _val(sibilant.symbol, "symbol")
-    _op(sibilant.is_symbol, "symbol?")
-    _val(sibilant.keyword, "keyword")
-    _op(sibilant.is_keyword, "keyword?")
+
+    _ty(sibilant.symbol, "symbol")
+    _ty(sibilant.keyword, "keyword")
 
     _op(sibilant.merge_pairs, "merge_pairs")
     _op(sibilant.build_unpack_pair, "build-unpack-pair")
@@ -138,17 +137,10 @@ def __setup__(glbls):
 
     # === sibilant compiler builtins ===
 
-    _val(compiler.Special, "special")
-    _op(compiler.is_special, "special?")
-
-    _val(compiler.Macro, "macro")
-    _op(compiler.is_macro, "macro?")
-
-    _val(compiler.Alias, "alias")
-    _op(compiler.is_alias, "alias?")
-
-    _val(compiler.Operator, "operator")
-    _op(compiler.is_operator, "operator?")
+    _ty(compiler.Special, "special")
+    _ty(compiler.Macro, "macro")
+    _ty(compiler.Alias, "alias")
+    _ty(compiler.Operator, "operator")
 
     _op(tco.trampoline, "trampoline")
     _op(tco.tailcall, "tailcall")
