@@ -233,9 +233,13 @@ me know] your cool use-case!
 
 ## Contact
 
-author: Christopher O'Brien  <obriencj@gmail.com>
+Author: Christopher O'Brien  <obriencj@gmail.com>
 
-original git repository: <https://github.com/obriencj/python-sibilant>
+IRC Channel: #python-sibilant on [Freenode]
+
+Original Git Repository: <https://github.com/obriencj/python-sibilant>
+
+[Freenode]: https://freenode.net
 
 
 ## License
