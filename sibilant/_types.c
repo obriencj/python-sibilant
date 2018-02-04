@@ -789,13 +789,28 @@ static long pair_eq(PyObject *left, PyObject *right) {
 
   while (left != right) {
     if (Sib_Nilp(left) || Sib_Nilp(right)) {
+      // one of our comparisons is a nil, and nil can only equal
+      // itself, and left and right aren't the same object, so
+      // therefore... nope
       answer = 0;
       break;
 
     } else if (left->ob_type != &SibPairType) {
+      // left is not a pair, use its comparison function instead of
+      // ours
       answer = PyObject_RichCompareBool(left, right, Py_EQ);
       break;
+
+    } else if (right->ob_type != &SibPairType) {
+      // left is a pair, but right is not, and pairs can only be
+      // equivalent to other pairs, so nope.
+      answer = 0;
+      break;
     }
+
+    // if we reach this point, left and right are both SibPairType,
+    // and they do not refer to the same memory space, so we can test
+    // their CAR equivs and their CDR equivs
 
     left_id = PyLong_FromVoidPtr(left);
     right_id = PyLong_FromVoidPtr(right);
