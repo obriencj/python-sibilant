@@ -27,7 +27,7 @@ from functools import partial
 from types import GeneratorType as generator
 from unittest import TestCase
 
-from sibilant import symbol, cons, nil, is_nil
+from sibilant import symbol, keyword, cons, nil, is_nil
 from sibilant.compiler import (
     Special, is_special,
     Macro, is_macro,
@@ -188,162 +188,113 @@ class Lambda(TestCase):
 
 class Quasiquote(TestCase):
 
-    def test_quasiquote(self):
-        src = """
-        `1
-        """
-        stmt, env = compile_expr(src)
+
+    def qq(self, src_str, expected, **env):
+        stmt, env = compile_expr(src_str, **env)
         res = stmt()
-        self.assertEqual(res, 1)
-
-        src = """
-        `,1
-        """
-        stmt, env = compile_expr(src)
-        res = stmt()
-        self.assertEqual(res, 1)
-
-        src = """
-        `tacos
-        """
-        stmt, env = compile_expr(src)
-        res = stmt()
-        self.assertEqual(res, symbol("tacos"))
-
-        src = """
-        `()
-        """
-        stmt, env = compile_expr(src)
-        res = stmt()
-        self.assertEqual(res, nil)
-
-        src = """
-        `(1 2 3 ,4 ,5)
-        """
-        stmt, env = compile_expr(src)
-        res = stmt()
-        self.assertEqual(res, cons(1, 2, 3, 4, 5, nil))
-
-        src = """
-        `(1 2 3 ,A ,B Z)
-        """
-        stmt, env = compile_expr(src, A=4, B=5)
-        res = stmt()
-        self.assertEqual(res, cons(1, 2, 3, 4, 5, symbol("Z"), nil))
-
-        src = """
-        `(1 2 ,@A ,B)
-        """
-        stmt, env = compile_expr(src, A=cons(3, 4, nil), B=5)
-        res = stmt()
-        self.assertEqual(res, cons(1, 2, 3, 4, 5, nil))
-
-        src = """
-        `(1 2 ,@A)
-        """
-        stmt, env = compile_expr(src, A=range(3,6))
-        res = stmt()
-        self.assertEqual(res, cons(1, 2, 3, 4, 5, nil))
-
-        src = """
-        `(1 2 ,@(range 3 6))
-        """
-        stmt, env = compile_expr(src, range=range)
-        res = stmt()
-        self.assertEqual(res, cons(1, 2, 3, 4, 5, nil))
-
-        src = """
-        `(1 2 ,(foo 3 6))
-        """
-        stmt, env = compile_expr(src, foo=lambda a,b: list(range(a,b)))
-        res = stmt()
-        self.assertEqual(res, cons(1, 2, [3, 4, 5], nil))
-
-        src = """
-        `(,@foo)
-        """
-        stmt, env = compile_expr(src, foo=cons(1, 2, 3, nil))
-        res = stmt()
-        self.assertEqual(res, cons(1, 2, 3, nil))
+        self.assertEqual(res, expected)
 
 
-    def test_nested_quasiquote(self):
+    def test_simple(self):
+        self.qq("`1", 1)
+        self.qq("`,1", 1)
 
-        src = """
-        `(1 2 `(foo ,(+ 1 2)))
-        """
-        stmt, env = compile_expr(src)
-        res = stmt()
-        exp = cons(1, 2,
-                   cons(symbol("quasiquote"),
-                        cons(symbol("foo"),
-                             cons(symbol("unquote"),
-                                  cons(symbol("+"),
-                                       1, 2,
-                                       nil),
-                                  nil),
-                             nil),
-                        nil),
-                   nil)
-        self.assertEqual(res, exp)
+        self.qq("`tacos",
+                symbol("tacos"))
 
-        src = """
-        `(1 2 `(foo ,,(+ 1 2)))
-        """
-        stmt, env = compile_expr(src)
-        res = stmt()
-        exp = cons(1, 2,
-                   cons(symbol("quasiquote"),
-                        cons(symbol("foo"),
-                             cons(symbol("unquote"),
-                                  3,
-                                  nil),
-                             nil),
-                        nil),
-                   nil)
-        self.assertEqual(res, exp)
+        self.qq("`:tacos",
+                keyword("tacos"))
 
-        src = """
-        ``,(+ 1 2)
-        """
-        stmt, env = compile_expr(src)
-        res = stmt()
-        exp = cons(symbol("quasiquote"),
-                   cons(symbol("unquote"),
-                        cons(symbol("+"),
-                             1, 2,
-                             nil),
-                        nil),
-                   nil)
-        self.assertEqual(res, exp)
+        self.qq("`()",
+                nil)
 
-        src = """
-        ``,,(+ 1 2)
-        """
-        stmt, env = compile_expr(src)
-        res = stmt()
-        exp = cons(symbol("quasiquote"),
-                   cons(symbol("unquote"),
-                        3,
-                        nil),
-                   nil)
-        self.assertEqual(res, exp)
+        self.qq("`(1 2 3 ,4 ,5)",
+                cons(1, 2, 3, 4, 5, nil))
 
-        src = """
-        `(1 `(bar ,@,foo))
-        """
-        stmt, env = compile_expr(src, foo=cons(1, 2, 3, nil))
-        res = stmt()
-        exp = cons(1,
-                   cons(symbol("quasiquote"),
-                        cons(symbol("bar"),
-                             cons(symbol("unquote-splicing"),
-                                  cons(1, 2, 3, nil),
-                                  nil),
-                             nil),
-                        nil),
-                   nil)
-        self.assertEqual(res, exp)
+        self.qq("`(1 2 3 ,A ,B Z)",
+                cons(1, 2, 3, 4, 5, symbol("Z"), nil),
+                A=4, B=5)
+
+        self.qq("`(1 2 ,@A ,B)",
+                cons(1, 2, 3, 4, 5, nil),
+                A=cons(3, 4, nil), B=5)
+
+        self.qq("`(1 2 ,@A)",
+                cons(1, 2, 3, 4, 5, nil),
+                A=range(3, 6))
+
+        self.qq("`(1 2 ,@(range 3 6))",
+                cons(1, 2, 3, 4, 5, nil))
+
+        self.qq("`(1 2 ,(foo 3 6))",
+                cons(1, 2, [3, 4, 5], nil),
+                foo=lambda a, b: list(range(a,b)))
+
+        self.qq("`(,@foo)",
+                cons(1, 2, 3, nil),
+                foo=cons(1, 2, 3, nil))
+
+
+    def test_nested(self):
+        self.qq("`(1 2 `(foo ,(+ 1 2)))",
+                cons(1, 2,
+                     cons(symbol("quasiquote"),
+                          cons(symbol("foo"),
+                               cons(symbol("unquote"),
+                                    cons(symbol("+"),
+                                         1, 2,
+                                         nil),
+                                    nil),
+                               nil),
+                          nil),
+                     nil))
+
+        self.qq("`(1 2 `(foo ,,(+ 1 2)))",
+                cons(1, 2,
+                     cons(symbol("quasiquote"),
+                          cons(symbol("foo"),
+                               cons(symbol("unquote"),
+                                    3,
+                                    nil),
+                               nil),
+                          nil),
+                     nil))
+
+        self.qq("``,(+ 1 2)",
+                cons(symbol("quasiquote"),
+                     cons(symbol("unquote"),
+                          cons(symbol("+"),
+                               1, 2,
+                               nil),
+                          nil),
+                     nil))
+
+        self.qq("``,,(+ 1 2)",
+                cons(symbol("quasiquote"),
+                     cons(symbol("unquote"),
+                          3,
+                          nil),
+                     nil))
+
+        self.qq("`(1 `(bar ,@,foo))",
+                cons(1,
+                     cons(symbol("quasiquote"),
+                          cons(symbol("bar"),
+                               cons(symbol("unquote-splicing"),
+                                    cons(1, 2, 3, nil),
+                                    nil),
+                               nil),
+                          nil),
+                     nil),
+                foo=cons(1, 2, 3, nil))
+
+
+    def _test_improper(self):
+        self.qq("`(1 . 2)",
+                cons(1, 2))
+
+        self.qq("`(1 . (2 3))",
+                cons(1, 2, 3, nil))
 
 
 class CompilerSpecials(TestCase):
