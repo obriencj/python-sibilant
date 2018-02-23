@@ -399,9 +399,9 @@ class KeywordTest(TestCase):
         self.assertNotEqual('x', x)
 
 
-class TestBuildUnpackPair(TestCase):
+class BuildUnpackPairTest(TestCase):
 
-    def test_bup(self):
+    def test_build_unpack_pair(self):
         bup = build_unpack_pair
 
         self.assertEqual(bup([1, 2, 3]),
@@ -457,6 +457,41 @@ class TestBuildUnpackPair(TestCase):
 
         self.assertEqual(bup([], nil), nil)
         self.assertEqual(bup(nil, []), nil)
+
+
+    def test_non_iterable(self):
+        bup = build_unpack_pair
+
+        # 5 can't be iterated
+        self.assertRaises(TypeError, bup, 5, [1])
+        self.assertRaises(TypeError, bup, [1], 5)
+
+
+    def test_good_iterable(self):
+        bup = build_unpack_pair
+
+        # an iterable is fine
+        self.assertEqual(bup(range(0, 3)), cons(0, 1, 2, nil))
+        self.assertEqual(bup(range(0, 3), [3]), cons(0, 1, 2, 3, nil))
+        self.assertEqual(bup([0], range(1, 4)), cons(0, 1, 2, 3, nil))
+
+
+    def test_raise_iterable(self):
+        bup = build_unpack_pair
+
+        class OhNoes(Exception):
+            pass
+
+        def iter_fail(when):
+            yield from range(0, when)
+            raise OhNoes()
+
+        # if an iterable raises part-way through, let's make sure that
+        # there isn't a segfault or something, and that the exception
+        # is correctly propagated up
+        self.assertRaises(OhNoes, bup, iter_fail(3))
+        self.assertRaises(OhNoes, bup, [1], iter_fail(3))
+        self.assertRaises(OhNoes, bup, iter_fail(3), [1])
 
 
 #

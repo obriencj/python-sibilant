@@ -1623,6 +1623,9 @@ static PyObject *m_build_unpack_pair(PyObject *mod, PyObject *seqs) {
       work = pair_unpack(work, NULL);
 
     } else {
+      // todo: check for lists and tuples explicitly, and see if
+      // they're zero-length. If so, avoid creating an iterator, just
+      // continue to the next item.
       work = PyObject_GetIter(work);
     }
 
@@ -1644,11 +1647,17 @@ static PyObject *m_build_unpack_pair(PyObject *mod, PyObject *seqs) {
   }
 
   if (! PyList_GET_SIZE(coll)) {
+    // The collection didn't net any actual elements, so let's skip
+    // out early and just return nil
+
     Py_DECREF(coll);
     Py_INCREF(Sib_Nil);
     return Sib_Nil;
   }
 
+  // I wonder if there isn't a better way to do this. We end up
+  // traversing the last cons pair twice, which means allocating a set
+  // in order to avoid recursion. Is that too expensive?
   work = PyTuple_GET_ITEM(seqs, count - 1);
   if ((! SibPair_CheckExact(work)) || (SibPair_is_proper(work))) {
     PyList_Append(coll, Sib_Nil);
