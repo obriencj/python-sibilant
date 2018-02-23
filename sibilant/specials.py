@@ -361,7 +361,12 @@ def _helper_quasiquote(code, marked, level=0):
         coll_tup = 0  # the count of collected tuples
         curr_tup = 0  # the size of the current tuple
 
-        for expr in marked.unpack():
+        for p_expr in marked.follow():
+            if p_expr is nil:
+                continue
+
+            expr, p_tail = p_expr
+
             if expr is nil or expr is _symbol_nil:
                 curr_tup += 1
                 code.pseudop_get_var("nil")
