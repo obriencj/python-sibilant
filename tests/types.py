@@ -28,6 +28,7 @@ from sibilant import (
     cons, pair, nil, is_pair, is_proper, is_nil,
     car, cdr, setcar, setcdr, last,
     symbol, is_symbol, keyword, is_keyword,
+    build_unpack_pair,
 )
 
 
@@ -93,6 +94,12 @@ class ConsTest(TestCase):
         self.assertNotEqual(cons(99, nil), u)
         self.assertNotEqual(u, cons(99, nil))
 
+        self.assertNotEqual(u, None)
+        self.assertNotEqual(u, nil)
+        self.assertNotEqual(u, cons(1, nil))
+        self.assertNotEqual(u, cons(1, 3))
+        self.assertNotEqual(u, cons(1, 3, nil))
+
 
     def test_improper_cons(self):
         z = cons(1, 2)
@@ -105,6 +112,12 @@ class ConsTest(TestCase):
 
         self.assertTrue(is_pair(z))
         self.assertFalse(is_proper(z))
+
+        self.assertNotEqual(z, None)
+        self.assertNotEqual(z, nil)
+        self.assertNotEqual(z, cons(1, nil))
+        self.assertNotEqual(z, cons(1, 3))
+        self.assertNotEqual(z, cons(1, 3, nil))
 
 
     def test_nil(self):
@@ -384,6 +397,66 @@ class KeywordTest(TestCase):
 
         self.assertNotEqual(x, 'x')
         self.assertNotEqual('x', x)
+
+
+class TestBuildUnpackPair(TestCase):
+
+    def test_bup(self):
+        bup = build_unpack_pair
+
+        self.assertEqual(bup([1, 2, 3]),
+                         cons(1, 2, 3, nil))
+
+        self.assertEqual(bup([1, 2, 3], []),
+                         cons(1, 2, 3, nil))
+
+        self.assertEqual(bup([1, 2, 3], [4]),
+                         cons(1, 2, 3, 4, nil))
+
+        self.assertEqual(bup([1, 2, 3], [], [4]),
+                         cons(1, 2, 3, 4, nil))
+
+        self.assertEqual(bup([1, 2, 3], [], [1, 2]),
+                         cons(1, 2, 3, 1, 2, nil))
+
+        self.assertEqual(bup(cons(1, nil), nil, [1, 2]),
+                         cons(1, 1, 2, nil))
+
+        self.assertEqual(bup([1, 2, 3], nil),
+                         cons(1, 2, 3, nil))
+
+        self.assertEqual(bup([1, 2, 3], [nil]),
+                         cons(1, 2, 3, nil, nil))
+
+        self.assertEqual(bup([1, 2, 3], [], nil),
+                         cons(1, 2, 3, nil))
+
+        self.assertEqual(bup([1, 2, 3], [nil], nil),
+                         cons(1, 2, 3, nil, nil))
+
+        self.assertEqual(bup([1, 2, 3], [], cons(4, nil)),
+                         cons(1, 2, 3, 4, nil))
+
+        self.assertEqual(bup([1]),
+                         cons(1, nil))
+
+        self.assertEqual(bup(cons(1, 2)),
+                         cons(1, 2))
+
+        self.assertEqual(bup([1, 2, 3], [], cons(1, 2)),
+                         cons(1, 2, 3, 1, 2))
+
+        self.assertEqual(bup(cons(1, 2, nil), nil),
+                         cons(1, 2, nil))
+
+        self.assertEqual(bup(cons(1, 2), nil),
+                         cons(1, 2, nil))
+
+        self.assertEqual(bup(nil, cons(1, 2)),
+                         cons(1, 2))
+
+        self.assertEqual(bup([], nil), nil)
+        self.assertEqual(bup(nil, []), nil)
 
 
 #

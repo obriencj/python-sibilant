@@ -114,7 +114,6 @@ def __setup__(glbls):
     _ty(sibilant.symbol, "symbol")
     _ty(sibilant.keyword, "keyword")
 
-    _op(sibilant.merge_pairs, "merge_pairs")
     _op(sibilant.build_unpack_pair, "build-unpack-pair")
 
     _op(sibilant.reapply, "reapply")
