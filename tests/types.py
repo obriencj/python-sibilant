@@ -32,6 +32,10 @@ from sibilant import (
 )
 
 
+# this name is too long.
+b_u_p = build_unpack_pair
+
+
 class ConsTest(TestCase):
 
     def test_proper_cons(self):
@@ -402,83 +406,86 @@ class KeywordTest(TestCase):
 class BuildUnpackPairTest(TestCase):
 
     def test_build_unpack_pair(self):
-        bup = build_unpack_pair
+        # a bunch of simple expected inputs and outputs for
+        # build_unpack_pair, including empties and impropers
 
-        self.assertEqual(bup([1, 2, 3]),
+        self.assertEqual(b_u_p([1, 2, 3]),
                          cons(1, 2, 3, nil))
 
-        self.assertEqual(bup([1, 2, 3], []),
+        self.assertEqual(b_u_p([1, 2, 3], []),
                          cons(1, 2, 3, nil))
 
-        self.assertEqual(bup([1, 2, 3], [4]),
+        self.assertEqual(b_u_p([1, 2, 3], [4]),
                          cons(1, 2, 3, 4, nil))
 
-        self.assertEqual(bup([1, 2, 3], [], [4]),
+        self.assertEqual(b_u_p([1, 2, 3], [], [4]),
                          cons(1, 2, 3, 4, nil))
 
-        self.assertEqual(bup([1, 2, 3], [], [1, 2]),
+        self.assertEqual(b_u_p([1, 2, 3], [], [1, 2]),
                          cons(1, 2, 3, 1, 2, nil))
 
-        self.assertEqual(bup(cons(1, nil), nil, [1, 2]),
+        self.assertEqual(b_u_p(cons(1, nil), nil, [1, 2]),
                          cons(1, 1, 2, nil))
 
-        self.assertEqual(bup([1, 2, 3], nil),
+        self.assertEqual(b_u_p([1, 2, 3], nil),
                          cons(1, 2, 3, nil))
 
-        self.assertEqual(bup([1, 2, 3], [nil]),
+        self.assertEqual(b_u_p([1, 2, 3], [nil]),
                          cons(1, 2, 3, nil, nil))
 
-        self.assertEqual(bup([1, 2, 3], [], nil),
+        self.assertEqual(b_u_p([1, 2, 3], [], nil),
                          cons(1, 2, 3, nil))
 
-        self.assertEqual(bup([1, 2, 3], [nil], nil),
+        # a nil as an item, as opposed to as a sequence itself, should
+        # end up in the output
+        self.assertEqual(b_u_p([1, 2, 3], [nil], nil),
                          cons(1, 2, 3, nil, nil))
 
-        self.assertEqual(bup([1, 2, 3], [], cons(4, nil)),
+        self.assertEqual(b_u_p([1, 2, 3], [], cons(4, nil)),
                          cons(1, 2, 3, 4, nil))
 
-        self.assertEqual(bup([1]),
+        self.assertEqual(b_u_p([1]),
                          cons(1, nil))
 
-        self.assertEqual(bup(cons(1, 2)),
+        # if the last sequence is an improper cons pair, the result
+        # should similarly be improper.
+        self.assertEqual(b_u_p(cons(1, 2)),
                          cons(1, 2))
 
-        self.assertEqual(bup([1, 2, 3], [], cons(1, 2)),
+        self.assertEqual(b_u_p([1, 2, 3], [], cons(1, 2)),
                          cons(1, 2, 3, 1, 2))
 
-        self.assertEqual(bup(cons(1, 2, nil), nil),
+        self.assertEqual(b_u_p(cons(1, 2, nil), nil),
                          cons(1, 2, nil))
 
-        self.assertEqual(bup(cons(1, 2), nil),
+        self.assertEqual(b_u_p(cons(1, 2), nil),
                          cons(1, 2, nil))
 
-        self.assertEqual(bup(nil, cons(1, 2)),
+        self.assertEqual(b_u_p(nil, cons(1, 2)),
                          cons(1, 2))
 
-        self.assertEqual(bup([], nil), nil)
-        self.assertEqual(bup(nil, []), nil)
+        self.assertEqual(b_u_p(), nil)
+        self.assertEqual(b_u_p([]), nil)
+        self.assertEqual(b_u_p(nil), nil)
+        self.assertEqual(b_u_p([], nil), nil)
+        self.assertEqual(b_u_p(nil, []), nil)
 
 
     def test_non_iterable(self):
-        bup = build_unpack_pair
-
-        # 5 can't be iterated
-        self.assertRaises(TypeError, bup, 5, [1])
-        self.assertRaises(TypeError, bup, [1], 5)
+        # attempting to iterate over a non-iterable
+        self.assertRaises(TypeError, b_u_p, 5, [1])
+        self.assertRaises(TypeError, b_u_p, [1], 5)
 
 
     def test_good_iterable(self):
-        bup = build_unpack_pair
-
         # an iterable is fine
-        self.assertEqual(bup(range(0, 3)), cons(0, 1, 2, nil))
-        self.assertEqual(bup(range(0, 3), [3]), cons(0, 1, 2, 3, nil))
-        self.assertEqual(bup([0], range(1, 4)), cons(0, 1, 2, 3, nil))
+        self.assertEqual(b_u_p(range(0, 0)), nil)
+        self.assertEqual(b_u_p(range(0, 3)), cons(0, 1, 2, nil))
+        self.assertEqual(b_u_p(range(0, 3), [3]), cons(0, 1, 2, 3, nil))
+        self.assertEqual(b_u_p([0], range(1, 4)), cons(0, 1, 2, 3, nil))
 
 
     def test_raise_iterable(self):
-        bup = build_unpack_pair
-
         class OhNoes(Exception):
             pass
 
@@ -489,9 +496,9 @@ class BuildUnpackPairTest(TestCase):
         # if an iterable raises part-way through, let's make sure that
         # there isn't a segfault or something, and that the exception
         # is correctly propagated up
-        self.assertRaises(OhNoes, bup, iter_fail(3))
-        self.assertRaises(OhNoes, bup, [1], iter_fail(3))
-        self.assertRaises(OhNoes, bup, iter_fail(3), [1])
+        self.assertRaises(OhNoes, b_u_p, iter_fail(3))
+        self.assertRaises(OhNoes, b_u_p, [1], iter_fail(3))
+        self.assertRaises(OhNoes, b_u_p, iter_fail(3), [1])
 
 
 #
