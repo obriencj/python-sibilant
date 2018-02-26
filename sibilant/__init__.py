@@ -27,7 +27,7 @@ import operator
 
 from ._types import symbol, keyword
 from ._types import pair, nil, cons, car, cdr, setcar, setcdr
-from ._types import merge_pairs, build_unpack_pair
+from ._types import build_unpack_pair
 from ._types import reapply
 from ._types import build_tuple, build_list, build_set, build_dict
 
@@ -42,7 +42,7 @@ __all__ = (
     "is_nil", "is_pair", "is_proper", "is_recursive",
 
     "build_proper", "unpack",
-    "copy_pair", "merge_pairs", "build_unpack_pair",
+    "copy_pair", "build_unpack_pair",
 
     "reapply", "repeat",
 

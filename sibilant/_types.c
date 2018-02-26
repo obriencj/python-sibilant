@@ -26,7 +26,7 @@
 #endif
 
 
-#if 0
+#if 1
 #define DEBUGMSG(msg, obj) {					\
     printf("** " msg " ");					\
     (obj) && PyObject_Print(((PyObject *) (obj)), stdout, 0);	\
@@ -1027,7 +1027,7 @@ static PyObject *pair_to_list(PyObject *self) {
 */
 
 
-static PyObject *pair_is_proper(PyObject *self, PyObject *_noargs) {
+long SibPair_is_proper(PyObject *self) {
   PyObject *seen = PySet_New(NULL);
   PyObject *pair_id;
   long result = 0;
@@ -1050,11 +1050,16 @@ static PyObject *pair_is_proper(PyObject *self, PyObject *_noargs) {
   /* it's either recursive and thus proper, or the last item needs to
      have been a nil, or it's improper */
   Py_DECREF(seen);
-  return PyBool_FromLong(result || Sib_Nilp(self));
+  return result || Sib_Nilp(self);
 }
 
 
-static PyObject *pair_is_recursive(PyObject *self, PyObject *_noargs) {
+static PyObject *pair_is_proper(PyObject *self, PyObject *_noargs) {
+  return PyBool_FromLong(SibPair_is_proper(self));
+}
+
+
+long SibPair_is_recursive(PyObject *self) {
   PyObject *seen = PySet_New(NULL);
   PyObject *pair_id;
   long result = 0;
@@ -1075,7 +1080,12 @@ static PyObject *pair_is_recursive(PyObject *self, PyObject *_noargs) {
   }
 
   Py_DECREF(seen);
-  return PyBool_FromLong(result);
+  return result;
+}
+
+
+static PyObject *pair_is_recursive(PyObject *self, PyObject *_noargs) {
+  return PyBool_FromLong(SibPair_is_recursive(self));
 }
 
 
@@ -1444,10 +1454,9 @@ static PyObject *m_cons(PyObject *mod, PyObject *args, PyObject *kwds) {
   int recursive = 0;
   int count = PyTuple_Size(args);
 
-  if (count < 1) {
-    PyErr_SetString(PyExc_TypeError,
-		    "cons requires at least one positional argument");
-    return NULL;
+  if (! count) {
+    Py_INCREF(Sib_Nil);
+    return Sib_Nil;
   }
 
   if (kwds) {
@@ -1589,140 +1598,84 @@ static PyObject *m_reapply(PyObject *mod, PyObject *args, PyObject *kwds) {
 }
 
 
-static PyObject *m_merge_pairs(PyObject *mod, PyObject *pairs) {
-  PyObject *result = NULL;
+static PyObject *m_build_unpack_pair(PyObject *mod, PyObject *seqs) {
+  Py_ssize_t count = PyTuple_GET_SIZE(seqs);
+  Py_ssize_t index = 0;
+  PyObject *coll = NULL;
   PyObject *work = NULL;
-  PyObject *iterator = NULL;
-  PyObject *item = NULL;
-  PyObject *tmp = NULL;
-  PyObject *seen = NULL;
-  PyObject *seen_id = NULL;
+  PyObject *result = NULL;
 
-  iterator = PyObject_GetIter(pairs);
-  if (! iterator)
-    return NULL;
+  if (count == 0) {
+    Py_INCREF(Sib_Nil);
+    return Sib_Nil;
+  }
 
-  while ((item = PyIter_Next(iterator))) {
-    //DEBUGMSG("merge-pairs item", item);
+  coll = PyList_New(0);
 
-    if (Sib_Nilp(item))
+  while (index < count) {
+    work = PyTuple_GET_ITEM(seqs, index++);
+
+    if (Sib_Nilp(work)) {
       continue;
 
-    if (! SibPair_CheckExact(item)) {
-      PyErr_SetString(PyExc_TypeError, "expected sequence of pairs");
-      Py_DECREF(item);
-      break;
+    } else if (SibPair_CheckExact(work)) {
+      work = pair_unpack(work, NULL);
+
+    } else {
+      // todo: check for lists and tuples explicitly, and see if
+      // they're zero-length. If so, avoid creating an iterator, just
+      // continue to the next item.
+      work = PyObject_GetIter(work);
     }
+
+    if (! work) {
+      Py_DECREF(coll);
+      return NULL;
+    }
+
+    result = _PyList_Extend((PyListObject *) coll, work);
+    Py_CLEAR(work);
 
     if (! result) {
-      Py_INCREF(item);
-      result = item;
-      work = item;
-      continue;
-    }
+      Py_DECREF(coll);
+      return NULL;
 
-    /* advance to the last pair of work */
-    tmp = CDR(work);
-    if (SibPair_CheckExact(tmp)) {
-      seen = PySet_New(NULL);
-      do {
-	seen_id = PyLong_FromVoidPtr(tmp);
-	if (PySet_Contains(seen, seen_id)) {
-	  Py_DECREF(seen_id);
-	  break;
-	} else {
-	  PySet_Add(seen, seen_id);
-	  Py_DECREF(seen_id);
-	}
-	work = tmp;
-	tmp = CDR(work);
-      } while (SibPair_CheckExact(tmp));
-      Py_DECREF(seen);
-    }
-
-    if (SibPair_Check(tmp)) {
-      /* either the nil end of a proper list, or the first recursive link
-	 which we'll now break */
-      SETCDR(work, item);
     } else {
-      tmp = sib_pair(CDR(work), item);
-      SETCDR(work, tmp);
-      Py_DECREF(tmp);
+      Py_CLEAR(result);
     }
-
-    Py_DECREF(item);
-  }
-  Py_DECREF(iterator);
-
-  if (PyErr_Occurred())
-    return NULL;
-
-  if (! result) {
-    result = Sib_Nil;
-    Py_INCREF(result);
   }
 
-  // DEBUGMSG("merged into", result);
+  if (! PyList_GET_SIZE(coll)) {
+    // The collection didn't net any actual elements, so let's skip
+    // out early and just return nil
+
+    Py_DECREF(coll);
+    Py_INCREF(Sib_Nil);
+    return Sib_Nil;
+  }
+
+  // I wonder if there isn't a better way to do this. We end up
+  // traversing the last cons pair twice, which means allocating a set
+  // in order to avoid recursion. Is that too expensive?
+  work = PyTuple_GET_ITEM(seqs, count - 1);
+  if (SibPair_is_proper(work)) {
+    PyList_Append(coll, Sib_Nil);
+  }
+
+  // assemble coll into a pair
+  count = PyList_GET_SIZE(coll);
+  result = sib_pair(PyList_GET_ITEM(coll, 0), Sib_Nil);
+
+  if (count > 1) {
+    work = PyList_GET_ITEM(coll, --count);
+    while (--count) {
+      work = sib_pair(PyList_GET_ITEM(coll, count), work);
+    }
+    SETCDR(result, work);
+  }
+
+  Py_DECREF(coll);
   return result;
-}
-
-
-static PyObject *m_build_unpack_pair(PyObject *mod, PyObject *seqs) {
-  Py_ssize_t index = PyTuple_GET_SIZE(seqs);
-  PyObject *collect = PyTuple_New(index);
-  PyObject *fast = NULL;
-  Py_ssize_t fast_index = 0;
-  PyObject *item = NULL, *tmp = NULL;
-
-  while (index--) {
-    item = PyTuple_GET_ITEM(seqs, index);
-
-    if (Sib_Nilp(item)) {
-      Py_INCREF(item);
-
-    } else if (SibPair_CheckExact(item)) {
-      item = pair_copy(item, NULL);
-
-    } else {
-      fast = PySequence_Fast(item, "build_unpack_pair requires pairs or"
-			     " sequences");
-      if (! fast) {
-	Py_DECREF(collect);
-	return NULL;
-      }
-
-      fast_index = PySequence_Fast_GET_SIZE(fast);
-
-      if (fast_index == 0) {
-	item = Sib_Nil;
-	Py_INCREF(item);
-
-      } else if (fast_index == 1) {
-	item = sib_pair(PySequence_Fast_GET_ITEM(fast, 0),
-			Sib_Nil);
-
-      } else {
-	tmp = PyTuple_New(fast_index + 1);
-	Py_INCREF(Sib_Nil);
-	PyTuple_SET_ITEM(tmp, fast_index, Sib_Nil);
-	while (fast_index--) {
-	  item = PySequence_Fast_GET_ITEM(fast, fast_index);
-	  Py_INCREF(item);
-	  PyTuple_SET_ITEM(tmp, fast_index, item);
-	}
-	item = m_cons(mod, tmp, NULL);
-	Py_DECREF(tmp);
-      }
-
-      Py_DECREF(fast);
-    }
-
-    PyTuple_SET_ITEM(collect, index, item);
-  }
-
-  tmp = m_merge_pairs(mod, collect);
-  Py_DECREF(collect);
-  return tmp;
 }
 
 
@@ -1809,11 +1762,6 @@ static PyMethodDef methods[] = {
     "reapply(func, data, count) -> result data\n"
     "Calls `data = func(data)` count times (or until an exception is\n"
     "raised), and returns the final data value." },
-
-  { "merge_pairs", (PyCFunction) m_merge_pairs, METH_O,
-    "merge_pairs(pairs_seq) -> modified first pair\n"
-    "pairs_seq is a sequence of sibilant pairs. Modifies the final\n"
-    "element of each pair list to join the pairs together." },
 
   { "build_unpack_pair", (PyCFunction) m_build_unpack_pair, METH_VARARGS,
     "build_unpack_pair(*pair_or_seq) -> new pair\n"
