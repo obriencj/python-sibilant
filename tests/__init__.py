@@ -26,9 +26,9 @@ class Object(object):
     pass
 
 
-def compile_expr(src_str, **base):
+def compile_expr(src_str, builtins=None, **base):
     mod = fake_module_from_env(base)
-    init_module(mod, source_str(src_str, "<unittest>"), None)
+    init_module(mod, source_str(src_str, "<unittest>"), builtins)
 
     partial_run_time = partial(partial, run_time)
 
