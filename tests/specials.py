@@ -190,7 +190,8 @@ class Quasiquote(TestCase):
 
 
     def qq(self, src_str, expected, **env):
-        stmt, env = compile_expr(src_str, **env)
+        from sibilant import bootstrap
+        stmt, env = compile_expr(src_str, bootstrap, **env)
         res = stmt()
         self.assertEqual(res, expected)
 
@@ -205,6 +206,9 @@ class Quasiquote(TestCase):
         self.qq("`:tacos",
                 keyword("tacos"))
 
+        self.qq("`nil",
+                symbol("nil"))
+
         self.qq("`()",
                 nil)
 
@@ -215,20 +219,23 @@ class Quasiquote(TestCase):
                 cons(1, 2, 3, 4, 5, symbol("Z"), nil),
                 A=4, B=5)
 
-        self.qq("`(1 2 ,@A ,B)",
-                cons(1, 2, 3, 4, 5, nil),
-                A=cons(3, 4, nil), B=5)
+        self.qq("`(1 2 ,(foo 3 6))",
+                cons(1, 2, [3, 4, 5], nil),
+                foo=lambda a, b: list(range(a,b)))
+
+
+    def test_splice(self):
 
         self.qq("`(1 2 ,@A)",
                 cons(1, 2, 3, 4, 5, nil),
                 A=range(3, 6))
 
+        self.qq("`(1 2 ,@A ,B)",
+                cons(1, 2, 3, 4, 5, nil),
+                A=cons(3, 4, nil), B=5)
+
         self.qq("`(1 2 ,@(range 3 6))",
                 cons(1, 2, 3, 4, 5, nil))
-
-        self.qq("`(1 2 ,(foo 3 6))",
-                cons(1, 2, [3, 4, 5], nil),
-                foo=lambda a, b: list(range(a,b)))
 
         self.qq("`(,@foo)",
                 cons(1, 2, 3, nil),
@@ -236,6 +243,16 @@ class Quasiquote(TestCase):
 
 
     def test_nested(self):
+
+        self.qq("``,(+ 1 2)",
+                cons(symbol("quasiquote"),
+                     cons(symbol("unquote"),
+                          cons(symbol("+"),
+                               1, 2,
+                               nil),
+                          nil),
+                     nil))
+
         self.qq("`(1 2 `(foo ,(+ 1 2)))",
                 cons(1, 2,
                      cons(symbol("quasiquote"),
@@ -260,15 +277,6 @@ class Quasiquote(TestCase):
                           nil),
                      nil))
 
-        self.qq("``,(+ 1 2)",
-                cons(symbol("quasiquote"),
-                     cons(symbol("unquote"),
-                          cons(symbol("+"),
-                               1, 2,
-                               nil),
-                          nil),
-                     nil))
-
         self.qq("``,,(+ 1 2)",
                 cons(symbol("quasiquote"),
                      cons(symbol("unquote"),
@@ -289,12 +297,51 @@ class Quasiquote(TestCase):
                 foo=cons(1, 2, 3, nil))
 
 
-    def _test_improper(self):
+    def test_improper(self):
+
         self.qq("`(1 . 2)",
                 cons(1, 2))
 
         self.qq("`(1 . (2 3))",
                 cons(1, 2, 3, nil))
+
+        self.qq("`(1 . ,'(2 . 3))",
+                cons(1, 2, 3))
+
+        self.qq("`(1 . ,A)",
+                cons(1, 2),
+                A=2)
+
+        self.qq("`(1 . ,A)",
+                cons(1, 2, nil),
+                A=cons(2, nil))
+
+        self.qq("`(1 . ,A)",
+                cons(1, 2, 3),
+                A=cons(2, 3))
+
+
+    def test_improper_splice(self):
+
+        self.qq("`(1 . ,@A)",
+                cons(1, 2, 3),
+                A=cons(2, 3))
+
+        self.qq("`(1 . ,@A)",
+                cons(1, 2, 3, nil),
+                A=cons(2, 3, nil))
+
+        self.qq("`(1 . ,@A)",
+                cons(1, 2, 3),
+                A=range(2, 4))
+
+        self.qq("`(1 . ,@A)",
+                cons(1, nil),
+                A=range(0, 0))
+
+        self.qq("`(,@A . 4)",
+                cons(1, 2, 3, 4),
+                A=range(1, 4))
 
 
 class CompilerSpecials(TestCase):

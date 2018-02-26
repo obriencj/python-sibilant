@@ -25,6 +25,7 @@ from . import (
 )
 
 from .compiler import Special, gather_formals
+from .tco import trampoline, tailcall
 
 
 __all__ = []
@@ -119,22 +120,36 @@ def _helper_binding(code, source, required=True):
 
 def _helper_keyword(code, kwd):
     """
-    Pushes a the pseudo ops necessary to put a keyword on the stack
+    Pushes the pseudo ops necessary to put a keyword on the stack
     """
 
     code.pseudop_get_var("keyword")
     code.pseudop_const(str(kwd))
     code.pseudop_call(1)
+    return None
 
 
 def _helper_symbol(code, sym):
     """
-    Pushes a the pseudo ops necessary to put a symbol on the stack
+    Pushes the pseudo ops necessary to put a symbol on the stack
     """
 
     code.pseudop_get_var("symbol")
     code.pseudop_const(str(sym))
     code.pseudop_call(1)
+    return None
+
+
+def _helper_nil(code):
+    """
+    Pushes the pseud ops necessary to put a nil on the stack
+    """
+
+    # simple, but works. May want to do something other than a var
+    # lookup in the future.
+
+    code.pseudop_get_var("nil")
+    return None
 
 
 @special(_symbol_doc)
@@ -251,13 +266,13 @@ def _special_quote(code, source, tc=False):
 
 def _helper_quote(code, body, tc=False):
     if body is nil:
-        code.pseudop_get_var("nil")
+        return _helper_nil(code)
 
     elif is_keyword(body):
-        _helper_keyword(code, body)
+        return _helper_keyword(code, body)
 
     elif is_symbol(body):
-        _helper_symbol(code, body)
+        return _helper_symbol(code, body)
 
     elif is_pair(body):
         if is_proper(body):
@@ -267,10 +282,13 @@ def _helper_quote(code, body, tc=False):
 
         for index, expr in enumerate(body.unpack(), 1):
             _helper_quote(code, expr)
+
         code.pseudop_call(index)
+        return None
 
     else:
         code.pseudop_const(body)
+        return None
 
 
 @special(_symbol_quasiquote)
@@ -294,56 +312,52 @@ def _special_quasiquote(code, source, tc=False):
     return None
 
 
+@trampoline
 def _helper_quasiquote(code, marked, level=0):
-    # print("helper_quasiquote level:", level)
-    # print("marked:", marked)
 
-    if marked is nil or marked is _symbol_nil:
-        code.pseudop_get_var("nil")
-        return
+    # print("_helper_quasiquote", repr(marked), "level=", level)
+
+    if marked is nil:
+        return tailcall(_helper_nil)(code)
 
     elif is_keyword(marked):
-        _helper_keyword(code, marked)
-        return
+        return tailcall(_helper_keyword)(code, marked)
 
     elif is_symbol(marked):
-        _helper_symbol(code, marked)
-        return
+        return tailcall(_helper_symbol)(code, marked)
 
     elif is_pair(marked):
         if is_proper(marked):
             head, tail = marked
 
-            # special cases -- if the pair we're operating on is
-            # an unquote, unquote-splicing, or nested quasiquote, we'll
-            # defer to them right away and return.
+            # these handle cases where the nested unquote,
+            # unquote-spicing, or quasiquote are the immediate
+            # expression (as opposed to PART of the expression).
 
             if head is _symbol_unquote:
                 tail, _rest = tail
                 if level == 0:
-                    return code.add_expression(tail)
+                    return tailcall(code.add_expression)(tail)
                 else:
                     code.pseudop_get_var("build-proper")
                     _helper_symbol(code, head)
                     _helper_quasiquote(code, tail, level - 1)
                     code.pseudop_call(2)
-                    return
+                    return None
 
             elif head is _symbol_splice:
                 tail, _rest = tail
                 if level == 0:
-                    code.pseudop_get_var("build-proper")
-                    code.pseudop_get_var("to-tuple")
+                    code.pseudop_get_var("build-unpack-pair")
                     code.add_expression(tail)
                     code.pseudop_call(1)
-                    code.pseudop_call_var(0)
-                    return
+                    return None
                 else:
                     code.pseudop_get_var("build-proper")
                     _helper_symbol(code, head)
                     _helper_quasiquote(code, tail, level - 1)
                     code.pseudop_call(2)
-                    return
+                    return None
 
             elif head is _symbol_quasiquote:
                 tail, _rest = tail
@@ -351,126 +365,180 @@ def _helper_quasiquote(code, marked, level=0):
                 _helper_symbol(code, head)
                 _helper_quasiquote(code, tail, level + 1)
                 code.pseudop_call(2)
-                return
+                return None
 
-        # otherwise, it was not one of the special cases, so we're in
-        # for the long haul and will need to begin setting up for a
-        # build-unpack-pair call
-        code.pseudop_get_var("build-unpack-pair")
-
-        coll_tup = 0  # the count of collected tuples
-        curr_tup = 0  # the size of the current tuple
-
-        for p_expr in marked.follow():
-            if p_expr is nil:
-                continue
-
-            expr, p_tail = p_expr
-
-            if expr is nil or expr is _symbol_nil:
-                curr_tup += 1
-                code.pseudop_get_var("nil")
-                continue
-
-            elif is_keyword(expr):
-                _helper_keyword(code, expr)
-                curr_tup += 1
-                continue
-
-            elif is_symbol(expr):
-                _helper_symbol(code, expr)
-                curr_tup += 1
-                continue
-
-            elif is_pair(expr):
-                if is_proper(expr):
-                    head, tail = expr
-
-                    if head is _symbol_quasiquote:
-                        tail, _rest = tail
-                        code.pseudop_get_var("build-proper")
-                        _helper_symbol(code, head)
-                        _helper_quasiquote(code, tail, level + 1)
-                        code.pseudop_call(2)
-                        curr_tup += 1
-                        continue
-
-                    elif head is _symbol_unquote:
-                        u_expr, tail = tail
-
-                        if level == 0:
-                            # either not proper or not splice
-                            code.add_expression(u_expr)
-                            curr_tup += 1
-                            continue
-
-                        else:
-                            # not level 0, recurse with one less level
-                            code.pseudop_get_var("build-proper")
-                            _helper_symbol(code, head)
-                            _helper_quasiquote(code, u_expr, level - 1)
-                            code.pseudop_call(2)
-                            curr_tup += 1
-                            continue
-
-                    elif head is _symbol_splice:
-                        u_expr, tail = tail
-
-                        if level == 0:
-                            if curr_tup:
-                                code.pseudop_build_tuple(curr_tup)
-                                curr_tup = 0
-                                coll_tup += 1
-
-                            # code.pseudop_get_var("to-tuple")
-                            code.add_expression(u_expr)
-                            # code.pseudop_call(1)
-                            coll_tup += 1
-                            continue
-
-                        else:
-                            code.pseudop_get_var("build-proper")
-                            _helper_symbol(code, head)
-                            _helper_quasiquote(code, u_expr, level - 1)
-                            code.pseudop_call(2)
-                            curr_tup += 1
-                            continue
-
-                # a pair, but not an unquote
-                _helper_quasiquote(code, expr, level)
-                curr_tup += 1
-                continue
-
-            else:
-                # not a nil, symbol, or pair, so evaluates to its
-                # own code as a constant
-                code.pseudop_const(expr)
-                curr_tup += 1
-                continue
-
-        # after iterating through the expressions of marked.unpack
-        # we can check if we've accumulated anything.
-        if curr_tup:
-            code.pseudop_build_tuple(curr_tup)
-            curr_tup = 0
-            coll_tup += 1
-
-        assert coll_tup, "no members accumulated"
-        # code.pseudop_build_tuple_unpack(coll_tup)
-        # code.pseudop_call_var(0)
-
-        if is_proper(marked):
-            code.pseudop_get_var("nil")
-            coll_tup += 1
-
-        # finally invoke build-unpack-pair with the count of the mixed
-        # tuple and pair arguments on the stack.
-        code.pseudop_call(coll_tup)
+        # fall through for improper pairs, or pairs which aren't one
+        # of the special invocations
+        return tailcall(_helper_quasiquote_p)(code, marked, level)
 
     else:
-        # the thing we're quasiquoting isn't a keyword, symbol or
-        # pair. it had better be something we can store as a const!
         code.pseudop_const(marked)
+        return None
+
+
+def _helper_quasiquote_p(code, marked, level):
+    coll_tup = 0  # number of completed tuples for build-unpack-pair
+    curr_tup = 0  # items in the current WIP tuple
+
+    def push_curr():
+        # pushes a new item into current. Will also push the cons
+        # call onto the stack first, if this is the first item
+        nonlocal curr_tup
+        # if not curr_tup:
+        #    code.pseudop_get_var("cons")
+        curr_tup += 1
+
+    def done_curr():
+        # if there was a current, complete it and increment the
+        # collected count.
+        nonlocal coll_tup
+        nonlocal curr_tup
+
+        if not curr_tup:
+            return
+
+        # code.pseudop_call(curr_tup)
+        code.pseudop_build_tuple(curr_tup)
+        coll_tup += 1
+        curr_tup = 0
+
+    def push_coll():
+        # if there was a current, complete it and increment the
+        # collected count. Then increment the collected count again.
+        nonlocal coll_tup
+        done_curr()
+        coll_tup += 1
+
+    code.pseudop_get_var("build-unpack-pair")
+
+    for p_expr in marked.follow():
+        if p_expr is nil:
+            push_coll()
+            _helper_nil(code)
+            break
+
+        elif not is_pair(p_expr):
+            push_curr()
+            _helper_quasiquote(code, p_expr, level)
+            continue
+
+        expr, p_tail = p_expr
+
+        if expr is nil:
+            push_curr()
+            _helper_nil(code)
+            continue
+
+        elif is_symbol(expr):
+            if expr is _symbol_unquote:
+                u_expr, tail = p_tail
+
+                if level == 0:
+                    push_curr()
+                    code.add_expression(u_expr)
+                    break
+                else:
+                    push_curr()
+                    code.pseudop_get_var("build-proper")
+                    _helper_symbol(code, expr)
+                    _helper_quasiquote(code, u_expr, level - 1)
+                    code.pseudop_call(2)
+                    break
+
+            elif expr is _symbol_quasiquote:
+                u_expr, tail = p_expr
+
+                push_curr()
+                code.pseudop_get_var("build-proper")
+                _helper_symbol(code, expr)
+                _helper_quasiquote(code, u_expr, level + 1)
+                code.pseudop_call(2)
+                break
+
+            elif expr is _symbol_splice:
+                u_expr, tail = p_tail
+
+                if level == 0:
+                    push_coll()
+                    code.add_expression(u_expr)
+                    break
+                else:
+                    push_curr()
+                    code.pseudop_get_var("build-proper")
+                    _helper_symbol(code, expr)
+                    _helper_quasiquote(code, u_expr, level - 1)
+                    code.pseudop_call(2)
+                    break
+
+            else:
+                push_curr()
+                _helper_symbol(code, expr)
+                continue
+
+        elif is_keyword(expr):
+            push_curr()
+            _helper_keyword(code, expr)
+            continue
+
+        elif is_pair(expr):
+            if is_proper(expr):
+                head, tail = expr
+
+                if head is _symbol_unquote:
+                    u_expr, tail = tail
+
+                    if level == 0:
+                        push_curr()
+                        code.add_expression(u_expr)
+                        continue
+                    else:
+                        push_curr()
+                        code.pseudop_get_var("build-proper")
+                        _helper_symbol(code, head)
+                        _helper_quasiquote(code, u_expr, level - 1)
+                        code.pseudop_call(2)
+                        continue
+
+                elif head is _symbol_quasiquote:
+                    u_expr, tail = tail
+
+                    push_curr()
+                    code.pseudop_get_var("build-proper")
+                    _helper_symbol(code, head)
+                    _helper_quasiquote(code, u_expr, level + 1)
+                    code.pseudop_call(2)
+                    continue
+
+                elif head is _symbol_splice:
+                    u_expr, tail = tail
+
+                    # todo: if tail, err, since splice only takes one arg
+
+                    if level == 0:
+                        push_coll()
+                        code.add_expression(u_expr)
+                        continue
+                    else:
+                        push_curr()
+                        code.pseudop_get_var("build-proper")
+                        _helper_symbol(code, head)
+                        _helper_quasiquote(code, u_expr, level - 1)
+                        code.pseudop_call(2)
+                        continue
+
+            push_curr()
+            _helper_quasiquote_p(code, expr, level)
+
+        else:
+            push_curr()
+            _helper_quasiquote(code, expr, level)
+
+    done_curr()
+
+    # invoke the build-unpack-pair function with the number of
+    # collected tuples we've pushed onto the stack.
+    code.pseudop_call(coll_tup)
+    return None
 
 
 @special(_symbol_begin)
