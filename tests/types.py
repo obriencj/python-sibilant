@@ -410,28 +410,28 @@ class BuildUnpackPairTest(TestCase):
         # build_unpack_pair, including empties and impropers
 
         self.assertEqual(b_u_p([1, 2, 3]),
-                         cons(1, 2, 3, nil))
+                         cons(1, 2, 3))
 
         self.assertEqual(b_u_p([1, 2, 3], []),
-                         cons(1, 2, 3, nil))
+                         cons(1, 2, 3))
 
         self.assertEqual(b_u_p([1, 2, 3], [4]),
-                         cons(1, 2, 3, 4, nil))
+                         cons(1, 2, 3, 4))
 
         self.assertEqual(b_u_p([1, 2, 3], [], [4]),
-                         cons(1, 2, 3, 4, nil))
+                         cons(1, 2, 3, 4))
 
         self.assertEqual(b_u_p([1, 2, 3], [], [1, 2]),
-                         cons(1, 2, 3, 1, 2, nil))
+                         cons(1, 2, 3, 1, 2))
 
         self.assertEqual(b_u_p(cons(1, nil), nil, [1, 2]),
-                         cons(1, 1, 2, nil))
+                         cons(1, 1, 2))
 
         self.assertEqual(b_u_p([1, 2, 3], nil),
                          cons(1, 2, 3, nil))
 
         self.assertEqual(b_u_p([1, 2, 3], [nil]),
-                         cons(1, 2, 3, nil, nil))
+                         cons(1, 2, 3, nil))
 
         self.assertEqual(b_u_p([1, 2, 3], [], nil),
                          cons(1, 2, 3, nil))
@@ -445,10 +445,20 @@ class BuildUnpackPairTest(TestCase):
                          cons(1, 2, 3, 4, nil))
 
         self.assertEqual(b_u_p([1]),
-                         cons(1, nil))
+                         cons(1))
 
-        # if the last sequence is an improper cons pair, the result
-        # should similarly be improper.
+        self.assertEqual(b_u_p(cons(1, 2), cons(3, 4)),
+                         cons(1, 2, 3, 4))
+
+        self.assertEqual(b_u_p(cons(1, 2, nil), cons(3, 4)),
+                         cons(1, 2, 3, 4))
+
+        self.assertEqual(b_u_p(cons(1, 2, nil), cons(3, 4, nil)),
+                         cons(1, 2, 3, 4, nil))
+
+        self.assertEqual(b_u_p(cons(1, 2), cons(3, 4, nil)),
+                         cons(1, 2, 3, 4, nil))
+
         self.assertEqual(b_u_p(cons(1, 2)),
                          cons(1, 2))
 
@@ -480,9 +490,12 @@ class BuildUnpackPairTest(TestCase):
     def test_good_iterable(self):
         # an iterable is fine
         self.assertEqual(b_u_p(range(0, 0)), nil)
-        self.assertEqual(b_u_p(range(0, 3)), cons(0, 1, 2, nil))
-        self.assertEqual(b_u_p(range(0, 3), [3]), cons(0, 1, 2, 3, nil))
-        self.assertEqual(b_u_p([0], range(1, 4)), cons(0, 1, 2, 3, nil))
+        self.assertEqual(b_u_p(range(0, 3)), cons(0, 1, 2))
+        self.assertEqual(b_u_p(range(0, 3), nil), cons(0, 1, 2, nil))
+        self.assertEqual(b_u_p(range(0, 3), [3]), cons(0, 1, 2, 3))
+        self.assertEqual(b_u_p(range(0, 3), [3, nil]), cons(0, 1, 2, 3, nil))
+        self.assertEqual(b_u_p([0], range(1, 4)), cons(0, 1, 2, 3))
+        self.assertEqual(b_u_p([0], range(1, 4), nil), cons(0, 1, 2, 3, nil))
 
 
     def test_raise_iterable(self):

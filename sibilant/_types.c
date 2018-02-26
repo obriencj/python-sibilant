@@ -1454,10 +1454,9 @@ static PyObject *m_cons(PyObject *mod, PyObject *args, PyObject *kwds) {
   int recursive = 0;
   int count = PyTuple_Size(args);
 
-  if (count < 1) {
-    PyErr_SetString(PyExc_TypeError,
-		    "cons requires at least one positional argument");
-    return NULL;
+  if (! count) {
+    Py_INCREF(Sib_Nil);
+    return Sib_Nil;
   }
 
   if (kwds) {
@@ -1659,7 +1658,7 @@ static PyObject *m_build_unpack_pair(PyObject *mod, PyObject *seqs) {
   // traversing the last cons pair twice, which means allocating a set
   // in order to avoid recursion. Is that too expensive?
   work = PyTuple_GET_ITEM(seqs, count - 1);
-  if ((! SibPair_CheckExact(work)) || (SibPair_is_proper(work))) {
+  if (SibPair_is_proper(work)) {
     PyList_Append(coll, Sib_Nil);
   }
 
