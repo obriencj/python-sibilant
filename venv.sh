@@ -24,7 +24,8 @@ Builds and deploys into a virtualenv under:
 COMMAND may be one of the following:
 
   help          show this message and exit
-  install       create the virtualenv and install into it
+  init          setup (and clear if existing) a basic virtualenv
+  install       install into the virtualenv
   sibilant      run sibilant from the virtualenv
   python        run python from the virtualenv
   pip           run pip from the virtualenv
@@ -39,10 +40,16 @@ fi
 echo -e "Current branch is $BRANCH so working in:\n $VDIR"
 
 case "$CMD" in
-    install)
+    init)
 	mkdir -p "$VDIR"
+	virtualenv --python="$SYSPYTHON" --clear "$@" "$VDIR" || exit $?
+	;;
 
-	virtualenv --python="$SYSPYTHON" "$@" "$VDIR" || exit $?
+    install)
+	if test ! -e "$VDIR" ; then
+	    mkdir -p "$VDIR"
+	    virtualenv --python="$SYSPYTHON" "$@" "$VDIR" || exit $?
+	fi
 	"$VBIN/python" setup.py clean build install || exit $?
 
 	;;
