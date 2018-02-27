@@ -27,17 +27,28 @@ from ._tco import trampoline, tailcall
 
 
 __all__ = (
-    "trampoline", "tailcall", "tco_disable",
+    "trampoline", "tailcall", "tailcall_disable", "tailcall_enable",
 )
 
 
-def tco_disable(fun):
+def tailcall_disable(fun):
     """
     Decorator to instruct the tailcall optimization to never tailcall
     bounce the given function.
     """
 
     fun._tco_enable = False
+
+    return fun
+
+
+def tailcall_enable(fun):
+    """
+    Decorator to instruct the tailcall optimization to tailcall bounce
+    the given function.
+    """
+
+    fun._tco_enable = True
 
     return fun
 

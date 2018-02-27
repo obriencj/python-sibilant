@@ -141,7 +141,8 @@ def __setup__(glbls):
 
     _op(tco.trampoline, "trampoline")
     _op(tco.tailcall, "tailcall")
-    _op(tco.tco_disable, "tco-disable")
+    _op(tco.tailcall_disable, "tailcall-disable")
+    _op(tco.tailcall_enable, "tailcall-enable")
 
     _op(compiler.current, "active-compiler")
 

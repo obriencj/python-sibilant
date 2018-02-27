@@ -18,7 +18,7 @@ from os.path import split, getmtime, getsize
 from types import ModuleType
 
 from sibilant.compiler import Mode, code_space_for_version
-from sibilant.tco import trampoline, tailcall
+from sibilant.tco import trampoline, tailcall, tailcall_enable
 from sibilant.parse import default_reader, source_open, source_str
 
 
@@ -29,11 +29,6 @@ __all__ = (
     "run_time", "partial_run_time",
     "exec_marshal_module", "marshal_wrapper", "compile_to_file",
 )
-
-
-def _tco_bounce(fun):
-    fun._tco_enable = True
-    return fun
 
 
 def new_module(name):
@@ -206,7 +201,7 @@ def run_time(module, code_obj):
     return tailcall(evaluator)(code_obj)
 
 
-@_tco_bounce
+@tailcall_enable
 def partial_run_time(module, code_obj):
     evaluator = get_module_evaluator(module)
     return partial(evaluator, code_obj)
