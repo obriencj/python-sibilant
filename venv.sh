@@ -2,7 +2,8 @@
 
 
 VENV="$HOME/.virtualenvs"
-BRANCH=$(git symbolic-ref --short -q HEAD)
+BRANCH=$(git symbolic-ref --short -q HEAD 2>/dev/null || \
+	 echo "unknown-branch")
 
 VDIR="$VENV/sibilant-$BRANCH"
 VBIN="$VDIR/bin"
@@ -11,12 +12,25 @@ CMD="$1"
 shift
 
 
-SYSPYTHON=$(readlink -f $(which python3))
+SYSPYTHON=$(which python3)
+if test ! -x "$SYSPYTHON" ; then
+    echo "Error: Could not find python3, exiting."
+    exit 1
+fi
+
+# prevent virtualenv from ending up with too deeply nested symlinks
+SYSPYTHON=$(readlink -f "$SYSPYTHON")
+
+
+if test ! -x "$(which virtualenv)" ; then
+    echo "Error: Could not find virtualenv, exiting."
+    exit 1
+fi
 
 
 if test "$CMD" == "help" || test -z "$CMD" ; then
     cat <<EOF
-Usage: $0 COMMAND
+Usage: $0 COMMAND [CMD_OPTS]
 
 Builds and deploys into a virtualenv under:
  $VDIR
@@ -26,11 +40,13 @@ COMMAND may be one of the following:
   help          show this message and exit
   init          setup (and clear if existing) a basic virtualenv
   install       install into the virtualenv
-  sibilant      run sibilant from the virtualenv
   python        run python from the virtualenv
   pip           run pip from the virtualenv
-  sys-python    run system python with PYTHONHOME set (fix wx issues)
-  sys-python    run sibilant using system python with PYTHONHOME set
+  sibilant      run sibilant from the virtualenv
+  sys-python    run system python with PYTHONHOME set (fixes wx issues)
+  sys-sibilant  run sibilant using system python with PYTHONHOME set
+
+CMD_OPTS are passed to the handler for the COMMAND (where applicable)
 
 EOF
     exit 1
