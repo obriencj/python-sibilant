@@ -6,6 +6,20 @@ python:
   - "3.6"
   - "3.7-dev"
 
-script: python setup.py test
+install:
+  - "pip install appdirs flake8"
+
+script:
+  - "python setup.py test flake8"
+
+notifications:
+  irc:
+    channels:
+      - "chat.freenode.net#python-sibilant"
+    on_success: change
+    on_failure: always
+    use_notice: true
+    skip_join: true
+
 
 # The end.

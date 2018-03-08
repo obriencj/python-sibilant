@@ -58,6 +58,11 @@ PyTypeObject SibKeywordType;
   ((obj) && PyType_IsSubtype((obj)->ob_type, &SibKeywordType))
 
 
+long SibPair_is_proper(PyObject *self);
+
+long SibPair_is_recursive(PyObject *self);
+
+
 PyObject *sib_symbol(PyObject *name);
 
 PyObject *sib_keyword(PyObject *name);

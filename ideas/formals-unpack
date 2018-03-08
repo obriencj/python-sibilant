@@ -1,0 +1,36 @@
+Go for something similar to the breakdown of Python's function arguments
+
+
+A values object would need to hold args and kwds both, rather than
+being simply an alias for a tuple.
+
+(values 1 2 foo: 9)
+
+
+(setq-values (a b c: None *: args **: kwds)
+	     (values 1 2 foo: 9))
+
+-> a = 1, b = 2, c = None, args = (), kwds = {"foo": 9}
+
+
+The trick here is two steps, which mirror Python's function invocation.
+
+1. accumulate positionals and keywords
+2. peel values from positionals and keywords into a name mapping
+
+
+Implement values as a type which simply stores its C args and C kwds
+init arguments.
+
+I wonder if I can find Python's assignment routines and use them?
+
+Perhaps allow for a style of invocation using just a values object?
+
+(var myval (values 1 2 3 foo: 100))
+(foo : myval)
+
+
+Allow a values to iterate, but only over the positionals.
+Allow a values to state keys, but only over the keywords
+Allow a values to getitem -- integers over positionals, strings over keywords
+(confusing but... apt?)

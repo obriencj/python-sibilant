@@ -16,6 +16,11 @@
 ;; license: LGPL v.3
 
 
+
+;; disable TCO for the following stuff, they don't need to bounce
+(set-attr __compiler__ tco_enabled False)
+
+
 ;; === defines ===
 
 (define-global defmacro
@@ -292,14 +297,14 @@
 ;; === flet and values ===
 
 (defmacro labels (declarations . body)
-  (setq declarations (to-tuple declarations))
+  (setq declarations (tuple (declarations.unpack)))
   `(let (,@(map (lambda (d) `(,(car d) None)) declarations))
      ,@(map (lambda (d) `(def function ,@d)) declarations)
      ,@body))
 
 
 (defmacro flet (declarations . body)
-  (setq declarations (to-tuple declarations))
+  (setq declarations (tuple (declarations.unpack)))
   `(let (,@(map (lambda (d) `(,(car d) (lambda ,@(cdr d)))) declarations))
      ,@body))
 
@@ -495,6 +500,94 @@
 
 (defmacro send (iterator value)
   `((attr ,iterator send) ,value))
+
+
+;; === some simple converters ===
+
+
+(let ((pair_? pair?)
+      (len_ len)
+      (tuple_ tuple)
+      (list_ list)
+      (set_ set))
+
+  (defun as-tuple (value)
+    (doc "
+    (to-tuple VALUE)
+
+    Converts VALUE to a tuple. If VALUE is a cons pair, will unpack
+    it. Otherwise, VALUE will be iterated over and its contents
+    collected.
+    ")
+
+    (tuple_
+     (if (pair_? value)
+	 then: (value.unpack)
+	 else: value)))
+
+
+  (defun as-list (value)
+    (doc "
+    (to-list VALUE)
+
+    Converts VALUE to a list. If VALUE is a cons pair, will unpack
+    it. Otherwise, VALUE will be iterated over and its contents
+    collected.
+    ")
+
+    (list_
+     (if (pair_? value)
+	 then: (value.unpack)
+	 else: value)))
+
+
+  (defun as-set (value)
+    (doc "
+    (to-set VALUE)
+
+    Converts VALUE to a set. If VALUE is a cons pair, will unpack
+    it. Otherwise, VALUE will be iterated over and its contents
+    collected.
+    ")
+
+    (set_
+     (if (pair_? value)
+	 then: (value.unpack)
+	 else: value)))
+
+
+  (defun count (value)
+    (doc "
+    (count VALUE)
+
+    The number of items in VALUE. If VALUE is a cons pair, will unpack
+    it. Otherwise, identical to (len VALUE)
+    ")
+    (if (pair_? value)
+	then: (value.count)
+	else: (len_ value)))
+
+
+  (defun apply (fun arglist: (tuple) kwargs: (dict))
+    (doc "
+    (apply FUN)
+    (apply FUN arglist: POSITIONALS)
+    (apply FUN kwargs: KEYWORDS)
+    (apply FUN arglist: POSITIONALS kwargs: KEYWORDS)
+
+    Invokes FUN as a function, with optional iterable POSITIONALS as
+    positional arguments, and optional mapping KEYWORDS as keyword
+    arguments.
+
+    If POSITIONALS is a a cons pair, it will be unpacked instead of
+    iterated.
+    ")
+
+    (when (pair_? arglist) (setq arglist (arglist.unpack)))
+    (fun *: arglist **: kwargs))
+
+
+  None)
 
 
 ;;

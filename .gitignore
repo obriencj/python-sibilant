@@ -8,6 +8,7 @@
 *~
 .#*
 .coverage
+.venv
 MANIFEST
 __pycache__
 _build

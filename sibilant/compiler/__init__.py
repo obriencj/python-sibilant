@@ -932,7 +932,9 @@ class CodeSpace(metaclass=ABCMeta):
 
         addtl["name"] = name
         addtl["declared_at"] = declared_at
+
         addtl.setdefault("filename", self.filename)
+        addtl.setdefault("tco_enabled", self.tco_enabled)
 
         return type(self)(parent=self, **addtl)
 
