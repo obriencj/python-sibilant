@@ -31,41 +31,41 @@ from .tco import trampoline, tailcall
 __all__ = []
 
 
-_symbol_nil = symbol("nil")
-
-_symbol_doc = symbol("doc")
 _symbol_attr = symbol("attr")
+_symbol_begin = symbol("begin")
+_symbol_break = symbol("break")
+_symbol_cond = symbol("cond")
+_symbol_continue = symbol("continue")
+_symbol_define = symbol("define")
+_symbol_define_global = symbol("define-global")
+_symbol_define_values = symbol("define-values")
+_symbol_doc = symbol("doc")
+_symbol_for_each = symbol("for-each")
+_symbol_function = symbol("function")
+_symbol_global = symbol("global")
+_symbol_import = symbol("import")
+_symbol_lambda = symbol("lambda")
+_symbol_let = symbol("let")
+_symbol_nil = symbol("nil")
+_symbol_quasiquote = symbol("quasiquote")
+_symbol_quote = symbol("quote")
+_symbol_return = symbol("return")
 _symbol_set_attr = symbol("set-attr")
 _symbol_setq = symbol("setq")
 _symbol_setq_values = symbol("setq-values")
-_symbol_define_values = symbol("define-values")
-_symbol_global = symbol("global")
-_symbol_define = symbol("define")
-_symbol_var = symbol("var")
-_symbol_define_global = symbol("define-global")
-_symbol_quote = symbol("quote")
-_symbol_quasiquote = symbol("quasiquote")
-_symbol_unquote = symbol("unquote")
 _symbol_splice = symbol("unquote-splicing")
-_symbol_begin = symbol("begin")
-_symbol_cond = symbol("cond")
-_symbol_lambda = symbol("lambda")
-_symbol_function = symbol("function")
-_symbol_with = symbol("with")
-_symbol_let = symbol("let")
-_symbol_for_each = symbol("for-each")
-_symbol_while = symbol("while")
-_symbol_continue = symbol("continue")
-_symbol_break = symbol("break")
 _symbol_try = symbol("try")
-_symbol_return = symbol("return")
+_symbol_unquote = symbol("unquote")
+_symbol_var = symbol("var")
+_symbol_while = symbol("while")
+_symbol_with = symbol("with")
 _symbol_yield = symbol("yield")
 _symbol_yield_from = symbol("yield-from")
 
-_keyword_else = keyword("else")
 _keyword_as = keyword("as")
+_keyword_else = keyword("else")
 _keyword_finally = keyword("finally")
-_keyword_star = keyword("*:")
+_keyword_star = keyword("*")
 
 
 def special(namesym, *aliases, glbls=globals()):
@@ -153,7 +153,7 @@ def _helper_nil(code):
 
 
 @special(_symbol_doc)
-def _special_doc(code, source, tc=False):
+def special_doc(code, source, tc=False):
     """
     (doc STR STR...)
     joins STR together and sets it as the docstr for the parent scope
@@ -179,7 +179,7 @@ def _special_doc(code, source, tc=False):
 
 
 @special(_symbol_attr)
-def _special_get_attr(code, source, tc=False):
+def special_get_attr(code, source, tc=False):
     """
     (attr OBJECT SYM)
 
@@ -207,7 +207,7 @@ def _special_get_attr(code, source, tc=False):
 
 
 @special(_symbol_set_attr)
-def _special_set_attr(code, source, tc=False):
+def special_set_attr(code, source, tc=False):
     """
     (set-attr OBJECT SYM EXPRESSION)
 
@@ -238,7 +238,7 @@ def _special_set_attr(code, source, tc=False):
 
 
 @special(_symbol_quote)
-def _special_quote(code, source, tc=False):
+def special_quote(code, source, tc=False):
     """
     (quote FORM)
 
@@ -292,7 +292,7 @@ def _helper_quote(code, body, tc=False):
 
 
 @special(_symbol_quasiquote)
-def _special_quasiquote(code, source, tc=False):
+def special_quasiquote(code, source, tc=False):
     """
     (quasiquote EXPR)
     Special form for quasiquote
@@ -542,7 +542,7 @@ def _helper_quasiquote_p(code, marked, level):
 
 
 @special(_symbol_begin)
-def _special_begin(code, source, tc=False):
+def special_begin(code, source, tc=False):
     """
     (begin EXPR EXPR...)
 
@@ -585,7 +585,7 @@ def _helper_begin(code, body, tc):
 
 
 @special(_symbol_with)
-def _special_with(code, source, tc=False):
+def special_with(code, source, tc=False):
     """
     (with (BINDING EXPRESSION) BODY...)
 
@@ -620,7 +620,7 @@ def _special_with(code, source, tc=False):
 
 
 @special(_symbol_lambda)
-def _special_lambda(code, source, tc=False):
+def special_lambda(code, source, tc=False):
     """
     (lambda (FORMAL...) BODY...)
 
@@ -641,7 +641,7 @@ def _special_lambda(code, source, tc=False):
 
 
 @special(_symbol_function)
-def _special_function(code, source, tc=False):
+def special_function(code, source, tc=False):
     """
     (function NAME (FORMAL...) BODY...)
 
@@ -687,7 +687,7 @@ def _special_function(code, source, tc=False):
 
 
 @special(_symbol_let)
-def _special_let(code, source, tc=False):
+def special_let(code, source, tc=False):
     """
     (let ((BINDING EXPR) ...) BODY...)
 
@@ -824,7 +824,7 @@ def _helper_function(code, name, args, body,
 
 
 @special(_symbol_while)
-def _special_while(code, source, tc=False):
+def special_while(code, source, tc=False):
     """
     (while TEST_EXPR BODY...)
 
@@ -893,7 +893,7 @@ def _special_while(code, source, tc=False):
 
 
 @special(_symbol_for_each)
-def _special_for_each(code, source, tc=False):
+def special_for_each(code, source, tc=False):
     """
     (for-each (BINDING  ITEREXPR) . BODY)
     """
@@ -947,7 +947,7 @@ def _special_for_each(code, source, tc=False):
 
 
 @special(_symbol_setq_values)
-def _special_setq_values(code, source, tc=False):
+def special_setq_values(code, source, tc=False):
     """
     (setq-values BINDINGS VALUES_EXPR)
 
@@ -973,7 +973,7 @@ def _special_setq_values(code, source, tc=False):
 
 
 @special(_symbol_define_values)
-def _special_define_values(code, source, tc=False):
+def special_define_values(code, source, tc=False):
     """
     (define-values BINDINGS VALUES_EXPR)
 
@@ -1107,7 +1107,7 @@ def _helper_setq_values(code, bindings, declare):
 
 
 @special(_symbol_continue)
-def _special_continue(code, source, tc=False):
+def special_continue(code, source, tc=False):
 
     from .compiler import Block
 
@@ -1142,7 +1142,7 @@ def _special_continue(code, source, tc=False):
 
 
 @special(_symbol_break)
-def _special_break(code, source, tc=False):
+def special_break(code, source, tc=False):
 
     from .compiler import Block
 
@@ -1172,7 +1172,7 @@ def _special_break(code, source, tc=False):
 
 
 @special(_symbol_return)
-def _special_return(code, source, tc=False):
+def special_return(code, source, tc=False):
 
     called_by, rest = source
 
@@ -1200,7 +1200,7 @@ def _special_return(code, source, tc=False):
 
 
 @special(_symbol_yield)
-def _special_yield(code, source, tc=False):
+def special_yield(code, source, tc=False):
 
     called_by, rest = source
 
@@ -1226,7 +1226,7 @@ def _special_yield(code, source, tc=False):
 
 
 @special(_symbol_yield_from)
-def _special_yield_from(code, source, tc=False):
+def special_yield_from(code, source, tc=False):
 
     try:
         called_by, (value, rest) = source
@@ -1262,7 +1262,7 @@ def _special_yield_from(code, source, tc=False):
 
 
 @special(_symbol_try)
-def _special_try(code, source, tc=False):
+def special_try(code, source, tc=False):
     """
     (try EXPR
       (except: EXCEPTION_TYPE EXC_BODY...)
@@ -1506,7 +1506,7 @@ def _except_match(code, key, match,
 
 
 @special(_symbol_setq)
-def _special_setq(code, source, tc=False):
+def special_setq(code, source, tc=False):
     """
     (setq SYM EXPR)
 
@@ -1537,7 +1537,7 @@ def _special_setq(code, source, tc=False):
 
 
 @special(_symbol_global)
-def _special_global(code, source, tc=False):
+def special_global(code, source, tc=False):
     """
     (global SYM)
     Evaluates a symbol in the global scope. This is useful if the
@@ -1555,7 +1555,7 @@ def _special_global(code, source, tc=False):
 
 
 @special(_symbol_define_global)
-def _special_define_global(code, source, tc=False):
+def special_define_global(code, source, tc=False):
     """
     (define-global SYM EXPRESSION)
 
@@ -1580,7 +1580,7 @@ def _special_define_global(code, source, tc=False):
 
 
 @special(_symbol_define, _symbol_var)
-def _special_define(code, source, tc=False):
+def special_define(code, source, tc=False):
     """
     (define SYM EXPRESSION)
 
@@ -1617,7 +1617,7 @@ def _special_define(code, source, tc=False):
 
 
 @special(_symbol_cond)
-def _special_cond(code, source, tc=False):
+def special_cond(code, source, tc=False):
     """
     (cond (TEST_EXPRESSION BODY...)... )
     Conditionally executes body depending on a test expression. Multiple
