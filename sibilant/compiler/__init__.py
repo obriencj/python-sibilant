@@ -13,6 +13,16 @@
 # <http://www.gnu.org/licenses/>.
 
 
+"""
+sibilant.compiler
+
+The sibilant compiler. Converts expressions into Python bytecode.
+
+author: Christopher O'Brien <obriencj@gmail.com>
+license: LGPL v.3
+"""
+
+
 import dis
 import threading
 

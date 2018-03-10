@@ -16,7 +16,11 @@
 
 
 /**
-   This is a native implementation of the TCO module for sibilant
+   sibilant._tco
+
+   Native implementation of the TCO trampoline and state for
+   sibilant. These functions are re-exported from the sibilant.tco
+   module.
 
    author: Christopher O'Brien  <obriencj@gmail.com>
    license: LGPL v.3

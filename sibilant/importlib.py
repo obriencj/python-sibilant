@@ -14,7 +14,10 @@
 
 
 """
-importlib extensions used for loading sibilant modules.
+sibilant.importlib
+
+importlib extensions used for loading sibilant modules via the import
+statement and opcodes.
 
 author: Christopher O'Brien  <obriencj@gmail.com>
 license: LGPL v.3

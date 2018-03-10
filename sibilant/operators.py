@@ -14,7 +14,10 @@
 
 
 """
-The built-in operators with compile-time optimizations
+The built-in operators with compile-time optimizations.
+
+author: Christopher O'Brien <obriencj@gmail.com>
+license: LGPL v.3
 """
 
 

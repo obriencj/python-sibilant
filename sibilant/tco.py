@@ -14,9 +14,9 @@
 
 
 """
-sibilant.lib.tco
+sibilant.tco
 
-Ultra Simple Tail-Calls via Trampoline
+Tailcall features for sibilant.
 
 author: Christopher O'Brien  <obriencj@gmail.com>
 license: LGPL v.3

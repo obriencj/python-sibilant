@@ -13,6 +13,29 @@
 # <http://www.gnu.org/licenses/>.
 
 
+"""
+sibilant.module
+
+Module lifecycle for sibilant source files. Provides a read, compile,
+and eval sequence for creating a module from sibilant source code.
+
+When a module is loaded from a source file, each top-level expression
+is read, then compiled, then evaluated in order. This allows
+expressions to modify the module state for successive expressions, by
+adding reader or compiler macros for example, or by adjusting aspects
+of the compiler.
+
+Expressions can be individually compiled to code objects, and those
+code objects can be combined into a single module code object to
+produce a .pyc file. When loading a precompiled module in this manner
+the parse and compile steps are skipped, and the code objects that
+represent the top-level expressions are evaluated in order.
+
+author: Christopher O'Brien <obriencj@gmail.com>
+license: LGPL v.3
+"""
+
+
 from functools import partial
 from os.path import split, getmtime, getsize
 from types import ModuleType

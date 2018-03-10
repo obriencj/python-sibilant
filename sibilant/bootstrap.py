@@ -14,12 +14,14 @@
 
 
 """
+sibilant.bootstrap
+
 Pythonic builtin definitions for sibilant.
 
 These are used to bootstrap an importer that can load the
-_builtins.lspy module
+basics.lspy module
 
-This module and _builtins are then merged together to create the final
+bootstrap and basica are then merged together to create the final
 builtins module, which is made available to any module being loaded
 via sibilant.
 

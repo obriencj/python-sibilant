@@ -14,6 +14,8 @@
 
 
 """
+sibilant.repl
+
 Read-Eval-Print-Loop for sibilant
 
 author: Christopher O'Brien  <obriencj@gmail.com>

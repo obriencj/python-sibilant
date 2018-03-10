@@ -15,6 +15,17 @@
 */
 
 
+/**
+   sibilant._types
+
+   Native sibilant core types and helper functions. These function and
+   types will be re-exported from the sibilant module.
+
+   author: Christopher O'Brien <obriencj@gmail.com>
+   license: LGPL v.3
+ */
+
+
 #include <py3-sibilant.h>
 
 

@@ -14,10 +14,10 @@
 
 
 """
-Sibilant, a Scheme for Python
+Sibilant, a LISP for Python
 
-:author: Christopher O'Brien  <obriencj@gmail.com>
-:license: LGPL v.3
+author: Christopher O'Brien  <obriencj@gmail.com>
+license: LGPL v.3
 """
 
 

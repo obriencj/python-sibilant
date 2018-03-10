@@ -14,8 +14,11 @@
 
 
 """
+sibilant.builtins
+
 builtin definitions for sibilant. These are made available in the
-scope of all loaded modules.
+scope of all loaded modules. This is a combination of the
+sibilant.bootstrap and sibilant.basics modules
 
 author: Christopher O'Brien  <obriencj@gmail.com>
 license: LGPL v.3

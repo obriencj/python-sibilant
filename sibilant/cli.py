@@ -14,10 +14,13 @@
 
 
 """
-Sibilant, a Scheme for Python
+sibilant.cli
 
-:author: Christopher O'Brien  <obriencj@gmail.com>
-:license: LGPL v.3
+Command-line interface for invoking the sibilant repl or for compiling
+sibilant source files into pyc files
+
+author: Christopher O'Brien  <obriencj@gmail.com>
+license: LGPL v.3
 """
 
 

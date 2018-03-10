@@ -13,6 +13,16 @@
 # <http://www.gnu.org/licenses/>.
 
 
+"""
+sibilant.compiler.cpython36
+
+Compiler target for CPython 3.6 bytecode
+
+author: Christopher O'Brien <obriencj@gmail.com>
+license: LGPL v.3
+"""
+
+
 from . import (
     ExpressionCodeSpace, Pseudop, Opcode,
     gather_parameters,

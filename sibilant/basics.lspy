@@ -12,9 +12,12 @@
 ;; License along with this library; if not, see
 ;; <http://www.gnu.org/licenses/>.
 
+;; Basic functionality of sibilant. This module is combined with the
+;; bootstrap module to provide __builtins__ for other modules written
+;; in sibilant.
+
 ;; author: Christopher O'Brien  <obriencj@gmail.com>
 ;; license: LGPL v.3
-
 
 
 ;; disable TCO for the following stuff, they don't need to bounce
