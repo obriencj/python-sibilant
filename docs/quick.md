@@ -82,8 +82,42 @@ importlib extension, then the module will now be available for other
 Sibilant or Python modules to reference.
 
 
+### Examples
+
+Example:
+
+```
+(define foo 5)
+(setq foo (+ foo 100))
+```
+
+First a module is created with the default settings. The module's
+parser is obtained, and fed the source for the module.
+
+The first expression is read using the parser, and passed to the
+compiler. The compiler searches module for the value `define` which by
+default maps to a special which will define a value. The special is
+invoked with the source expression. The special then pushes opecodes
+into the compilers current code object. Once complete, the compiler
+returns the code object. The evaluator then accepts the code object
+and executes it in the context of the module.
+
+The second expression is then read using the parser, and passed to the
+compiler. The compiler searches the module for the value `+`.
+
+
+During compilation, the module and its `__builtins__` are searched for
+`+`. The `+` resolves to the addition operator by default. The
+addition operator is provided with the source expression, and it
+injects opcodes into the compiler.
+
+
+
 ## Variable Bindings
 
 Sibilant has significantly less restrictions in variable naming
 conventions. For example, it's perfectly acceptable for a Sibilant
 predicate testing whether a value was `nil` to be named `nil?`
+
+This is how many special forms are provided, via bindings with purely
+symbolic names.
