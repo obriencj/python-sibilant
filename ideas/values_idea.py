@@ -103,33 +103,35 @@ class values(object):
                            keywords, defaults, kwvariadic)
 
 
+if __name__ == '__main__':
 
-v = values(1, 2, 3, foo=77, bar=88)
-print("v is", repr(v))
+    v = values(1, 2, 3, foo=77, bar=88)
+    print("v is", repr(v))
 
 
-def test_1(a, b, c, foo, **kwds):
-    return [a, b, c, foo], None, {}, kwds
+    def test_1(a, b, c, foo, **kwds):
+        return [a, b, c, foo], None, {}, kwds
 
-print()
-print("v(test_1) :", v(test_1))
-print("test_1(*v, **v) :", test_1(*v, **v))
-print("v.unpack_fun(test_1) :", v.unpack_fun(test_1))
+    print()
+    print("v(test_1) :", v(test_1))
+    print("test_1(*v, **v) :", test_1(*v, **v))
+    print("v.unpack_fun(test_1) :", v.unpack_fun(test_1))
 
-def test_2(a, *rest, foo, bar, baz=None):
-    return [a], rest, dict(foo=foo, bar=bar, baz=baz), None
+    def test_2(a, *rest, foo, bar, baz=None):
+        return [a], rest, dict(foo=foo, bar=bar, baz=baz), None
 
-print()
-print("v(test_2) :", v(test_2))
-print("test_2(*v, **v) :", test_2(*v, **v))
-print("v.unpack_fun(test_2) :", v.unpack_fun(test_2))
+    print()
+    print("v(test_2) :", v(test_2))
+    print("test_2(*v, **v) :", test_2(*v, **v))
+    print("v.unpack_fun(test_2) :", v.unpack_fun(test_2))
 
-def test_3(a, b, c, *, foo, bar=100, baz=200, **kwds):
-    return [a, b, c], None, dict(foo=foo, bar=bar, baz=baz), kwds
+    def test_3(a, b, c, *, foo, bar=100, baz=200, **kwds):
+        return [a, b, c], None, dict(foo=foo, bar=bar, baz=baz), kwds
 
-print()
-print("v(test_3) :", v(test_3))
-print("test_3(*v, **v) :", test_3(*v, **v))
-print("v.unpack_fun(test_3) :", v.unpack_fun(test_3))
+    print()
+    print("v(test_3) :", v(test_3))
+    print("test_3(*v, **v) :", test_3(*v, **v))
+    print("v.unpack_fun(test_3) :", v.unpack_fun(test_3))
+
 
 # The end.
