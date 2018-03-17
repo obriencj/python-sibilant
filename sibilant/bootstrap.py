@@ -120,6 +120,8 @@ def __setup__(glbls):
 
     _op(sibilant.reapply, "reapply")
 
+    _ty(sibilant.values, "values")
+
     _op(sibilant.first, "first")
     _op(sibilant.second, "second", rename=True)
     _op(sibilant.third, "third", rename=True)

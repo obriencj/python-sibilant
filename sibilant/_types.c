@@ -48,14 +48,58 @@
 #endif
 
 
+#if (defined(__GNUC__) &&					\
+     (__GNUC__ > 2 || (__GNUC__ == 2 && (__GNUC_MINOR__ > 95))))
+  #define likely(x)   __builtin_expect(!!(x), 1)
+  #define unlikely(x) __builtin_expect(!!(x), 0)
+#else
+  #define likely(x)   (x)
+  #define unlikely(x) (x)
+#endif
+
+
+/* === util === */
+
+static PyObject *_str_close_paren = NULL;
+static PyObject *_str_colon = NULL;
+static PyObject *_str_comma_space = NULL;
+static PyObject *_str_cons_paren = NULL;
+static PyObject *_str_dot_space = NULL;
+static PyObject *_str_elipsis = NULL;
+static PyObject *_str_empty = NULL;
+static PyObject *_str_equals = NULL;
+static PyObject *_str_esc_quote = NULL;
+static PyObject *_str_nil = NULL;
+static PyObject *_str_open_paren = NULL;
+static PyObject *_str_quote = NULL;
+static PyObject *_str_recursive = NULL;
+static PyObject *_str_recursive_true = NULL;
+static PyObject *_str_rsplit = NULL;
+static PyObject *_str_space = NULL;
+static PyObject *_str_space_dot_space = NULL;
+static PyObject *_str_space_elipsis = NULL;
+static PyObject *_str_split = NULL;
+static PyObject *_str_star = NULL;
+static PyObject *_str_starstar = NULL;
+static PyObject *_str_strip = NULL;
+static PyObject *_str_values_paren = NULL;
+
+
+static PyObject *quoted(PyObject *u) {
+  PyObject *tmp, *result;
+
+  tmp = PyUnicode_Replace(u, _str_quote, _str_esc_quote, -1);
+  result = PyUnicode_FromFormat("\"%U\"", tmp);
+  Py_DECREF(tmp);
+
+  return result;
+}
+
+
 /* === interned atom === */
 
 
 #define ATOM_NAME(o) (((SibInternedAtom *)self)->name)
-
-
-static PyObject *_str_split = NULL;
-static PyObject *_str_rsplit = NULL;
 
 
 static PyObject *atom_new(PyObject *name,
@@ -78,7 +122,7 @@ static PyObject *atom_new(PyObject *name,
   n = (SibInternedAtom *) PyDict_GetItem(intern, name);
 
   if (! n) {
-    n = (SibInternedAtom *) PyObject_New(SibInternedAtom, type);
+    n = PyObject_New(SibInternedAtom, type);
     n->name = name;
     n->weakrefs = NULL;
 
@@ -239,8 +283,6 @@ PyTypeObject SibSymbolType = {
 
 
 static PyObject *intern_kwds = NULL;
-static PyObject *_str_strip = NULL;
-static PyObject *_str_colon = NULL;
 
 
 PyObject *sib_keyword(PyObject *name) {
@@ -523,22 +565,6 @@ static PyTypeObject SibPairFollowerType = {
 /* === pair === */
 
 
-static PyObject *_str_empty = NULL;
-static PyObject *_str_space = NULL;
-static PyObject *_str_cons_paren = NULL;
-static PyObject *_str_comma_space = NULL;
-static PyObject *_str_open_paren = NULL;
-static PyObject *_str_close_paren = NULL;
-static PyObject *_str_recursive = NULL;
-static PyObject *_str_recursive_true = NULL;
-static PyObject *_str_space_elipsis = NULL;
-static PyObject *_str_elipsis = NULL;
-static PyObject *_str_space_dot_space = NULL;
-static PyObject *_str_dot_space = NULL;
-static PyObject *_str_quote = NULL;
-static PyObject *_str_esc_quote = NULL;
-
-
 static PyObject *pair_new(PyTypeObject *type,
 			  PyObject *args, PyObject *kwds) {
 
@@ -616,17 +642,10 @@ static int pair_setitem(PyObject *self, Py_ssize_t index, PyObject *val) {
 }
 
 
-static PySequenceMethods pair_as_sequence = {
-  .sq_length = pair_length,
-  .sq_item = pair_getitem,
-  .sq_ass_item = pair_setitem,
-};
-
-
 static PyObject *pair_iter(PyObject *self) {
   SibPairIterator *i = NULL;
 
-  i = (SibPairIterator *) PyObject_New(SibPairIterator, &SibPairIteratorType);
+  i = PyObject_New(SibPairIterator, &SibPairIteratorType);
   Py_INCREF(self);
   i->pair = self;
   i->index = 0;
@@ -690,17 +709,6 @@ static PyObject *pair_repr(PyObject *self) {
   Py_DECREF(found);
 
   return tmp;
-}
-
-
-static PyObject *quoted(PyObject *u) {
-  PyObject *tmp, *result;
-
-  tmp = PyUnicode_Replace(u, _str_quote, _str_esc_quote, -1);
-  result = PyUnicode_FromFormat("\"%U\"", tmp);
-  Py_DECREF(tmp);
-
-  return result;
 }
 
 
@@ -996,7 +1004,7 @@ static PyObject *pair_count(PyObject *self, PyObject *_noargs) {
 static PyObject *pair_follow(PyObject *self, PyObject *_noargs) {
   SibPairFollower *i = NULL;
 
-  i = (SibPairFollower *) PyObject_New(SibPairFollower, &SibPairFollowerType);
+  i = PyObject_New(SibPairFollower, &SibPairFollowerType);
   Py_INCREF(self);
   i->current = self;
   i->seen = PySet_New(NULL);
@@ -1009,7 +1017,7 @@ static PyObject *pair_follow(PyObject *self, PyObject *_noargs) {
 static PyObject *pair_unpack(PyObject *self, PyObject *_noargs) {
   SibPairFollower *i = NULL;
 
-  i = (SibPairFollower *) PyObject_New(SibPairFollower, &SibPairFollowerType);
+  i = PyObject_New(SibPairFollower, &SibPairFollowerType);
   Py_INCREF(self);
   i->current = self;
   i->seen = PySet_New(NULL);
@@ -1024,7 +1032,7 @@ static PyObject *pair_to_list(PyObject *self) {
   PyObject *result;
   SibPairFollower *i = NULL;
 
-  i = (SibPairFollower *) PyObject_New(SibPairFollower, &SibPairFollowerType);
+  i = PyObject_New(SibPairFollower, &SibPairFollowerType);
   Py_INCREF(self);
   i->current = self;
   i->seen = PySet_New(NULL);
@@ -1285,7 +1293,6 @@ static PyMethodDef pair_methods[] = {
   { "clear_position", (PyCFunction) pair_clear_position,
     METH_VARARGS|METH_KEYWORDS,
     "P.clear_position(follow=True)" },
-
   { "set_position", (PyCFunction) pair_set_position,
     METH_VARARGS|METH_KEYWORDS,
     "P.set_position(follow=True)" },
@@ -1298,6 +1305,13 @@ static PyMethodDef pair_methods[] = {
     "P.get_position()" },
 
   { NULL, NULL, 0, NULL },
+};
+
+
+static PySequenceMethods pair_as_sequence = {
+  .sq_length = pair_length,
+  .sq_item = pair_getitem,
+  .sq_ass_item = pair_setitem,
 };
 
 
@@ -1351,9 +1365,6 @@ PyObject *sib_pair(PyObject *head, PyObject *tail) {
 /* === NilType === */
 
 
-static PyObject *_str_nil = NULL;
-
-
 static PyObject *nil_new(PyTypeObject *type,
 			 PyObject *args, PyObject *kwds) {
 
@@ -1381,7 +1392,7 @@ static PyObject *nil_repr(PyObject *self) {
 static PyObject *nil_iter(PyObject *self) {
   SibPairIterator *i = NULL;
 
-  i = (SibPairIterator *) PyObject_New(SibPairIterator, &SibPairIteratorType);
+  i = PyObject_New(SibPairIterator, &SibPairIteratorType);
   i->index = 0;
   i->pair = NULL;
 
@@ -1454,6 +1465,361 @@ SibPair _SibNil = {
   .position = NULL,
   .weakrefs = NULL,
 };
+
+
+/* === ValuesType === */
+
+
+static PyObject *values_new(PyTypeObject *type,
+			    PyObject *args, PyObject *kwds) {
+
+  return sib_values(args, kwds);
+}
+
+
+static void values_dealloc(PyObject *self) {
+  SibValues *s = (SibValues *) self;
+
+  Py_XDECREF(s->args);
+  Py_XDECREF(s->kwds);
+
+  Py_TYPE(self)->tp_free(self);
+}
+
+
+static int values_traverse(PyObject *self, visitproc visit, void *arg) {
+  SibValues *s = (SibValues *) self;
+  Py_VISIT(s->args);
+  if (s->kwds)
+    Py_VISIT(s->kwds);
+  return 0;
+}
+
+
+static int values_clear(PyObject *self) {
+  SibValues *s = (SibValues *) self;
+  Py_CLEAR(s->args);
+  if (s->kwds)
+    Py_CLEAR(s->kwds);
+  return 0;
+}
+
+
+static PyObject *values_iter(PyObject *self) {
+  SibValues *s = (SibValues *) self;
+  return PyObject_GetIter(s->args);
+}
+
+
+static PyObject *values_args_getitem(PyObject *self, Py_ssize_t index) {
+  SibValues *s = (SibValues *) self;
+  return PySequence_GetItem(s->args, index);
+}
+
+
+static Py_ssize_t values_kwds_length(PyObject *self) {
+  SibValues *s = (SibValues *) self;
+
+  if (s->kwds) {
+    return PyDict_Size(s->kwds);
+  } else {
+    return 0;
+  }
+}
+
+
+static PyObject *values_kwds_getitem(PyObject *self, PyObject *key) {
+  SibValues *s = (SibValues *) self;
+
+  if (PyLong_CheckExact(key)) {
+    return PySequence_GetItem(s->args, PyLong_AsSsize_t(key));
+
+  } else {
+    PyObject *result = NULL;
+
+    if (s->kwds) {
+      result = PyDict_GetItem(s->kwds, key);
+    }
+
+    if (result) {
+      Py_INCREF(result);
+
+    } else {
+      PyErr_SetObject(PyExc_KeyError, quoted(key));
+    }
+
+    return result;
+  }
+}
+
+
+static PyObject *values_call(PyObject *self,
+			     PyObject *args, PyObject *kwds) {
+
+  SibValues *s = (SibValues *) self;
+  PyObject *call_args, *call_kwds;
+  PyObject *work = NULL, *tmp = NULL;
+
+  if (unlikely(! PyTuple_GET_SIZE(args))) {
+    PyErr_SetString(PyExc_TypeError, "values objects must be called with at"
+		    "least one argument, the function to apply");
+    return NULL;
+  }
+
+  work = PyTuple_GET_ITEM(args, 0);
+
+  if (PyTuple_GET_SIZE(args) > 1) {
+    tmp = PySequence_GetSlice(args, 1, PyTuple_GET_SIZE(args));
+
+    if (PyTuple_GET_SIZE(s->args)) {
+      call_args = PySequence_Concat(s->args, tmp);
+      Py_DECREF(tmp);
+
+    } else {
+      call_args = tmp;
+    }
+
+  } else {
+    call_args = s->args;
+    Py_INCREF(call_args);
+  }
+
+  if (kwds && PyDict_Size(kwds)) {
+    if (s->kwds && PyDict_Size(s->kwds)) {
+      call_kwds = PyDict_New();
+      PyDict_Update(call_kwds, s->kwds);
+      PyDict_Update(call_kwds, kwds);
+
+    } else {
+      call_kwds = kwds;
+      Py_INCREF(call_kwds);
+    }
+
+  } else {
+    call_kwds = s->kwds;
+    Py_XINCREF(call_kwds);
+  }
+
+  tmp = PyObject_Call(work, call_args, call_kwds);
+  Py_DECREF(call_args);
+  Py_XDECREF(call_kwds);
+
+  return tmp;
+}
+
+
+static PyObject *values_repr(PyObject *self) {
+  SibValues *s = (SibValues *) self;
+  PyObject *col = PyList_New(0);
+  PyObject *tmp = NULL;
+  Py_ssize_t count = 0, limit = 0;
+  PyObject *key = NULL, *value = NULL;
+
+  PyList_Append(col, _str_values_paren);
+
+#if 1
+  // "values()"
+  // "values(1, 2, 3)"
+  // "values(foo=4, bar=5)"
+  // "values(1, 2, 3, foo=4, bar=5)"
+
+  limit = PyTuple_GET_SIZE(s->args);
+  for (count = 0; count < limit; count++) {
+    tmp = PyObject_Repr(PyTuple_GET_ITEM(s->args, count));
+    PyList_Append(col, tmp);
+    PyList_Append(col, _str_comma_space);
+    Py_DECREF(tmp);
+  }
+
+  count = 0;
+  if (s->kwds && PyDict_Size(s->kwds)) {
+    while (PyDict_Next(s->kwds, &count, &key, &value)) {
+      tmp = PyObject_Repr(value);
+      PyList_Append(col, key);
+      PyList_Append(col, _str_equals);
+      PyList_Append(col, tmp);
+      PyList_Append(col, _str_comma_space);
+      Py_DECREF(tmp);
+    }
+  }
+
+  if (limit || count) {
+    PySequence_DelItem(col, PyList_GET_SIZE(col) - 1);
+  }
+
+#else
+  // "values()"
+  // "values(*%r)"
+  // "values(**%r)"
+  // "values(*%r, **%r)"
+
+  if (PyTuple_GET_SIZE(s->args)) {
+    tmp = PyObject_Repr(s->args);
+    PyList_Append(col, _str_star);
+    PyList_Append(col, tmp);
+    Py_DECREF(tmp);
+
+    if (s->kwds) {
+      PyList_Append(col, _str_comma_space);
+    }
+  }
+
+  if (s->kwds) {
+    tmp = PyObject_Repr(s->kwds);
+    PyList_Append(col, _str_starstar);
+    PyList_Append(col, tmp);
+    Py_DECREF(tmp);
+  }
+#endif
+
+  PyList_Append(col, _str_close_paren);
+
+  tmp = PyUnicode_Join(_str_empty, col);
+  Py_DECREF(col);
+
+  return tmp;
+}
+
+
+static long values_eq(PyObject *self, PyObject *other) {
+  SibValues *s = (SibValues *) self;
+  long answer = 0;
+
+  if (self == other)
+    return 1;
+
+  if (SibValues_CheckExact(other)) {
+    SibValues *o = (SibValues *) other;
+
+    if (s->kwds && o->kwds) {
+      answer = PyObject_RichCompareBool(s->kwds, o->kwds, Py_EQ);
+    } else {
+      answer = (s->kwds == o->kwds);
+    }
+
+    answer = answer && \
+      PyObject_RichCompareBool(s->args, o->args, Py_EQ);
+
+  } else if (PyTuple_CheckExact(other)) {
+    answer = (! s->kwds) && \
+      PyObject_RichCompareBool(s->args, other, Py_EQ);
+
+  } else if (PyDict_CheckExact(other)) {
+    answer = (! PyTuple_GET_SIZE(s->args)) && \
+      PyObject_RichCompareBool(s->kwds, other, Py_EQ);
+  }
+
+  return answer;
+}
+
+
+static PyObject *values_richcomp(PyObject *self, PyObject *other, int op) {
+  if (op == Py_EQ) {
+    return PyBool_FromLong(values_eq(self, other));
+
+  } else if (op == Py_NE) {
+    return PyBool_FromLong(! values_eq(self, other));
+
+  } else {
+    PyErr_SetString(PyExc_TypeError, "unsupported values comparison");
+    return NULL;
+  }
+}
+
+
+static PyObject *values_keys(PyObject *self, PyObject *_noargs) {
+  SibValues *s = (SibValues *) self;
+  PyObject *result = NULL;
+
+  if (s->kwds) {
+    #if 0
+    PyObject *keys = PyDict_Keys(s->kwds);
+    result = PyObject_GetIter(keys);
+    Py_DECREF(keys);
+
+    #else
+    // this is what the default keys() impl on dict does. The
+    // PyDict_Keys API creates a list, which we don't want to do.
+    result = _PyDictView_New(s->kwds, &PyDictKeys_Type);
+    #endif
+
+  } else {
+    // a cheap empty iterator
+    SibPairIterator *i = PyObject_New(SibPairIterator, &SibPairIteratorType);
+    i->index = 0;
+    i->pair = NULL;
+
+    result = (PyObject *) i;
+  }
+
+  return result;
+}
+
+
+static PyMethodDef values_methods[] = {
+  { "keys", (PyCFunction) values_keys, METH_NOARGS,
+    "V.keys()" },
+
+  { NULL, NULL, 0, NULL },
+};
+
+
+static PySequenceMethods values_as_sequence = {
+  .sq_item = values_args_getitem,
+};
+
+
+static PyMappingMethods values_as_mapping = {
+  .mp_length = values_kwds_length,
+  .mp_subscript = values_kwds_getitem,
+};
+
+
+PyTypeObject SibValuesType = {
+  PyVarObject_HEAD_INIT(NULL, 0)
+
+  "values",
+  sizeof(SibValues),
+  0,
+
+  .tp_flags = Py_TPFLAGS_DEFAULT|Py_TPFLAGS_HAVE_GC,
+  .tp_methods = values_methods,
+  .tp_new = values_new,
+  .tp_dealloc = values_dealloc,
+  .tp_weaklistoffset = offsetof(SibValues, weakrefs),
+  .tp_traverse = values_traverse,
+  .tp_clear = values_clear,
+
+  .tp_iter = values_iter,
+  .tp_as_sequence = &values_as_sequence,
+  .tp_as_mapping = &values_as_mapping,
+
+  .tp_call = values_call,
+  .tp_repr = values_repr,
+  .tp_richcompare = values_richcomp,
+};
+
+
+PyObject *sib_values(PyObject *args, PyObject *kwds) {
+  SibValues *self = NULL;
+
+  if (! args) {
+    PyErr_SetString(PyExc_TypeError, "values require arguments");
+    return NULL;
+  }
+
+  self = PyObject_GC_New(SibValues, &SibValuesType);
+  if (unlikely(! self))
+    return NULL;
+
+  Py_INCREF(args);
+  self->args = args;
+
+  Py_XINCREF(kwds);
+  self->kwds = kwds;
+
+  return (PyObject *) self;
+}
 
 
 /* === module === */
@@ -1836,26 +2202,32 @@ PyMODINIT_FUNC PyInit__types(void) {
   if (PyType_Ready(&SibSymbolType) < 0)
     return NULL;
 
-  STR_CONST(_str_nil, "nil");
-  STR_CONST(_str_split, "split");
-  STR_CONST(_str_rsplit, "rsplit");
-  STR_CONST(_str_strip, "strip");
-  STR_CONST(_str_colon, ":");
+  if (PyType_Ready(&SibValuesType) < 0)
+    return NULL;
 
-  STR_CONST(_str_empty, "");
-  STR_CONST(_str_space, " ");
-  STR_CONST(_str_cons_paren, "cons(");
-  STR_CONST(_str_comma_space, ", ");
-  STR_CONST(_str_open_paren, "(");
   STR_CONST(_str_close_paren, ")");
+  STR_CONST(_str_colon, ":");
+  STR_CONST(_str_comma_space, ", ");
+  STR_CONST(_str_cons_paren, "cons(");
+  STR_CONST(_str_dot_space, ". ");
+  STR_CONST(_str_elipsis, "...");
+  STR_CONST(_str_empty, "");
+  STR_CONST(_str_equals, "=");
+  STR_CONST(_str_esc_quote, "\\\"");
+  STR_CONST(_str_nil, "nil");
+  STR_CONST(_str_open_paren, "(");
+  STR_CONST(_str_quote, "\"");
   STR_CONST(_str_recursive, "recursive");
   STR_CONST(_str_recursive_true, "recursive=True");
-  STR_CONST(_str_space_elipsis, " ...");
-  STR_CONST(_str_elipsis, "...");
+  STR_CONST(_str_rsplit, "rsplit");
+  STR_CONST(_str_space, " ");
   STR_CONST(_str_space_dot_space, " . ");
-  STR_CONST(_str_dot_space, ". ");
-  STR_CONST(_str_quote, "\"");
-  STR_CONST(_str_esc_quote, "\\\"");
+  STR_CONST(_str_space_elipsis, " ...");
+  STR_CONST(_str_split, "split");
+  STR_CONST(_str_star, "*");
+  STR_CONST(_str_starstar, "**");
+  STR_CONST(_str_strip, "strip");
+  STR_CONST(_str_values_paren, "values(");
 
   if (! intern_syms) {
     intern_syms = PyDict_New();
@@ -1878,6 +2250,7 @@ PyMODINIT_FUNC PyInit__types(void) {
   PyDict_SetItemString(dict, "pair", (PyObject *) &SibPairType);
   PyDict_SetItemString(dict, "symbol", (PyObject *) &SibSymbolType);
   PyDict_SetItemString(dict, "keyword", (PyObject *) &SibKeywordType);
+  PyDict_SetItemString(dict, "values", (PyObject *) &SibValuesType);
 
   return mod;
 }
