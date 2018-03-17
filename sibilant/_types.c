@@ -67,7 +67,7 @@ static PyObject *_str_cons_paren = NULL;
 static PyObject *_str_dot_space = NULL;
 static PyObject *_str_elipsis = NULL;
 static PyObject *_str_empty = NULL;
-static PyObject *_str_emptydict = NULL;
+static PyObject *_str_equals = NULL;
 static PyObject *_str_esc_quote = NULL;
 static PyObject *_str_nil = NULL;
 static PyObject *_str_open_paren = NULL;
@@ -1591,13 +1591,46 @@ static PyObject *values_repr(PyObject *self) {
   SibValues *s = (SibValues *) self;
   PyObject *col = PyList_New(0);
   PyObject *tmp = NULL;
+  Py_ssize_t count = 0, limit = 0;
+  PyObject *key = NULL, *value = NULL;
 
+  PyList_Append(col, _str_values_paren);
+
+#if 1
+  // "values()"
+  // "values(1, 2, 3)"
+  // "values(foo=4, bar=5)"
+  // "values(1, 2, 3, foo=4, bar=5)"
+
+  limit = PyTuple_GET_SIZE(s->args);
+  for (count = 0; count < limit; count++) {
+    tmp = PyObject_Repr(PyTuple_GET_ITEM(s->args, count));
+    PyList_Append(col, tmp);
+    PyList_Append(col, _str_comma_space);
+    Py_DECREF(tmp);
+  }
+
+  count = 0;
+  if (s->kwds && PyDict_Size(s->kwds)) {
+    while (PyDict_Next(s->kwds, &count, &key, &value)) {
+      tmp = PyObject_Repr(value);
+      PyList_Append(col, key);
+      PyList_Append(col, _str_equals);
+      PyList_Append(col, tmp);
+      PyList_Append(col, _str_comma_space);
+      Py_DECREF(tmp);
+    }
+  }
+
+  if (limit || count) {
+    PySequence_DelItem(col, PyList_GET_SIZE(col) - 1);
+  }
+
+#else
   // "values()"
   // "values(*%r)"
   // "values(**%r)"
   // "values(*%r, **%r)"
-
-  PyList_Append(col, _str_values_paren);
 
   if (PyTuple_GET_SIZE(s->args)) {
     tmp = PyObject_Repr(s->args);
@@ -1616,6 +1649,7 @@ static PyObject *values_repr(PyObject *self) {
     PyList_Append(col, tmp);
     Py_DECREF(tmp);
   }
+#endif
 
   PyList_Append(col, _str_close_paren);
 
@@ -2157,7 +2191,7 @@ PyMODINIT_FUNC PyInit__types(void) {
   STR_CONST(_str_dot_space, ". ");
   STR_CONST(_str_elipsis, "...");
   STR_CONST(_str_empty, "");
-  STR_CONST(_str_emptydict, "{}");
+  STR_CONST(_str_equals, "=");
   STR_CONST(_str_esc_quote, "\\\"");
   STR_CONST(_str_nil, "nil");
   STR_CONST(_str_open_paren, "(");

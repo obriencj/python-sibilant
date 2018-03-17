@@ -744,23 +744,19 @@ class ValuesTest(TestCase):
     def test_repr(self):
         """
         tests that the repr of a values is as expected.
-
-        todo: this repr is short-term, because it was the easiest to
-        write. I'll reimplement it at some point so that it looks more
-        like the actual invocation. For now this is good enough.
         """
 
         a = values()
         self.assertEqual(repr(a), "values()")
 
         a = values(1, 2, 3)
-        self.assertEqual(repr(a), "values(*(1, 2, 3))")
+        self.assertEqual(repr(a), "values(1, 2, 3)")
 
         a = values(foo=4)
-        self.assertEqual(repr(a), "values(**{'foo': 4})")
+        self.assertEqual(repr(a), "values(foo=4)")
 
         a = values(1, 2, 3, foo=4)
-        self.assertEqual(repr(a), "values(*(1, 2, 3), **{'foo': 4})")
+        self.assertEqual(repr(a), "values(1, 2, 3, foo=4)")
 
 
 #
