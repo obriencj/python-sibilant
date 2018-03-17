@@ -58,11 +58,31 @@
 #endif
 
 
-/* === util functions === */
+/* === util === */
 
-
-static PyObject *_str_quote = NULL;
+static PyObject *_str_close_paren = NULL;
+static PyObject *_str_colon = NULL;
+static PyObject *_str_comma_space = NULL;
+static PyObject *_str_cons_paren = NULL;
+static PyObject *_str_dot_space = NULL;
+static PyObject *_str_elipsis = NULL;
+static PyObject *_str_empty = NULL;
+static PyObject *_str_emptydict = NULL;
 static PyObject *_str_esc_quote = NULL;
+static PyObject *_str_nil = NULL;
+static PyObject *_str_open_paren = NULL;
+static PyObject *_str_quote = NULL;
+static PyObject *_str_recursive = NULL;
+static PyObject *_str_recursive_true = NULL;
+static PyObject *_str_rsplit = NULL;
+static PyObject *_str_space = NULL;
+static PyObject *_str_space_dot_space = NULL;
+static PyObject *_str_space_elipsis = NULL;
+static PyObject *_str_split = NULL;
+static PyObject *_str_star = NULL;
+static PyObject *_str_starstar = NULL;
+static PyObject *_str_strip = NULL;
+static PyObject *_str_values_paren = NULL;
 
 
 static PyObject *quoted(PyObject *u) {
@@ -80,10 +100,6 @@ static PyObject *quoted(PyObject *u) {
 
 
 #define ATOM_NAME(o) (((SibInternedAtom *)self)->name)
-
-
-static PyObject *_str_split = NULL;
-static PyObject *_str_rsplit = NULL;
 
 
 static PyObject *atom_new(PyObject *name,
@@ -267,8 +283,6 @@ PyTypeObject SibSymbolType = {
 
 
 static PyObject *intern_kwds = NULL;
-static PyObject *_str_strip = NULL;
-static PyObject *_str_colon = NULL;
 
 
 PyObject *sib_keyword(PyObject *name) {
@@ -549,20 +563,6 @@ static PyTypeObject SibPairFollowerType = {
 
 
 /* === pair === */
-
-
-static PyObject *_str_empty = NULL;
-static PyObject *_str_space = NULL;
-static PyObject *_str_cons_paren = NULL;
-static PyObject *_str_comma_space = NULL;
-static PyObject *_str_open_paren = NULL;
-static PyObject *_str_close_paren = NULL;
-static PyObject *_str_recursive = NULL;
-static PyObject *_str_recursive_true = NULL;
-static PyObject *_str_space_elipsis = NULL;
-static PyObject *_str_elipsis = NULL;
-static PyObject *_str_space_dot_space = NULL;
-static PyObject *_str_dot_space = NULL;
 
 
 static PyObject *pair_new(PyTypeObject *type,
@@ -1293,7 +1293,6 @@ static PyMethodDef pair_methods[] = {
   { "clear_position", (PyCFunction) pair_clear_position,
     METH_VARARGS|METH_KEYWORDS,
     "P.clear_position(follow=True)" },
-
   { "set_position", (PyCFunction) pair_set_position,
     METH_VARARGS|METH_KEYWORDS,
     "P.set_position(follow=True)" },
@@ -1364,9 +1363,6 @@ PyObject *sib_pair(PyObject *head, PyObject *tail) {
 
 
 /* === NilType === */
-
-
-static PyObject *_str_nil = NULL;
 
 
 static PyObject *nil_new(PyTypeObject *type,
@@ -1558,12 +1554,98 @@ static PyObject *values_call(PyObject *self,
     return NULL;
   }
 
-  if ((! kwds) && (PyTuple_GET_SIZE(args) == 1)) {
+  if ((! (kwds && PyDict_Size(kwds))) && (PyTuple_GET_SIZE(args) == 1)) {
+
     return PyObject_Call(work, s->args, s->kwds);
 
   } else {
     // todo. This won't be reached until the ParseTuple call is
     // expanded to accept varags and kwds.
+    return NULL;
+  }
+}
+
+
+static PyObject *values_repr(PyObject *self) {
+  SibValues *s = (SibValues *) self;
+  PyObject *col = PyList_New(0);
+  PyObject *tmp = NULL;
+
+  // "values()"
+  // "values(*%r)"
+  // "values(**%r)"
+  // "values(*%r, **%r)"
+
+  PyList_Append(col, _str_values_paren);
+
+  if (PyTuple_GET_SIZE(s->args)) {
+    tmp = PyObject_Repr(s->args);
+    PyList_Append(col, _str_star);
+    PyList_Append(col, tmp);
+    Py_DECREF(tmp);
+
+    if (s->kwds) {
+      PyList_Append(col, _str_comma_space);
+    }
+  }
+
+  if (s->kwds) {
+    tmp = PyObject_Repr(s->kwds);
+    PyList_Append(col, _str_starstar);
+    PyList_Append(col, tmp);
+    Py_DECREF(tmp);
+  }
+
+  PyList_Append(col, _str_close_paren);
+
+  tmp = PyUnicode_Join(_str_empty, col);
+  Py_DECREF(col);
+
+  return tmp;
+}
+
+
+static long values_eq(PyObject *self, PyObject *other) {
+  SibValues *s = (SibValues *) self;
+  long answer = 0;
+
+  if (self == other)
+    return 1;
+
+  if (SibValues_CheckExact(other)) {
+    SibValues *o = (SibValues *) other;
+
+    if (s->kwds && o->kwds) {
+      answer = PyObject_RichCompareBool(s->kwds, o->kwds, Py_EQ);
+    } else {
+      answer = (s->kwds == o->kwds);
+    }
+
+    answer = answer && \
+      PyObject_RichCompareBool(s->args, o->args, Py_EQ);
+
+  } else if (PyTuple_CheckExact(other)) {
+    answer = (! s->kwds) && \
+      PyObject_RichCompareBool(s->args, other, Py_EQ);
+
+  } else if (PyDict_CheckExact(other)) {
+    answer = (! PyTuple_GET_SIZE(s->args)) && \
+      PyObject_RichCompareBool(s->kwds, other, Py_EQ);
+  }
+
+  return answer;
+}
+
+
+static PyObject *values_richcomp(PyObject *self, PyObject *other, int op) {
+  if (op == Py_EQ) {
+    return PyBool_FromLong(values_eq(self, other));
+
+  } else if (op == Py_NE) {
+    return PyBool_FromLong(! values_eq(self, other));
+
+  } else {
+    PyErr_SetString(PyExc_TypeError, "unsupported values comparison");
     return NULL;
   }
 }
@@ -1629,6 +1711,8 @@ PyTypeObject SibValuesType = {
   .tp_as_mapping = &values_as_mapping,
 
   .tp_call = values_call,
+  .tp_repr = values_repr,
+  .tp_richcompare = values_richcomp,
 };
 
 
@@ -2037,26 +2121,29 @@ PyMODINIT_FUNC PyInit__types(void) {
   if (PyType_Ready(&SibValuesType) < 0)
     return NULL;
 
-  STR_CONST(_str_nil, "nil");
-  STR_CONST(_str_split, "split");
-  STR_CONST(_str_rsplit, "rsplit");
-  STR_CONST(_str_strip, "strip");
-  STR_CONST(_str_colon, ":");
-
-  STR_CONST(_str_empty, "");
-  STR_CONST(_str_space, " ");
-  STR_CONST(_str_cons_paren, "cons(");
-  STR_CONST(_str_comma_space, ", ");
-  STR_CONST(_str_open_paren, "(");
   STR_CONST(_str_close_paren, ")");
+  STR_CONST(_str_colon, ":");
+  STR_CONST(_str_comma_space, ", ");
+  STR_CONST(_str_cons_paren, "cons(");
+  STR_CONST(_str_dot_space, ". ");
+  STR_CONST(_str_elipsis, "...");
+  STR_CONST(_str_empty, "");
+  STR_CONST(_str_emptydict, "{}");
+  STR_CONST(_str_esc_quote, "\\\"");
+  STR_CONST(_str_nil, "nil");
+  STR_CONST(_str_open_paren, "(");
+  STR_CONST(_str_quote, "\"");
   STR_CONST(_str_recursive, "recursive");
   STR_CONST(_str_recursive_true, "recursive=True");
-  STR_CONST(_str_space_elipsis, " ...");
-  STR_CONST(_str_elipsis, "...");
+  STR_CONST(_str_rsplit, "rsplit");
+  STR_CONST(_str_space, " ");
   STR_CONST(_str_space_dot_space, " . ");
-  STR_CONST(_str_dot_space, ". ");
-  STR_CONST(_str_quote, "\"");
-  STR_CONST(_str_esc_quote, "\\\"");
+  STR_CONST(_str_space_elipsis, " ...");
+  STR_CONST(_str_split, "split");
+  STR_CONST(_str_star, "*");
+  STR_CONST(_str_starstar, "**");
+  STR_CONST(_str_strip, "strip");
+  STR_CONST(_str_values_paren, "values(");
 
   if (! intern_syms) {
     intern_syms = PyDict_New();
