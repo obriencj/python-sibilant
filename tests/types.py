@@ -708,22 +708,51 @@ class ValuesTest(TestCase):
         self.assertEqual(v(gather), [6, 7, 8, 9])
 
         v = values()
+        self.assertRaises(TypeError, v)
         self.assertRaises(TypeError, v, gather)
 
         v = values(d=5)
+        self.assertRaises(TypeError, v)
         self.assertRaises(TypeError, v, gather)
 
         v = values(1, 2)
+        self.assertRaises(TypeError, v)
         self.assertRaises(TypeError, v, gather)
 
         v = values(1, 2, d=5)
+        self.assertRaises(TypeError, v)
         self.assertRaises(TypeError, v, gather)
 
         v = values(1, 2, 3, 4, 5)
+        self.assertRaises(TypeError, v)
         self.assertRaises(TypeError, v, gather)
 
         v = values(1, 2, 3, foo=100)
+        self.assertRaises(TypeError, v)
         self.assertRaises(TypeError, v, gather)
+
+
+    def test_invoke_more(self):
+
+        def gather(a, b, c, d=0):
+            return [a, b, c, d]
+
+        v = values(1, 2, 3)
+        self.assertRaises(TypeError, v)
+        self.assertEqual(v(gather, d=9), [1, 2, 3, 9])
+
+        v = values(1, 2, 3, d=4)
+        self.assertEqual(v(gather, d=9), [1, 2, 3, 9])
+        self.assertRaises(TypeError, v, gather, 9)
+        self.assertRaises(TypeError, v, gather, x=9)
+
+        v = values()
+        self.assertEqual(v(gather, 1, 2, 3), [1, 2, 3, 0])
+        self.assertEqual(v(gather, 1, 2, 3, d=9), [1, 2, 3, 9])
+
+        v = values(1)
+        self.assertEqual(v(gather, 2, 3), [1, 2, 3, 0])
+        self.assertEqual(v(gather, 2, 3, d=9), [1, 2, 3, 9])
 
 
     def test_copy(self):

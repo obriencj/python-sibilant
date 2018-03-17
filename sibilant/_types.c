@@ -1557,33 +1557,54 @@ static PyObject *values_call(PyObject *self,
 			     PyObject *args, PyObject *kwds) {
 
   SibValues *s = (SibValues *) self;
-  PyObject *work = NULL;
+  PyObject *call_args, *call_kwds;
+  PyObject *work = NULL, *tmp = NULL;
 
-  if (unlikely(! PyArg_ParseTuple(args, "O", &work))) {
+  if (unlikely(! PyTuple_GET_SIZE(args))) {
+    PyErr_SetString(PyExc_TypeError, "values objects must be called with at"
+		    "least one argument, the function to apply");
     return NULL;
+  }
+
+  work = PyTuple_GET_ITEM(args, 0);
+
+  if (PyTuple_GET_SIZE(args) > 1) {
+    tmp = PySequence_GetSlice(args, 1, PyTuple_GET_SIZE(args));
+
+    if (PyTuple_GET_SIZE(s->args)) {
+      call_args = PySequence_Concat(s->args, tmp);
+      Py_DECREF(tmp);
+
+    } else {
+      call_args = tmp;
+    }
+
+  } else {
+    call_args = s->args;
+    Py_INCREF(call_args);
   }
 
   if (kwds && PyDict_Size(kwds)) {
-
-    if (PyTuple_GET_SIZE(args) > 1) {
-      // TODO: kwds and positional arguments must be merged prior to
-      // invocation
-      return NULL;
+    if (s->kwds && PyDict_Size(s->kwds)) {
+      call_kwds = PyDict_New();
+      PyDict_Update(call_kwds, s->kwds);
+      PyDict_Update(call_kwds, kwds);
 
     } else {
-      // TODO: kwds arguments must be merged in prior to invocation
-      return NULL;
+      call_kwds = kwds;
+      Py_INCREF(call_kwds);
     }
 
-  } else if (PyTuple_GET_SIZE(args) > 1) {
-    // TODO: positional arguments must be merged prior to invocation
-    return NULL;
-
   } else {
-    // no additional keyword or positional arguments, just use what's
-    // already in the values instance
-    return PyObject_Call(work, s->args, s->kwds);
+    call_kwds = s->kwds;
+    Py_XINCREF(call_kwds);
   }
+
+  tmp = PyObject_Call(work, call_args, call_kwds);
+  Py_DECREF(call_args);
+  Py_XDECREF(call_kwds);
+
+  return tmp;
 }
 
 
