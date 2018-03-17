@@ -81,7 +81,6 @@ _symbol_set_item = symbol("set-item")
 _symbol_slice = symbol("slice")
 _symbol_sub = symbol("subtract")
 _symbol_sub_ = symbol("-")
-_symbol_values = symbol("values")
 
 
 def __setup__(glbls):
@@ -765,7 +764,7 @@ def __setup__(glbls):
         return None
 
 
-    @operator(_symbol_build_tuple, build_tuple, _symbol_values)
+    @operator(_symbol_build_tuple, build_tuple)
     def operator_build_tuple(code, source, tc=False):
         """
         (build-tuple ITEM...)
