@@ -1513,7 +1513,7 @@ static PyObject *values_iter(PyObject *self) {
 
 static PyObject *values_args_getitem(PyObject *self, Py_ssize_t index) {
   SibValues *s = (SibValues *) self;
-  return PyTuple_GetItem(s->args, index);
+  return PySequence_GetItem(s->args, index);
 }
 
 
@@ -1677,11 +1677,19 @@ static PyObject *values_keys(PyObject *self, PyObject *_noargs) {
   PyObject *result = NULL;
 
   if (s->kwds) {
+    #if 0
     PyObject *keys = PyDict_Keys(s->kwds);
     result = PyObject_GetIter(keys);
     Py_DECREF(keys);
 
+    #else
+    // this is what the default keys() impl on dict does. The
+    // PyDict_Keys API creates a list, which we don't want to do.
+    result = _PyDictView_New(s->kwds, &PyDictKeys_Type);
+    #endif
+
   } else {
+    // a cheap empty iterator
     SibPairIterator *i = PyObject_New(SibPairIterator, &SibPairIteratorType);
     i->index = 0;
     i->pair = NULL;

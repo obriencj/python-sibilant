@@ -517,8 +517,14 @@ class BuildUnpackPairTest(TestCase):
 class ValuesTest(TestCase):
 
 
-    def test_simple(self):
+    def test_equality(self):
+        """
+        tests to ensure the equality operations of a values are
+        functioning correctly when compared with another values
+        instance
+        """
 
+        # permutations of values with only args
         a = values(1, 2, 3)
         b = values(1, 2, 3)
         c = values(4, 5, 6)
@@ -529,6 +535,7 @@ class ValuesTest(TestCase):
         self.assertNotEqual(a, c)
         self.assertNotEqual(b, c)
 
+        # permutations of values with only kwds
         d = values(foo=9, bar=10)
         e = values(foo=9, bar=10)
         f = values(foo=100, quuz=200)
@@ -542,26 +549,29 @@ class ValuesTest(TestCase):
         self.assertNotEqual(a, d)
         self.assertNotEqual(d, a)
 
+        # permutations of values with both args and kwds
         g = values(1, 2, 3, foo=9, bar=10)
         h = values(1, 2, 3, foo=9, bar=10)
         i = values(1, 2, 3, foo=100, quuz=200)
         j = values(4, 5, 6, foo=9, bar=10)
         k = values(4, 5, 6, foo=100, quuz=200)
 
-        self.assertEqual(g, g)
-        self.assertEqual(g, h)
-        self.assertEqual(h, g)
+        self.assertEqual(g, g)  # identity
+        self.assertEqual(g, h)  # similar
+        self.assertEqual(h, g)  # - reversed
         self.assertNotEqual(a, g)  # args vs. args and kwds
         self.assertNotEqual(g, a)  # args and kwds vs. args
         self.assertNotEqual(d, g)  # kwds vs. args and kwds
         self.assertNotEqual(g, d)  # args and kwds vs. kwds
-        self.assertNotEqual(g, i)  # args same, kwds diff
-        self.assertNotEqual(i, g)
-        self.assertNotEqual(g, j)  # args diff, kwds same
-        self.assertNotEqual(j, g)
-        self.assertNotEqual(g, k)  # nothing same
-        self.assertNotEqual(k, g)
+        self.assertNotEqual(g, i)  # args same, kwds differ
+        self.assertNotEqual(i, g)  # - reversed
+        self.assertNotEqual(g, j)  # args differ, kwds same
+        self.assertNotEqual(j, g)  # - reversed
+        self.assertNotEqual(g, k)  # ares and kwds differ
+        self.assertNotEqual(k, g)  # - reversed
 
+        # the empty values, test it against the non-empty ones to make
+        # sure nothing breaks
         z = values()
 
         self.assertNotEqual(a, z)
@@ -573,6 +583,10 @@ class ValuesTest(TestCase):
 
 
     def test_sequence(self):
+        """
+        tests treating the values object as a sequence, including equality
+        operations against other sequences
+        """
 
         a = values(1, 2, 3)
         b = values(4, 5, 6)
@@ -603,6 +617,10 @@ class ValuesTest(TestCase):
 
 
     def test_mapping(self):
+        """
+        tests treating the values object as a mapping, including equality
+        operations against other mappings
+        """
 
         a = values(a=1, b=2, c=3)
         b = values(a=4, b=5, c=6)
@@ -610,11 +628,13 @@ class ValuesTest(TestCase):
         self.assertEqual(dict(a), {'a': 1, 'b': 2, 'c': 3})
         self.assertEqual(dict(b), {'a': 4, 'b': 5, 'c': 6})
 
+        # equality works in both directions
         self.assertEqual(a, {'a': 1, 'b': 2, 'c': 3})
         self.assertEqual({'a': 1, 'b': 2, 'c': 3}, a)
         self.assertEqual(b, {'a': 4, 'b': 5, 'c': 6})
         self.assertEqual({'a': 4, 'b': 5, 'c': 6}, b)
 
+        # so does inequality
         self.assertNotEqual(a, {'a': 4, 'b': 5, 'c': 6})
         self.assertNotEqual({'a': 4, 'b': 5, 'c': 6}, a)
 
@@ -623,13 +643,20 @@ class ValuesTest(TestCase):
 
         c = values(1, 2, 3, a=4, b=5, c=6)
 
+        # whether it has positionals or not, only the keywords get
+        # converted over this way
         self.assertEqual(dict(c), {'a': 4, 'b': 5, 'c': 6})
 
+        # a values with positionals can never be equivalent to a map
         self.assertNotEqual(c, {'a': 4, 'b': 5, 'c': 6})
         self.assertNotEqual({'a': 4, 'b': 5, 'c': 6}, c)
 
 
     def test_subscript(self):
+        """
+        tests that subscripting will defer correctly between positional
+        and keyword members
+        """
 
         a = values(1, 2, 3, a=4, b=5)
 
@@ -648,6 +675,19 @@ class ValuesTest(TestCase):
 
 
     def test_invoke(self):
+        """
+        tests that invocation functions as expected, and raises the
+        appropriate TypeErrors when there's a mismatch between the
+        values members and the function signature
+
+        todo: currently only unary invocation works. ie. you have to
+        pass only one argument to a values instance, and that must be
+        a callable that has a signature that works with the contents
+        of the values. Later on, I'll add support for passing
+        additional arguments along such that positional arguments are
+        appended to the values' positionals, and keyword arguments are
+        merged (with the invocation ones winning)
+        """
 
         def gather(a, b, c, d=0):
             return [a, b, c, d]
@@ -686,7 +726,29 @@ class ValuesTest(TestCase):
         self.assertRaises(TypeError, v, gather)
 
 
+    def test_copy(self):
+
+        a = values(1, 2, 3)
+        b = values(foo=4, bar=5)
+        c = values(1, 2, 3, foo=4, bar=5)
+
+        d = a(values)
+        e = b(values)
+        f = c(values)
+
+        self.assertEqual(a, d)
+        self.assertEqual(b, e)
+        self.assertEqual(c, f)
+
+
     def test_repr(self):
+        """
+        tests that the repr of a values is as expected.
+
+        todo: this repr is short-term, because it was the easiest to
+        write. I'll reimplement it at some point so that it looks more
+        like the actual invocation. For now this is good enough.
+        """
 
         a = values()
         self.assertEqual(repr(a), "values()")
