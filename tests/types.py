@@ -28,7 +28,7 @@ from sibilant import (
     cons, pair, nil, is_pair, is_proper, is_nil,
     car, cdr, setcar, setcdr, last,
     symbol, is_symbol, keyword, is_keyword,
-    build_unpack_pair,
+    build_unpack_pair, values,
 )
 
 
@@ -512,6 +512,175 @@ class BuildUnpackPairTest(TestCase):
         self.assertRaises(OhNoes, b_u_p, iter_fail(3))
         self.assertRaises(OhNoes, b_u_p, [1], iter_fail(3))
         self.assertRaises(OhNoes, b_u_p, iter_fail(3), [1])
+
+
+class ValuesTest(TestCase):
+
+
+    def test_simple(self):
+
+        a = values(1, 2, 3)
+        b = values(1, 2, 3)
+        c = values(4, 5, 6)
+
+        self.assertEqual(a, a)
+        self.assertEqual(a, b)
+        self.assertEqual(b, a)
+        self.assertNotEqual(a, c)
+        self.assertNotEqual(b, c)
+
+        d = values(foo=9, bar=10)
+        e = values(foo=9, bar=10)
+        f = values(foo=100, quuz=200)
+
+        self.assertEqual(d, d)
+        self.assertEqual(d, e)
+        self.assertEqual(e, d)
+        self.assertNotEqual(d, f)
+        self.assertNotEqual(f, d)
+
+        self.assertNotEqual(a, d)
+        self.assertNotEqual(d, a)
+
+        g = values(1, 2, 3, foo=9, bar=10)
+        h = values(1, 2, 3, foo=9, bar=10)
+        i = values(1, 2, 3, foo=100, quuz=200)
+        j = values(4, 5, 6, foo=9, bar=10)
+        k = values(4, 5, 6, foo=100, quuz=200)
+
+        self.assertEqual(g, g)
+        self.assertEqual(g, h)
+        self.assertEqual(h, g)
+        self.assertNotEqual(a, g)  # args vs. args and kwds
+        self.assertNotEqual(g, a)  # args and kwds vs. args
+        self.assertNotEqual(d, g)  # kwds vs. args and kwds
+        self.assertNotEqual(g, d)  # args and kwds vs. kwds
+        self.assertNotEqual(g, i)  # args same, kwds diff
+        self.assertNotEqual(i, g)
+        self.assertNotEqual(g, j)  # args diff, kwds same
+        self.assertNotEqual(j, g)
+        self.assertNotEqual(g, k)  # nothing same
+        self.assertNotEqual(k, g)
+
+        z = values()
+
+        self.assertNotEqual(a, z)
+        self.assertNotEqual(z, a)
+        self.assertNotEqual(d, z)
+        self.assertNotEqual(z, d)
+        self.assertNotEqual(g, z)
+        self.assertNotEqual(z, g)
+
+
+    def test_sequence(self):
+
+        a = values(1, 2, 3)
+        b = values(4, 5, 6)
+
+        self.assertEqual(sum(a), 6)
+        self.assertEqual(sum(b), 15)
+
+        self.assertEqual(list(a), [1, 2, 3])
+        self.assertEqual(list(b), [4, 5, 6])
+
+        self.assertEqual(a, (1, 2, 3))
+        self.assertEqual((1, 2, 3), a)
+        self.assertEqual(b, (4, 5, 6))
+        self.assertEqual((4, 5, 6), b)
+
+        self.assertNotEqual(a, (4, 5, 6))
+        self.assertNotEqual((4, 5, 6), a)
+
+        self.assertNotEqual(b, (1, 2, 3))
+        self.assertNotEqual((1, 2, 3), b)
+
+        c = values(1, 2, 3, foo=5)
+
+        self.assertEqual(list(c), [1, 2, 3])
+
+        self.assertNotEqual(c, (1, 2, 3))
+        self.assertNotEqual((1, 2, 3), c)
+
+
+    def test_mapping(self):
+
+        a = values(a=1, b=2, c=3)
+        b = values(a=4, b=5, c=6)
+
+        self.assertEqual(dict(a), {'a': 1, 'b': 2, 'c': 3})
+        self.assertEqual(dict(b), {'a': 4, 'b': 5, 'c': 6})
+
+        self.assertEqual(a, {'a': 1, 'b': 2, 'c': 3})
+        self.assertEqual({'a': 1, 'b': 2, 'c': 3}, a)
+        self.assertEqual(b, {'a': 4, 'b': 5, 'c': 6})
+        self.assertEqual({'a': 4, 'b': 5, 'c': 6}, b)
+
+        self.assertNotEqual(a, {'a': 4, 'b': 5, 'c': 6})
+        self.assertNotEqual({'a': 4, 'b': 5, 'c': 6}, a)
+
+        self.assertNotEqual(b, {'a': 1, 'b': 2, 'c': 3})
+        self.assertNotEqual({'a': 1, 'b': 2, 'c': 3}, b)
+
+        c = values(1, 2, 3, a=4, b=5, c=6)
+
+        self.assertEqual(dict(c), {'a': 4, 'b': 5, 'c': 6})
+
+        self.assertNotEqual(c, {'a': 4, 'b': 5, 'c': 6})
+        self.assertNotEqual({'a': 4, 'b': 5, 'c': 6}, c)
+
+
+    def test_invoke(self):
+
+        def gather(a, b, c, d=0):
+            return [a, b, c, d]
+
+        v = values(1, 2, 3)
+        self.assertEqual(v(gather), [1, 2, 3, 0])
+
+        v = values(1, 2, 3, 4)
+        self.assertEqual(v(gather), [1, 2, 3, 4])
+
+        v = values(1, 2, 3, d=9)
+        self.assertEqual(v(gather), [1, 2, 3, 9])
+
+        v = values(c=8, b=7, a=6)
+        self.assertEqual(v(gather), [6, 7, 8, 0])
+
+        v = values(d=9, c=8, b=7, a=6)
+        self.assertEqual(v(gather), [6, 7, 8, 9])
+
+        v = values()
+        self.assertRaises(TypeError, v, gather)
+
+        v = values(d=5)
+        self.assertRaises(TypeError, v, gather)
+
+        v = values(1, 2)
+        self.assertRaises(TypeError, v, gather)
+
+        v = values(1, 2, d=5)
+        self.assertRaises(TypeError, v, gather)
+
+        v = values(1, 2, 3, 4, 5)
+        self.assertRaises(TypeError, v, gather)
+
+        v = values(1, 2, 3, foo=100)
+        self.assertRaises(TypeError, v, gather)
+
+
+    def test_repr(self):
+
+        a = values()
+        self.assertEqual(repr(a), "values()")
+
+        a = values(1, 2, 3)
+        self.assertEqual(repr(a), "values(*(1, 2, 3))")
+
+        a = values(foo=4)
+        self.assertEqual(repr(a), "values(**{'foo': 4})")
+
+        a = values(1, 2, 3, foo=4)
+        self.assertEqual(repr(a), "values(*(1, 2, 3), **{'foo': 4})")
 
 
 #
