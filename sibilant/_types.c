@@ -122,7 +122,7 @@ static PyObject *atom_new(PyObject *name,
   n = (SibInternedAtom *) PyDict_GetItem(intern, name);
 
   if (! n) {
-    n = (SibInternedAtom *) PyObject_New(SibInternedAtom, type);
+    n = PyObject_New(SibInternedAtom, type);
     n->name = name;
     n->weakrefs = NULL;
 
@@ -645,7 +645,7 @@ static int pair_setitem(PyObject *self, Py_ssize_t index, PyObject *val) {
 static PyObject *pair_iter(PyObject *self) {
   SibPairIterator *i = NULL;
 
-  i = (SibPairIterator *) PyObject_New(SibPairIterator, &SibPairIteratorType);
+  i = PyObject_New(SibPairIterator, &SibPairIteratorType);
   Py_INCREF(self);
   i->pair = self;
   i->index = 0;
@@ -1004,7 +1004,7 @@ static PyObject *pair_count(PyObject *self, PyObject *_noargs) {
 static PyObject *pair_follow(PyObject *self, PyObject *_noargs) {
   SibPairFollower *i = NULL;
 
-  i = (SibPairFollower *) PyObject_New(SibPairFollower, &SibPairFollowerType);
+  i = PyObject_New(SibPairFollower, &SibPairFollowerType);
   Py_INCREF(self);
   i->current = self;
   i->seen = PySet_New(NULL);
@@ -1017,7 +1017,7 @@ static PyObject *pair_follow(PyObject *self, PyObject *_noargs) {
 static PyObject *pair_unpack(PyObject *self, PyObject *_noargs) {
   SibPairFollower *i = NULL;
 
-  i = (SibPairFollower *) PyObject_New(SibPairFollower, &SibPairFollowerType);
+  i = PyObject_New(SibPairFollower, &SibPairFollowerType);
   Py_INCREF(self);
   i->current = self;
   i->seen = PySet_New(NULL);
@@ -1032,7 +1032,7 @@ static PyObject *pair_to_list(PyObject *self) {
   PyObject *result;
   SibPairFollower *i = NULL;
 
-  i = (SibPairFollower *) PyObject_New(SibPairFollower, &SibPairFollowerType);
+  i = PyObject_New(SibPairFollower, &SibPairFollowerType);
   Py_INCREF(self);
   i->current = self;
   i->seen = PySet_New(NULL);
