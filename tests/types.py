@@ -629,6 +629,24 @@ class ValuesTest(TestCase):
         self.assertNotEqual({'a': 4, 'b': 5, 'c': 6}, c)
 
 
+    def test_subscript(self):
+
+        a = values(1, 2, 3, a=4, b=5)
+
+        self.assertEqual(a[0], 1)
+        self.assertEqual(a[1], 2)
+        self.assertEqual(a[2], 3)
+
+        self.assertEqual(a['a'], 4)
+        self.assertEqual(a['b'], 5)
+
+        self.assertRaises(IndexError, lambda: a[3])
+        self.assertRaises(KeyError, lambda: a['c'])
+
+        b = values(1, 2, 3)
+        self.assertRaises(KeyError, lambda: b['a'])
+
+
     def test_invoke(self):
 
         def gather(a, b, c, d=0):

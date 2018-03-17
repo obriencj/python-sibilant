@@ -1535,11 +1535,20 @@ static PyObject *values_kwds_getitem(PyObject *self, PyObject *key) {
     return PySequence_GetItem(s->args, PyLong_AsSsize_t(key));
 
   } else {
-    if (! s->kwds) {
-      PyErr_SetObject(PyExc_KeyError, quoted(key));
-      return NULL;
+    PyObject *result = NULL;
+
+    if (s->kwds) {
+      result = PyDict_GetItem(s->kwds, key);
     }
-    return PyDict_GetItemWithError(s->kwds, key);
+
+    if (result) {
+      Py_INCREF(result);
+
+    } else {
+      PyErr_SetObject(PyExc_KeyError, quoted(key));
+    }
+
+    return result;
   }
 }
 
