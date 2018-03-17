@@ -1554,14 +1554,26 @@ static PyObject *values_call(PyObject *self,
     return NULL;
   }
 
-  if ((! (kwds && PyDict_Size(kwds))) && (PyTuple_GET_SIZE(args) == 1)) {
+  if (kwds && PyDict_Size(kwds)) {
 
-    return PyObject_Call(work, s->args, s->kwds);
+    if (PyTuple_GET_SIZE(args) > 1) {
+      // TODO: kwds and positional arguments must be merged prior to
+      // invocation
+      return NULL;
+
+    } else {
+      // TODO: kwds arguments must be merged in prior to invocation
+      return NULL;
+    }
+
+  } else if (PyTuple_GET_SIZE(args) > 1) {
+    // TODO: positional arguments must be merged prior to invocation
+    return NULL;
 
   } else {
-    // todo. This won't be reached until the ParseTuple call is
-    // expanded to accept varags and kwds.
-    return NULL;
+    // no additional keyword or positional arguments, just use what's
+    // already in the values instance
+    return PyObject_Call(work, s->args, s->kwds);
   }
 }
 
