@@ -815,5 +815,90 @@ class ValuesTest(TestCase):
         self.assertFalse(not v)
 
 
+    def test_hashing(self):
+        """
+        Test that the hashing works for values
+        """
+
+        a = values()
+        b = values()
+        self.assertEqual(hash(a), hash(a))
+        self.assertEqual(hash(a), hash(b))
+        self.assertEqual(hash(a), hash(tuple(a)))
+
+        c = values(1, 2, 3)
+        d = values(1, 2, 3)
+        e = values(4, 5, 6)
+
+        self.assertEqual(hash(c), hash(c))
+        self.assertEqual(hash(c), hash(d))
+        self.assertNotEqual(hash(c), hash(e))
+        self.assertNotEqual(hash(c), hash(a))  # vs. values()
+        self.assertEqual(hash(c), hash(tuple(c)))
+
+        f = values(foo=11, bar=12)
+        g = values(foo=11, bar=12)
+        h = values(foo=21, bar=22, baz=99)
+
+        self.assertEqual(hash(f), hash(f))
+        self.assertEqual(hash(f), hash(g))
+        self.assertNotEqual(hash(f), hash(h))
+        self.assertNotEqual(hash(f), hash(c))  # vs. values(1, 2, 3)
+        self.assertNotEqual(hash(f), hash(a))  # vs. values()
+        self.assertNotEqual(hash(f), hash(tuple(f)))
+
+        i = values(1, 2, 3, foo=4, bar=5)
+        j = values(1, 2, 3, foo=4, bar=5)
+        k = values(4, 5, 6, foo=4, bar=5)
+        l = values(1, 2, 3, foo=9, bar=10)
+        m = values(4, 5, 6, foo=9, bar=10)
+
+        self.assertEqual(hash(i), hash(i))
+        self.assertEqual(hash(i), hash(j))
+        self.assertNotEqual(hash(i), hash(k))  # diff args, same kwds
+        self.assertNotEqual(hash(i), hash(l))  # same args, diff kwds
+        self.assertNotEqual(hash(i), hash(m))  # diff args, diff kwds
+        self.assertNotEqual(hash(i), hash(tuple(i)))
+
+        bad_1 = values({"a": 1})
+        self.assertRaises(TypeError, hash, bad_1)
+
+        bad_2 = values(b={"b": 1})
+        self.assertRaises(TypeError, hash, bad_2)
+
+        bad_3 = values({"a": 1}, b={"b": 1})
+        self.assertRaises(TypeError, hash, bad_3)
+
+        data = {
+            values(): "wut",
+            values(1, 2, 3): "tacos",
+            values(foo=9): "foo niner",
+            values(2, 2, hands='blue'): "serenity",
+        }
+        setter = data.__setitem__
+        getter = data.__getitem__
+
+        self.assertEqual(data[values()], "wut")
+        self.assertEqual(data[()], "wut")
+        self.assertEqual(data[values(1, 2, 3)], "tacos")
+        self.assertEqual(data[(1, 2, 3)], "tacos")
+        self.assertEqual(data[values(foo=9)], "foo niner")
+        self.assertEqual(data[values(2, 2, hands='blue')], "serenity")
+
+        self.assertRaises(TypeError, setter, bad_1, None)
+        self.assertRaises(TypeError, setter, bad_2, None)
+        self.assertRaises(TypeError, setter, bad_3, None)
+        self.assertRaises(TypeError, getter, bad_1)
+        self.assertRaises(TypeError, getter, bad_2)
+        self.assertRaises(TypeError, getter, bad_3)
+
+        self.assertRaises(KeyError, getter, (1, 2, 3, 4))
+        self.assertRaises(KeyError, getter, values(1, 2, 3, foo=9))
+        self.assertRaises(KeyError, getter, values(2, 2, hands='tiny'))
+        self.assertRaises(KeyError, getter, values(hands='blue'))
+        self.assertRaises(KeyError, getter, values(1, 2, 3, 4))
+        self.assertRaises(KeyError, getter, values(bar=None))
+
+
 #
 # The end.
