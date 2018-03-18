@@ -138,6 +138,7 @@ class ConsTest(TestCase):
         self.assertTrue(is_nil(nil))
         self.assertTrue(is_proper(nil))
         self.assertFalse(nil)
+        self.assertTrue(not nil)
         self.assertEqual(str(nil), "nil")
         self.assertEqual(repr(nil), "nil")
 
@@ -720,23 +721,18 @@ class ValuesTest(TestCase):
         self.assertRaises(TypeError, v, gather)
 
         v = values(d=5)
-        self.assertRaises(TypeError, v)
         self.assertRaises(TypeError, v, gather)
 
         v = values(1, 2)
-        self.assertRaises(TypeError, v)
         self.assertRaises(TypeError, v, gather)
 
         v = values(1, 2, d=5)
-        self.assertRaises(TypeError, v)
         self.assertRaises(TypeError, v, gather)
 
         v = values(1, 2, 3, 4, 5)
-        self.assertRaises(TypeError, v)
         self.assertRaises(TypeError, v, gather)
 
         v = values(1, 2, 3, foo=100)
-        self.assertRaises(TypeError, v)
         self.assertRaises(TypeError, v, gather)
 
 
@@ -794,6 +790,29 @@ class ValuesTest(TestCase):
 
         a = values(1, 2, 3, foo=4)
         self.assertEqual(repr(a), "values(1, 2, 3, foo=4)")
+
+
+    def test_bool(self):
+        """
+        Tests truthiness of values
+        """
+
+        # empty values is the only False values
+        v = values()
+        self.assertFalse(v)
+        self.assertTrue(not v)
+
+        v = values(1, 2, 3)
+        self.assertTrue(v)
+        self.assertFalse(not v)
+
+        v = values(foo=4, bar=5)
+        self.assertTrue(v)
+        self.assertFalse(not v)
+
+        v = values(1, 2, 3, foo=4, bar=5)
+        self.assertTrue(v)
+        self.assertFalse(not v)
 
 
 #

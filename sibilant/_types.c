@@ -1747,6 +1747,13 @@ static PyObject *values_richcomp(PyObject *self, PyObject *other, int op) {
 }
 
 
+static int values_bool(PyObject *self) {
+  SibValues *s = (SibValues *) self;
+
+  return !!((s->kwds && PyDict_Size(s->kwds)) || PyTuple_GET_SIZE(s->args));
+}
+
+
 static PyObject *values_keys(PyObject *self, PyObject *_noargs) {
   SibValues *s = (SibValues *) self;
   PyObject *result = NULL;
@@ -1784,6 +1791,11 @@ static PyMethodDef values_methods[] = {
 };
 
 
+static PyNumberMethods values_as_number = {
+  .nb_bool = (inquiry) values_bool,
+};
+
+
 static PySequenceMethods values_as_sequence = {
   .sq_item = values_args_getitem,
 };
@@ -1811,6 +1823,7 @@ PyTypeObject SibValuesType = {
   .tp_clear = values_clear,
 
   .tp_iter = values_iter,
+  .tp_as_number = &values_as_number,
   .tp_as_sequence = &values_as_sequence,
   .tp_as_mapping = &values_as_mapping,
 
