@@ -1683,6 +1683,45 @@ static PyObject *values_repr(PyObject *self) {
 }
 
 
+static Py_hash_t values_hash(PyObject *self) {
+  SibValues *s = (SibValues *) self;
+  Py_uhash_t result = s->hashed, khash;
+  PyObject *tmp, *frozen;
+
+  if (result == 0) {
+    result = PyObject_Hash(s->args);
+    if (result == (Py_uhash_t) -1)
+      return -1;
+
+    if (s->kwds && PyDict_Size(s->kwds)) {
+      tmp = _PyDictView_New(s->kwds, &PyDictItems_Type);
+      frozen = PyFrozenSet_New(tmp);
+      Py_DECREF(tmp);
+
+      if (! frozen)
+	return -1;
+
+      khash = PyObject_Hash(frozen);
+      Py_DECREF(frozen);
+
+      if (khash == (Py_uhash_t) -1)
+	return -1;
+
+      // I stole these magic numbers from tuplehash
+      result = (result ^ khash) * _PyHASH_MULTIPLIER;
+      result += 97531UL;
+
+      if (result == (Py_uhash_t) -1)
+	result = -2;
+    }
+
+    s->hashed = result;
+  }
+
+  return result;
+}
+
+
 static long values_eq(PyObject *self, PyObject *other) {
   SibValues *s = (SibValues *) self;
   long answer = 0;
@@ -1823,6 +1862,7 @@ PyTypeObject SibValuesType = {
   .tp_clear = values_clear,
 
   .tp_iter = values_iter,
+  .tp_hash = values_hash,
   .tp_as_number = &values_as_number,
   .tp_as_sequence = &values_as_sequence,
   .tp_as_mapping = &values_as_mapping,
@@ -1850,6 +1890,8 @@ PyObject *sib_values(PyObject *args, PyObject *kwds) {
 
   Py_XINCREF(kwds);
   self->kwds = kwds;
+
+  self->hashed = 0;
 
   PyObject_GC_Track((PyObject *) self);
   return (PyObject *) self;

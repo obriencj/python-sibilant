@@ -45,6 +45,7 @@ typedef struct SibValues {
   PyObject *args;
   PyObject *kwds;
   PyObject *weakrefs;
+  Py_uhash_t hashed;
 } SibValues;
 
 
