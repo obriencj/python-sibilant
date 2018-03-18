@@ -1888,8 +1888,7 @@ PyObject *sib_values(PyObject *args, PyObject *kwds) {
   Py_INCREF(args);
   self->args = args;
 
-  Py_XINCREF(kwds);
-  self->kwds = kwds;
+  self->kwds = kwds? PyDict_Copy(kwds): NULL;
 
   self->hashed = 0;
 
