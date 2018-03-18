@@ -58,10 +58,10 @@ echo -e "Current branch is $BRANCH so working in:\n $VDIR"
 case "$CMD" in
     init)
 	mkdir -p "$VDIR"
-	virtualenv --python="$SYSPYTHON" --clear "$VDIR" "$@" || exit $?
+	virtualenv --python="$SYSPYTHON" "$VDIR" "$@" || exit $?
 	;;
 
-    setup)
+    setup|setup.py)
 	"$VBIN/python" setup.py "$@" || exit $?
 	;;
 
