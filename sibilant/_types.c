@@ -1379,7 +1379,7 @@ static PyObject *nil_new(PyTypeObject *type,
 
 
 static void nil_dealloc(PyObject *self) {
-  ;
+  ;  // nil is statically allocated, do not free it
 }
 
 
@@ -1545,6 +1545,10 @@ static PyObject *values_kwds_getitem(PyObject *self, PyObject *key) {
       Py_INCREF(result);
 
     } else {
+      // we do our own error handling because result could be NULL
+      // either because there was a NULL keyword dict, or because of
+      // an actual NULL result from GetItem. in either of those cases,
+      // we want to emit the same KeyError
       PyErr_SetObject(PyExc_KeyError, quoted(key));
     }
 
@@ -1569,33 +1573,53 @@ static PyObject *values_call(PyObject *self,
   work = PyTuple_GET_ITEM(args, 0);
 
   if (PyTuple_GET_SIZE(args) > 1) {
+    // if we have more positionals beyond just the callable work item,
+    // we'll need to add those the invocation of work
+
     tmp = PySequence_GetSlice(args, 1, PyTuple_GET_SIZE(args));
 
     if (PyTuple_GET_SIZE(s->args)) {
+      // merge the existing positionals with the invocation ones
       call_args = PySequence_Concat(s->args, tmp);
       Py_DECREF(tmp);
 
     } else {
+      // there were no positionals in the values, so just use the
+      // invocation ones
       call_args = tmp;
     }
 
   } else {
+    // no additional positionals given at invocation, so we'll just be
+    // using our existing ones.
     call_args = s->args;
     Py_INCREF(call_args);
   }
 
   if (kwds && PyDict_Size(kwds)) {
+    // if keyword arguments were supplied, we'll need to add those to
+    // the work invocation.
+
     if (s->kwds && PyDict_Size(s->kwds)) {
+      // if the values already had keywords, we'll need to create a
+      // new dict and merge these two sets of keyword arguments
+      // together
+
       call_kwds = PyDict_New();
       PyDict_Update(call_kwds, s->kwds);
       PyDict_Update(call_kwds, kwds);
 
     } else {
+      // the values had no keywords, so let's just use the ones supplied
+      // by the invocation
+
       call_kwds = kwds;
       Py_INCREF(call_kwds);
     }
 
   } else {
+    // no extra keyword arguments were supplied, so we only need to
+    // use the ones from the values
     call_kwds = s->kwds;
     Py_XINCREF(call_kwds);
   }
@@ -1615,13 +1639,12 @@ static PyObject *values_repr(PyObject *self) {
   Py_ssize_t count = 0, limit = 0;
   PyObject *key = NULL, *value = NULL;
 
-  PyList_Append(col, _str_values_paren);
-
-#if 1
   // "values()"
   // "values(1, 2, 3)"
   // "values(foo=4, bar=5)"
   // "values(1, 2, 3, foo=4, bar=5)"
+
+  PyList_Append(col, _str_values_paren);
 
   limit = PyTuple_GET_SIZE(s->args);
   for (count = 0; count < limit; count++) {
@@ -1644,35 +1667,14 @@ static PyObject *values_repr(PyObject *self) {
   }
 
   if (limit || count) {
-    PySequence_DelItem(col, PyList_GET_SIZE(col) - 1);
+    // we'll have a trailing _str_comma_space if we added
+    // anything. Re-use its index for the close paren
+    Py_INCREF(_str_close_paren);
+    PyList_SetItem(col, PyList_GET_SIZE(col) - 1, _str_close_paren);
+  } else {
+    // otherwise, just close off as "values()"
+    PyList_Append(col, _str_close_paren);
   }
-
-#else
-  // "values()"
-  // "values(*%r)"
-  // "values(**%r)"
-  // "values(*%r, **%r)"
-
-  if (PyTuple_GET_SIZE(s->args)) {
-    tmp = PyObject_Repr(s->args);
-    PyList_Append(col, _str_star);
-    PyList_Append(col, tmp);
-    Py_DECREF(tmp);
-
-    if (s->kwds) {
-      PyList_Append(col, _str_comma_space);
-    }
-  }
-
-  if (s->kwds) {
-    tmp = PyObject_Repr(s->kwds);
-    PyList_Append(col, _str_starstar);
-    PyList_Append(col, tmp);
-    Py_DECREF(tmp);
-  }
-#endif
-
-  PyList_Append(col, _str_close_paren);
 
   tmp = PyUnicode_Join(_str_empty, col);
   Py_DECREF(col);
@@ -1685,11 +1687,16 @@ static long values_eq(PyObject *self, PyObject *other) {
   SibValues *s = (SibValues *) self;
   long answer = 0;
 
-  if (self == other)
-    return 1;
+  if (self == other) {
+    // identity is equality, yes
+    answer = 1;
 
-  if (SibValues_CheckExact(other)) {
+  } else if (SibValues_CheckExact(other)) {
     SibValues *o = (SibValues *) other;
+
+    // when comparing two values against each other, we'll just
+    // compare their positionals and keywords. We'll actually do the
+    // keywords check first, because it has a quick NULL-check
 
     if (s->kwds && o->kwds) {
       answer = PyObject_RichCompareBool(s->kwds, o->kwds, Py_EQ);
@@ -1701,14 +1708,22 @@ static long values_eq(PyObject *self, PyObject *other) {
       PyObject_RichCompareBool(s->args, o->args, Py_EQ);
 
   } else if (PyTuple_CheckExact(other)) {
-    answer = (! s->kwds) && \
+    // comparing against a tuple is fine, so long as keywords either
+    // are NULL or empty.
+
+    answer = ((! s->kwds) || (! PyDict_Size(s->kwds))) &&	\
       PyObject_RichCompareBool(s->args, other, Py_EQ);
 
   } else if (PyDict_CheckExact(other)) {
+    // comparing against a dict is fine, so long as positionals is
+    // empty.
+
     if (s->kwds) {
       answer = (! PyTuple_GET_SIZE(s->args)) &&			\
 	PyObject_RichCompareBool(s->kwds, other, Py_EQ);
+
     } else {
+      // we'll say a NULL keywords is equal to an empty dict
       answer = (! PyTuple_GET_SIZE(s->args)) && \
 	(! PyDict_Size(other));
     }
@@ -1823,6 +1838,7 @@ PyObject *sib_values(PyObject *args, PyObject *kwds) {
   Py_XINCREF(kwds);
   self->kwds = kwds;
 
+  PyObject_GC_Track((PyObject *) self);
   return (PyObject *) self;
 }
 
