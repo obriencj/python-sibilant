@@ -1705,8 +1705,13 @@ static long values_eq(PyObject *self, PyObject *other) {
       PyObject_RichCompareBool(s->args, other, Py_EQ);
 
   } else if (PyDict_CheckExact(other)) {
-    answer = (! PyTuple_GET_SIZE(s->args)) && \
-      PyObject_RichCompareBool(s->kwds, other, Py_EQ);
+    if (s->kwds) {
+      answer = (! PyTuple_GET_SIZE(s->args)) &&			\
+	PyObject_RichCompareBool(s->kwds, other, Py_EQ);
+    } else {
+      answer = (! PyTuple_GET_SIZE(s->args)) && \
+	(! PyDict_Size(other));
+    }
   }
 
   return answer;

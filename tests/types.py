@@ -651,6 +651,14 @@ class ValuesTest(TestCase):
         self.assertNotEqual(c, {'a': 4, 'b': 5, 'c': 6})
         self.assertNotEqual({'a': 4, 'b': 5, 'c': 6}, c)
 
+        # test for equality with empty mappings (which means the
+        # underlying dict ref is probably NULL
+        v = values()
+        self.assertEqual(v, dict())
+        self.assertEqual(dict(), v)
+        self.assertNotEqual(v, dict(foo=1))
+        self.assertNotEqual(dict(foo=1), v)
+
 
     def test_subscript(self):
         """
