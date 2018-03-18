@@ -837,24 +837,28 @@ class ValuesTest(TestCase):
         self.assertEqual(hash(c), hash(tuple(c)))
 
         f = values(foo=11, bar=12)
-        g = values(foo=11, bar=12)
+        g1 = values(foo=11, bar=12)
+        g2 = values(bar=12, foo=11)
         h = values(foo=21, bar=22, baz=99)
 
         self.assertEqual(hash(f), hash(f))
-        self.assertEqual(hash(f), hash(g))
+        self.assertEqual(hash(f), hash(g1))
+        self.assertEqual(hash(f), hash(g2))
         self.assertNotEqual(hash(f), hash(h))
         self.assertNotEqual(hash(f), hash(c))  # vs. values(1, 2, 3)
         self.assertNotEqual(hash(f), hash(a))  # vs. values()
         self.assertNotEqual(hash(f), hash(tuple(f)))
 
         i = values(1, 2, 3, foo=4, bar=5)
-        j = values(1, 2, 3, foo=4, bar=5)
+        j1 = values(1, 2, 3, foo=4, bar=5)
+        j2 = values(1, 2, 3, bar=5, foo=4)
         k = values(4, 5, 6, foo=4, bar=5)
         l = values(1, 2, 3, foo=9, bar=10)
         m = values(4, 5, 6, foo=9, bar=10)
 
         self.assertEqual(hash(i), hash(i))
-        self.assertEqual(hash(i), hash(j))
+        self.assertEqual(hash(i), hash(j1))
+        self.assertEqual(hash(i), hash(j2))
         self.assertNotEqual(hash(i), hash(k))  # diff args, same kwds
         self.assertNotEqual(hash(i), hash(l))  # same args, diff kwds
         self.assertNotEqual(hash(i), hash(m))  # diff args, diff kwds
