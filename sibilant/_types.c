@@ -1608,8 +1608,7 @@ static PyObject *values_call(PyObject *self,
       // new dict and merge these two sets of keyword arguments
       // together
 
-      call_kwds = PyDict_New();
-      PyDict_Update(call_kwds, s->kwds);
+      call_kwds = PyDict_Copy(s->kwds);
       PyDict_Update(call_kwds, kwds);
 
     } else {
