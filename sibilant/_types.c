@@ -1480,6 +1480,9 @@ static PyObject *values_new(PyTypeObject *type,
 static void values_dealloc(PyObject *self) {
   SibValues *s = (SibValues *) self;
 
+  if (s->weakrefs != NULL)
+    PyObject_ClearWeakRefs(self);
+
   Py_XDECREF(s->args);
   Py_XDECREF(s->kwds);
 
@@ -1798,16 +1801,9 @@ static PyObject *values_keys(PyObject *self, PyObject *_noargs) {
   PyObject *result = NULL;
 
   if (s->kwds) {
-    #if 0
-    PyObject *keys = PyDict_Keys(s->kwds);
-    result = PyObject_GetIter(keys);
-    Py_DECREF(keys);
-
-    #else
     // this is what the default keys() impl on dict does. The
     // PyDict_Keys API creates a list, which we don't want to do.
     result = _PyDictView_New(s->kwds, &PyDictKeys_Type);
-    #endif
 
   } else {
     // a cheap empty iterator
@@ -1887,9 +1883,8 @@ PyObject *sib_values(PyObject *args, PyObject *kwds) {
 
   Py_INCREF(args);
   self->args = args;
-
   self->kwds = kwds? PyDict_Copy(kwds): NULL;
-
+  self->weakrefs = NULL;
   self->hashed = 0;
 
   PyObject_GC_Track((PyObject *) self);
