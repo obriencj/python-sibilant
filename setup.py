@@ -24,22 +24,30 @@ Sibilant, a LISP for Python
 """
 
 
-from sys import exit, version_info
+from os.path import join
 from setuptools import setup, Extension
 
 
-ext_tco = Extension(
-    name = "sibilant._tco",
-    sources = ["sibilant/_tco.c"],
-    extra_compile_args=["--std=c99"],
-)
+_extensions = []
+_headers = ["ext/sibilant.h"]
 
-ext_types = Extension(
-    name = "sibilant._types",
-    sources = ["sibilant/_types.c"],
-    include_dirs = ["include"],
-    extra_compile_args=["--std=c99"],
-)
+
+def declare_ext(name, filename, header=None):
+
+    e = Extension(name,
+                  sources=[join("ext", filename)],
+                  extra_compile_args=["--std=c99"])
+    _extensions.append(e)
+
+    if header:
+        _headers.append(join("ext", header))
+
+
+declare_ext("sibilant._atom", "atom.c", "atom.h")
+declare_ext("sibilant._pair", "pair.c", "pair.h")
+declare_ext("sibilant._tco", "tco.c", "tco.h")
+declare_ext("sibilant._util", "util.c")
+declare_Ext("sibilant._values", "values.c", "values.h")
 
 
 setup(
@@ -55,14 +63,8 @@ setup(
         "sibilant": ["*.lspy"],
     },
 
-    ext_modules = [
-        ext_tco,
-        ext_types,
-    ],
-
-    headers = [
-        "include/py3-sibilant.h",
-    ],
+    ext_modules = _extensions,
+    headers = _headers,
 
     test_suite = "tests",
 

@@ -18,7 +18,13 @@
 #ifndef SIBILANT_CTYPES_H
 #define SIBILANT_CTYPES_H
 
+
 #include <Python.h>
+
+#include "atom.h"
+#include "pair.h"
+#include "tco.h"
+#include "values.h"
 
 
 typedef struct SibPair {
