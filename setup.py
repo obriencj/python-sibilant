@@ -19,8 +19,8 @@
 """
 Sibilant, a LISP for Python
 
-:author: Christopher O'Brien  <obriencj@gmail.com>
-:license: LGPL v.3
+author: Christopher O'Brien  <obriencj@gmail.com>
+license: LGPL v.3
 """
 
 
@@ -28,26 +28,11 @@ from os.path import join
 from setuptools import setup, Extension
 
 
-_extensions = []
-_headers = ["ext/sibilant.h"]
-
-
-def declare_ext(name, filename, header=None):
-
-    e = Extension(name,
-                  sources=[join("ext", filename)],
-                  extra_compile_args=["--std=c99"])
-    _extensions.append(e)
-
-    if header:
-        _headers.append(join("ext", header))
-
-
-declare_ext("sibilant._atom", "atom.c", "atom.h")
-declare_ext("sibilant._pair", "pair.c", "pair.h")
-declare_ext("sibilant._tco", "tco.c", "tco.h")
-declare_ext("sibilant._util", "util.c")
-declare_Ext("sibilant._values", "values.c", "values.h")
+def ext(name):
+    extname = "sibilant.ext." + name
+    filename = join("sibilant", "ext", name + ".c")
+    return Extension(extname, sources=[filename],
+                     extra_compile_args=["--std=c99", "-fPIC"])
 
 
 setup(
@@ -57,14 +42,24 @@ setup(
     packages = [
         "sibilant",
         "sibilant.compiler",
+        "sibilant.ext",
     ],
 
     package_data = {
         "sibilant": ["*.lspy"],
     },
 
-    ext_modules = _extensions,
-    headers = _headers,
+    ext_modules = [
+        ext("atom"),
+        ext("pair"),
+        ext("tco"),
+        ext("util"),
+        ext("values"),
+    ],
+
+    headers = [
+        "sibilant/ext/sibilant.h",
+    ],
 
     test_suite = "tests",
 

@@ -25,7 +25,7 @@
  */
 
 
-#include <py3-sibilant.h>
+#include "sibilant.h"
 
 
 #define DOCSTR "Sibilant's values type"
@@ -426,7 +426,7 @@ static int values_bool(PyObject *self) {
 
 static PyObject *values_keys(PyObject *self, PyObject *_noargs) {
   SibValues *s = (SibValues *) self;
-  PyObject *result = NULL;
+  PyObject *result = NULL, *tmp;
 
   if (s->kwds) {
     // this is what the default keys() impl on dict does. The
@@ -435,11 +435,9 @@ static PyObject *values_keys(PyObject *self, PyObject *_noargs) {
 
   } else {
     // a cheap empty iterator
-    SibPairIterator *i = PyObject_New(SibPairIterator, &SibPairIteratorType);
-    i->index = 0;
-    i->pair = NULL;
-
-    result = (PyObject *) i;
+    tmp = PyTuple_New(0);
+    result = PyObject_GetIter(tmp);
+    Py_DECREF(tmp);
   }
 
   return result;
@@ -523,297 +521,9 @@ PyObject *sib_values(PyObject *args, PyObject *kwds) {
 /* === module === */
 
 
-static PyObject *m_cons(PyObject *mod, PyObject *args, PyObject *kwds) {
-  PyObject *result = NULL;
-  PyObject *work = NULL;
-  int recursive = 0;
-  int count = PyTuple_Size(args);
-
-  if (! count) {
-    Py_INCREF(Sib_Nil);
-    return Sib_Nil;
-  }
-
-  if (kwds) {
-    result = PyDict_GetItem(kwds, _str_recursive);
-    if (result) {
-      if (PyDict_Size(kwds) > 1) {
-	PyErr_SetString(PyExc_TypeError,
-			"cons accepts one keyword argument: recursive");
-	return NULL;
-      }
-
-      recursive = PyObject_IsTrue(result);
-      if (recursive < 0)
-	return NULL;
-
-    } else {
-      if (PyDict_Size(kwds) > 0) {
-	PyErr_SetString(PyExc_TypeError,
-			"cons accepts one keyword argument: recursive");
-	return NULL;
-      }
-    }
-  }
-
-  result = sib_pair(PyTuple_GET_ITEM(args, 0), Sib_Nil);
-
-  if (count == 1) {
-    if (recursive)
-      SETCDR(result, result);
-    return result;
-
-  } else {
-    work = recursive? result: PyTuple_GET_ITEM(args, --count);
-    while (--count) {
-      work = sib_pair(PyTuple_GET_ITEM(args, count), work);
-    }
-    SETCDR(result, work);
-    return result;
-  }
-}
-
-
-static PyObject *m_car(PyObject *mod, PyObject *pair) {
-  PyObject *result = NULL;
-
-  if (! SibPair_Check(pair)) {
-    PyErr_SetString(PyExc_TypeError, "car argument must be pair");
-
-  } else if (Sib_Nilp(pair)) {
-    PyErr_SetString(PyExc_TypeError, "cannot get car of nil");
-
-  } else {
-    result = CAR(pair);
-    Py_INCREF(result);
-  }
-
-  return result;
-}
-
-
-static PyObject *m_cdr(PyObject *mod, PyObject *pair) {
-  PyObject *result = NULL;
-
-  if (! SibPair_Check(pair)) {
-    PyErr_SetString(PyExc_TypeError, "cdr argument must be pair");
-
-  } else if (Sib_Nilp(pair)) {
-    PyErr_SetString(PyExc_TypeError, "cannot get cdr of nil");
-
-  } else {
-    result = CDR(pair);
-    Py_INCREF(result);
-  }
-
-  return result;
-}
-
-
-static PyObject *m_setcar(PyObject *mod, PyObject *args) {
-  PyObject *pair = NULL;
-  PyObject *val = NULL;
-
-  if (! PyArg_ParseTuple(args, "O!O:setcar", &SibPairType, &pair, &val)) {
-    return NULL;
-
-  } else if (Sib_Nilp(pair)) {
-    PyErr_SetString(PyExc_TypeError, "cannot set car of nil");
-    return NULL;
-
- } else {
-    SETCAR(pair, val);
-    Py_RETURN_NONE;
-  }
-}
-
-
-static PyObject *m_setcdr(PyObject *mod, PyObject *args) {
-  PyObject *pair = NULL;
-  PyObject *val = NULL;
-
-  if (! PyArg_ParseTuple(args, "O!O:setcdr", &SibPairType, &pair, &val)) {
-    return NULL;
-
-  } else if (Sib_Nilp(pair)) {
-    PyErr_SetString(PyExc_TypeError, "cannot set cdr of nil");
-    return NULL;
-
-  } else {
-    SETCDR(pair, val);
-    Py_RETURN_NONE;
-  }
-}
-
-
-static PyObject *m_reapply(PyObject *mod, PyObject *args, PyObject *kwds) {
-  PyObject *fun, *data, *result;
-  long count = 0;
-
-  static char *keywords[] = { "fun", "data", "count", NULL };
-
-  if (! PyArg_ParseTupleAndKeywords(args, kwds, "OOl:reapply", keywords,
-				    &fun, &data, &count))
-    return NULL;
-
-  Py_INCREF(data);
-  result = data;
-
-  while (count-- > 0) {
-    result = PyObject_CallFunctionObjArgs(fun, data);
-    Py_DECREF(data);
-
-    if (! result)
-      break;
-
-    data = result;
-  }
-
-  return result;
-}
-
-
-static PyObject *m_build_unpack_pair(PyObject *mod, PyObject *seqs) {
-  Py_ssize_t count = PyTuple_GET_SIZE(seqs);
-  Py_ssize_t index = 0;
-  PyObject *coll = NULL;
-  PyObject *work = NULL;
-  PyObject *result = NULL;
-
-  if (count == 0) {
-    Py_INCREF(Sib_Nil);
-    return Sib_Nil;
-  }
-
-  coll = PyList_New(0);
-
-  while (index < count) {
-    work = PyTuple_GET_ITEM(seqs, index++);
-
-    if (Sib_Nilp(work)) {
-      continue;
-
-    } else if (SibPair_CheckExact(work)) {
-      work = pair_unpack(work, NULL);
-
-    } else {
-      // todo: check for lists and tuples explicitly, and see if
-      // they're zero-length. If so, avoid creating an iterator, just
-      // continue to the next item.
-      work = PyObject_GetIter(work);
-    }
-
-    if (! work) {
-      Py_DECREF(coll);
-      return NULL;
-    }
-
-    result = _PyList_Extend((PyListObject *) coll, work);
-    Py_CLEAR(work);
-
-    if (! result) {
-      Py_DECREF(coll);
-      return NULL;
-
-    } else {
-      Py_CLEAR(result);
-    }
-  }
-
-  if (! PyList_GET_SIZE(coll)) {
-    // The collection didn't net any actual elements, so let's skip
-    // out early and just return nil
-
-    Py_DECREF(coll);
-    Py_INCREF(Sib_Nil);
-    return Sib_Nil;
-  }
-
-  // I wonder if there isn't a better way to do this. We end up
-  // traversing the last cons pair twice, which means allocating a set
-  // in order to avoid recursion. Is that too expensive?
-  work = PyTuple_GET_ITEM(seqs, count - 1);
-  if (SibPair_is_proper(work)) {
-    PyList_Append(coll, Sib_Nil);
-  }
-
-  // assemble coll into a pair
-  count = PyList_GET_SIZE(coll);
-  result = sib_pair(PyList_GET_ITEM(coll, 0), Sib_Nil);
-
-  if (count > 1) {
-    work = PyList_GET_ITEM(coll, --count);
-    while (--count) {
-      work = sib_pair(PyList_GET_ITEM(coll, count), work);
-    }
-    SETCDR(result, work);
-  }
-
-  Py_DECREF(coll);
-  return result;
-}
-
-
-static PyObject *m_build_tuple(PyObject *mod, PyObject *values) {
-  Py_INCREF(values);
-  return values;
-}
-
-
-static PyObject *m_build_list(PyObject *mod, PyObject *values) {
-  return PySequence_List(values);
-}
-
-
-static PyObject *m_build_set(PyObject *mod, PyObject *values) {
-  return PySet_New(values);
-}
-
-
-static PyObject *m_build_dict(PyObject *mod, PyObject *values) {
-  PyObject *collect;
-  PyObject *result;
-  PyObject *item;
-
-  int count = PyTuple_GET_SIZE(values);
-
-  result = PyDict_New();
-  if (! count)
-    return result;
-
-  /* I duplicate values into a new tuple because I'm not entirely sure
-     just how safe it is to modify that in-place. */
-  collect = PyTuple_New(count);
-
-  while (count--) {
-    /* because we support items as either an arbitrary iterable with
-       len 2, or a pair (which may be proper), we need to potentially
-       convert pairs via unpack */
-    item = PyTuple_GET_ITEM(values, count);
-
-    if (SibPair_CheckExact(item) && SibPair_Check(CDR(item))) {
-      /* pair of more than one link, convert to iterator */
-      PyTuple_SET_ITEM(collect, count, pair_unpack(item, NULL));
-
-    } else {
-      Py_INCREF(item);
-      PyTuple_SET_ITEM(collect, count, item);
-    }
-  }
-
-  if (PyDict_MergeFromSeq2(result, collect, 1)) {
-    Py_DECREF(result);
-    result = NULL;
-  }
-
-  Py_DECREF(collect);
-  return result;
-}
-
-
-static struct PyModuleDef ctypes = {
+static struct PyModuleDef ext_values = {
   .m_base = PyModuleDef_HEAD_INIT,
-  .m_name = "sibilant._values",
+  .m_name = "sibilant.ext.values",
   .m_doc = DOCSTR,
   .m_size = -1,
   .m_methods = NULL,
@@ -830,7 +540,7 @@ static struct PyModuleDef ctypes = {
   }
 
 
-PyMODINIT_FUNC PyInit__types(void) {
+PyMODINIT_FUNC PyInit_values(void) {
 
   PyObject *mod, *dict;
 
@@ -861,7 +571,7 @@ PyMODINIT_FUNC PyInit__types(void) {
   STR_CONST(_str_strip, "strip");
   STR_CONST(_str_values_paren, "values(");
 
-  mod = PyModule_Create(&c_values);
+  mod = PyModule_Create(&ext_values);
   if (! mod)
     return NULL;
 

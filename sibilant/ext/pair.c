@@ -16,7 +16,7 @@
 
 
 /**
-   sibilant._pair
+   sibilant.ext.pair
 
    Sibilant's pair and nil types
 
@@ -25,7 +25,7 @@
  */
 
 
-#include <pair.h>
+#include "sibilant.h"
 
 
 #define DOCSTR "Native Sibilant core types and functions"
@@ -58,6 +58,9 @@
 
 
 /* === util === */
+
+
+static PyObject *Sib_Nil = NULL;
 
 static PyObject *_str_close_paren = NULL;
 static PyObject *_str_colon = NULL;
@@ -273,7 +276,7 @@ static void pair_dealloc(PyObject *self) {
 
   // DEBUGMSG("pair_dealloc", self);
 
-  if (s->weakrefs != NULL)
+  if (s->weakrefs)
     PyObject_ClearWeakRefs(self);
 
   Py_XDECREF(s->head);
@@ -569,17 +572,21 @@ static PyObject *pair_richcomp(PyObject *self, PyObject *other, int op) {
 
 
 static int pair_traverse(PyObject *self, visitproc visit, void *arg) {
+  SibPair *s = (SibPair *) self;
   Py_VISIT(CAR(self));
   Py_VISIT(CDR(self));
-  Py_VISIT(((SibPair *) self)->position);
+  if (s->position)
+    Py_VISIT(s->position);
   return 0;
 }
 
 
 static int pair_clear(PyObject *self) {
+  SibPair *s = (SibPair *) self;
   Py_CLEAR(CAR(self));
   Py_CLEAR(CDR(self));
-  Py_CLEAR(((SibPair *) self)->position);
+  if (s->position)
+    Py_CLEAR(s->position);
   return 0;
 }
 
@@ -687,11 +694,12 @@ static PyObject *pair_count(PyObject *self, PyObject *_noargs) {
 
 
 PyObject *SibPair_Follow(SibPair *pair) {
-  SibPairFollower *i = NULL;
+  SibPairFollower *i = PyObject_New(SibPairFollower, &SibPairFollowerType);
+  if (unlikely(! i))
+    return NULL;
 
-  i = PyObject_New(SibPairFollower, &SibPairFollowerType);
-  Py_INCREF(self);
-  i->current = self;
+  Py_INCREF(pair);
+  i->current = (PyObject *) pair;
   i->seen = PySet_New(NULL);
   i->just_items = 0;
 
@@ -705,11 +713,12 @@ static PyObject *pair_follow(PyObject *self, PyObject *_noargs) {
 
 
 PyObject *SibPair_Unpack(SibPair *pair) {
-  SibPairFollower *i = NULL;
+  SibPairFollower *i = PyObject_New(SibPairFollower, &SibPairFollowerType);
+  if (unlikely(! i))
+    return NULL;
 
-  i = PyObject_New(SibPairFollower, &SibPairFollowerType);
-  Py_INCREF(self);
-  i->current = self;
+  Py_INCREF(pair);
+  i->current = (PyObject *) pair;
   i->seen = PySet_New(NULL);
   i->just_items = 1;
 
@@ -741,13 +750,14 @@ static PyObject *pair_to_list(PyObject *self) {
 */
 
 
-long SibPair_is_proper(PyObject *self) {
+long SibPair_IsProper(SibPair *pair) {
   PyObject *seen = PySet_New(NULL);
-  PyObject *pair_id;
+  PyObject *current, *pair_id;
   long result = 0;
 
-  for ( ; SibPair_CheckExact(self); self = CDR(self)) {
-    pair_id = PyLong_FromVoidPtr(self);
+  current = (PyObject *) pair;
+  for ( ; SibPair_CheckExact(current); current = CDR(current)) {
+    pair_id = PyLong_FromVoidPtr(current);
 
     if (PySet_Contains(seen, pair_id)) {
       /* seen it, therefore recursive */
@@ -764,22 +774,23 @@ long SibPair_is_proper(PyObject *self) {
   /* it's either recursive and thus proper, or the last item needs to
      have been a nil, or it's improper */
   Py_DECREF(seen);
-  return result || Sib_Nilp(self);
+  return result || Sib_Nilp(current);
 }
 
 
 static PyObject *pair_is_proper(PyObject *self, PyObject *_noargs) {
-  return PyBool_FromLong(SibPair_is_proper(self));
+  return PyBool_FromLong(SibPair_IsProper((SibPair *) self));
 }
 
 
-long SibPair_is_recursive(PyObject *self) {
+long SibPair_IsRecursive(SibPair *pair) {
   PyObject *seen = PySet_New(NULL);
-  PyObject *pair_id;
+  PyObject *current, *pair_id;
   long result = 0;
 
-  for ( ; SibPair_CheckExact(self); self = CDR(self)) {
-    pair_id = PyLong_FromVoidPtr(self);
+  current = (PyObject *) pair;
+  for ( ; SibPair_CheckExact(current); current = CDR(current)) {
+    pair_id = PyLong_FromVoidPtr(current);
 
     if (PySet_Contains(seen, pair_id)) {
       /* seen it, therefore recursive */
@@ -799,7 +810,7 @@ long SibPair_is_recursive(PyObject *self) {
 
 
 static PyObject *pair_is_recursive(PyObject *self, PyObject *_noargs) {
-  return PyBool_FromLong(SibPair_is_recursive(self));
+  return PyBool_FromLong(SibPair_IsRecursive((SibPair *) self));
 }
 
 
@@ -1150,7 +1161,7 @@ PyTypeObject SibNilType = {
 };
 
 
-SibPair _SibNil = {
+static SibPair _Sib_Nil = {
   {
     _PyObject_EXTRA_INIT
     1, &SibNilType,
@@ -1317,9 +1328,9 @@ static PyMethodDef methods[] = {
 /* === module === */
 
 
-static struct PyModuleDef c_pair = {
+static struct PyModuleDef ext_pair = {
   .m_base = PyModuleDef_HEAD_INIT,
-  .m_name = "sibilant._pair",
+  .m_name = "sibilant.ext.pair",
   .m_doc = DOCSTR,
   .m_size = -1,
   .m_methods = methods,
@@ -1336,7 +1347,7 @@ static struct PyModuleDef c_pair = {
   }
 
 
-PyMODINIT_FUNC PyInit__pair(void) {
+PyMODINIT_FUNC PyInit_pair(void) {
 
   PyObject *mod, *dict;
 
@@ -1376,13 +1387,18 @@ PyMODINIT_FUNC PyInit__pair(void) {
   STR_CONST(_str_strip, "strip");
   STR_CONST(_str_values_paren, "values(");
 
-  mod = PyModule_Create(&c_pair);
+  mod = PyModule_Create(&ext_pair);
   if (! mod)
     return NULL;
 
   dict = PyModule_GetDict(mod);
-  PyDict_SetItemString(dict, "nil", Sib_Nil);
+
+  PyDict_SetItemString(dict, "nil", (PyObject *) &_Sib_Nil);
   PyDict_SetItemString(dict, "pair", (PyObject *) &SibPairType);
+
+  Sib_Nil = &_Sib_Nil;
+
+  printf("\nSib_Nil in pair is %p\n", Sib_Nil);
 
   return mod;
 }

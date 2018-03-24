@@ -21,11 +21,6 @@
 
 #include <Python.h>
 
-#include "atom.h"
-#include "pair.h"
-#include "tco.h"
-#include "values.h"
-
 
 typedef struct SibPair {
   PyObject_HEAD
@@ -87,9 +82,13 @@ PyTypeObject SibValuesType;
   ((obj) && ((obj)->ob_type == &SibValuesType))
 
 
-long SibPair_is_proper(PyObject *self);
+long SibPair_IsProper(SibPair *pair);
 
-long SibPair_is_recursive(PyObject *self);
+long SibPair_IsRecursive(SibPair *pair);
+
+PyObject *SibPair_Follow(SibPair *pair);
+
+PyObject *SibPair_Unpack(SibPair *pair);
 
 
 PyObject *sib_symbol(PyObject *name);
@@ -120,11 +119,7 @@ PyObject *sib_values(PyObject *args, PyObject *kwds);
   }
 
 
-SibPair _SibNil;
-
-#define Sib_Nil ((PyObject *) &_SibNil)
-
-#define Sib_Nilp(val) (((void *) val) == (void *) &_SibNil)
+#define Sib_Nilp(val) (((void *) val) == (void *) Sib_Nil)
 
 
 #endif

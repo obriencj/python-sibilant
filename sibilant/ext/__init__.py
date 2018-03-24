@@ -14,43 +14,12 @@
 
 
 """
-sibilant.tco
-
-Tailcall features for sibilant.
+Native components supporting sibilant
 
 author: Christopher O'Brien  <obriencj@gmail.com>
 license: LGPL v.3
 """
 
-
-from .ext.tco import trampoline, tailcall
-
-
-__all__ = (
-    "trampoline", "tailcall", "tailcall_disable", "tailcall_enable",
-)
-
-
-def tailcall_disable(fun):
-    """
-    Decorator to instruct the tailcall optimization to never tailcall
-    bounce the given function.
-    """
-
-    fun._tco_enable = False
-
-    return fun
-
-
-def tailcall_enable(fun):
-    """
-    Decorator to instruct the tailcall optimization to tailcall bounce
-    the given function.
-    """
-
-    fun._tco_enable = True
-
-    return fun
 
 
 #

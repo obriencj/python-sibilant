@@ -25,12 +25,19 @@ from functools import partial
 
 import operator
 
-from ._types import symbol, keyword
-from ._types import pair, nil, cons, car, cdr, setcar, setcdr
-from ._types import build_unpack_pair
-from ._types import reapply
-from ._types import build_tuple, build_list, build_set, build_dict
-from ._types import values
+from .ext.atom import keyword, symbol
+
+from .ext.pair import (
+    car, cdr, setcar, setcdr, cons,
+    pair, nil,
+)
+
+from .ext.util import (
+    reapply, build_unpack_pair,
+    build_tuple, build_list, build_set, build_dict,
+)
+
+from .ext.values import values
 
 
 __all__ = (
@@ -42,13 +49,10 @@ __all__ = (
     "setcar", "setcdr",
     "is_nil", "is_pair", "is_proper", "is_recursive",
 
-    "build_proper", "unpack",
-    "copy_pair", "build_unpack_pair",
+    "repeatedly", "build_proper", "unpack",
 
-    "reapply", "repeatedly",
-
+    "reapply", "build_unpack_pair",
     "build_tuple", "build_list", "build_set", "build_dict",
-
     "values",
 )
 

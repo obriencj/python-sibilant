@@ -27,8 +27,7 @@
 */
 
 
-#include <Python.h>
-#include <object.h>
+#include "sibilant.h"
 
 
 #define DOCSTR "Native TCO Implementation for Sibilant"
@@ -95,7 +94,7 @@ static PyObject *tailcall_call(PyObject *self,
 static PyTypeObject TailCallType = {
     PyVarObject_HEAD_INIT(NULL, 0)
 
-    "sibilant.compiler.ctco.TailCall",
+    "sibilant.ext.tco.TailCall",
     sizeof(TailCall),
     0,
 
@@ -243,7 +242,7 @@ static PyObject *descr_get(PyObject *self,
 static PyTypeObject FunctionTrampolineType = {
     PyVarObject_HEAD_INIT(NULL, 0)
 
-    "sibilant.tco.FunctionTrampoline",
+    "sibilant.ext.tco.FunctionTrampoline",
     sizeof(Trampoline),
     0,
 
@@ -260,7 +259,7 @@ static PyTypeObject FunctionTrampolineType = {
 static PyTypeObject MethodTrampolineType = {
     PyVarObject_HEAD_INIT(NULL, 0)
 
-    "sibilant.tco.MethodTrampoline",
+    "sibilant.ext.tco.MethodTrampoline",
     sizeof(Trampoline),
     0,
 
@@ -367,9 +366,9 @@ static PyMethodDef methods[] = {
 };
 
 
-static struct PyModuleDef ctco = {
+static struct PyModuleDef ext_tco = {
   .m_base = PyModuleDef_HEAD_INIT,
-  .m_name = "sibilant._tco",
+  .m_name = "sibilant.ext.tco",
   .m_doc = DOCSTR,
   .m_size = -1,
   .m_methods = methods,
@@ -380,7 +379,7 @@ static struct PyModuleDef ctco = {
 };
 
 
-PyMODINIT_FUNC PyInit__tco(void) {
+PyMODINIT_FUNC PyInit_tco(void) {
   if (! __get__) {
     __get__ = PyUnicode_FromString("__get__");
   }
@@ -400,7 +399,7 @@ PyMODINIT_FUNC PyInit__tco(void) {
   if (PyType_Ready(&MethodTrampolineType) < 0)
     return NULL;
 
-  return PyModule_Create(&ctco);
+  return PyModule_Create(&ext_tco);
 }
 
 

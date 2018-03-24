@@ -25,7 +25,7 @@
  */
 
 
-#include <atoms.h>
+#include "sibilant.h"
 
 
 #define DOCSTR "Sibilant's keyword and symbol types"
@@ -413,9 +413,9 @@ PyTypeObject SibKeywordType = {
 /* === module === */
 
 
-static struct PyModuleDef c_atoms = {
+static struct PyModuleDef ext_atom = {
   .m_base = PyModuleDef_HEAD_INIT,
-  .m_name = "sibilant._atoms",
+  .m_name = "sibilant.ext.atom",
   .m_doc = DOCSTR,
   .m_size = -1,
   .m_methods = NULL,
@@ -432,7 +432,7 @@ static struct PyModuleDef c_atoms = {
   }
 
 
-PyMODINIT_FUNC PyInit__atoms(void) {
+PyMODINIT_FUNC PyInit_atom(void) {
 
   PyObject *mod, *dict;
 
@@ -478,7 +478,7 @@ PyMODINIT_FUNC PyInit__atoms(void) {
       return NULL;
   }
 
-  mod = PyModule_Create(&c_atoms);
+  mod = PyModule_Create(&ext_atom);
   if (! mod)
     return NULL;
 
