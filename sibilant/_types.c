@@ -1569,7 +1569,7 @@ static PyObject *values_call(PyObject *self,
 
   if (unlikely(! PyTuple_GET_SIZE(args))) {
     PyErr_SetString(PyExc_TypeError, "values objects must be called with at"
-		    "least one argument, the function to apply");
+		    " least one argument, the function to apply");
     return NULL;
   }
 
@@ -1795,9 +1795,97 @@ static int values_bool(PyObject *self) {
 }
 
 
+static PyObject *values_add(PyObject *left, PyObject *right) {
+  SibValues *result = NULL;
+  PyObject *args = NULL, *kwds = NULL, *tmp;
+
+  if (SibValues_CheckExact(left)) {
+    SibValues *s = (SibValues *) left;
+
+    if (SibValues_CheckExact(right)) {
+      SibValues *o = (SibValues *) right;
+
+      args = PySequence_Concat(s->args, o->args);
+      if (! args)
+	return NULL;
+
+      if (o->kwds) {
+	kwds = s->kwds? PyDict_Copy(s->kwds): PyDict_New();
+	PyDict_Update(kwds, o->kwds);
+      } else {
+	kwds = s->kwds;
+	Py_XINCREF(kwds);
+      }
+
+    } else if (PyDict_Check(right)) {
+      args = s->args;
+      Py_INCREF(args);
+
+      kwds = s->kwds? PyDict_Copy(s->kwds): PyDict_New();
+      PyDict_Update(kwds, right);
+
+    } else {
+      tmp = PySequence_Tuple(right);
+      if (! tmp)
+	return NULL;
+
+      args = PySequence_Concat(s->args, tmp);
+      Py_DECREF(tmp);
+
+      if (! args)
+	return NULL;
+
+      kwds = s->kwds;
+      Py_XINCREF(kwds);
+    }
+
+  } else if (SibValues_CheckExact(right)) {
+    SibValues *s = (SibValues *) right;
+
+    if(PyDict_Check(left)) {
+      args = s->args;
+      Py_INCREF(args);
+
+      if (s->kwds) {
+	kwds = PyDict_Copy(left);
+	PyDict_Update(kwds, s->kwds);
+
+      } else {
+	kwds = PyDict_Copy(left);
+      }
+
+    } else {
+      tmp = PySequence_Tuple(left);
+      if (! tmp)
+	return NULL;
+
+      args = PySequence_Concat(tmp, s->args);
+      Py_DECREF(tmp);
+
+      if (! args)
+	return NULL;
+
+      kwds = s->kwds;
+      Py_XINCREF(kwds);
+    }
+
+  } else {
+    PyErr_SetString(PyExc_TypeError, "values_add invoked with no values");
+    return NULL;
+  }
+
+  result = (SibValues *) sib_values(args, NULL);
+  if (result)
+    result->kwds = kwds;  // just to avoid another copy
+  Py_DECREF(args);
+
+  return (PyObject *) result;
+}
+
+
 static PyObject *values_keys(PyObject *self, PyObject *_noargs) {
   SibValues *s = (SibValues *) self;
-  PyObject *result = NULL;
+  PyObject *tmp, *result = NULL;
 
   if (s->kwds) {
     // this is what the default keys() impl on dict does. The
@@ -1806,11 +1894,9 @@ static PyObject *values_keys(PyObject *self, PyObject *_noargs) {
 
   } else {
     // a cheap empty iterator
-    SibPairIterator *i = PyObject_New(SibPairIterator, &SibPairIteratorType);
-    i->index = 0;
-    i->pair = NULL;
-
-    result = (PyObject *) i;
+    tmp = PyTuple_New(0);
+    result = PyObject_GetIter(tmp);
+    Py_DECREF(tmp);
   }
 
   return result;
@@ -1827,6 +1913,7 @@ static PyMethodDef values_methods[] = {
 
 static PyNumberMethods values_as_number = {
   .nb_bool = (inquiry) values_bool,
+  .nb_add = values_add,
 };
 
 
