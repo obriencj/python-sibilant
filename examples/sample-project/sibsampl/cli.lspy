@@ -176,8 +176,8 @@
   (var old-limit (getrecursionlimit))
   (when l
     (setrecursionlimit (+ old-limit l))
-    (print (% "increased recursion limit from %i to %i"
-	      (values old-limit (+ old-limit l)))))
+    (print (str.format "increased recursion limit from {} to {}"
+		       old-limit (+ old-limit l))))
 
   (time-fibs f n
    `("fibonacci with TCR   " ,fibonacci)
@@ -232,8 +232,9 @@
 
 
 (define _inherit_actions
-  (values _AppendAction _AppendConstAction
-	  _StoreAction _StoreConstAction))
+  (build-tuple
+   _AppendAction _AppendConstAction
+   _StoreAction _StoreConstAction))
 
 
 (def function subparser (parser name cli-func: None help: None)

@@ -13,7 +13,6 @@
 ;; <http://www.gnu.org/licenses/>.
 
 
-(defimportfrom array array)
 (defimportfrom copy copy)
 (defimportfrom itertools product repeat starmap)
 (defimportfrom random random seed)
