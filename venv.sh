@@ -42,6 +42,8 @@ COMMAND may be one of the following:
   setup         run setup.py from the virtualenv (hint: setup install)
   python        run python from the virtualenv
   pip           run pip from the virtualenv
+  pdb-python    run python in the virtualenv from pdb
+  pdb-sibilant  run sibilant in the virtualenv from pdb
   sibilant      run sibilant from the virtualenv
   sys-python    run system python with PYTHONHOME set (fixes wx issues)
   sys-sibilant  run sibilant using system python with PYTHONHOME set
@@ -61,6 +63,11 @@ case "$CMD" in
 	virtualenv --python="$SYSPYTHON" "$VDIR" "$@" || exit $?
 	;;
 
+    install)
+	virtualenv --python="$SYSPYTHON" "$VDIR" || exit $?
+	"$VBIN/python" setup.py install || exit $?
+	;;
+
     setup|setup.py)
 	"$VBIN/python" setup.py "$@" || exit $?
 	;;
@@ -75,6 +82,14 @@ case "$CMD" in
 
     pip)
 	"$VBIN/pip" "$@"
+	;;
+
+    pdb-python)
+	"$VBIN/python" -m pdb "$@"
+	;;
+
+    pdb-sibilant)
+	"$VBIN/python" -m pdb "$@" "$VBIN/sibilant"
 	;;
 
     sys-python)
