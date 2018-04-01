@@ -297,7 +297,62 @@
  None)
 
 
+;; === def import and def import-from ==
+
+
+(def function parse-binding (thing)
+     (cond
+      ((symbol? thing)
+       (return (values (item (thing.split ".") 0) thing)))
+
+      ((pair? thing)
+
+       (try  ; (FOO as: BAR)
+	(define-values (src (as (bind rest))) thing)
+	((ValueError) None)
+	(else:
+	 (when (and (nil? rest) (is ':as as))
+	   (return (values bind src)))))
+
+       (try  ; (BAR FOO)
+	(define-values (bind (src rest)) thing)
+	((ValueError) None)
+	(else:
+	 (when (nil? rest)
+	   (return (values bind src)))))))
+
+     (raise (SyntaxError (% "bad binding form: %s" thing))))
+
+
+(gd-define-target
+ import (scopefn source)
+
+ (define sd
+   (lambda (src)
+     ;; (print (% "gd-define-target import\n  scopefn: %r\n  src: %r\n"
+     ;;           (build-tuple scopefn src)))
+     (define-values (binding module) (parse-binding src))
+     (scopefn binding `(import ,module))))
+
+ `(begin ,@(map sd source)))
+
+
+(gd-define-target
+ import-from (scopefn source)
+
+ (define module (item source 0))
+ (define source (item-slice source start: 1))
+
+ (define sd
+   (lambda (src)
+     (define-values (binding modsrc) (parse-binding src))
+     (scopefn binding `(item (import-from ,module ,modsrc) 0))))
+
+ `(begin ,@(map sd source)))
+
+
 ;; === flet and values ===
+
 
 (defmacro labels (declarations . body)
   (setq declarations (tuple (declarations.unpack)))
