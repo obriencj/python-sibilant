@@ -95,7 +95,7 @@ static PyObject *tailcall_call(PyObject *self,
 static PyTypeObject TailCallType = {
     PyVarObject_HEAD_INIT(NULL, 0)
 
-    "sibilant.compiler.ctco.TailCall",
+    "sibilant.TailCall",
     sizeof(TailCall),
     0,
 
@@ -138,6 +138,12 @@ static PyObject *trampoline_call(PyObject *self,
 }
 
 
+static PyObject *trampoline_repr(PyObject *self) {
+  PyObject *original = ((Trampoline *)self)->tco_original;
+  return PyUnicode_FromFormat("<trampoline for %R>", original);
+}
+
+
 static PyObject *trampoline_tco_original(PyObject *self) {
   PyObject *tco_original = ((Trampoline *)self)->tco_original;
 
@@ -176,7 +182,7 @@ static int set_original(PyObject *self, PyObject *val, char *name) {
 }
 
 
-static PyGetSetDef trampoline_getset[] = {
+static PyGetSetDef trampoline_func_getset[] = {
   { TCO_ORIGINAL,
     (getter) trampoline_tco_original, NULL,
     "", NULL},
@@ -184,6 +190,26 @@ static PyGetSetDef trampoline_getset[] = {
   { TCO_ENABLE,
     (getter) trampoline_tco_enable, NULL,
     "", NULL },
+
+  { "__code__",
+    (getter) get_original, (setter) set_original,
+    "", "__code__" },
+
+  { "__defaults__",
+    (getter) get_original, (setter) set_original,
+    "", "__defaults__" },
+
+  { "__kwdefaults__",
+    (getter) get_original, (setter) set_original,
+    "", "__kwdefaults__" },
+
+  { "__annotations__",
+    (getter) get_original, (setter) set_original,
+    "", "__annotations__" },
+
+  { "__dict__",
+    (getter) get_original, (setter) set_original,
+    "", "__dict__" },
 
   { "__name__",
     (getter) get_original, (setter) set_original,
@@ -193,9 +219,46 @@ static PyGetSetDef trampoline_getset[] = {
     (getter) get_original, (setter) set_original,
     "", "__qualname__" },
 
+  { NULL },
+};
+
+
+static PyGetSetDef trampoline_meth_getset[] = {
+  { TCO_ORIGINAL,
+    (getter) trampoline_tco_original, NULL,
+    "", NULL},
+
+  { TCO_ENABLE,
+    (getter) trampoline_tco_enable, NULL,
+    "", NULL },
+
+  { "__dict__",
+    (getter) get_original, (setter) set_original,
+    "", "__dict__" },
+
   { "__doc__",
     (getter) get_original, (setter) set_original,
     "", "__doc__" },
+
+  { "__name__",
+    (getter) get_original, (setter) set_original,
+    "", "__name__" },
+
+  { "__qualname__",
+    (getter) get_original, (setter) set_original,
+    "", "__qualname__" },
+
+  { "__self__",
+    (getter) get_original, (setter) set_original,
+    "", "__self__" },
+
+  { "__func__",
+    (getter) get_original, (setter) set_original,
+    "", "__func__" },
+
+  { "__text_signature__",
+    (getter) get_original, (setter) set_original,
+    "", "__text_signature__" },
 
   { NULL },
 };
@@ -243,15 +306,16 @@ static PyObject *descr_get(PyObject *self,
 static PyTypeObject FunctionTrampolineType = {
     PyVarObject_HEAD_INIT(NULL, 0)
 
-    "sibilant.tco.FunctionTrampoline",
+    "sibilant.FunctionTrampoline",
     sizeof(Trampoline),
     0,
 
     .tp_new = PyType_GenericNew,
     .tp_dealloc = trampoline_dealloc,
     .tp_descr_get = descr_get,
-    .tp_getset = trampoline_getset,
+    .tp_getset = trampoline_func_getset,
     .tp_call = trampoline_call,
+    .tp_repr = trampoline_repr,
     .tp_flags = Py_TPFLAGS_DEFAULT,
     .tp_getattro = PyObject_GenericGetAttr,
 };
@@ -260,15 +324,16 @@ static PyTypeObject FunctionTrampolineType = {
 static PyTypeObject MethodTrampolineType = {
     PyVarObject_HEAD_INIT(NULL, 0)
 
-    "sibilant.tco.MethodTrampoline",
+    "sibilant.MethodTrampoline",
     sizeof(Trampoline),
     0,
 
     .tp_new = PyType_GenericNew,
     .tp_dealloc = trampoline_dealloc,
     .tp_descr_get = NULL,
-    .tp_getset = trampoline_getset,
+    .tp_getset = trampoline_meth_getset,
     .tp_call = trampoline_call,
+    .tp_repr = trampoline_repr,
     .tp_flags = Py_TPFLAGS_DEFAULT,
     .tp_getattro = PyObject_GenericGetAttr,
 };
