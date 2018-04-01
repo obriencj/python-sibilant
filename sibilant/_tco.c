@@ -232,6 +232,10 @@ static PyGetSetDef trampoline_meth_getset[] = {
     (getter) trampoline_tco_enable, NULL,
     "", NULL },
 
+  { "__dict__",
+    (getter) get_original, (setter) set_original,
+    "", "__dict__" },
+
   { "__doc__",
     (getter) get_original, (setter) set_original,
     "", "__doc__" },
@@ -247,6 +251,10 @@ static PyGetSetDef trampoline_meth_getset[] = {
   { "__self__",
     (getter) get_original, (setter) set_original,
     "", "__self__" },
+
+  { "__func__",
+    (getter) get_original, (setter) set_original,
+    "", "__func__" },
 
   { "__text_signature__",
     (getter) get_original, (setter) set_original,
