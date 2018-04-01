@@ -13,17 +13,17 @@
 ;; <http://www.gnu.org/licenses/>.
 
 
-(defimportfrom sys stderr)
+(def import-from sys stderr)
 
-(defimportfrom curses
+(def import-from curses
   wrapper
   mousemask BUTTON1_CLICKED
   KEY_UP KEY_DOWN KEY_LEFT KEY_RIGHT)
 
-(defimportfrom itertools product repeat)
-(defimportfrom time sleep)
+(def import-from itertools product repeat)
+(def import-from time sleep)
 
-(defimportfrom siblife.life LifeBoard)
+(def import-from siblife.life LifeBoard)
 
 
 (define smilies
