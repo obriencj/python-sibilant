@@ -124,7 +124,7 @@
   (when (none? as-name)
     (setq as-name (item (modulename.split "." 1) 0)))
 
-  `(define ,as-name (import ,(str modulename) (globals))))
+  `(define ,as-name (py-import ,(str modulename) (globals))))
 
 
 (defmacro defimportfrom (modulename . bindings)
@@ -148,8 +148,8 @@
 
       (list.append coll
        `(define ,byname
-	  (attr (import ,(str modulename) (globals) None
-			(build-list ,(str member)))
+	  (attr (py-import ,(str modulename) (globals) None
+			   (build-list ,(str member)))
 		,member))))
 
     `(begin ,@coll None)))
