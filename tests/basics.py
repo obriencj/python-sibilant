@@ -198,7 +198,7 @@ class BuiltinsMacroExpansion(TestCase):
     def test_macro(self):
         src = """
         (let ()
-          (defimport itertools)
+          (def import itertools)
           (var counter (itertools.count))
 
           (defmacro value++ () (next counter)))
@@ -222,7 +222,7 @@ class BuiltinsMacroExpansion(TestCase):
     def test_alias(self):
         src = """
         (let ()
-          (defimport itertools)
+          (def import itertools)
           (var counter (itertools.count))
 
           (defalias value++ (next counter)))

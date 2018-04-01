@@ -108,67 +108,14 @@
 (defmacro none? (value)
   `(is None ,value))
 
-
-;; === imports ===
-
-(defmacro defimport (modulename as-name: None)
-  (doc "Import a module and bind it to the current scope")
-
-  (unless (symbol? modulename)
-    (raise (Exception (% "defimport module name must be a symbol, not %r"
-			 modulename))))
-
-  (unless (or (none? as-name) (symbol? as-name))
-    (raise (Exception "defimpoy as-name: must be a symbol")))
-
-  (when (none? as-name)
-    (setq as-name (item (modulename.split "." 1) 0)))
-
-  `(define ,as-name (import ,(str modulename) (globals))))
+(defmacro within? (min_i max_i value_i)
+  `(and (<= ,min_i ,value_i) (< ,value_i ,max_i)))
 
 
-(defmacro defimportfrom (modulename . bindings)
-  (doc "Import definitions from a module and bind them to the"
-       "current scope")
+;; === easy slicing ===
 
-  (unless (symbol? modulename)
-    (raise (Exception (% "defimportfrom module name must be a symbol, not %r"
-			 modulename))))
-
-  (let ((coll (list))
-	(current None)
-	(member None)
-	(byname None))
-
-    (for-each (current bindings)
-
-      ;; todo: use my cooler binding exploder
-      (setq member (if (pair? current) (second current) current))
-      (setq byname (if (pair? current) (first current) member))
-
-      (list.append coll
-       `(define ,byname
-	  (attr (import ,(str modulename) (globals) None
-			(build-list ,(str member)))
-		,member))))
-
-    `(begin ,@coll None)))
-
-
-;; === runtime macroexpand ===
-
-(defimportfrom sibilant.compiler
-  (macroexpandq-1 macroexpand_1)
-  (macroexpandq macroexpand)
-  (simple-parameters simple_parameters))
-
-;; the macros just snag globals and quote the source, then pass them
-;; on to the quoted expanders imported above
-(defmacro macroexpand-1 (source)
-  `(macroexpandq_1 (globals) ',source))
-
-(defmacro macroexpand (source)
-  `(macroexpandq (globals) ',source))
+(defmacro item-slice (sequence start: 'None stop: 'None step: 1)
+  `(item ,sequence (slice ,start ,stop ,step)))
 
 
 ;; === setf and general variables ===
@@ -212,19 +159,12 @@
   None)
 
 
-(begin
-  (gv-define-simple-setter attr set-attr)
-  (gv-define-simple-setter car set-car)
-  (gv-define-simple-setter cdr set-cdr)
-  (gv-define-simple-setter item set-item)
-  (gv-define-simple-setter global define-global)
-  (gv-define-setter caar (val x) `(set-car (car ,x) ,val))
-
-  None)
-
-
-(defmacro item-slice (sequence start: 'None stop: 'None step: 1)
-  `(item ,sequence (slice ,start ,stop ,step)))
+(gv-define-simple-setter attr set-attr)
+(gv-define-simple-setter car set-car)
+(gv-define-simple-setter cdr set-cdr)
+(gv-define-simple-setter item set-item)
+(gv-define-simple-setter global define-global)
+(gv-define-setter caar (val x) `(set-car (car ,x) ,val))
 
 
 ;; === def general targets ===
@@ -281,20 +221,83 @@
 
   None)
 
-(begin
- (gd-define-simple-scope ':local 'define)
- (gd-define-simple-scope ':global 'define-global)
+
+(gd-define-simple-scope ':local 'define)
+(gd-define-simple-scope ':global 'define-global)
  ;; todo: thread-local
 
- None)
 
-(begin
- (gd-define-simple-target function 'function)
- (gd-define-simple-target method 'method)
- (gd-define-simple-target class 'class)
- ;; todo: import
+(gd-define-simple-target function 'function)
+(gd-define-simple-target method 'method)
+(gd-define-simple-target class 'class)
+(gd-define-simple-target macro 'macro)
 
- None)
+
+;; === def import and def import-from ==
+
+(defun parse-binding (thing)
+     (cond
+      ((symbol? thing)
+       (return (values (item (thing.split ".") 0) thing)))
+
+      ((pair? thing)
+
+       (try  ; (FOO as: BAR)
+	(define-values (src (as (bind rest))) thing)
+	((ValueError) None)
+	(else:
+	 (when (and (nil? rest) (is ':as as))
+	   (return (values bind src)))))
+
+       (try  ; (BAR FOO)
+	(define-values (bind (src rest)) thing)
+	((ValueError) None)
+	(else:
+	 (when (nil? rest)
+	   (return (values bind src)))))))
+
+     (raise (SyntaxError (% "bad binding form: %s" thing))))
+
+
+(gd-define-target
+ import (scopefn source)
+
+ (defun sd (src)
+     ;; (print (% "gd-define-target import\n  scopefn: %r\n  src: %r\n"
+     ;;           (build-tuple scopefn src)))
+     (define-values (binding module) (parse-binding src))
+     (scopefn binding `(import ,module)))
+
+ `(begin ,@(map sd source)))
+
+
+(gd-define-target
+ import-from (scopefn source)
+
+ (define module (item source 0))
+ (define source (item-slice source start: 1))
+
+ (defun sd (src)
+   (define-values (binding modsrc) (parse-binding src))
+   (scopefn binding `(item (import-from ,module ,modsrc) 0)))
+
+ `(begin ,@(map sd source)))
+
+
+;; === runtime macroexpand ===
+
+(define-values
+  (macroexpandq-1 macroexpandq simple-parameters)
+  (import-from sibilant.compiler
+	       macroexpand_1 macroexpand simple_parameters))
+
+;; the macros just snag globals and quote the source, then pass them
+;; on to the quoted expanders imported above
+(defmacro macroexpand-1 (source)
+  `(macroexpandq_1 (globals) ',source))
+
+(defmacro macroexpand (source)
+  `(macroexpandq (globals) ',source))
 
 
 ;; === flet and values ===
@@ -430,10 +433,10 @@
   ")
 
   `(let ((src ,source) (glbls ,env) (fname ,filename))
-     (defimportfrom io IOBase)
-     (defimportfrom sibilant.parse
+     (def import-from io IOBase)
+     (def import-from sibilant.parse
        source_stream source_str)
-     (defimportfrom sibilant.module
+     (def import-from sibilant.module
        fake_module_from_env init_module parse_time compile_time)
 
      (define stream
@@ -472,11 +475,11 @@
   ")
 
   `(let ((src ,source) (glbls ,env) (fname ,filename))
-     (defimportfrom io IOBase)
-     (defimportfrom types CodeType)
-     (defimportfrom sibilant.parse
+     (def import-from io IOBase)
+     (def import-from types CodeType)
+     (def import-from sibilant.parse
        source_stream source_str)
-     (defimportfrom sibilant.module
+     (def import-from sibilant.module
        fake_module_from_env init_module parse_time compile_time run_time)
 
      (cond
@@ -503,6 +506,30 @@
 
 (defmacro send (iterator value)
   `((attr ,iterator send) ,value))
+
+
+(defmacro iter-each (bindings emit when: None unless: None)
+  (doc
+   "(iter-each (BINDINGS SEQUENCE) EXPRESSION)"
+   "(iter-each (BINDINGS SEQUENCE) EXPRESSION when: WHENTEST)"
+   "(iter-each (BINDINGS SEQUENCE) EXPRESSION unless: UNLESSTEST)"
+   ""
+   "Produces an iterator which will yield the result of EXPRESSION,"
+   "which is evaluated with the BINDINGS unpacked from each value from"
+   "iterating over SEQUENCE. The optional when and unless forms may"
+   "be specified as predicate expressions to be evaluated on each"
+   "iteration to determine if the given values should be skipped.")
+
+  (setq emit `(yield ,emit))
+  (when unless (setq emit `(unless ,unless ,emit)))
+  (when when (setq emit `(when ,when ,emit)))
+  `(let () (for-each ,bindings ,emit)))
+
+
+(defmacro list-each params
+  (doc
+   "Like iter-each, but accumulates the result into a Python list")
+  `(list (iter-each ,@params)))
 
 
 ;; === some simple converters ===

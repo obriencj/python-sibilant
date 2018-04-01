@@ -13,13 +13,9 @@
 ;; <http://www.gnu.org/licenses/>.
 
 
-(defimportfrom copy copy)
-(defimportfrom itertools product repeat starmap)
-(defimportfrom random random seed)
-
-
-(defmacro within? (min_i max_i value_i)
-  `(and (<= ,min_i ,value_i) (< ,value_i ,max_i)))
+(def import-from copy copy)
+(def import-from itertools product repeat starmap)
+(def import-from random random seed)
 
 
 (def class LifeBoard (object)

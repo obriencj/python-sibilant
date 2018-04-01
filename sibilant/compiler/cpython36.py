@@ -242,6 +242,16 @@ class CPython36(ExpressionCodeSpace):
             #     for _ in range(0, n):
             #         yield _Opcode.POP_TOP, 0
 
+            elif op is _Pseudop.IMPORT_NAME:
+                n = args[0]
+                i = self.names.index(n)
+                yield _Opcode.IMPORT_NAME, i
+
+            elif op is _Pseudop.IMPORT_FROM:
+                n = args[0]
+                i = self.names.index(n)
+                yield _Opcode.IMPORT_FROM, i
+
             elif op is _Pseudop.LAMBDA:
                 yield from self.helper_gen_lambda(*args)
 

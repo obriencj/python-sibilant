@@ -207,7 +207,8 @@ def __setup__(glbls):
     _op(help, "help")
     _op(dir, "dir")
 
-    _op(__import__, "import")
+    _op(__import__, "py-import")
+    _op(__import__, "__import__")
     _op(globals, "globals")
     _op(locals, "locals")
     _op(compile, "py-compile")

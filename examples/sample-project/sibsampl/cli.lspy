@@ -13,51 +13,23 @@
 ;; <http://www.gnu.org/licenses/>.
 
 
-(defimport sys)
+(def import sys)
 
-(defimport timeit)
+(def import timeit)
 
-(defimportfrom argparse
+(def import-from argparse
   ArgumentParser
   _AppendAction _AppendConstAction
   _StoreAction _StoreConstAction)
 
-(defimportfrom functools lru_cache)
+(def import-from functools lru_cache)
 
-(defimportfrom os.path basename)
+(def import-from os.path basename)
 
-(defimportfrom sibsampl
+(def import-from sibsampl
   pyfibonacci_lru
   pyfibonacci_notc
   pyfibonacci_while)
-
-
-;; these might be good in builtins, they're nearly perfect analogues for
-;; generator expressions and list-comprehensions
-
-(defmacro iter-each (bindings emit when: None unless: None)
-  (doc
-   "(iter-each (BINDINGS SEQUENCE) EXPRESSION)"
-   "(iter-each (BINDINGS SEQUENCE) EXPRESSION when: WHENTEST)"
-   "(iter-each (BINDINGS SEQUENCE) EXPRESSION unless: UNLESSTEST)"
-   ""
-   "Produces an iterator which will yield the result of EXPRESSION,"
-   "which is evaluated with the BINDINGS unpacked from each value from"
-   "iterating over SEQUENCE. The optional when and unless forms may"
-   "be specified as predicate expressions to be evaluated on each"
-   "iteration to determine if the given values should be skipped.")
-
-  (setq emit `(yield ,emit))
-  (when unless (setq emit `(unless ,unless ,emit)))
-  (when when (setq emit `(when ,when ,emit)))
-  `(let () (for-each ,bindings ,emit)))
-
-(defmacro list-each params
-  (doc
-   "Like iter-each, but accumulates the result into a Python list")
-  `(list (iter-each ,@params)))
-
-;; (iter-each ((a b) (something)) (+ a b) unless: (nil? a))
 
 
 ;; the natural, tail-call recursive impl
@@ -149,7 +121,7 @@
 
 
 (def function cli-command-timeit (options)
-  (defimportfrom sys getrecursionlimit setrecursionlimit)
+  (def import-from sys getrecursionlimit setrecursionlimit)
 
   (vars (f options.of) (n options.times) (l options.limit))
 

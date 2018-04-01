@@ -13,11 +13,11 @@
 ;; <http://www.gnu.org/licenses/>.
 
 
-(defimport sys)
-(defimportfrom argparse ArgumentParser)
-(defimportfrom os.path basename)
+(def import sys)
+(def import-from argparse ArgumentParser)
+(def import-from os.path basename)
 
-(defimport siblife.curse)
+(def import siblife.curse)
 
 
 (defun cli (options)
