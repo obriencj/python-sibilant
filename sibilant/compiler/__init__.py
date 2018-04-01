@@ -387,14 +387,14 @@ _auto = partial(next, count())
 class Block(Enum):
     BASE = _auto()
     BEGIN = _auto()
-    LOOP = _auto()
-    WITH = _auto()
-    WITH_CLEANUP = _auto()
-    TRY = _auto()
     EXCEPT = _auto()
     EXCEPT_MATCH = _auto()
     FINALLY = _auto()
     FINALLY_CLEANUP = _auto()
+    LOOP = _auto()
+    TRY = _auto()
+    WITH = _auto()
+    WITH_CLEANUP = _auto()
 
 
 class CodeFlag(Enum):
