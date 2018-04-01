@@ -44,6 +44,7 @@ _symbol_for_each = symbol("for-each")
 _symbol_function = symbol("function")
 _symbol_global = symbol("global")
 _symbol_import = symbol("import")
+_symbol_import_from = symbol("import-from")
 _symbol_lambda = symbol("lambda")
 _symbol_let = symbol("let")
 _symbol_nil = symbol("nil")
@@ -1685,7 +1686,58 @@ def special_import(code, source, tc=False):
     if rest:
         raise code.error("too many arguments to import", source)
 
-    code.pseudop_import(str(name))
+    code.pseudop_const(0)
+    code.pseudop_const(None)
+    code.pseudop_import_name(str(name))
+
+    return None
+
+
+@special(_symbol_import_from)
+def special_import_from(code, source, tc=False):
+    """
+    (import-from NAME MEMBER...)
+
+    imports NAME and returns a tuple of matching MEMBER attributes
+    """
+
+    try:
+        called_by, (name, rest) = source
+    except ValueError:
+        raise code.error("too few arguments to import-from", source)
+
+    if rest is nil:
+        raise code.error("too few arguments to import-from", source)
+
+    # the LEVEL value
+    code.pseudop_const(0)
+
+    members = list()
+    for mp in rest.follow():
+        if mp is nil:
+            break
+
+        member, _tail = mp
+        if not is_symbol(member):
+            raise code.error("import-from members must be symbols", mp)
+
+        member = str(member)
+        members.append(member)
+        code.pseudop_const(member)
+
+    # the FROMLIST tuple
+    code.pseudop_build_tuple(len(members))
+    code.pseudop_import_name(str(name))
+
+    for member in members:
+        code.pseudop_import_from(member)
+        code.pseudop_rot_two()
+
+    # import_from leaves the module on the stack. When we're done with
+    # it, get rid of it!
+    code.pseudop_pop()
+
+    code.pseudop_build_tuple(len(members))
 
     return None
 
