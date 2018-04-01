@@ -343,7 +343,8 @@ class Pseudop(Enum):
     GET_ITEM = _auto()
     GET_VAR = _auto()
     GET_YIELD_FROM_ITER = _auto()
-    IMPORT = _auto()
+    IMPORT_NAME = _auto()
+    IMPORT_FROM = _auto()
     ITER = _auto()
     JUMP = _auto()
     JUMP_FORWARD = _auto()
@@ -1333,9 +1334,14 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop(Pseudop.BUILD_MAP_UNPACK, count)
 
 
-    def pseudop_import(self, name):
+    def pseudop_import_name(self, name):
         self.request_name(name)
-        self.pseudop(Pseudop.IMPORT, name)
+        self.pseudop(Pseudop.IMPORT_NAME, name)
+
+
+    def pseudop_import_from(self, name):
+        self.request_name(name)
+        self.pseudop(Pseudop.IMPORT_FROM, name)
 
 
     pseudop_with_cleanup_start = _op("WITH_CLEANUP_START")
@@ -1405,6 +1411,7 @@ class CodeSpace(metaclass=ABCMeta):
                   _Pseudop.GET_GLOBAL,
                   _Pseudop.BREAK_LOOP,
                   _Pseudop.FOR_ITER,
+                  _Pseudop.IMPORT_FROM,
                   _Pseudop.CONTINUE_LOOP):
             push()
 
@@ -1510,7 +1517,8 @@ class CodeSpace(metaclass=ABCMeta):
                     _Pseudop.BINARY_RSHIFT,
                     _Pseudop.BINARY_AND,
                     _Pseudop.BINARY_XOR,
-                    _Pseudop.BINARY_OR, ):
+                    _Pseudop.BINARY_OR,
+                    _Pseudop.IMPORT_NAME):
             pop(2)
             push()
 
