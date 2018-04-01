@@ -245,7 +245,7 @@ class CPython36(ExpressionCodeSpace):
             elif op is _Pseudop.IMPORT:
                 n = args[0]
                 i = self.names.index(n)
-                yield _Opcode.IMPORT, i
+                yield _Opcode.IMPORT_NAME, i
 
             elif op is _Pseudop.LAMBDA:
                 yield from self.helper_gen_lambda(*args)

@@ -240,7 +240,7 @@ class CPython35(ExpressionCodeSpace):
             elif op is _Pseudop.IMPORT:
                 n = args[0]
                 i = self.names.index(n)
-                yield _Opcode.IMPORT, i, 0
+                yield _Opcode.IMPORT_NAME, i, 0
 
             elif op is _Pseudop.LAMBDA:
                 yield from self.helper_gen_lambda(*args)
