@@ -1668,6 +1668,28 @@ def special_cond(code, source, tc=False):
     return None
 
 
+@special(_symbol_import)
+def special_import(code, source, tc=False):
+    """
+    (import NAME)
+
+    Evaluates to a reference to module named NAME. If NAME is a dotted
+    import, performs the import and evanualtes to the topmost module.
+    """
+
+    try:
+        called_by, (name, rest) = source
+    except ValueError:
+        raise code.error("too few arguments to import", source)
+
+    if rest:
+        raise code.error("too many arguments to import", source)
+
+    code.pseudop_import(str(name))
+
+    return None
+
+
 # --- and finally clean up ---
 
 
