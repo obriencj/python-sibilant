@@ -599,7 +599,7 @@ static void pair_dealloc(PyObject *self) {
 }
 
 
-static Py_ssize_t pair_length(PyObject *self) {
+static Py_ssize_t pair_len(PyObject *self) {
   return 2;
 }
 
@@ -966,13 +966,13 @@ static PyObject *pair_copy(PyObject *self, PyObject *_noargs) {
 }
 
 
-static PyObject *pair_count(PyObject *self, PyObject *_noargs) {
+static PyObject *pair_length(PyObject *self, PyObject *_noargs) {
   PyObject *seen;
   PyObject *tmp;
-  long count = 0;
+  long length = 0;
 
   if (Sib_Nilp(self)) {
-    return PyLong_FromLong(count);
+    return PyLong_FromLong(length);
   }
 
   seen = PySet_New(NULL);
@@ -989,15 +989,15 @@ static PyObject *pair_count(PyObject *self, PyObject *_noargs) {
     } else {
       PySet_Add(seen, tmp);
       Py_DECREF(tmp);
-      count++;
+      length++;
     }
   }
 
   if (self && ! Sib_Nilp(self))
-    count++;
+    length++;
 
   Py_DECREF(seen);
-  return PyLong_FromLong(count);
+  return PyLong_FromLong(length);
 }
 
 
@@ -1275,8 +1275,8 @@ static PyMethodDef pair_methods[] = {
   { "__copy__", (PyCFunction) pair_copy, METH_NOARGS,
     "P.__copy__()" },
 
-  { "count", (PyCFunction) pair_count, METH_NOARGS,
-    "P.count()" },
+  { "length", (PyCFunction) pair_length, METH_NOARGS,
+    "P.length()" },
 
   { "follow", (PyCFunction) pair_follow, METH_NOARGS,
     "P.follow()" },
@@ -1293,6 +1293,7 @@ static PyMethodDef pair_methods[] = {
   { "clear_position", (PyCFunction) pair_clear_position,
     METH_VARARGS|METH_KEYWORDS,
     "P.clear_position(follow=True)" },
+
   { "set_position", (PyCFunction) pair_set_position,
     METH_VARARGS|METH_KEYWORDS,
     "P.set_position(follow=True)" },
@@ -1309,7 +1310,7 @@ static PyMethodDef pair_methods[] = {
 
 
 static PySequenceMethods pair_as_sequence = {
-  .sq_length = pair_length,
+  .sq_length = pair_len,
   .sq_item = pair_getitem,
   .sq_ass_item = pair_setitem,
 };

@@ -750,7 +750,7 @@ def __setup__(glbls):
 
         called_by, cl = source
 
-        c = cl.count()
+        c = cl.length()
         if c > 3:
             msg = "too many arguments to raise %r" % cl
             raise code.error(msg, source)

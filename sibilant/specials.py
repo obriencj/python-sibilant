@@ -95,7 +95,7 @@ def _helper_binding(code, source, required=True):
         raise code.error("binding must be (SYM EXPR) or (EXPR as: SYM)",
                          source)
 
-    sc = source.count()
+    sc = source.length()
     if sc == 3:
         expr, (_as, (sym, _rest)) = source
         if not (_as is _keyword_as and is_symbol(sym)):
@@ -1040,7 +1040,7 @@ def _helper_setq_values(code, bindings, declare):
         code.pseudop_set_var(str(bindings))
         return
 
-    bcount = bindings.count()
+    bcount = bindings.length()
 
     if is_nil(bindings):
         code.pseudop_pop()
