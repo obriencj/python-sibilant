@@ -814,8 +814,12 @@ def _helper_function(code, name, args, body,
                              tco_enabled=tco)
 
     with kid as subc:
+        body, doc = _helper_strip_doc(body)
+        subc.set_doc(doc)
+
         if self_ref is not None:
             subc.request_var(self_ref)
+
         _helper_begin(subc, body, tco)
         subc.pseudop_return()
         code.pseudop_lambda(subc.complete(), defaults, kwonly)
@@ -825,6 +829,24 @@ def _helper_function(code, name, args, body,
             code.pseudop_get_var("trampoline")
             code.pseudop_rot_two()
             code.pseudop_call(1)
+
+
+def _helper_strip_doc(body):
+    """
+    This helper function will identify any string literals at the
+    beginning of a collection of source expressions, and separate it
+    out.
+    """
+
+    doc = None
+
+    if body:
+        front, rest = body
+        if rest and isinstance(front, str):
+            doc = dedent(front).strip()
+            body = rest
+
+    return body, doc
 
 
 @special(_symbol_while)
