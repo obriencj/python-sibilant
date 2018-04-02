@@ -287,8 +287,9 @@
  (define source (item-slice source start: 1))
 
  (def function sd (src)
-   (define-values (binding modsrc) (__import-binding src))
-   (scopefn binding `(item (import-from ,module ,modsrc) 0)))
+      (define-values (binding modsrc) (__import-binding src))
+      (when (None? binding) (setq binding modsrc))
+      (scopefn binding `(item (import-from ,module ,modsrc) 0)))
 
  `(begin ,@(map sd source)))
 
