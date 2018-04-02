@@ -235,10 +235,10 @@
 
 ;; === def import and def import-from ==
 
-(defun parse-binding (thing)
+(defun __import-binding (thing)
      (cond
       ((symbol? thing)
-       (return (values (item (thing.split ".") 0) thing)))
+       (return (values None thing)))
 
       ((pair? thing)
 
@@ -263,10 +263,19 @@
  import (scopefn source)
 
  (def function sd (src)
-     ;; (print (% "gd-define-target import\n  scopefn: %r\n  src: %r\n"
-     ;;           (build-tuple scopefn src)))
-     (define-values (binding module) (parse-binding src))
-     (scopefn binding `(import ,module)))
+      (define-values (binding module) (__import-binding src))
+      (cond
+       ((None? binding)
+	(setq binding (item (module.split ".") 0))
+	(scopefn binding `(import ,module)))
+
+       (else:
+	(define ats `(import ,module))
+	(when (in (str module) ".")
+	  (setq ats (reduce (lambda (t h) `(attr ,t ,h))
+			    (item-slice (module.split ".") start: 1)
+			    ats)))
+	(scopefn binding ats))))
 
  `(begin ,@(map sd source)))
 
@@ -278,7 +287,7 @@
  (define source (item-slice source start: 1))
 
  (def function sd (src)
-   (define-values (binding modsrc) (parse-binding src))
+   (define-values (binding modsrc) (__import-binding src))
    (scopefn binding `(item (import-from ,module ,modsrc) 0)))
 
  `(begin ,@(map sd source)))
