@@ -59,7 +59,7 @@
 (defmacro _reader_macro (sym attrsym)
   `(defmacro ,sym args
      `(try
-       (unless (none? __reader__)
+       (unless (None? __reader__)
 	 ((attr __reader__ ,',attrsym) ,@args))
        ((NameError as: ne) None))))
 
@@ -105,7 +105,7 @@
 
 ;; === simple checks ===
 
-(defmacro none? (value)
+(defmacro None? (value)
   `(is None ,value))
 
 (defmacro within? (min_i max_i value_i)
@@ -210,11 +210,11 @@
 	  else: (setq-values (target . source) source))
 
       (setq d-scope (dict.get *gd-scopes* scope None))
-      (when (none? d-scope)
+      (when (None? d-scope)
 	(raise (Exception (% "undefined def scope %r" scope))))
 
       (setq d-target (dict.get *gd-targets* target None))
-      (when (none? d-target)
+      (when (None? d-target)
 	(raise (Exception (% "undefined def target %r" target))))
 
       (d-target d-scope source)))
@@ -356,7 +356,7 @@
 
 ;;   (define found (dict.get sd atom None))
 
-;;   (when (none? found)
+;;   (when (None? found)
 ;;     (define calls (reduce (lambda (cell atom-char)
 ;; 				  (cons (if (eq "a" atom-char) 'car 'cdr)
 ;; 					cell))

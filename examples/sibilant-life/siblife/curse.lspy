@@ -70,7 +70,7 @@
 
      (def function __init__ (self screen wrap: False renderer: None)
 
-	  (when (none? renderer)
+	  (when (None? renderer)
 	    (setf renderer (make-char-renderer)))
 	  (setf self.renderer renderer)
 

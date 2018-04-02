@@ -127,7 +127,7 @@
      (def function get-cell (self x y)
 	  (var key (self.coord-key x y))
 
-	  (if (none? key)
+	  (if (None? key)
 	      then: 0
 	      else: (self.data.get key 0)))
 
@@ -135,7 +135,7 @@
      (def function set-cell (self x y value)
 	  (var key (self.coord-key x y))
 
-	  (unless (none? key)
+	  (unless (None? key)
 	    (setf (item self.data key) value)))
 
 
@@ -175,7 +175,7 @@
 	  ;; alive or not.
 	  (for-each ((x y) followup)
 		    (setq key (self.coord-key x y))
-		    (unless (none? key)
+		    (unless (None? key)
 		      (setf (item dat key) (life-rule (self.get-group x y)))))
 
 	  ;; and that's our new data, done deal.

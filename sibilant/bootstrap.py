@@ -198,6 +198,9 @@ def __setup__(glbls):
     _ty(range, "range")
     _ty(slice, "slice")
 
+    _op(sorted, "sorted")
+    _ty(reversed, "reversed")
+
     _op(chr, "chr")
     _op(ord, "ord")
     _op(min, "min")

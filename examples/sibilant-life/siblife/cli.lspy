@@ -55,7 +55,7 @@
   (doc "entry point for the siblife CLI")
 
   ;; grab sys.argv if we aren't given something else
-  (when (none? argv) (setq argv sys.argv))
+  (when (None? argv) (setq argv sys.argv))
 
   (var parser (create-option-parser argv))
   (var options (parser.parse_args

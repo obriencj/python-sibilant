@@ -139,7 +139,7 @@
   ;; kinda wish I had assert...
   ;; TODO implement 'assert'
   (unless (and (== d1 d2) (== d1 d3) (== d1 p1)
-	       (or (none? d0) (== d0 d1)))
+	       (or (None? d0) (== d0 d1)))
     (raise (Exception "SHIT BROKE")))
 
   (print (% "calculating fibonacci of %r" f))
@@ -230,7 +230,7 @@
 
   (sp._defaults.update parser._defaults)
 
-  (when (none? cli-func)
+  (when (None? cli-func)
 
     ;; this sub command doesn't have an actual function to run, so
     ;; let's make a help function specific for it to be called instead
@@ -247,7 +247,7 @@
   (doc "entry point for the sibapp CLI")
 
   ;; grab sys.argv if we aren't given something else
-  (when (none? argv) (setq argv sys.argv))
+  (when (None? argv) (setq argv sys.argv))
 
   (var parser (create-option-parser argv))
   (var options (parser.parse_args
