@@ -512,6 +512,22 @@
        (run_time mod (compile_time mod src))))))
 
 
+(let ()
+  (def import-from dis dis (show_code as: show-code))
+  (defun disassemble (obj details: False)
+    (doc "
+    (disassemble OBJ)
+    (disassemble OBJ details: True)
+
+    display bytecode and optional constant and variable details
+    ")
+
+    (when details
+          (show-code obj)
+          (print "Disassembly:"))
+    (dis obj)))
+
+
 ;; === generator stuff ===
 
 (defmacro send (iterator value)
@@ -631,6 +647,9 @@
 
 
 ;; === Have some MATH ===
+
+;; nobody will ever use these, but I think it's amusing to have them
+;; bound like this, ready to go.
 
 (def import-from math
      (inf as: ∞) (isinf as: ∞?)
