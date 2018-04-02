@@ -262,7 +262,7 @@
 (gd-define-target
  import (scopefn source)
 
- (defun sd (src)
+ (def function sd (src)
      ;; (print (% "gd-define-target import\n  scopefn: %r\n  src: %r\n"
      ;;           (build-tuple scopefn src)))
      (define-values (binding module) (parse-binding src))
@@ -277,7 +277,7 @@
  (define module (item source 0))
  (define source (item-slice source start: 1))
 
- (defun sd (src)
+ (def function sd (src)
    (define-values (binding modsrc) (parse-binding src))
    (scopefn binding `(item (import-from ,module ,modsrc) 0)))
 
@@ -586,15 +586,15 @@
 	 else: value)))
 
 
-  (defun count (value)
+  (defun length (value)
     (doc "
-    (count VALUE)
+    (length VALUE)
 
     The number of items in VALUE. If VALUE is a cons pair, will unpack
     it. Otherwise, identical to (len VALUE)
     ")
     (if (pair_? value)
-	then: (value.count)
+	then: (value.length)
 	else: (len_ value)))
 
 
@@ -618,6 +618,15 @@
 
 
   None)
+
+
+;; === Have some MATH ===
+
+(def import-from math
+     (inf as: ∞) (isinf as: ∞?)
+     (nan as: NaN) (isnan as: NaN?))
+
+(define -∞ (- ∞))
 
 
 ;;
