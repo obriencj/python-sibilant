@@ -27,6 +27,8 @@ from . import (
 from .compiler import Special, gather_formals
 from .tco import trampoline, tailcall
 
+from textwrap import dedent
+
 
 __all__ = []
 
@@ -165,13 +167,14 @@ def special_doc(code, source, tc=False):
     # collapse the doc
     docstr = "\n".join(d.strip() for d in map(str, rest.unpack()))
 
+    docstr = dedent(docstr).strip()
+
     # force it into const slot zero
     code.set_doc(docstr)
 
-    # also assign a local var named __doc__
-    code.declare_var("__doc__")
-    code.pseudop_const(docstr)
-    code.pseudop_set_var("__doc__")
+    # code.declare_var("__doc__")
+    # code.pseudop_const(docstr)
+    # code.pseudop_set_var("__doc__")
 
     # doc special expression evaluates to None
     code.pseudop_const(None)
