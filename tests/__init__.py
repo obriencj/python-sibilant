@@ -28,7 +28,7 @@ class Object(object):
 
 def compile_expr(src_str, builtins=None, **base):
     mod = fake_module_from_env(base)
-    init_module(mod, source_str(src_str, "<unittest>"), builtins)
+    init_module(mod, source_str(src_str, "<unittest>"), builtins=builtins)
 
     partial_run_time = partial(partial, run_time)
 
@@ -42,7 +42,7 @@ def compile_expr_no_tco(src_str, **base):
 
     params = {"tco_enabled": False}
 
-    init_module(mod, source_str(src_str, "<unittest>"), None,
+    init_module(mod, source_str(src_str, "<unittest>"),
                 compiler_factory_params=params)
 
     partial_run_time = partial(partial, run_time)
@@ -54,7 +54,7 @@ def compile_expr_no_tco(src_str, **base):
 
 def compile_dis_expr(src_str, **base):
     mod = fake_module_from_env(base)
-    init_module(mod, source_str(src_str, "<unittest>"), None)
+    init_module(mod, source_str(src_str, "<unittest>"))
 
     code_objs = []
     def partial_run_time(module, code_obj):

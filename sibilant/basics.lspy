@@ -457,7 +457,7 @@
 	     (else: src)))
 
      (define mod (fake_module_from_env glbls))
-     (init_module mod stream None fname)
+     (init_module mod stream filename: fname)
 
      (unless (or (pair? src) (symbol? src) (keyword? src))
        (setq src (parse_time mod)))
@@ -504,7 +504,7 @@
 	       (else: src)))
 
        (define mod  (fake_module_from_env glbls))
-       (init_module mod stream None ,filename)
+       (init_module mod stream filename: ,filename)
 
        (unless (or (pair? src) (symbol? src) (keyword? src))
 	 (setq src (parse_time mod)))

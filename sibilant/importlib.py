@@ -118,7 +118,7 @@ class SibilantSourceFileLoader(FileLoader):
         filename = self.get_filename(name)
         source_stream = source_str(self.get_source(name), filename=filename)
 
-        init_module(module, source_stream, None, filename=filename)
+        init_module(module, source_stream, filename=filename)
         load_module(module)
 
 

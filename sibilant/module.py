@@ -68,8 +68,8 @@ def fake_module_from_env(env):
     return module
 
 
-def init_module(module, source_stream, builtins,
-                filename=None, defaults=None,
+def init_module(module, source_stream,
+                builtins=None, filename=None, defaults=None,
                 reader=None, compiler=None, compiler_factory=None,
                 compiler_factory_params=None,
                 evaluator=None):

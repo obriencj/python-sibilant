@@ -44,14 +44,14 @@ def __setup__(glbls):
     # definition. Finally, we'll merge the two modules together to
     # form the contents of this module.
 
-    bootstrap = __import__("sibilant.bootstrap").bootstrap
+    import sibilant.bootstrap as bootstrap
 
     src = get_data(__name__, "basics.lspy").decode("utf8")
     filename = join(dirname(__file__), "basics.lspy")
 
     basics = new_module("sibilant.basics")
     source_stream = source_str(src, filename=filename)
-    init_module(basics, source_stream, bootstrap, filename=filename)
+    init_module(basics, source_stream, builtins=bootstrap, filename=filename)
     load_module(basics)
 
     sys.modules["sibilant"].basics = basics
@@ -64,7 +64,7 @@ def __setup__(glbls):
                 glbls[key] = val
                 _all.add(key)
 
-    # special case
+    # special case, since we're ignoring all the other __ entries
     glbls["__import__"] = __import__
 
     return tuple(_all)
