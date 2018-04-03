@@ -77,6 +77,9 @@ def init_module(module, source_stream,
     if defaults:
         module.__dict__.update(defaults)
 
+    if source_stream and not filename:
+        filename = source_stream.filename
+
     if filename:
         module.__file__ = filename
         module.__path__ = split(filename)
@@ -268,7 +271,7 @@ def exec_marshal_module(glbls, code_objs):
     """
 
     mod = fake_module_from_env(glbls)
-    init_module(mod, None, None)
+    init_module(mod, None)
 
     # skips the read time and compile time stages of import, just
     # performs run time for every compiled expression to set up the
@@ -329,7 +332,7 @@ def compile_to_file(name, source_file, dest_file):
 
     with source_open(source_file) as source_stream:
         mod = new_module(name)
-        init_module(mod, source_stream, None, filename=source_file)
+        init_module(mod, source_stream)
         load_module(mod, compile_time=hook_compile_time(accumulate))
 
     bytecode = marshal_wrapper(code_objs, filename=source_file,

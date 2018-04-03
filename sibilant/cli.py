@@ -27,7 +27,7 @@ license: LGPL v.3
 import sys
 
 from appdirs import AppDirs
-from argparse import ArgumentParser
+from argparse import ArgumentParser, REMAINDER
 from os.path import basename, join
 
 from .module import new_module, init_module, load_module, compile_to_file
@@ -68,6 +68,14 @@ def cli(options):
     additional positional args
     """
 
+    # we HAVE to tweak args to make it appear that sibilant is $0
+    # there are so many libraries that break if we don't.
+    if options.filename:
+        sys.argv = [options.filename]
+        sys.argv.extend(options.args)
+    else:
+        sys.argv = options.args
+
     if options.importer:
         # this has the side-effect of augmenting the import system to
         # search for sibilant source files in the sys path. If
@@ -85,7 +93,7 @@ def cli(options):
     filename = options.filename
     if filename:
         with source_open(filename) as source:
-            init_module(mod, source, filename=filename)
+            init_module(mod, source)
             load_module(mod)
 
         if not options.interactive:
@@ -103,6 +111,7 @@ def cli_option_parser(name):
     parser = ArgumentParser(prog=basename(name))
 
     parser.add_argument("filename", nargs="?", default=None)
+    parser.add_argument("args", nargs=REMAINDER, default=list())
 
     parser.add_argument("--no-importer", dest="importer",
                         action="store_false", default=True,
@@ -136,12 +145,7 @@ def main(args=sys.argv):
     Entry point for the REPL
     """
 
-    # we HAVE to tweak args to make it appear that sibilant is $0
-    # there are so many libraries that break if we don't.
-
     name, *args = args
-    sys.argv = list(args)
-
     parser = cli_option_parser(name)
     options = parser.parse_args(args)
 

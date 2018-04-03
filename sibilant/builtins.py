@@ -36,27 +36,30 @@ def __setup__(glbls):
     # because the sibilant.importlib functions will attempt to use
     # this module, we can't rely on them to in-turn load us. Thus for
     # just the builtins module, we'll do it manually. this is a simple
-    # two-step process. First, we import the _bootstrap_builtins,
-    # which is written in Python, and contains a good set of baseline
-    # definitions, as well as the special form bindings needed for
-    # sibilant modules to execute. then we'll load the _builtins
-    # sibilant module with the bootstrap as its __builtins__
+    # two-step process. First, we import bootstrap, which is written
+    # in Python. It contains a good set of baseline definitions, as
+    # well as the special form bindings needed for sibilant modules to
+    # execute. Then we'll manually load the basics module, which is
+    # written in Sibilant, using bootstrap as its __builtins__
     # definition. Finally, we'll merge the two modules together to
     # form the contents of this module.
 
+    # 1. grab the bootstrap definitions
     import sibilant.bootstrap as bootstrap
 
+    # 2. grab the basics definitions
     src = get_data(__name__, "basics.lspy").decode("utf8")
     filename = join(dirname(__file__), "basics.lspy")
+    source_stream = source_str(src, filename=filename)
 
     basics = new_module("sibilant.basics")
-    source_stream = source_str(src, filename=filename)
-    init_module(basics, source_stream, builtins=bootstrap, filename=filename)
+    init_module(basics, source_stream, builtins=bootstrap)
     load_module(basics)
 
     sys.modules["sibilant"].basics = basics
     sys.modules["sibilant.basics"] = basics
 
+    # 3. merge bootstrap and basics together into this module
     _all = set()
     for module in (bootstrap, basics):
         for key, val in module.__dict__.items():
