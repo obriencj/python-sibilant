@@ -80,31 +80,27 @@ def cli(options):
     if options.compile:
         return cli_compile(options)
 
-    filename = options.filename
-
     mod = new_module("__main__")
 
+    filename = options.filename
     if filename:
         with source_open(filename) as source:
-            init_module(mod, source, None, filename=filename)
+            init_module(mod, source, filename=filename)
             load_module(mod)
 
-        if options.interactive:
-            # probably not the best way to implement this, but it'll
-            # do for now, eh?
-            repl(mod)
+        if not options.interactive:
+            return
 
-    else:
-        repl(mod)
+    repl(mod)
 
 
-def cli_option_parser(args):
+def cli_option_parser(name):
     """
     Create an `ArgumentParser` instance with the options requested by
     the `cli` function
     """
 
-    parser = ArgumentParser(prog=basename(args[0]))
+    parser = ArgumentParser(prog=basename(name))
 
     parser.add_argument("filename", nargs="?", default=None)
 
@@ -140,8 +136,14 @@ def main(args=sys.argv):
     Entry point for the REPL
     """
 
-    parser = cli_option_parser(args)
-    options = parser.parse_args(args[1:])
+    # we HAVE to tweak args to make it appear that sibilant is $0
+    # there are so many libraries that break if we don't.
+
+    name, *args = args
+    sys.argv = list(args)
+
+    parser = cli_option_parser(name)
+    options = parser.parse_args(args)
 
     # todo: arg checking, emit problems using `parser.error`
 
