@@ -2,8 +2,9 @@
 
 
 VENV="$HOME/.virtualenvs"
-BRANCH=$(git symbolic-ref --short -q HEAD 2>/dev/null || \
-	 echo "unknown-branch")
+GIT_DIR=$(dirname "$0")"/.git/"
+BRANCH=$(git --git-dir "$GIT_DIR" symbolic-ref --short -q HEAD 2>/dev/null \
+	     || echo "unknown-branch")
 
 VDIR="$VENV/sibilant-$BRANCH"
 VBIN="$VDIR/bin"
