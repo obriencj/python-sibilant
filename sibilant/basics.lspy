@@ -27,30 +27,29 @@
 ;; === defines ===
 
 (define-global defmacro
-  (macro
-   "defmacro"
+  (macro "defmacro"
    (function defmacro (name formals . body)
-	     (doc "Defines a Macro instance in the current module")
+     "Defines a Macro instance in the current module"
 
-	     (define proper (proper? formals))
-	     `(define-global ,name
-		((lambda (M) (set-attr M _proper ,proper) M)
-		 (macro ,(str name) (function ,name ,formals ,@body)))))))
+     (define proper (proper? formals))
+     `(define-global ,name
+	((lambda (M) (set-attr M _proper ,proper) M)
+	 (macro ,(str name) (function ,name ,formals ,@body)))))))
 
 
 (defmacro defalias (name . body)
-  (doc "Defines an Alias Macro in the current module")
+  "Defines an Alias Macro in the current module"
   `(define-global ,name
      (alias ,(str name) (function ,name () ,@body))))
 
 
 (defmacro defun (name params . body)
-  (doc "Defines a function with the given name in the current module")
+  "Defines a function with the given name in the current module"
   `(define-global ,name (function ,name ,params ,@body)))
 
 
 (defmacro defclass (name bases . body)
-  (doc "Defines a class with the given name in the current module")
+  "Defines a class with the given name in the current module"
   `(define-global ,name (class ,name ,bases ,@body)))
 
 
@@ -326,13 +325,13 @@
 
 
 (defmacro vars (*: variables)
-  (doc "
+  "
   (vars BINDINGS...)
 
   where each BINDING is either a symbol or a pair in (SYM EXPR)
   format. Declares each binding symbol in the current scope, and
   optionally assigns it the value from EXPR
-  ")
+  "
 
   ;; (setq variables (to-tuple variables))
   `(begin ,@(map (lambda (d)
@@ -343,12 +342,12 @@
 
 
 (defmacro let-values (bind_vals . body)
-  (doc "
+  "
   (let-values (BINDINGS VALS) . BODY)
 
   where BINDINGS is a nested pair of symbols in the same structure as
   values from VALS.
-  ")
+  "
 
   `(let ()
      (define-values ,@bind_vals)
@@ -402,7 +401,7 @@
 ;; === python object system classes ==
 
 (defmacro class (name bases . body)
-  (doc "
+  "
   (class NAME (parents... ) . BODY)
 
   Create a new python type instance with the given name, and parent
@@ -412,7 +411,7 @@
 
   Use (def class NAME (parents... ) . BODY) to bothe create and bind
   the class in the local namespace.
-  ")
+  "
 
   `(flet ((create-class (name fields *: bases metaclass: type)
 			(metaclass name bases fields))
@@ -425,7 +424,7 @@
 
 
 (defmacro compile (source env: '(globals) filename: "<anon>")
-  (doc "
+  "
   (compile SOURCE)
 
   Returns a python code object
@@ -440,7 +439,7 @@
 
   Compiles SOURCE with DICT as the globals, with the source filename
   set to filename.lspy
-  ")
+  "
 
   `(let ((src ,source) (glbls ,env) (fname ,filename))
      (def import-from io IOBase)
@@ -466,7 +465,7 @@
 
 
 (defmacro eval (source env: '(globals) filename: "<anon>")
-  (doc "
+  "
   (eval SOURCE)
 
   Evaluates SOURCE with the current globals.
@@ -482,7 +481,7 @@
 
   Evaluates SOURCE with DICT as the globals, with the source filename
   set to filename.lspy
-  ")
+  "
 
   `(let ((src ,source) (glbls ,env) (fname ,filename))
      (def import-from io IOBase)
@@ -515,12 +514,12 @@
 (let ()
   (def import-from dis dis (show_code as: show-code))
   (defun disassemble (obj details: False)
-    (doc "
+    "
     (disassemble OBJ)
     (disassemble OBJ details: True)
 
     display bytecode and optional constant and variable details
-    ")
+    "
 
     (when details
           (show-code obj)
@@ -535,16 +534,17 @@
 
 
 (defmacro iter-each (bindings emit when: None unless: None)
-  (doc
-   "(iter-each (BINDINGS SEQUENCE) EXPRESSION)"
-   "(iter-each (BINDINGS SEQUENCE) EXPRESSION when: WHENTEST)"
-   "(iter-each (BINDINGS SEQUENCE) EXPRESSION unless: UNLESSTEST)"
-   ""
-   "Produces an iterator which will yield the result of EXPRESSION,"
-   "which is evaluated with the BINDINGS unpacked from each value from"
-   "iterating over SEQUENCE. The optional when and unless forms may"
-   "be specified as predicate expressions to be evaluated on each"
-   "iteration to determine if the given values should be skipped.")
+  "
+  (iter-each (BINDINGS SEQUENCE) EXPRESSION)
+  (iter-each (BINDINGS SEQUENCE) EXPRESSION when: WHENTEST)
+  (iter-each (BINDINGS SEQUENCE) EXPRESSION unless: UNLESSTEST)
+
+  Produces an iterator which will yield the result of EXPRESSION,
+  which is evaluated with the BINDINGS unpacked from each value from
+  iterating over SEQUENCE. The optional when and unless forms may be
+  specified as predicate expressions to be evaluated on each iteration
+  to determine if the given values should be skipped.
+  "
 
   (setq emit `(yield ,emit))
   (when unless (setq emit `(unless ,unless ,emit)))
@@ -553,8 +553,7 @@
 
 
 (defmacro list-each params
-  (doc
-   "Like iter-each, but accumulates the result into a Python list")
+  "Like iter-each, but accumulates the result into a Python list"
   `(list (iter-each ,@params)))
 
 
@@ -568,13 +567,13 @@
       (set_ set))
 
   (defun as-tuple (value)
-    (doc "
+    "
     (to-tuple VALUE)
 
     Converts VALUE to a tuple. If VALUE is a cons pair, will unpack
     it. Otherwise, VALUE will be iterated over and its contents
     collected.
-    ")
+    "
 
     (tuple_
      (if (pair_? value)
@@ -583,13 +582,13 @@
 
 
   (defun as-list (value)
-    (doc "
+    "
     (to-list VALUE)
 
     Converts VALUE to a list. If VALUE is a cons pair, will unpack
     it. Otherwise, VALUE will be iterated over and its contents
     collected.
-    ")
+    "
 
     (list_
      (if (pair_? value)
@@ -598,13 +597,13 @@
 
 
   (defun as-set (value)
-    (doc "
+    "
     (to-set VALUE)
 
     Converts VALUE to a set. If VALUE is a cons pair, will unpack
     it. Otherwise, VALUE will be iterated over and its contents
     collected.
-    ")
+    "
 
     (set_
      (if (pair_? value)
@@ -613,19 +612,19 @@
 
 
   (defun length (value)
-    (doc "
+    "
     (length VALUE)
 
     The number of items in VALUE. If VALUE is a cons pair, will unpack
     it. Otherwise, identical to (len VALUE)
-    ")
+    "
     (if (pair_? value)
 	then: (value.length)
 	else: (len_ value)))
 
 
   (defun apply (fun arglist: (tuple) kwargs: (dict))
-    (doc "
+    "
     (apply FUN)
     (apply FUN arglist: POSITIONALS)
     (apply FUN kwargs: KEYWORDS)
@@ -637,7 +636,7 @@
 
     If POSITIONALS is a a cons pair, it will be unpacked instead of
     iterated.
-    ")
+    "
 
     (when (pair_? arglist) (setq arglist (arglist.unpack)))
     (fun *: arglist **: kwargs))
