@@ -21,7 +21,9 @@
 
 
 ;; disable TCO for the following stuff, they don't need to bounce
-(set-attr __compiler__ tco_enabled False)
+(try
+ (set-attr __compiler__ tco_enabled False)
+ ((NameError) None))
 
 
 ;; === defines ===
@@ -104,11 +106,17 @@
 
 ;; === simple checks ===
 
+
 (defmacro None? (value)
   `(is None ,value))
 
+
 (defmacro within? (min_i max_i value_i)
   `(and (<= ,min_i ,value_i) (< ,value_i ,max_i)))
+
+
+(defmacro when-main body
+  `(when (== __name__ "__main__") ,@body))
 
 
 ;; === easy slicing ===
