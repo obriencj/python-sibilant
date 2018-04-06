@@ -46,11 +46,13 @@ class CLIException(Exception):
 
 def cli_compile(options):
 
+    builtins_name = "sibilant.bootstrap" if options.bootstrap else None
+
     filename = options.filename
     if not filename:
         raise CLIException("--compile requires that FILENAME is specified")
 
-    name = options.compile
+    name = options.compile or options.bootstrap
 
     if filename.endswith(".lspy"):
         destname = filename[:-4] + "pyc"
@@ -59,7 +61,7 @@ def cli_compile(options):
     else:
         raise CLIException("FILENAME should be a .lspy or .sibilant file")
 
-    compile_to_file(name, filename, destname)
+    compile_to_file(name, filename, destname, builtins_name=builtins_name)
 
 
 def cli(options):
@@ -85,7 +87,7 @@ def cli(options):
     if options.tweakpath:
         sys.path.insert(0, ".")
 
-    if options.compile:
+    if options.compile or options.bootstrap:
         return cli_compile(options)
 
     mod = new_module("__main__")
@@ -110,9 +112,6 @@ def cli_option_parser(name):
 
     parser = ArgumentParser(prog=basename(name))
 
-    parser.add_argument("filename", nargs="?", default=None)
-    parser.add_argument("args", nargs=REMAINDER, default=list())
-
     parser.add_argument("--no-importer", dest="importer",
                         action="store_false", default=True,
                         help="Do not enable the sibilany importer extension")
@@ -136,6 +135,14 @@ def cli_option_parser(name):
                    action="store", default=None,
                    help="Compile the specified file as a module with"
                    " this name")
+
+    g.add_argument("-B", "--bootstrap-compiler", dest="bootstrap",
+                   action="store", default=None,
+                   help="Compile the specified file as a module with"
+                   " this name, using only bootstrap builtins")
+
+    parser.add_argument("filename", nargs="?", default=None)
+    parser.add_argument("args", nargs=REMAINDER, default=list())
 
     return parser
 
