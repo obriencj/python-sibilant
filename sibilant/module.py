@@ -265,13 +265,13 @@ def load_module_1(module, parse_time=parse_time,
         return tailcall(run_time)(module, code_obj)
 
 
-def exec_marshal_module(glbls, code_objs):
+def exec_marshal_module(glbls, code_objs, builtins=None):
     """
     Invoked during loading of modules expored via marshal_wrapper
     """
 
     mod = fake_module_from_env(glbls)
-    init_module(mod, None)
+    init_module(mod, None, builtins=builtins)
 
     # skips the read time and compile time stages of import, just
     # performs run time for every compiled expression to set up the
@@ -283,7 +283,9 @@ def exec_marshal_module(glbls, code_objs):
     return None
 
 
-def marshal_wrapper(code_objs, filename=None, mtime=0, source_size=0):
+def marshal_wrapper(code_objs, filename=None, mtime=0, source_size=0,
+                    builtins_name=None):
+
     from importlib._bootstrap_external import _code_to_bytecode
 
     factory = code_space_for_version()
@@ -305,15 +307,33 @@ def marshal_wrapper(code_objs, filename=None, mtime=0, source_size=0):
     # existing python loader for .pyc
 
     with codespace.activate({}):
-        codespace.pseudop_get_var("__import__")
-        codespace.pseudop_const("sibilant.module")
-        codespace.pseudop_call(1)
-        codespace.pseudop_get_attr("module")
-        codespace.pseudop_get_attr("exec_marshal_module")
+
+        # import and obtain sibilant.module.exec_marshal_module
+        codespace.pseudop_const(0)
+        codespace.pseudop_const("exec_marshal_module")
+        codespace.pseudop_build_tuple(1)
+        codespace.pseudop_import_name("sibilant.module")
+        codespace.pseudop_import_from("exec_marshal_module")
+        codespace.pseudop_rot_two()
+        codespace.pseudop_pop()
+
+        # argument 1. globals()
         codespace.pseudop_get_var("globals")
         codespace.pseudop_call(0)
+
+        # argument 2. tuple(code_objs)
         codespace.pseudop_const(tuple(code_objs))
-        codespace.pseudop_call(2)
+
+        # argument 3. builtins (either specified or None)
+        if builtins_name:
+            codespace.pseudop_const(0)
+            codespace.pseudop_const("nil")
+            codespace.pseudop_build_tuple(1)
+            codespace.pseudop_import_name(builtins_name)
+        else:
+            codespace.pseudop_const(None)
+
+        codespace.pseudop_call(3)
         codespace.pseudop_return()
 
         code = codespace.complete()
@@ -321,7 +341,7 @@ def marshal_wrapper(code_objs, filename=None, mtime=0, source_size=0):
     return _code_to_bytecode(code, mtime, source_size)
 
 
-def compile_to_file(name, source_file, dest_file):
+def compile_to_file(name, source_file, dest_file, builtins_name=None):
     mtime = getmtime(source_file)
     source_size = getsize(source_file)
 
@@ -336,7 +356,8 @@ def compile_to_file(name, source_file, dest_file):
         load_module(mod, compile_time=hook_compile_time(accumulate))
 
     bytecode = marshal_wrapper(code_objs, filename=source_file,
-                               mtime=mtime, source_size=source_size)
+                               mtime=mtime, source_size=source_size,
+                               builtins_name=builtins_name)
 
     with open(dest_file, "wb") as dest_stream:
         dest_stream.write(bytecode)
