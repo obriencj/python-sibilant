@@ -1,0 +1,54 @@
+#! /usr/bin/env sibilant
+
+
+(def import-from flask Flask escape)
+(def import-from werkzeug.routing parse_rule)
+
+
+(defmacro url-rule (app name rule . body)
+  (define formals
+    (iter-each ((converter wut name) (parse_rule (str rule)))
+	       (symbol name) unless: (None? converter)))
+
+  `(app.add_url_rule ,(str rule)
+		     endpoint: ,(str name)
+		     view_func: (function ,name (,@formals) ,@body)))
+
+
+
+(defmacro template strings
+  `(str.format (str.join " " (map str (#tuple ,@strings))) **: (locals)))
+
+;;;
+
+
+(define app (Flask "flasky"))
+
+
+(url-rule
+ app index /
+
+ (define lcls (escape (locals)))
+ (template
+  "<p>This is a simple web app. What more do you want?</p>"
+  "<code>{lcls}</code>"))
+
+
+(url-rule
+ app reverse-words /reverse/<words>
+
+ (define rwords (reversed words))
+ (define lcls (escape (locals)))
+ (template
+  "<p>\U0001f615 Reversed this: {words}</p>"
+  "<p>\U0001f60e Into this: {rwords}</p>"
+  "<code>{lcls}</code>"))
+
+
+;; you can either run this directly, or you can compile it to a .pyc
+;; and invoke it from the flask cli
+(when-main
+ (app.run))
+
+
+;; the end.
