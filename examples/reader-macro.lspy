@@ -23,7 +23,9 @@
 
 ;; a contrived dollars class, based on the float type.
 (defclass dollars (float)
-  (doc "simple wrapper for float which formats the value as a dollars")
+  " Simple wrapper for float which formats the value as a dollars.
+    Please don't ever actually represent currency using a float, this
+    is just because I am being very lazy for this example. "
 
   (def function __str__ (self)
 	  (% "$%0.02f" self))
@@ -51,10 +53,14 @@
   (print-example (type X))
   (print-example (repr X))
   (print-example (str X))
+
+  (print-example (type $200))
+  (print-example (repr $200))
+  (print-example (str $200))
   None)
 
 
-(when (eq __name__ "__main__")
+(when-main
   (example))
 
 
