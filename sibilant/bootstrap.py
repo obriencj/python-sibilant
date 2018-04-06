@@ -196,6 +196,7 @@ def __setup__(glbls):
     _ty(complex, "complex")
     _ty(fraction, "fraction")
     _ty(range, "range")
+    _ty(memoryview, "memoryview")
     _ty(slice, "slice")
 
     _op(sorted, "sorted")
@@ -205,6 +206,14 @@ def __setup__(glbls):
     _op(ord, "ord")
     _op(min, "min")
     _op(max, "max")
+    _op(abs, "abs")
+    _op(oct, "oct")
+    _op(hex, "hex")
+    _op(all, "all")
+    _op(any, "any")
+
+    _op(hash, "hash")
+    _op(super, "super")
 
     _op(repr, "repr")
     _op(help, "help")
@@ -219,15 +228,22 @@ def __setup__(glbls):
 
     _op(sys.exit, "exit")
 
-
     # done with setup
-    return tuple(_all_)
+    # return tuple(_all_)
+    return None
 
 
 # --- and finally, clean up ---
 
-__all__ = __setup__(globals())
-del __setup__
+
+__setup__(globals())
+
+try:
+    del __setup__     # noqa
+    del __file__      # noqa
+    del __builtins__  # noqa
+except NameError:
+    pass
 
 
 #
