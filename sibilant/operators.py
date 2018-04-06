@@ -48,6 +48,10 @@ _symbol_ge = symbol("ge")
 _symbol_ge_ = symbol(">=")
 _symbol_gt = symbol("gt")
 _symbol_gt_ = symbol(">")
+_symbol_hash_dict = symbol("#dict")
+_symbol_hash_list = symbol("#list")
+_symbol_hash_set = symbol("#set")
+_symbol_hash_tuple = symbol("#tuple")
 _symbol_in = symbol("in")
 _symbol_invert = symbol("~")
 _symbol_is = symbol("is")
@@ -764,7 +768,7 @@ def __setup__(glbls):
         return None
 
 
-    @operator(_symbol_build_tuple, build_tuple)
+    @operator(_symbol_build_tuple, build_tuple, _symbol_hash_tuple)
     def operator_build_tuple(code, source, tc=False):
         """
         (build-tuple ITEM...)
@@ -785,7 +789,7 @@ def __setup__(glbls):
         return None
 
 
-    @operator(_symbol_build_list, build_list)
+    @operator(_symbol_build_list, build_list, _symbol_hash_list)
     def operator_build_list(code, source, tc=False):
         """
         (build-list ITEM...)
@@ -806,7 +810,7 @@ def __setup__(glbls):
         return None
 
 
-    @operator(_symbol_build_set, build_set)
+    @operator(_symbol_build_set, build_set, _symbol_hash_set)
     def operator_build_set(code, source, tc=False):
         """
         (build-set ITEM...)
@@ -827,7 +831,7 @@ def __setup__(glbls):
         return None
 
 
-    @operator(_symbol_build_dict, build_dict)
+    @operator(_symbol_build_dict, build_dict, _symbol_hash_dict)
     def operator_build_dict(code, source, tc=False):
         """
         (build-dict (KEY VAL)...)
