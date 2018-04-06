@@ -23,18 +23,7 @@ fi
 SYSPYTHON=$(readlink -f "$SYSPYTHON")
 
 
-VIRTUALENV=""
-for MAYBE in virtualenv virtualenv-3 ; do
-    if test -x "$(which $MAYBE 2>/dev/null)" ; then
-        VIRTUALENV=$(which $MAYBE)
-        break
-    fi
-done
-
-if test -z "$VIRTUALENV" ; then
-    echo "Error: Could not find virtualenv, exiting."
-    exit 1
-fi
+VIRTUALENV="$SYSPYTHON -m venv"
 
 
 if test "$CMD" == "help" || test -z "$CMD" ; then
@@ -69,11 +58,11 @@ echo -e "Current branch is $BRANCH so working in:\n $VDIR"
 case "$CMD" in
     init)
 	mkdir -p "$VDIR"
-	"$VIRTUALENV" --python="$SYSPYTHON" "$VDIR" "$@" || exit $?
+	$VIRTUALENV "$VDIR" "$@" || exit $?
 	;;
 
     install)
-	"$VIRTUALENV" --python="$SYSPYTHON" "$VDIR" || exit $?
+	$VIRTUALENV "$VDIR" || exit $?
 	"$VBIN/python" setup.py install || exit $?
 	;;
 
