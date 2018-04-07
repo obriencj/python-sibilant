@@ -36,6 +36,7 @@ _symbol_bit_xor_ = symbol("^")
 _symbol_build_dict = symbol("build-dict")
 _symbol_build_list = symbol("build-list")
 _symbol_build_set = symbol("build-set")
+_symbol_build_str = symbol("build-str")
 _symbol_build_tuple = symbol("build-tuple")
 _symbol_del_item = symbol("del-item")
 _symbol_div = symbol("divide")
@@ -51,6 +52,7 @@ _symbol_gt_ = symbol(">")
 _symbol_hash_dict = symbol("#dict")
 _symbol_hash_list = symbol("#list")
 _symbol_hash_set = symbol("#set")
+_symbol_hash_str = symbol("#str")
 _symbol_hash_tuple = symbol("#tuple")
 _symbol_in = symbol("in")
 _symbol_invert = symbol("~")
@@ -858,6 +860,57 @@ def __setup__(glbls):
 
         code.pseudop_position_of(source)
         code.pseudop_build_map(c)
+
+        return None
+
+
+    def runtime_build_str(*subs):
+        return "".join(subs) if subs else ""
+
+
+    def collapse_build_str(seq):
+        tmp = list()
+
+        for part in seq:
+            if type(part) is str:
+                tmp.append(part)
+            else:
+                if tmp:
+                    yield "".join(tmp)
+                    tmp.clear()
+                yield part
+
+        if tmp:
+            yield "".join(tmp)
+
+
+    @operator(_symbol_build_str, runtime_build_str, _symbol_hash_str)
+    def operator_build_str(code, source, tc=False):
+        """
+        (build-str VAL...)
+
+        Concatenates string values together
+        """
+
+        called_by, items = source
+
+        if items is nil:
+            code.pseudop_const("")
+            return None
+
+        # first collapse neighboring string literals together.
+        parts = list(collapse_build_str(items.unpack()))
+
+        # if there's nothing left but one string, then return that as a
+        # single literal value instead.
+        if len(parts) == 1 and type(parts[0]) is str:
+            code.pseudop_const(parts[0])
+            return None
+
+        for part in parts:
+            code.add_expression(part)
+
+        code.pseudop_build_str(len(parts))
 
         return None
 

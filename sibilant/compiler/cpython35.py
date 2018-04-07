@@ -417,6 +417,17 @@ class CPython35(ExpressionCodeSpace):
                 assert False, "Unknown Pseudop %r" % op
 
 
+    def pseudop_build_str(self, count):
+        # emulate the BUILD_STRING opcode using string joining
+
+        self.pseudop_build_tuple(count)
+
+        self.pseudop_const("")
+        self.pseudop_get_attr("join")
+        self.pseudop_rot_two()
+        self.pseudop_call(1)
+
+
     def pseudop_lambda(self, code, defaults=(), kwonly=()):
         for arg, expr in defaults:
             self.add_expression(expr)

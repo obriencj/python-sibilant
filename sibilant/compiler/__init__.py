@@ -321,6 +321,7 @@ class Pseudop(Enum):
     BUILD_MAP = _auto()
     BUILD_MAP_UNPACK = _auto()
     BUILD_SET = _auto()
+    BUILD_STR = _auto()
     BUILD_TUPLE = _auto()
     BUILD_TUPLE_UNPACK = _auto()
     CALL = _auto()
@@ -1311,6 +1312,10 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop(Pseudop.RAISE, count)
 
 
+    def pseudop_build_str(self, count):
+        self.pseudop(Pseudop.BUILD_STR, count)
+
+
     def pseudop_build_tuple(self, count):
         self.pseudop(Pseudop.BUILD_TUPLE, count)
 
@@ -1471,6 +1476,7 @@ class CodeSpace(metaclass=ABCMeta):
 
         elif op in (_Pseudop.BUILD_LIST,
                     _Pseudop.BUILD_SET,
+                    _Pseudop.BUILD_STR,
                     _Pseudop.BUILD_TUPLE,
                     _Pseudop.BUILD_TUPLE_UNPACK,
                     _Pseudop.BUILD_MAP_UNPACK):

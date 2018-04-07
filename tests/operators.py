@@ -1909,6 +1909,112 @@ class Comparators(TestCase):
         """
         stmt, env = compile_expr(src)
         res = stmt()
+        self.assertEqual(res, True)
+
+
+class TypeBuilders(TestCase):
+
+    def test_build_dict(self):
+        src = """
+        (#dict)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertIs(type(res), dict)
+        self.assertEqual(res, dict())
+
+        src = """
+        (#dict ("foo" 1)
+               ("bar" 2))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertIs(type(res), dict)
+        self.assertEqual(res, dict(foo=1, bar=2))
+
+
+    def test_build_list(self):
+        src = """
+        (#list)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertIs(type(res), list)
+        self.assertEqual(res, list())
+
+        src = """
+        (#list 1 2 3)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertIs(type(res), list)
+        self.assertEqual(res, [1, 2, 3])
+
+
+    def test_build_set(self):
+        src = """
+        (#set)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertIs(type(res), set)
+        self.assertEqual(res, set())
+
+        src = """
+        (#set 1 2 3)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertIs(type(res), set)
+        self.assertEqual(res, {1, 2, 3})
+
+
+    def test_build_tuple(self):
+        src = """
+        (#tuple)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertIs(type(res), tuple)
+        self.assertEqual(res, tuple())
+
+        src = """
+        (#tuple 1 2 3)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertIs(type(res), tuple)
+        self.assertEqual(res, (1, 2, 3))
+
+
+    def test_build_str(self):
+        src = """
+        (#str)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertIs(type(res), str)
+        self.assertEqual(res, "")
+
+        src = """
+        (#str "a" "b" "c")
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertIs(type(res), str)
+        self.assertEqual(res, "abc")
+
+        src = """
+        (lambda (X) (#str "a" "b" X "c"))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        code = res.__code__
+        self.assertEqual(code.co_consts[0], None)
+        self.assertEqual(code.co_consts[1], "ab")
+        self.assertEqual(code.co_consts[2], "c")
+        self.assertEqual(res(""), "abc")
+        self.assertEqual(res(" "), "ab c")
 
 
 #
