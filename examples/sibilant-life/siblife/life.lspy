@@ -32,37 +32,33 @@
 
 
      (def function clear (self)
-	  (doc "
-          Clears all the data in the current board. Each position is
-          set to the default state of dead.
-          ")
+	  " Clears all the data in the current board. Each position is
+          set to the default state of dead. "
 
-	  (var keys (tuple (self.data.keys)))
-	  (var dat self.data)
+	  (define dat self.data)
 
 	  ;; we set all the tracked values to dead, this will allow
 	  ;; any display to see which coordinates to turn off, and the
 	  ;; next call to tracked will clear the data
-	  (for-each (key keys)
+	  (for-each (key (dat.keys))
 		    (setf (item dat key) 0))
 
 	  None)
 
 
      (def function randomize (self threshold: 0.5)
-	  (doc "
-          Clears all the data in the current board. Each position on
+	  " Clears all the data in the current board. Each position on
           the board is then populated if a random value is greater
-          than the given threasholy value. A lower threshold will
+          than the given threasholy value.  A lower threshold will
           result in more of the board being filled, while a higher
-          threshold will result in a more sparse board.
-          ")
+          threshold will result in a more sparse board. "
 
 	  (self.clear)
 	  (seed)
 
-	  (var all-coords (product (range 0 self.width)
-				   (range 0 self.height)))
+	  (define all-coords
+	    (product (range 0 self.width)
+		     (range 0 self.height)))
 
 	  (for-each ((x y) all-coords)
 		    (when (< threshold (random))
@@ -72,8 +68,7 @@
 
 
      (def function tracked (self cleanup: True)
-	  (doc "
-          Yields pairs of coordinates and cell values, where each
+	  " Yields pairs of coordinates and cell values, where each
           coordinate is an integer representing the x and y axis.
 
           The returned items represent all of the known living cells,
@@ -82,10 +77,9 @@
 
           If cleanup is True (which is the default) then any recently
           deceased cells will be removed from the underlying data set
-          afterwards.
-          ")
+          afterwards. "
 
-	  (vars coord cell (data self.data))
+	  (var coord cell (data self.data))
 
 	  (if cleanup
 	      then: (for-each (item (list (data.items)))
@@ -97,25 +91,21 @@
 
 
      (def function toggle (self x y)
-	  (doc "
-          Flip a living cell to dead, or a dead cell to alive.
-          ")
+	  " Flip a living cell to dead, or a dead cell to alive. "
 
-	  (var coord (values x y))
-	  (var cell (self.data.get coord None))
+	  (define coord (values x y))
+	  (define cell (self.data.get coord None))
 
 	  (setf (item self.data coord) (if cell 0 1))
 	  None)
 
 
      (def function coord-key (self x y)
-	  (doc "
-          Converts a coordinate into a key for internal storage, or
+          " Converts a coordinate into a key for internal storage, or
           None if the coordinate is not within the bounds of the board
-          and wrapping is not enabled.
-          ")
+          and wrapping is not enabled. "
 
-	  (vars (w self.width) (h self.height))
+	  (var (w self.width) (h self.height))
 
 	  (unless self.wrap
 	    (unless (and (within? 0 w x) (within? 0 h y))
@@ -125,7 +115,7 @@
 
 
      (def function get-cell (self x y)
-	  (var key (self.coord-key x y))
+	  (define key (self.coord-key x y))
 
 	  (if (None? key)
 	      then: 0
@@ -133,7 +123,7 @@
 
 
      (def function set-cell (self x y value)
-	  (var key (self.coord-key x y))
+	  (define key (self.coord-key x y))
 
 	  (unless (None? key)
 	    (setf (item self.data key) value)))
@@ -154,11 +144,11 @@
 
 
      (def function age (self)
-	  (doc "update the state of this board to represent the next"
-	       "generation")
+	  " Update the state of this board to represent the next
+            generation. "
 
-	  (vars (dat (dict)) (followup (set)))
-	  (vars key x y)
+	  (var (dat (dict)) (followup (set)))
+	  (var key x y)
 
 	  ;; update all the cells that we already know are alive, and
 	  ;; collect their neighbors for followup processing
@@ -185,10 +175,10 @@
 
 
      (def function child (self)
-	  (doc "create a copy of this board and age it to the next"
-	       "generation")
+	  " Create a copy of this board and age it to the next
+            generation. "
 
-	  (var kid (copy self))
+	  (define kid (copy self))
 	  (kid.age)
 	  kid)
 
@@ -205,10 +195,10 @@
      (setq group (tuple group))
 
      ;; state of the center of the group
-     (var center (item group 4))
+     (define center (item group 4))
 
      ;; count of living members of the group
-     (var living (reduce (lambda (accu val)
+     (define living (reduce (lambda (accu val)
 			   (if val then: (+ 1 accu) else: accu))
 			 group 0))
 

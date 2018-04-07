@@ -49,7 +49,7 @@
 ;; $100 to (dollars 100) happens at read time, which is before compile
 ;; time, and also before run time.
 (defun example ()
-  (var X $100)
+  (define X $100)
   (print-example (type X))
   (print-example (repr X))
   (print-example (str X))

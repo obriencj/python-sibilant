@@ -31,6 +31,7 @@ from contextlib import contextmanager
 from enum import Enum
 from functools import partial, partialmethod
 from itertools import count
+from os.path import exists
 from platform import python_implementation
 from sys import version_info
 from types import CodeType
@@ -1722,6 +1723,7 @@ class ExpressionCodeSpace(CodeSpace):
         self.require_active()
 
         if not is_proper(expr):
+            print("compile_pair improper:", str(expr))
             raise self.error("cannot evaluate improper lists as expressions",
                              expr)
 
@@ -1936,7 +1938,20 @@ class ExpressionCodeSpace(CodeSpace):
 
 
     def error(self, message, source):
-        return CompilerSyntaxError(message, source.get_position(),
+
+        text = None
+        pos = source.get_position()
+        if pos and exists(self.filename):
+            with open(self.filename, "rt") as fin:
+                for text, _lineno in zip(fin, range(0, pos[0])):
+                    # print(" ...", text)
+                    pass
+
+        if not text:
+            text = str(source)
+            pos = (pos[0], 0)
+
+        return CompilerSyntaxError(message, pos, text=text,
                                    filename=self.filename)
 
 

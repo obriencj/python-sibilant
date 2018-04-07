@@ -59,7 +59,6 @@ _symbol_setq_values = symbol("setq-values")
 _symbol_splice = symbol("unquote-splicing")
 _symbol_try = symbol("try")
 _symbol_unquote = symbol("unquote")
-_symbol_var = symbol("var")
 _symbol_while = symbol("while")
 _symbol_with = symbol("with")
 _symbol_yield = symbol("yield")
@@ -1570,8 +1569,12 @@ def special_global(code, source, tc=False):
     symbol is shadowed by a local binding.
     """
 
-    called_by, (binding, rest) = source
-    if not is_nil(rest):
+    try:
+        called_by, (binding, rest) = source
+    except ValueError:
+        raise code.error("missing symbol for global lookup", source)
+
+    if rest is not nil:
         raise code.error("extra values in global lookup", source)
 
     code.pseudop_position_of(source)
@@ -1589,12 +1592,22 @@ def special_define_global(code, source, tc=False):
     omitted, it defaults to None.
     """
 
-    called_by, (binding, body) = source
-
-    _helper_begin(code, body, False)
+    try:
+        called_by, (binding, body) = source
+    except ValueError:
+        raise code.error("too few arguments to define-global", source)
 
     if not is_symbol(binding):
         raise code.error("define-global with non-symbol binding", source)
+
+    if body:
+        body, rest = body
+        if rest is not nil:
+            raise code.error("too many arguments to define", source)
+
+        code.add_expression(body, False)
+    else:
+        code.pseudop_const(None)
 
     code.pseudop_position_of(source)
     code.pseudop_set_global(str(binding))
@@ -1605,25 +1618,20 @@ def special_define_global(code, source, tc=False):
     return None
 
 
-@special(_symbol_define, _symbol_var)
+@special(_symbol_define)
 def special_define(code, source, tc=False):
     """
+    (define SYM)
     (define SYM EXPRESSION)
 
     Defines or sets a value in a local context. If EXPRESSION is
-    omitted, it defaults to None.
-
-    At the module level, the local context is the same as the global
-    context
-
-    (var SYM EXPRESSION)
-    same as above
-
-    if EXPRESSION is omitted, the SYM is declared in the local
-    namespace, but left unassigned.
+    omitted, the symbol is declared but unassigned.
     """
 
-    called_by, (binding, body) = source
+    try:
+        called_by, (binding, body) = source
+    except ValueError:
+        raise code.error("too few arguments to define", source)
 
     if not is_symbol(binding):
         raise code.error("define with non-symbol binding", source)
@@ -1632,7 +1640,11 @@ def special_define(code, source, tc=False):
     code.declare_var(varname)
 
     if body:
-        _helper_begin(code, body, False)
+        body, rest = body
+        if rest is not nil:
+            raise code.error("too many arguments to define", source)
+
+        code.add_expression(body, False)
         code.pseudop_position_of(source)
         code.pseudop_set_var(varname)
 

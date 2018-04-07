@@ -219,6 +219,7 @@ def __setup__(glbls):
     _op(repr, "repr")
     _op(help, "help")
     _op(dir, "dir")
+    _op(vars, "vars")
 
     _op(__import__, "py-import")
     _op(__import__, "__import__")

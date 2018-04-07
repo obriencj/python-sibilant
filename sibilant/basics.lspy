@@ -55,6 +55,22 @@
   `(define-global ,name (class ,name ,bases ,@body)))
 
 
+(defmacro var (*: variables)
+  "
+  (var BINDINGS...)
+
+  where each BINDING is either a symbol or a pair in (SYM EXPR)
+  format. Declares each binding symbol in the current scope, and
+  optionally assigns it the value from EXPR
+  "
+
+  ;; (setq variables (to-tuple variables))
+  `(begin ,@(map (lambda (d)
+		   (cond ((symbol? d) `(define ,d))
+			 (else: `(define ,@d))))
+		 variables)))
+
+
 ;; === reader macros and atom matchers ===
 
 (defmacro _reader_macro (sym attrsym)
@@ -153,7 +169,7 @@
      ((symbol? target)
       (if (in (str target) ".")
 	  (begin
-	   (var spltrgt (target.rsplit "." 1))
+	   (define spltrgt (target.rsplit "." 1))
 	   `(set-attr ,(item spltrgt 0) ,(item spltrgt 1) ,value))
 	`(setq ,target ,value)))
 
@@ -303,10 +319,11 @@
 
 ;; === runtime macroexpand ===
 
-(define-values
-  (macroexpandq-1 macroexpandq simple-parameters)
-  (import-from sibilant.compiler
-	       macroexpand_1 macroexpand simple_parameters))
+
+(def import-from sibilant.compiler
+     (macroexpand_1 as: macroexpandq-1)
+     (macroexpand as: macroexpandq)
+     (simple_parameters as: simple-parameters))
 
 ;; the macros just snag globals and quote the source, then pass them
 ;; on to the quoted expanders imported above
@@ -330,23 +347,6 @@
   (setq declarations (tuple (declarations.unpack)))
   `(let (,@(map (lambda (d) `(,(car d) (lambda ,@(cdr d)))) declarations))
      ,@body))
-
-
-(defmacro vars (*: variables)
-  "
-  (vars BINDINGS...)
-
-  where each BINDING is either a symbol or a pair in (SYM EXPR)
-  format. Declares each binding symbol in the current scope, and
-  optionally assigns it the value from EXPR
-  "
-
-  ;; (setq variables (to-tuple variables))
-  `(begin ,@(map (lambda (d)
-		   (if (symbol? d)
-		       then: `(var ,d)
-		       else: `(var ,@d)))
-		 variables)))
 
 
 (defmacro let-values (bind_vals . body)

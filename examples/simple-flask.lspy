@@ -28,7 +28,7 @@
 (url-rule
  app index /
 
- (define lcls (escape (locals)))
+ (define lcls (escape (locals )))
  (template
   "<p>This is a simple web app. What more do you want?</p>"
   "<code>{lcls}</code>"))
@@ -37,7 +37,8 @@
 (url-rule
  app reverse-words /reverse/<words>
 
- (define rwords (str.join "" (reversed words)))
+ (define rwords (str.join
+		 "" (reversed words)))
  (define lcls (escape (locals)))
  (template
   "<p>\U0001f615 Reversed this: {words}</p>"

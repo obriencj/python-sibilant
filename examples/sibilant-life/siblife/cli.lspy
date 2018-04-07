@@ -27,14 +27,14 @@
 (defun create-option-parser (argv)
   (doc "the siblife CLI argument parser")
 
-  (var parser (ArgumentParser
+  (define parser (ArgumentParser
 	       prog: (basename (item argv 0))
 	       description: "This is siblife"))
 
   (parser.add_argument "--wrap" action: "store_true" default: False
 		       help: "Game board wraps at edges")
 
-  (var g (parser.add_mutually_exclusive_group))
+  (define g (parser.add_mutually_exclusive_group))
 
   (g.add_argument "--smilies" action: "store_const" dest: "renderer"
 		  const: "smilies"
@@ -57,8 +57,8 @@
   ;; grab sys.argv if we aren't given something else
   (when (None? argv) (setq argv sys.argv))
 
-  (var parser (create-option-parser argv))
-  (var options (parser.parse_args
+  (define parser (create-option-parser argv))
+  (define options (parser.parse_args
 		(item-slice argv 1)))
 
   (try
