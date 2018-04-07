@@ -32,7 +32,7 @@
 (url-rule
  index /
 
- (define lcls (escape (locals)))
+ (define lcls (escape (locals )))
  (template
   "<p>This is a simple web app. What more do you want?</p>"
   "<code>{lcls}</code>"))
@@ -41,9 +41,9 @@
 (url-rule
  reverse-words /reverse/<words>
 
- (define rwords (escape (item-slice words step: -1)))
- (define words (escape words))
- (define lcls (escape (locals)))
+ (var (rwords (escape (item-slice words step: -1)))
+      (words (escape words))
+      (lcls (escape (locals))))
 
  (#str
   "<code>\n"

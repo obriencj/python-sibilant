@@ -40,7 +40,7 @@
 
 ;; recursive, but no tailcall
 (def function fibonacci_notc (index carry: 0 accu: 1)
-  (var result)
+  (define result)
   (if (== index 0)
       then: (setq result carry)
       else: (setq result (fibonacci_notc (- index 1) accu (+ accu carry))))
@@ -50,20 +50,21 @@
 ;; non-tailcall, memoized fibonacci implementation.
 (define fibonacci_lru
 
-  (define fibonacci_
-    ((lru_cache 10000)
-     ;; note to self: I really need to add a way to do pythonic decorators
-     ;; with my (def function ...) syntax
+  (begin
+   (define fibonacci_
+     ((lru_cache 10000)
+      ;; note to self: I really need to add a way to do pythonic decorators
+      ;; with my (def function ...) syntax
 
-     (lambda (index)
-       (if (< index 2) then: index
-	   else: (+ (fibonacci_ (- index 1)) (fibonacci_ (- index 2)))))))
+      (lambda (index)
+	(if (< index 2) then: index
+	    else: (+ (fibonacci_ (- index 1)) (fibonacci_ (- index 2)))))))
 
-  (function fibonacci_lru (index)
+   (function fibonacci_lru (index)
 	    ;; since the purpose here is in timing things, we need to
 	    ;; make sure to clear the lru_cache between invocations.
 	    (fibonacci_.cache_clear)
-	    (fibonacci_ index)))
+	    (fibonacci_ index))))
 
 
 ;; tail-call optimized BUT NOT RECURSIVE (had to make two functions to
@@ -85,7 +86,7 @@
 
 ;; looping version
 (def function fibonacci_while (index)
-  (vars (carry 0) (accu 1))
+  (var (carry 0) (accu 1))
 
   (while (< 0 index)
     (setq-values
@@ -108,13 +109,13 @@
 
 
 (def function time-fibs (value loops *: fibs)
-     (var results (list-each (fib (map second fibs))
+     (define results (list-each (fib (map second fibs))
 			     (funtime fib value loops)))
-     (var total (apply + results))
-     (var count (len results))
+     (define total (apply + results))
+     (define count (len results))
 
      (for-each ((index (title fib)) (enumerate fibs))
-	       (var secs (item results index))
+	       (define secs (item results index))
 	       (print (fmt title: title num: loops
 			   secs: secs
 			   percent: (/ secs total)))))
@@ -123,15 +124,15 @@
 (def function cli-command-timeit (options)
   (def import-from sys getrecursionlimit setrecursionlimit)
 
-  (vars (f options.of) (n options.times) (l options.limit))
+  (var (f options.of) (n options.times) (l options.limit))
 
-  (vars
+  (var
    (d0 (try (fibonacci_lru f) ((BaseException) None)))
    (d1 (fibonacci_while f))
    (d2 (fibonacci_tco f))
    (d3 (fibonacci f)))
 
-  (vars
+  (var
    (p0 (try (pyfibonacci_lru f) ((BaseException) None)))
    (p1 (pyfibonacci_while f))
    (p2 (try (pyfibonacci_notc f) ((BaseException) None))))
@@ -145,7 +146,7 @@
   (print (% "calculating fibonacci of %r" f))
   (print (% "answer is %r" d1))
 
-  (var old-limit (getrecursionlimit))
+  (define old-limit (getrecursionlimit))
   (when l
     (setrecursionlimit (+ old-limit l))
     (print (str.format "increased recursion limit from {} to {}"
@@ -166,7 +167,7 @@
 
 
 (def function cli-subp-timeit (parent)
-  (var subp (subparser
+  (define subp (subparser
 	     parent "timeit"
 	     cli-func: cli-command-timeit))
 
@@ -188,7 +189,7 @@
 (def function create-option-parser (argv)
   (doc "the sibapp CLI argument parser")
 
-  (var parser (ArgumentParser
+  (define parser (ArgumentParser
 	       prog: (basename (item argv 0))
 	       description: "This is sibapp"))
 
@@ -214,12 +215,12 @@
   ;; needing to override with this function. I should really move this
   ;; into a sibilant.site.argparse module...
 
-  (var subs
+  (define subs
     (if parser._subparsers
 	then: (item parser._subparsers._actions -1)
 	else: (parser.add_subparsers)))
 
-  (var sp
+  (define sp
     (subs.add_parser (str name)
 		     help: help
 		     description: help))
@@ -249,8 +250,8 @@
   ;; grab sys.argv if we aren't given something else
   (when (None? argv) (setq argv sys.argv))
 
-  (var parser (create-option-parser argv))
-  (var options (parser.parse_args
+  (define parser (create-option-parser argv))
+  (define options (parser.parse_args
 		(item-slice argv 1)))
 
   (try

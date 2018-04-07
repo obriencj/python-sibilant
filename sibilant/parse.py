@@ -30,6 +30,7 @@ from contextlib import contextmanager
 from fractions import Fraction as fraction
 from functools import partial
 from io import StringIO
+from os.path import exists
 from re import compile as regex
 
 
@@ -539,10 +540,19 @@ class SourceStream(object):
 
 
     def error(self, message, position=None):
+        text = None
+
         if position is None:
             position = self.lin, self.col
 
-        return ReaderSyntaxError(message, position, filename=self.filename)
+        if exists(self.filename):
+            with open(self.filename, "rt") as fin:
+                for text, _lineno in zip(fin, range(0, position[0])):
+                    # print(" ...", text)
+                    pass
+
+        return ReaderSyntaxError(message, position,
+                                 text=text, filename=self.filename)
 
 
     def read(self, count=1):
