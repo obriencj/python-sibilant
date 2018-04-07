@@ -184,6 +184,7 @@ def __setup__(glbls):
     _op(setattr, "setattr")
     _op(isinstance, "isinstance")
     _op(open, "open")
+    _op(input, "input")
     _op(print, "print")
 
     _ty(object, "object")
