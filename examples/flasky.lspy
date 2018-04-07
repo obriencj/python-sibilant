@@ -5,7 +5,7 @@
 (def import-from werkzeug.routing parse_rule)
 
 
-(defmacro url-rule (app name rule . body)
+(defmacro url-rule (name rule . body)
   (define formals
     (iter-each ((converter wut name) (parse_rule (str rule)))
 	       (symbol name) unless: (None? converter)))
@@ -15,18 +15,22 @@
 		     view_func: (function ,name (,@formals) ,@body)))
 
 
-
 (defmacro template strings
   `(str.format (str.join " " (map str (#tuple ,@strings))) **: (locals)))
+
+
+(defmacro declare-app (name)
+  `(define app (Flask ,(str name))))
+
 
 ;;;
 
 
-(define app (Flask "flasky"))
+(declare-app flasky)
 
 
 (url-rule
- app index /
+ index /
 
  (define lcls (escape (locals)))
  (template
@@ -35,14 +39,17 @@
 
 
 (url-rule
- app reverse-words /reverse/<words>
+ reverse-words /reverse/<words>
 
- (define rwords (str.join "" (reversed words)))
+ (define rwords (escape (item-slice words step: -1)))
+ (define words (escape words))
  (define lcls (escape (locals)))
- (template
-  "<p>\U0001f615 Reversed this: {words}</p>"
-  "<p>\U0001f60e Into this: {rwords}</p>"
-  "<code>{lcls}</code>"))
+
+ (#str
+  "<code>\n"
+  "<p>\U0001f615 Original: " words "</p>\n"
+  "<p>\U0001f60e Reversed: " rwords "</p>\n"
+  "<p>Locals: " lcls "</p></code>\n"))
 
 
 ;; you can either run this directly, or you can compile it to a .pyc
