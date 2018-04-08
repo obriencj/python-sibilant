@@ -14,17 +14,20 @@
 
 
 """
-Sibilant, a Scheme for Python
+sibilant.cli
 
-:author: Christopher O'Brien  <obriencj@gmail.com>
-:license: LGPL v.3
+Command-line interface for invoking the sibilant repl or for compiling
+sibilant source files into pyc files
+
+author: Christopher O'Brien  <obriencj@gmail.com>
+license: LGPL v.3
 """
 
 
 import sys
 
 from appdirs import AppDirs
-from argparse import ArgumentParser
+from argparse import ArgumentParser, REMAINDER
 from os.path import basename, join
 
 from .module import new_module, init_module, load_module, compile_to_file
@@ -43,11 +46,13 @@ class CLIException(Exception):
 
 def cli_compile(options):
 
+    builtins_name = "sibilant.bootstrap" if options.bootstrap else None
+
     filename = options.filename
     if not filename:
         raise CLIException("--compile requires that FILENAME is specified")
 
-    name = options.compile
+    name = options.compile or options.bootstrap
 
     if filename.endswith(".lspy"):
         destname = filename[:-4] + "pyc"
@@ -56,7 +61,7 @@ def cli_compile(options):
     else:
         raise CLIException("FILENAME should be a .lspy or .sibilant file")
 
-    compile_to_file(name, filename, destname)
+    compile_to_file(name, filename, destname, builtins_name=builtins_name)
 
 
 def cli(options):
@@ -64,6 +69,14 @@ def cli(options):
     Run as from the command line, with the given options argument and
     additional positional args
     """
+
+    # we HAVE to tweak args to make it appear that sibilant is $0
+    # there are so many libraries that break if we don't.
+    if options.filename:
+        sys.argv = [options.filename]
+        sys.argv.extend(options.args)
+    else:
+        sys.argv = options.args
 
     if options.importer:
         # this has the side-effect of augmenting the import system to
@@ -74,36 +87,30 @@ def cli(options):
     if options.tweakpath:
         sys.path.insert(0, ".")
 
-    if options.compile:
+    if options.compile or options.bootstrap:
         return cli_compile(options)
-
-    filename = options.filename
 
     mod = new_module("__main__")
 
+    filename = options.filename
     if filename:
         with source_open(filename) as source:
-            init_module(mod, source, None, filename=filename)
+            init_module(mod, source)
             load_module(mod)
 
-        if options.interactive:
-            # probably not the best way to implement this, but it'll
-            # do for now, eh?
-            repl(mod)
+        if not options.interactive:
+            return
 
-    else:
-        repl(mod)
+    repl(mod)
 
 
-def cli_option_parser(args):
+def cli_option_parser(name):
     """
     Create an `ArgumentParser` instance with the options requested by
     the `cli` function
     """
 
-    parser = ArgumentParser(prog=basename(args[0]))
-
-    parser.add_argument("filename", nargs="?", default=None)
+    parser = ArgumentParser(prog=basename(name))
 
     parser.add_argument("--no-importer", dest="importer",
                         action="store_false", default=True,
@@ -129,6 +136,14 @@ def cli_option_parser(args):
                    help="Compile the specified file as a module with"
                    " this name")
 
+    g.add_argument("-B", "--bootstrap-compiler", dest="bootstrap",
+                   action="store", default=None,
+                   help="Compile the specified file as a module with"
+                   " this name, using only bootstrap builtins")
+
+    parser.add_argument("filename", nargs="?", default=None)
+    parser.add_argument("args", nargs=REMAINDER, default=list())
+
     return parser
 
 
@@ -137,8 +152,9 @@ def main(args=sys.argv):
     Entry point for the REPL
     """
 
-    parser = cli_option_parser(args)
-    options = parser.parse_args(args[1:])
+    name, *args = args
+    parser = cli_option_parser(name)
+    options = parser.parse_args(args)
 
     # todo: arg checking, emit problems using `parser.error`
 

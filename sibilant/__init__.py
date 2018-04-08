@@ -14,10 +14,10 @@
 
 
 """
-Sibilant, a Scheme for Python
+Sibilant, a LISP for Python
 
-:author: Christopher O'Brien  <obriencj@gmail.com>
-:license: LGPL v.3
+author: Christopher O'Brien  <obriencj@gmail.com>
+license: LGPL v.3
 """
 
 
@@ -30,6 +30,7 @@ from ._types import pair, nil, cons, car, cdr, setcar, setcdr
 from ._types import build_unpack_pair
 from ._types import reapply
 from ._types import build_tuple, build_list, build_set, build_dict
+from ._types import values
 
 
 __all__ = (
@@ -44,9 +45,11 @@ __all__ = (
     "build_proper", "unpack",
     "copy_pair", "build_unpack_pair",
 
-    "reapply", "repeat",
+    "reapply", "repeatedly",
 
     "build_tuple", "build_list", "build_set", "build_dict",
+
+    "values",
 )
 
 

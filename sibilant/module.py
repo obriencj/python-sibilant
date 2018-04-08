@@ -13,6 +13,29 @@
 # <http://www.gnu.org/licenses/>.
 
 
+"""
+sibilant.module
+
+Module lifecycle for sibilant source files. Provides a read, compile,
+and eval sequence for creating a module from sibilant source code.
+
+When a module is loaded from a source file, each top-level expression
+is read, then compiled, then evaluated in order. This allows
+expressions to modify the module state for successive expressions, by
+adding reader or compiler macros for example, or by adjusting aspects
+of the compiler.
+
+Expressions can be individually compiled to code objects, and those
+code objects can be combined into a single module code object to
+produce a .pyc file. When loading a precompiled module in this manner
+the parse and compile steps are skipped, and the code objects that
+represent the top-level expressions are evaluated in order.
+
+author: Christopher O'Brien <obriencj@gmail.com>
+license: LGPL v.3
+"""
+
+
 from functools import partial
 from os.path import split, getmtime, getsize
 from types import ModuleType
@@ -45,14 +68,17 @@ def fake_module_from_env(env):
     return module
 
 
-def init_module(module, source_stream, builtins,
-                filename=None, defaults=None,
+def init_module(module, source_stream,
+                builtins=None, filename=None, defaults=None,
                 reader=None, compiler=None, compiler_factory=None,
                 compiler_factory_params=None,
                 evaluator=None):
 
     if defaults:
         module.__dict__.update(defaults)
+
+    if source_stream and not filename:
+        filename = source_stream.filename
 
     if filename:
         module.__file__ = filename
@@ -239,13 +265,13 @@ def load_module_1(module, parse_time=parse_time,
         return tailcall(run_time)(module, code_obj)
 
 
-def exec_marshal_module(glbls, code_objs):
+def exec_marshal_module(glbls, code_objs, builtins=None):
     """
     Invoked during loading of modules expored via marshal_wrapper
     """
 
     mod = fake_module_from_env(glbls)
-    init_module(mod, None, None)
+    init_module(mod, None, builtins=builtins)
 
     # skips the read time and compile time stages of import, just
     # performs run time for every compiled expression to set up the
@@ -257,7 +283,9 @@ def exec_marshal_module(glbls, code_objs):
     return None
 
 
-def marshal_wrapper(code_objs, filename=None, mtime=0, source_size=0):
+def marshal_wrapper(code_objs, filename=None, mtime=0, source_size=0,
+                    builtins_name=None):
+
     from importlib._bootstrap_external import _code_to_bytecode
 
     factory = code_space_for_version()
@@ -279,15 +307,33 @@ def marshal_wrapper(code_objs, filename=None, mtime=0, source_size=0):
     # existing python loader for .pyc
 
     with codespace.activate({}):
-        codespace.pseudop_get_var("__import__")
-        codespace.pseudop_const("sibilant.module")
-        codespace.pseudop_call(1)
-        codespace.pseudop_get_attr("module")
-        codespace.pseudop_get_attr("exec_marshal_module")
+
+        # import and obtain sibilant.module.exec_marshal_module
+        codespace.pseudop_const(0)
+        codespace.pseudop_const("exec_marshal_module")
+        codespace.pseudop_build_tuple(1)
+        codespace.pseudop_import_name("sibilant.module")
+        codespace.pseudop_import_from("exec_marshal_module")
+        codespace.pseudop_rot_two()
+        codespace.pseudop_pop()
+
+        # argument 1. globals()
         codespace.pseudop_get_var("globals")
         codespace.pseudop_call(0)
+
+        # argument 2. tuple(code_objs)
         codespace.pseudop_const(tuple(code_objs))
-        codespace.pseudop_call(2)
+
+        # argument 3. builtins (either specified or None)
+        if builtins_name:
+            codespace.pseudop_const(0)
+            codespace.pseudop_const("nil")
+            codespace.pseudop_build_tuple(1)
+            codespace.pseudop_import_name(builtins_name)
+        else:
+            codespace.pseudop_const(None)
+
+        codespace.pseudop_call(3)
         codespace.pseudop_return()
 
         code = codespace.complete()
@@ -295,7 +341,7 @@ def marshal_wrapper(code_objs, filename=None, mtime=0, source_size=0):
     return _code_to_bytecode(code, mtime, source_size)
 
 
-def compile_to_file(name, source_file, dest_file):
+def compile_to_file(name, source_file, dest_file, builtins_name=None):
     mtime = getmtime(source_file)
     source_size = getsize(source_file)
 
@@ -306,11 +352,12 @@ def compile_to_file(name, source_file, dest_file):
 
     with source_open(source_file) as source_stream:
         mod = new_module(name)
-        init_module(mod, source_stream, None, filename=source_file)
+        init_module(mod, source_stream)
         load_module(mod, compile_time=hook_compile_time(accumulate))
 
     bytecode = marshal_wrapper(code_objs, filename=source_file,
-                               mtime=mtime, source_size=source_size)
+                               mtime=mtime, source_size=source_size,
+                               builtins_name=builtins_name)
 
     with open(dest_file, "wb") as dest_stream:
         dest_stream.write(bytecode)

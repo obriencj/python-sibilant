@@ -39,23 +39,46 @@ typedef struct SibInternedAtom {
 } SibInternedAtom;
 
 
+typedef struct SibValues {
+  PyObject_HEAD
+
+  PyObject *args;
+  PyObject *kwds;
+  PyObject *weakrefs;
+  Py_uhash_t hashed;
+} SibValues;
+
+
 PyTypeObject SibPairType;
 PyTypeObject SibNilType;
 PyTypeObject SibSymbolType;
 PyTypeObject SibKeywordType;
+PyTypeObject SibValuesType;
 
 
 #define SibPair_Check(obj)					\
   ((obj) && PyType_IsSubtype((obj)->ob_type, &SibPairType))
 
-#define SibPair_CheckExact(obj)					\
+#define SibPair_CheckExact(obj)			\
   ((obj) && ((obj)->ob_type == &SibPairType))
 
 #define SibSymbol_Check(obj)					\
   ((obj) && PyType_IsSubtype((obj)->ob_type, &SibSymbolType))
 
+#define SibSymbol_CheckExact(obj)		\
+  ((obj) && ((obj)->ob_type == &SibSymbolType))
+
 #define SibKeyword_Check(obj)					\
   ((obj) && PyType_IsSubtype((obj)->ob_type, &SibKeywordType))
+
+#define SibKeyword_CheckExact(obj)			\
+  ((obj) && ((obj)->ob_type == &SibKeywordType))
+
+#define SibValues_Check(obj)					\
+  ((obj) && PyType_IsSubtype((obj)->ob_type, &SibValuesType))
+
+#define SibValues_CheckExact(obj)			\
+  ((obj) && ((obj)->ob_type == &SibValuesType))
 
 
 long SibPair_is_proper(PyObject *self);
@@ -68,6 +91,8 @@ PyObject *sib_symbol(PyObject *name);
 PyObject *sib_keyword(PyObject *name);
 
 PyObject *sib_pair(PyObject *head, PyObject *tail);
+
+PyObject *sib_values(PyObject *args, PyObject *kwds);
 
 
 #define CONS(h, t) sib_pair((h), (t))

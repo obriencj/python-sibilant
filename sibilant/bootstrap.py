@@ -14,12 +14,14 @@
 
 
 """
+sibilant.bootstrap
+
 Pythonic builtin definitions for sibilant.
 
 These are used to bootstrap an importer that can load the
-_builtins.lspy module
+basics.lspy module
 
-This module and _builtins are then merged together to create the final
+bootstrap and basica are then merged together to create the final
 builtins module, which is made available to any module being loaded
 via sibilant.
 
@@ -118,6 +120,8 @@ def __setup__(glbls):
 
     _op(sibilant.reapply, "reapply")
 
+    _ty(sibilant.values, "values")
+
     _op(sibilant.first, "first")
     _op(sibilant.second, "second", rename=True)
     _op(sibilant.third, "third", rename=True)
@@ -180,6 +184,7 @@ def __setup__(glbls):
     _op(setattr, "setattr")
     _op(isinstance, "isinstance")
     _op(open, "open")
+    _op(input, "input")
     _op(print, "print")
 
     _ty(object, "object")
@@ -192,18 +197,32 @@ def __setup__(glbls):
     _ty(complex, "complex")
     _ty(fraction, "fraction")
     _ty(range, "range")
+    _ty(memoryview, "memoryview")
     _ty(slice, "slice")
+
+    _op(sorted, "sorted")
+    _ty(reversed, "reversed")
 
     _op(chr, "chr")
     _op(ord, "ord")
     _op(min, "min")
     _op(max, "max")
+    _op(abs, "abs")
+    _op(oct, "oct")
+    _op(hex, "hex")
+    _op(all, "all")
+    _op(any, "any")
+
+    _op(hash, "hash")
+    _op(super, "super")
 
     _op(repr, "repr")
     _op(help, "help")
     _op(dir, "dir")
+    _op(vars, "vars")
 
-    _op(__import__, "import")
+    _op(__import__, "py-import")
+    _op(__import__, "__import__")
     _op(globals, "globals")
     _op(locals, "locals")
     _op(compile, "py-compile")
@@ -211,15 +230,22 @@ def __setup__(glbls):
 
     _op(sys.exit, "exit")
 
-
     # done with setup
-    return tuple(_all_)
+    # return tuple(_all_)
+    return None
 
 
 # --- and finally, clean up ---
 
-__all__ = __setup__(globals())
-del __setup__
+
+__setup__(globals())
+
+try:
+    del __setup__     # noqa
+    del __file__      # noqa
+    del __builtins__  # noqa
+except NameError:
+    pass
 
 
 #

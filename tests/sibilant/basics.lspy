@@ -13,7 +13,7 @@
 ;; <http://www.gnu.org/licenses/>.
 
 
-(defimportfrom unittest TestCase)
+(def import-from unittest TestCase)
 
 
 (def class DefclassTest (TestCase)
@@ -26,7 +26,7 @@
 
 	       (def function get-foo (self) self.foo))
 
-	  (var sinst (simple))
+	  (define sinst (simple))
 
 	  (self.assertIs (type simple) type)
 	  (self.assertIs (type sinst) simple)
@@ -108,7 +108,8 @@
 (def class BuildTest (TestCase)
 
      (def function test_build_list (self)
-	  (var data (build-list 1 2 "hello" 'foo ':bar))
+	  (define data
+	    (#list 1 2 "hello" 'foo ':bar))
 
 	  (self.assertTrue (list? data))
 	  (self.assertEqual (len data) 5)
@@ -123,7 +124,8 @@
 
 
      (def function test_build_tuple (self)
-	  (var data (build-tuple 1 2 "hello" 'foo ':bar))
+	  (define data
+	    (#tuple 1 2 "hello" 'foo ':bar))
 
 	  (self.assertTrue (tuple? data))
 	  (self.assertEqual (len data) 5)
@@ -138,11 +140,11 @@
 
 
      (def function test_build_dict (self)
-	  (var data (build-dict
-		     ("foo" 100)
-		     ("bar" 200)
-		     ('tacos "yummy")
-		     (None 'wut)))
+	  (define data
+	    (#dict ("foo" 100)
+		   ("bar" 200)
+		   ('tacos "yummy")
+		   (None 'wut)))
 
 	  (self.assertTrue (dict? data))
 	  (self.assertEqual (len data) 4)
@@ -156,7 +158,8 @@
 
 
      (def function test_build_set (self)
-	  (var data (build-set 1 2 3 4 1 2 3 4 5))
+	  (define data
+	    (#set 1 2 3 4 1 2 3 4 5))
 
 	  (self.assertTrue (set? data))
 	  (self.assertEqual (len data) 5)

@@ -27,45 +27,47 @@ from . import (
 from .compiler import Special, gather_formals
 from .tco import trampoline, tailcall
 
+from textwrap import dedent
+
 
 __all__ = []
 
 
-_symbol_nil = symbol("nil")
-
-_symbol_doc = symbol("doc")
 _symbol_attr = symbol("attr")
+_symbol_begin = symbol("begin")
+_symbol_break = symbol("break")
+_symbol_cond = symbol("cond")
+_symbol_continue = symbol("continue")
+_symbol_define = symbol("define")
+_symbol_define_global = symbol("define-global")
+_symbol_define_values = symbol("define-values")
+_symbol_doc = symbol("doc")
+_symbol_for_each = symbol("for-each")
+_symbol_function = symbol("function")
+_symbol_global = symbol("global")
+_symbol_import = symbol("import")
+_symbol_import_from = symbol("import-from")
+_symbol_lambda = symbol("lambda")
+_symbol_let = symbol("let")
+_symbol_nil = symbol("nil")
+_symbol_quasiquote = symbol("quasiquote")
+_symbol_quote = symbol("quote")
+_symbol_return = symbol("return")
 _symbol_set_attr = symbol("set-attr")
 _symbol_setq = symbol("setq")
 _symbol_setq_values = symbol("setq-values")
-_symbol_define_values = symbol("define-values")
-_symbol_global = symbol("global")
-_symbol_define = symbol("define")
-_symbol_var = symbol("var")
-_symbol_define_global = symbol("define-global")
-_symbol_quote = symbol("quote")
-_symbol_quasiquote = symbol("quasiquote")
-_symbol_unquote = symbol("unquote")
 _symbol_splice = symbol("unquote-splicing")
-_symbol_begin = symbol("begin")
-_symbol_cond = symbol("cond")
-_symbol_lambda = symbol("lambda")
-_symbol_function = symbol("function")
-_symbol_with = symbol("with")
-_symbol_let = symbol("let")
-_symbol_for_each = symbol("for-each")
-_symbol_while = symbol("while")
-_symbol_continue = symbol("continue")
-_symbol_break = symbol("break")
 _symbol_try = symbol("try")
-_symbol_return = symbol("return")
+_symbol_unquote = symbol("unquote")
+_symbol_while = symbol("while")
+_symbol_with = symbol("with")
 _symbol_yield = symbol("yield")
 _symbol_yield_from = symbol("yield-from")
 
-_keyword_else = keyword("else")
 _keyword_as = keyword("as")
+_keyword_else = keyword("else")
 _keyword_finally = keyword("finally")
-_keyword_star = keyword("*:")
+_keyword_star = keyword("*")
 
 
 def special(namesym, *aliases, glbls=globals()):
@@ -94,7 +96,7 @@ def _helper_binding(code, source, required=True):
         raise code.error("binding must be (SYM EXPR) or (EXPR as: SYM)",
                          source)
 
-    sc = source.count()
+    sc = source.length()
     if sc == 3:
         expr, (_as, (sym, _rest)) = source
         if not (_as is _keyword_as and is_symbol(sym)):
@@ -153,7 +155,7 @@ def _helper_nil(code):
 
 
 @special(_symbol_doc)
-def _special_doc(code, source, tc=False):
+def special_doc(code, source, tc=False):
     """
     (doc STR STR...)
     joins STR together and sets it as the docstr for the parent scope
@@ -164,13 +166,14 @@ def _special_doc(code, source, tc=False):
     # collapse the doc
     docstr = "\n".join(d.strip() for d in map(str, rest.unpack()))
 
+    docstr = dedent(docstr).strip()
+
     # force it into const slot zero
     code.set_doc(docstr)
 
-    # also assign a local var named __doc__
-    code.declare_var("__doc__")
-    code.pseudop_const(docstr)
-    code.pseudop_set_var("__doc__")
+    # code.declare_var("__doc__")
+    # code.pseudop_const(docstr)
+    # code.pseudop_set_var("__doc__")
 
     # doc special expression evaluates to None
     code.pseudop_const(None)
@@ -179,7 +182,7 @@ def _special_doc(code, source, tc=False):
 
 
 @special(_symbol_attr)
-def _special_get_attr(code, source, tc=False):
+def special_get_attr(code, source, tc=False):
     """
     (attr OBJECT SYM)
 
@@ -207,7 +210,7 @@ def _special_get_attr(code, source, tc=False):
 
 
 @special(_symbol_set_attr)
-def _special_set_attr(code, source, tc=False):
+def special_set_attr(code, source, tc=False):
     """
     (set-attr OBJECT SYM EXPRESSION)
 
@@ -238,7 +241,7 @@ def _special_set_attr(code, source, tc=False):
 
 
 @special(_symbol_quote)
-def _special_quote(code, source, tc=False):
+def special_quote(code, source, tc=False):
     """
     (quote FORM)
 
@@ -292,7 +295,7 @@ def _helper_quote(code, body, tc=False):
 
 
 @special(_symbol_quasiquote)
-def _special_quasiquote(code, source, tc=False):
+def special_quasiquote(code, source, tc=False):
     """
     (quasiquote EXPR)
     Special form for quasiquote
@@ -542,7 +545,7 @@ def _helper_quasiquote_p(code, marked, level):
 
 
 @special(_symbol_begin)
-def _special_begin(code, source, tc=False):
+def special_begin(code, source, tc=False):
     """
     (begin EXPR EXPR...)
 
@@ -585,7 +588,7 @@ def _helper_begin(code, body, tc):
 
 
 @special(_symbol_with)
-def _special_with(code, source, tc=False):
+def special_with(code, source, tc=False):
     """
     (with (BINDING EXPRESSION) BODY...)
 
@@ -620,7 +623,7 @@ def _special_with(code, source, tc=False):
 
 
 @special(_symbol_lambda)
-def _special_lambda(code, source, tc=False):
+def special_lambda(code, source, tc=False):
     """
     (lambda (FORMAL...) BODY...)
 
@@ -641,7 +644,7 @@ def _special_lambda(code, source, tc=False):
 
 
 @special(_symbol_function)
-def _special_function(code, source, tc=False):
+def special_function(code, source, tc=False):
     """
     (function NAME (FORMAL...) BODY...)
 
@@ -687,7 +690,7 @@ def _special_function(code, source, tc=False):
 
 
 @special(_symbol_let)
-def _special_let(code, source, tc=False):
+def special_let(code, source, tc=False):
     """
     (let ((BINDING EXPR) ...) BODY...)
 
@@ -810,8 +813,12 @@ def _helper_function(code, name, args, body,
                              tco_enabled=tco)
 
     with kid as subc:
+        body, doc = _helper_strip_doc(body)
+        subc.set_doc(doc)
+
         if self_ref is not None:
             subc.request_var(self_ref)
+
         _helper_begin(subc, body, tco)
         subc.pseudop_return()
         code.pseudop_lambda(subc.complete(), defaults, kwonly)
@@ -823,8 +830,26 @@ def _helper_function(code, name, args, body,
             code.pseudop_call(1)
 
 
+def _helper_strip_doc(body):
+    """
+    This helper function will identify any string literals at the
+    beginning of a collection of source expressions, and separate it
+    out.
+    """
+
+    doc = None
+
+    if body:
+        front, rest = body
+        if rest and isinstance(front, str):
+            doc = dedent(front).strip()
+            body = rest
+
+    return body, doc
+
+
 @special(_symbol_while)
-def _special_while(code, source, tc=False):
+def special_while(code, source, tc=False):
     """
     (while TEST_EXPR BODY...)
 
@@ -893,7 +918,7 @@ def _special_while(code, source, tc=False):
 
 
 @special(_symbol_for_each)
-def _special_for_each(code, source, tc=False):
+def special_for_each(code, source, tc=False):
     """
     (for-each (BINDING  ITEREXPR) . BODY)
     """
@@ -947,7 +972,7 @@ def _special_for_each(code, source, tc=False):
 
 
 @special(_symbol_setq_values)
-def _special_setq_values(code, source, tc=False):
+def special_setq_values(code, source, tc=False):
     """
     (setq-values BINDINGS VALUES_EXPR)
 
@@ -973,7 +998,7 @@ def _special_setq_values(code, source, tc=False):
 
 
 @special(_symbol_define_values)
-def _special_define_values(code, source, tc=False):
+def special_define_values(code, source, tc=False):
     """
     (define-values BINDINGS VALUES_EXPR)
 
@@ -1039,7 +1064,7 @@ def _helper_setq_values(code, bindings, declare):
         code.pseudop_set_var(str(bindings))
         return
 
-    bcount = bindings.count()
+    bcount = bindings.length()
 
     if is_nil(bindings):
         code.pseudop_pop()
@@ -1107,7 +1132,7 @@ def _helper_setq_values(code, bindings, declare):
 
 
 @special(_symbol_continue)
-def _special_continue(code, source, tc=False):
+def special_continue(code, source, tc=False):
 
     from .compiler import Block
 
@@ -1142,7 +1167,7 @@ def _special_continue(code, source, tc=False):
 
 
 @special(_symbol_break)
-def _special_break(code, source, tc=False):
+def special_break(code, source, tc=False):
 
     from .compiler import Block
 
@@ -1172,7 +1197,7 @@ def _special_break(code, source, tc=False):
 
 
 @special(_symbol_return)
-def _special_return(code, source, tc=False):
+def special_return(code, source, tc=False):
 
     called_by, rest = source
 
@@ -1200,7 +1225,7 @@ def _special_return(code, source, tc=False):
 
 
 @special(_symbol_yield)
-def _special_yield(code, source, tc=False):
+def special_yield(code, source, tc=False):
 
     called_by, rest = source
 
@@ -1226,7 +1251,7 @@ def _special_yield(code, source, tc=False):
 
 
 @special(_symbol_yield_from)
-def _special_yield_from(code, source, tc=False):
+def special_yield_from(code, source, tc=False):
 
     try:
         called_by, (value, rest) = source
@@ -1262,7 +1287,7 @@ def _special_yield_from(code, source, tc=False):
 
 
 @special(_symbol_try)
-def _special_try(code, source, tc=False):
+def special_try(code, source, tc=False):
     """
     (try EXPR
       (except: EXCEPTION_TYPE EXC_BODY...)
@@ -1506,7 +1531,7 @@ def _except_match(code, key, match,
 
 
 @special(_symbol_setq)
-def _special_setq(code, source, tc=False):
+def special_setq(code, source, tc=False):
     """
     (setq SYM EXPR)
 
@@ -1537,15 +1562,19 @@ def _special_setq(code, source, tc=False):
 
 
 @special(_symbol_global)
-def _special_global(code, source, tc=False):
+def special_global(code, source, tc=False):
     """
     (global SYM)
     Evaluates a symbol in the global scope. This is useful if the
     symbol is shadowed by a local binding.
     """
 
-    called_by, (binding, rest) = source
-    if not is_nil(rest):
+    try:
+        called_by, (binding, rest) = source
+    except ValueError:
+        raise code.error("missing symbol for global lookup", source)
+
+    if rest is not nil:
         raise code.error("extra values in global lookup", source)
 
     code.pseudop_position_of(source)
@@ -1555,7 +1584,7 @@ def _special_global(code, source, tc=False):
 
 
 @special(_symbol_define_global)
-def _special_define_global(code, source, tc=False):
+def special_define_global(code, source, tc=False):
     """
     (define-global SYM EXPRESSION)
 
@@ -1563,12 +1592,22 @@ def _special_define_global(code, source, tc=False):
     omitted, it defaults to None.
     """
 
-    called_by, (binding, body) = source
-
-    _helper_begin(code, body, False)
+    try:
+        called_by, (binding, body) = source
+    except ValueError:
+        raise code.error("too few arguments to define-global", source)
 
     if not is_symbol(binding):
         raise code.error("define-global with non-symbol binding", source)
+
+    if body:
+        body, rest = body
+        if rest is not nil:
+            raise code.error("too many arguments to define", source)
+
+        code.add_expression(body, False)
+    else:
+        code.pseudop_const(None)
 
     code.pseudop_position_of(source)
     code.pseudop_set_global(str(binding))
@@ -1579,25 +1618,20 @@ def _special_define_global(code, source, tc=False):
     return None
 
 
-@special(_symbol_define, _symbol_var)
-def _special_define(code, source, tc=False):
+@special(_symbol_define)
+def special_define(code, source, tc=False):
     """
+    (define SYM)
     (define SYM EXPRESSION)
 
     Defines or sets a value in a local context. If EXPRESSION is
-    omitted, it defaults to None.
-
-    At the module level, the local context is the same as the global
-    context
-
-    (var SYM EXPRESSION)
-    same as above
-
-    if EXPRESSION is omitted, the SYM is declared in the local
-    namespace, but left unassigned.
+    omitted, the symbol is declared but unassigned.
     """
 
-    called_by, (binding, body) = source
+    try:
+        called_by, (binding, body) = source
+    except ValueError:
+        raise code.error("too few arguments to define", source)
 
     if not is_symbol(binding):
         raise code.error("define with non-symbol binding", source)
@@ -1606,7 +1640,11 @@ def _special_define(code, source, tc=False):
     code.declare_var(varname)
 
     if body:
-        _helper_begin(code, body, False)
+        body, rest = body
+        if rest is not nil:
+            raise code.error("too many arguments to define", source)
+
+        code.add_expression(body, False)
         code.pseudop_position_of(source)
         code.pseudop_set_var(varname)
 
@@ -1617,7 +1655,7 @@ def _special_define(code, source, tc=False):
 
 
 @special(_symbol_cond)
-def _special_cond(code, source, tc=False):
+def special_cond(code, source, tc=False):
     """
     (cond (TEST_EXPRESSION BODY...)... )
     Conditionally executes body depending on a test expression. Multiple
@@ -1664,6 +1702,79 @@ def _special_cond(code, source, tc=False):
         code.pseudop_const(None)
 
     code.pseudop_label(done)
+
+    return None
+
+
+@special(_symbol_import)
+def special_import(code, source, tc=False):
+    """
+    (import NAME)
+
+    Evaluates to a reference to module named NAME. If NAME is a dotted
+    import, performs the import and evanualtes to the topmost module.
+    """
+
+    try:
+        called_by, (name, rest) = source
+    except ValueError:
+        raise code.error("too few arguments to import", source)
+
+    if rest:
+        raise code.error("too many arguments to import", source)
+
+    code.pseudop_const(0)
+    code.pseudop_const(None)
+    code.pseudop_import_name(str(name))
+
+    return None
+
+
+@special(_symbol_import_from)
+def special_import_from(code, source, tc=False):
+    """
+    (import-from NAME MEMBER...)
+
+    imports NAME and returns a tuple of matching MEMBER attributes
+    """
+
+    try:
+        called_by, (name, rest) = source
+    except ValueError:
+        raise code.error("too few arguments to import-from", source)
+
+    if rest is nil:
+        raise code.error("too few arguments to import-from", source)
+
+    # the LEVEL value
+    code.pseudop_const(0)
+
+    members = list()
+    for mp in rest.follow():
+        if mp is nil:
+            break
+
+        member, _tail = mp
+        if not is_symbol(member):
+            raise code.error("import-from members must be symbols", mp)
+
+        member = str(member)
+        members.append(member)
+        code.pseudop_const(member)
+
+    # the FROMLIST tuple
+    code.pseudop_build_tuple(len(members))
+    code.pseudop_import_name(str(name))
+
+    for member in members:
+        code.pseudop_import_from(member)
+        code.pseudop_rot_two()
+
+    # import_from leaves the module on the stack. When we're done with
+    # it, get rid of it!
+    code.pseudop_pop()
+
+    code.pseudop_build_tuple(len(members))
 
     return None
 

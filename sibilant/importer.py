@@ -14,10 +14,10 @@
 
 
 """
-Importing this module will augment the python importing system to
-be able to load sibilant modules.
+sibilant.importer
 
-Calls sibilant.importlib.install()
+Importing this module will augment the python importing system to
+be able to load sibilant. Calls sibilant.importlib.install()
 
 author: Christopher O'Brien  <obriencj@gmail.com>
 license: LGPL v.3

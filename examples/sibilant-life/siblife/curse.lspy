@@ -13,17 +13,17 @@
 ;; <http://www.gnu.org/licenses/>.
 
 
-(defimportfrom sys stderr)
+(def import-from sys stderr)
 
-(defimportfrom curses
+(def import-from curses
   wrapper
   mousemask BUTTON1_CLICKED
   KEY_UP KEY_DOWN KEY_LEFT KEY_RIGHT)
 
-(defimportfrom itertools product repeat)
-(defimportfrom time sleep)
+(def import-from itertools product repeat)
+(def import-from time sleep)
 
-(defimportfrom siblife.life LifeBoard)
+(def import-from siblife.life LifeBoard)
 
 
 (define smilies
@@ -70,12 +70,11 @@
 
      (def function __init__ (self screen wrap: False renderer: None)
 
-	  (when (none? renderer)
+	  (when (None? renderer)
 	    (setf renderer (make-char-renderer)))
 	  (setf self.renderer renderer)
 
-	  (vars height width)
-	  (setq-values (height width) (screen.getmaxyx))
+	  (define-values (height width) (screen.getmaxyx))
 
 	  (setf self.width (- width 2))
 	  (setf self.height (- height 2))
@@ -92,11 +91,11 @@
 
 
      (def function display (self)
-	  (var board self.board)
-	  (var render self.renderer)
-	  (var screen self.screen)
+	  (var (board self.board)
+	       (render self.renderer)
+	       (screen self.screen))
 
-	  (vars cell style)
+	  (var cell style)
 
 	  (for-each (((x y) value) (board.tracked cleanup: True))
 		    (setq-values (cell style) (render value))
@@ -199,25 +198,26 @@
 
      (stdscr.clear)
 
-     (vars y x)
+     (var y x)
      (setq-values (y x) (stdscr.getmaxyx))
-     (var menu-y (- y 2))
+     (define menu-y (- y 2))
 
-     (var board-window (stdscr.subwin (- y 1) x 0 0))
-     (var renderer (get-renderer options.renderer))
-     (var board (LifeScreen board-window options.wrap renderer))
+     (define board-window (stdscr.subwin (- y 1) x 0 0))
+     (define renderer (get-renderer options.renderer))
+     (define board (LifeScreen board-window options.wrap renderer))
 
      (display-menu stdscr menu-y)
      (board.display)
 
-     (vars (y-pos (// y 2)) (x-pos (// x 2)))
+     (var (y-pos (// y 2))
+	  (x-pos (// x 2)))
 
      (while True
        (setq y-pos (% y-pos board.height))
        (setq x-pos (% x-pos board.width))
        (stdscr.move (+ 1 y-pos) (+ 1 x-pos))
 
-       (var event (stdscr.getch))
+       (define event (stdscr.getch))
 
        (cond
 	((and (< 0 event) (< event 256))

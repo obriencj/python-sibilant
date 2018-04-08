@@ -13,6 +13,16 @@
 # <http://www.gnu.org/licenses/>.
 
 
+"""
+sibilant.compiler
+
+The sibilant compiler. Converts expressions into Python bytecode.
+
+author: Christopher O'Brien <obriencj@gmail.com>
+license: LGPL v.3
+"""
+
+
 import dis
 import threading
 
@@ -21,6 +31,7 @@ from contextlib import contextmanager
 from enum import Enum
 from functools import partial, partialmethod
 from itertools import count
+from os.path import exists
 from platform import python_implementation
 from sys import version_info
 from types import CodeType
@@ -291,83 +302,85 @@ _auto = partial(next, count())
 
 
 class Pseudop(Enum):
-    POP = _auto()
-    DUP = _auto()
-    ROT_TWO = _auto()
-    ROT_THREE = _auto()
-    RAISE = _auto()
+    BINARY_ADD = _auto()
+    BINARY_AND = _auto()
+    BINARY_FLOOR_DIVIDE = _auto()
+    BINARY_LSHIFT = _auto()
+    BINARY_MATRIX_MULTIPLY = _auto()
+    BINARY_MODULO = _auto()
+    BINARY_MULTIPLY = _auto()
+    BINARY_OR = _auto()
+    BINARY_POWER = _auto()
+    BINARY_RSHIFT = _auto()
+    BINARY_SUBTRACT = _auto()
+    BINARY_TRUE_DIVIDE = _auto()
+    BINARY_XOR = _auto()
+    BLOCK = _auto()
+    BREAK_LOOP = _auto()
+    BUILD_LIST = _auto()
+    BUILD_MAP = _auto()
+    BUILD_MAP_UNPACK = _auto()
+    BUILD_SET = _auto()
+    BUILD_STR = _auto()
+    BUILD_TUPLE = _auto()
+    BUILD_TUPLE_UNPACK = _auto()
     CALL = _auto()
     CALL_KW = _auto()
     CALL_VAR = _auto()
     CALL_VAR_KW = _auto()
-    UNPACK_SEQUENCE = _auto()
-    UNPACK_EX = _auto()
+    COMPARE_OP = _auto()
     CONST = _auto()
-    SET_LOCAL = _auto()
-    GET_VAR = _auto()
-    SET_VAR = _auto()
-    DEL_VAR = _auto()
-    GET_ATTR = _auto()
-    SET_ATTR = _auto()
+    CONTINUE_LOOP = _auto()
+    DEBUG_STACK = _auto()
     DEL_ATTR = _auto()
-    LAMBDA = _auto()
-    RET_VAL = _auto()
-    YIELD_VAL = _auto()
-    YIELD_FROM = _auto()
-    GET_GLOBAL = _auto()
-    SET_GLOBAL = _auto()
     DEL_GLOBAL = _auto()
+    DEL_ITEM = _auto()
+    DEL_VAR = _auto()
+    DUP = _auto()
+    END_FINALLY = _auto()
+    FAUX_PUSH = _auto()
+    FOR_ITER = _auto()
+    GET_ATTR = _auto()
+    GET_GLOBAL = _auto()
+    GET_ITEM = _auto()
+    GET_VAR = _auto()
+    GET_YIELD_FROM_ITER = _auto()
+    IMPORT_NAME = _auto()
+    IMPORT_FROM = _auto()
+    ITER = _auto()
     JUMP = _auto()
     JUMP_FORWARD = _auto()
-    POP_JUMP_IF_TRUE = _auto()
-    POP_JUMP_IF_FALSE = _auto()
-    COMPARE_OP = _auto()
-    UNARY_POSITIVE = _auto()
-    UNARY_NEGATIVE = _auto()
-    UNARY_NOT = _auto()
-    UNARY_INVERT = _auto()
-    ITER = _auto()
-    FOR_ITER = _auto()
-    GET_YIELD_FROM_ITER = _auto()
-    GET_ITEM = _auto()
-    SET_ITEM = _auto()
-    DEL_ITEM = _auto()
-    BINARY_POWER = _auto()
-    BINARY_MULTIPLY = _auto()
-    BINARY_MATRIX_MULTIPLY = _auto()
-    BINARY_FLOOR_DIVIDE = _auto()
-    BINARY_TRUE_DIVIDE = _auto()
-    BINARY_MODULO = _auto()
-    BINARY_ADD = _auto()
-    BINARY_SUBTRACT = _auto()
-    BINARY_LSHIFT = _auto()
-    BINARY_RSHIFT = _auto()
-    BINARY_AND = _auto()
-    BINARY_XOR = _auto()
-    BINARY_OR = _auto()
-    BUILD_TUPLE = _auto()
-    BUILD_TUPLE_UNPACK = _auto()
-    BUILD_MAP = _auto()
-    BUILD_MAP_UNPACK = _auto()
-    BUILD_LIST = _auto()
-    BUILD_SET = _auto()
-    SETUP_WITH = _auto()
-    WITH_CLEANUP_START = _auto()
-    WITH_CLEANUP_FINISH = _auto()
-    SETUP_LOOP = _auto()
-    SETUP_EXCEPT = _auto()
-    SETUP_FINALLY = _auto()
-    END_FINALLY = _auto()
+    LABEL = _auto()
+    LAMBDA = _auto()
+    POP = _auto()
     POP_BLOCK = _auto()
     POP_EXCEPT = _auto()
+    POP_JUMP_IF_FALSE = _auto()
+    POP_JUMP_IF_TRUE = _auto()
     POSITION = _auto()
-    LABEL = _auto()
-    BLOCK = _auto()
-    BREAK_LOOP = _auto()
-    CONTINUE_LOOP = _auto()
-    FAUX_PUSH = _auto()
-    # MAGIC_POP_ALL = _auto()
-    DEBUG_STACK = _auto()
+    RAISE = _auto()
+    RET_VAL = _auto()
+    ROT_THREE = _auto()
+    ROT_TWO = _auto()
+    SETUP_EXCEPT = _auto()
+    SETUP_FINALLY = _auto()
+    SETUP_LOOP = _auto()
+    SETUP_WITH = _auto()
+    SET_ATTR = _auto()
+    SET_GLOBAL = _auto()
+    SET_ITEM = _auto()
+    SET_LOCAL = _auto()
+    SET_VAR = _auto()
+    UNARY_INVERT = _auto()
+    UNARY_NEGATIVE = _auto()
+    UNARY_NOT = _auto()
+    UNARY_POSITIVE = _auto()
+    UNPACK_EX = _auto()
+    UNPACK_SEQUENCE = _auto()
+    WITH_CLEANUP_FINISH = _auto()
+    WITH_CLEANUP_START = _auto()
+    YIELD_FROM = _auto()
+    YIELD_VAL = _auto()
 
 
 _auto = partial(next, count())
@@ -376,14 +389,14 @@ _auto = partial(next, count())
 class Block(Enum):
     BASE = _auto()
     BEGIN = _auto()
-    LOOP = _auto()
-    WITH = _auto()
-    WITH_CLEANUP = _auto()
-    TRY = _auto()
     EXCEPT = _auto()
     EXCEPT_MATCH = _auto()
     FINALLY = _auto()
     FINALLY_CLEANUP = _auto()
+    LOOP = _auto()
+    TRY = _auto()
+    WITH = _auto()
+    WITH_CLEANUP = _auto()
 
 
 class CodeFlag(Enum):
@@ -1299,6 +1312,10 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop(Pseudop.RAISE, count)
 
 
+    def pseudop_build_str(self, count):
+        self.pseudop(Pseudop.BUILD_STR, count)
+
+
     def pseudop_build_tuple(self, count):
         self.pseudop(Pseudop.BUILD_TUPLE, count)
 
@@ -1321,6 +1338,16 @@ class CodeSpace(metaclass=ABCMeta):
 
     def pseudop_build_map_unpack(self, count):
         self.pseudop(Pseudop.BUILD_MAP_UNPACK, count)
+
+
+    def pseudop_import_name(self, name):
+        self.request_name(name)
+        self.pseudop(Pseudop.IMPORT_NAME, name)
+
+
+    def pseudop_import_from(self, name):
+        self.request_name(name)
+        self.pseudop(Pseudop.IMPORT_FROM, name)
 
 
     pseudop_with_cleanup_start = _op("WITH_CLEANUP_START")
@@ -1390,6 +1417,7 @@ class CodeSpace(metaclass=ABCMeta):
                   _Pseudop.GET_GLOBAL,
                   _Pseudop.BREAK_LOOP,
                   _Pseudop.FOR_ITER,
+                  _Pseudop.IMPORT_FROM,
                   _Pseudop.CONTINUE_LOOP):
             push()
 
@@ -1448,6 +1476,7 @@ class CodeSpace(metaclass=ABCMeta):
 
         elif op in (_Pseudop.BUILD_LIST,
                     _Pseudop.BUILD_SET,
+                    _Pseudop.BUILD_STR,
                     _Pseudop.BUILD_TUPLE,
                     _Pseudop.BUILD_TUPLE_UNPACK,
                     _Pseudop.BUILD_MAP_UNPACK):
@@ -1495,7 +1524,8 @@ class CodeSpace(metaclass=ABCMeta):
                     _Pseudop.BINARY_RSHIFT,
                     _Pseudop.BINARY_AND,
                     _Pseudop.BINARY_XOR,
-                    _Pseudop.BINARY_OR, ):
+                    _Pseudop.BINARY_OR,
+                    _Pseudop.IMPORT_NAME):
             pop(2)
             push()
 
@@ -1706,6 +1736,7 @@ class ExpressionCodeSpace(CodeSpace):
         self.require_active()
 
         if not is_proper(expr):
+            print("compile_pair improper:", str(expr))
             raise self.error("cannot evaluate improper lists as expressions",
                              expr)
 
@@ -1920,7 +1951,20 @@ class ExpressionCodeSpace(CodeSpace):
 
 
     def error(self, message, source):
-        return CompilerSyntaxError(message, source.get_position(),
+
+        text = None
+        pos = source.get_position()
+        if pos and exists(self.filename):
+            with open(self.filename, "rt") as fin:
+                for text, _lineno in zip(fin, range(0, pos[0])):
+                    # print(" ...", text)
+                    pass
+
+        if not text:
+            text = str(source)
+            pos = (pos[0], 0)
+
+        return CompilerSyntaxError(message, pos, text=text,
                                    filename=self.filename)
 
 

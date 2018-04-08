@@ -15,7 +15,9 @@
 
 import sibilant.importer
 
-from tests.sibilant.builtins import *
+
+# gotta trick unittest into actually loading this stuff
+from tests.sibilant.basics import *
 
 
 #

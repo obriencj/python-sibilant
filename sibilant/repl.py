@@ -14,6 +14,8 @@
 
 
 """
+sibilant.repl
+
 Read-Eval-Print-Loop for sibilant
 
 author: Christopher O'Brien  <obriencj@gmail.com>
@@ -46,7 +48,7 @@ def repl(mod, stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr):
             line = input("sibilant > ")
 
             source = source_str(line, filename="<stdin>")
-            init_module(mod, source, None)
+            init_module(mod, source)
 
             result = load_module_1(mod)
             env['_'] = result

@@ -13,6 +13,16 @@
 # <http://www.gnu.org/licenses/>.
 
 
+"""
+sibilant.compiler.cpython36
+
+Compiler target for CPython 3.6 bytecode
+
+author: Christopher O'Brien <obriencj@gmail.com>
+license: LGPL v.3
+"""
+
+
 from . import (
     ExpressionCodeSpace, Pseudop, Opcode,
     gather_parameters,
@@ -232,6 +242,16 @@ class CPython36(ExpressionCodeSpace):
             #     for _ in range(0, n):
             #         yield _Opcode.POP_TOP, 0
 
+            elif op is _Pseudop.IMPORT_NAME:
+                n = args[0]
+                i = self.names.index(n)
+                yield _Opcode.IMPORT_NAME, i
+
+            elif op is _Pseudop.IMPORT_FROM:
+                n = args[0]
+                i = self.names.index(n)
+                yield _Opcode.IMPORT_FROM, i
+
             elif op is _Pseudop.LAMBDA:
                 yield from self.helper_gen_lambda(*args)
 
@@ -283,6 +303,9 @@ class CPython36(ExpressionCodeSpace):
 
             elif op is _Pseudop.BUILD_SET:
                 yield _Opcode.BUILD_SET, args[0]
+
+            elif op is _Pseudop.BUILD_STR:
+                yield _Opcode.BUILD_STRING, args[0]
 
             elif op is _Pseudop.SETUP_WITH:
                 yield _Opcode.SETUP_WITH, args[0]

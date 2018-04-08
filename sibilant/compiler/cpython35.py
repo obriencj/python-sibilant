@@ -13,6 +13,16 @@
 # <http://www.gnu.org/licenses/>.
 
 
+"""
+sibilant.compiler.cpython35
+
+Compiler target for CPython 3.5 bytecode
+
+author: Christopher O'Brien <obriencj@gmail.com>
+license: LGPL v.3
+"""
+
+
 from . import (
     ExpressionCodeSpace, Pseudop, Opcode,
     gather_parameters,
@@ -227,6 +237,16 @@ class CPython35(ExpressionCodeSpace):
             #     for _ in range(0, n):
             #         yield _Opcode.POP_TOP,
 
+            elif op is _Pseudop.IMPORT_NAME:
+                n = args[0]
+                i = self.names.index(n)
+                yield _Opcode.IMPORT_NAME, i, 0
+
+            elif op is _Pseudop.IMPORT_FROM:
+                n = args[0]
+                i = self.names.index(n)
+                yield _Opcode.IMPORT_FROM, i, 0
+
             elif op is _Pseudop.LAMBDA:
                 yield from self.helper_gen_lambda(*args)
 
@@ -395,6 +415,17 @@ class CPython35(ExpressionCodeSpace):
 
             else:
                 assert False, "Unknown Pseudop %r" % op
+
+
+    def pseudop_build_str(self, count):
+        # emulate the BUILD_STRING opcode using string joining
+
+        self.pseudop_build_tuple(count)
+
+        self.pseudop_const("")
+        self.pseudop_get_attr("join")
+        self.pseudop_rot_two()
+        self.pseudop_call(1)
 
 
     def pseudop_lambda(self, code, defaults=(), kwonly=()):

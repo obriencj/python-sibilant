@@ -2,8 +2,9 @@
 
 
 VENV="$HOME/.virtualenvs"
-BRANCH=$(git symbolic-ref --short -q HEAD 2>/dev/null || \
-	 echo "unknown-branch")
+GIT_DIR=$(dirname "$0")"/.git/"
+BRANCH=$(git --git-dir "$GIT_DIR" symbolic-ref --short -q HEAD 2>/dev/null \
+	     || echo "unknown-branch")
 
 VDIR="$VENV/sibilant-$BRANCH"
 VBIN="$VDIR/bin"
@@ -22,10 +23,7 @@ fi
 SYSPYTHON=$(readlink -f "$SYSPYTHON")
 
 
-if test ! -x "$(which virtualenv)" ; then
-    echo "Error: Could not find virtualenv, exiting."
-    exit 1
-fi
+VIRTUALENV="$SYSPYTHON -m venv"
 
 
 if test "$CMD" == "help" || test -z "$CMD" ; then
@@ -42,6 +40,8 @@ COMMAND may be one of the following:
   setup         run setup.py from the virtualenv (hint: setup install)
   python        run python from the virtualenv
   pip           run pip from the virtualenv
+  pdb-python    run python in the virtualenv from pdb
+  pdb-sibilant  run sibilant in the virtualenv from pdb
   sibilant      run sibilant from the virtualenv
   sys-python    run system python with PYTHONHOME set (fixes wx issues)
   sys-sibilant  run sibilant using system python with PYTHONHOME set
@@ -58,10 +58,15 @@ echo -e "Current branch is $BRANCH so working in:\n $VDIR"
 case "$CMD" in
     init)
 	mkdir -p "$VDIR"
-	virtualenv --python="$SYSPYTHON" --clear "$VDIR" "$@" || exit $?
+	$VIRTUALENV "$VDIR" "$@" || exit $?
 	;;
 
-    setup)
+    install)
+	$VIRTUALENV "$VDIR" || exit $?
+	"$VBIN/python" setup.py install || exit $?
+	;;
+
+    setup|setup.py)
 	"$VBIN/python" setup.py "$@" || exit $?
 	;;
 
@@ -75,6 +80,14 @@ case "$CMD" in
 
     pip)
 	"$VBIN/pip" "$@"
+	;;
+
+    pdb-python)
+	"$VBIN/python" -m pdb "$@"
+	;;
+
+    pdb-sibilant)
+	"$VBIN/python" -m pdb "$@" "$VBIN/sibilant"
 	;;
 
     sys-python)

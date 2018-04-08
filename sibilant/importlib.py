@@ -14,7 +14,10 @@
 
 
 """
-importlib extensions used for loading sibilant modules.
+sibilant.importlib
+
+importlib extensions used for loading sibilant modules via the import
+statement and opcodes.
 
 author: Christopher O'Brien  <obriencj@gmail.com>
 license: LGPL v.3
@@ -115,7 +118,7 @@ class SibilantSourceFileLoader(FileLoader):
         filename = self.get_filename(name)
         source_stream = source_str(self.get_source(name), filename=filename)
 
-        init_module(module, source_stream, None, filename=filename)
+        init_module(module, source_stream)
         load_module(module)
 
 

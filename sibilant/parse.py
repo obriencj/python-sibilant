@@ -14,7 +14,9 @@
 
 
 """
-Macro-enabled parser
+sibilant.parse
+
+Sibilant's s-expression parser, with run-time modifiable reader macros.
 
 author: Christopher O'Brien  <obriencj@gmail.com>
 license: LGPL v.3
@@ -28,6 +30,7 @@ from contextlib import contextmanager
 from fractions import Fraction as fraction
 from functools import partial
 from io import StringIO
+from os.path import exists
 from re import compile as regex
 
 
@@ -38,40 +41,37 @@ __all__ = (
 )
 
 
-_quote_sym = symbol("quote")
-_quasiquote_sym = symbol("quasiquote")
-_unquote_sym = symbol("unquote")
-_unquotesplicing_sym = symbol("unquote-splicing")
-_splice_sym = symbol("splice")
-_fraction_sym = symbol("fraction")
+_symbol_fraction = symbol("fraction")
+_symbol_quasiquote = symbol("quasiquote")
+_symbol_quote = symbol("quote")
+_symbol_splice = symbol("splice")
+_symbol_unquote = symbol("unquote")
+_symbol_unquote_splicing = symbol("unquote-splicing")
 
 
-_integer_like = regex(r"-?\d+").match
+IN_PROGRESS = keyword("work-in-progress")
+VALUE = keyword("value")
+DOT = keyword("dot")
+SKIP = keyword("skip")
+CLOSE_PAREN = keyword("close-pair")
+EOF = keyword("eof")
 
-_hex_like = regex(r"0x[\da-f]+").match
 
-_oct_like = regex(r"0o[0-7]+").match
+_integer_re = regex(r"-?\d+").match
+_bin_re = regex(r"0b[01]+").match
+_oct_re = regex(r"0o[0-7]+").match
+_hex_re = regex(r"0x[\da-f]+").match
+_float_re = regex(r"-?((\d*\.\d+|\d+\.\d*)(e-?\d+)?|(\d+e-?\d+))").match
+_fraction_re = regex(r"-?\d+/\d+").match
+_complex_re = regex(r"-?\d*\.?\d+\+\d*\.?\d*[ij]").match
+_keyword_re = regex(r"^(:.+|.+:)$").match
 
-_bin_like = regex(r"0b[01]+").match
-
-_float_like = regex(r"-?((\d*\.\d+|\d+\.\d*)(e-?\d+)?|"
-                    "(\d+e-?\d+))").match
-
-_fraction_like = regex(r"-?\d+/\d+").match
-
-_complex_like = regex(r"-?\d*\.?\d+\+\d*\.?\d*[ij]").match
-
-_keyword_like = regex(r"^(:.+|.+:)$").match
-
-_as_float = float
 
 _as_integer = int
-
-_as_hex = partial(int, base=16)
-
-_as_oct = partial(int, base=8)
-
 _as_bin = partial(int, base=2)
+_as_oct = partial(int, base=8)
+_as_hex = partial(int, base=16)
+_as_float = float
 
 
 def _as_fraction(s):
@@ -88,7 +88,7 @@ def _as_fraction(s):
     # faster instantiation of the fraction (parsing once at compile
     # rather than parsing over and over every time we evaluate this
     # code)
-    return cons(_fraction_sym, s.numerator, s.denominator, nil)
+    return cons(_symbol_fraction, s.numerator, s.denominator, nil)
 
 
 def _as_complex(s):
@@ -96,14 +96,6 @@ def _as_complex(s):
         return complex(s[:-1] + "j")
     else:
         return complex(s)
-
-
-IN_PROGRESS = keyword("work-in-progress")
-VALUE = keyword("value")
-DOT = keyword("dot")
-SKIP = keyword("skip")
-CLOSE_PAREN = keyword("close-pair")
-EOF = keyword("eof")
 
 
 class ReaderSyntaxError(SibilantSyntaxError):
@@ -138,6 +130,7 @@ class Reader(object):
             return value
         elif event is EOF:
             # TODO: could probably raise error?
+            # TODO: soft-eof condition possible?
             return None
         else:
             raise reader_stream.error("invalid syntax", pos)
@@ -312,14 +305,14 @@ class Reader(object):
     def _add_default_atoms(self):
         ap = self.set_atom_pattern
 
-        ap(symbol("keyword"), _keyword_like, keyword)
-        ap(symbol("int"), _integer_like, _as_integer)
-        ap(symbol("hex"), _hex_like, _as_hex)
-        ap(symbol("oct"), _oct_like, _as_oct)
-        ap(symbol("binary"), _bin_like, _as_bin)
-        ap(symbol("float"), _float_like, _as_float)
-        ap(symbol("complex"), _complex_like, _as_complex)
-        ap(symbol("fraction"), _fraction_like, _as_fraction)
+        ap(symbol("keyword"), _keyword_re, keyword)
+        ap(symbol("int"), _integer_re, _as_integer)
+        ap(symbol("hex"), _hex_re, _as_hex)
+        ap(symbol("oct"), _oct_re, _as_oct)
+        ap(symbol("binary"), _bin_re, _as_bin)
+        ap(symbol("float"), _float_re, _as_float)
+        ap(symbol("complex"), _complex_re, _as_complex)
+        ap(symbol("fraction"), _fraction_re, _as_fraction)
 
 
     def _read_atom(self, stream, c):
@@ -441,7 +434,7 @@ class Reader(object):
             msg = "invalid use of %s" % char
             raise stream.error(msg, pos)
 
-        return VALUE, cons(_quote_sym, child, nil)
+        return VALUE, cons(_symbol_quote, child, nil)
 
 
     def _read_quasiquote(self, stream, char):
@@ -456,7 +449,7 @@ class Reader(object):
             msg = "invalid use of %s" % char
             raise stream.error(msg, pos)
 
-        return VALUE, cons(_quasiquote_sym, child, nil)
+        return VALUE, cons(_symbol_quasiquote, child, nil)
 
 
     def _read_unquote(self, stream, char):
@@ -471,10 +464,10 @@ class Reader(object):
             msg = "invalid use of %s" % char
             raise stream.error(msg, pos)
 
-        if is_pair(child) and child[0] is _splice_sym:
-            value = cons(_unquotesplicing_sym, child[1])
+        if is_pair(child) and child[0] is _symbol_splice:
+            value = cons(_symbol_unquote_splicing, child[1])
         else:
-            value = cons(_unquote_sym, child, nil)
+            value = cons(_symbol_unquote, child, nil)
 
         return VALUE, value
 
@@ -490,7 +483,7 @@ class Reader(object):
             msg = "invalid use of %s" % char
             raise stream.error(msg, pos)
 
-        return VALUE, cons(_splice_sym, child, nil)
+        return VALUE, cons(_symbol_splice, child, nil)
 
 
     def _read_comment(self, stream, char):
@@ -547,10 +540,19 @@ class SourceStream(object):
 
 
     def error(self, message, position=None):
+        text = None
+
         if position is None:
             position = self.lin, self.col
 
-        return ReaderSyntaxError(message, position, filename=self.filename)
+        if exists(self.filename):
+            with open(self.filename, "rt") as fin:
+                for text, _lineno in zip(fin, range(0, position[0])):
+                    # print(" ...", text)
+                    pass
+
+        return ReaderSyntaxError(message, position,
+                                 text=text, filename=self.filename)
 
 
     def read(self, count=1):
