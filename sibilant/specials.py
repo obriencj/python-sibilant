@@ -1706,6 +1706,20 @@ def special_cond(code, source, tc=False):
     return None
 
 
+def _helper_import_level(wanted):
+    wlevel = 0
+    for c in wanted:
+        if c == '.':
+            wlevel += 1
+        else:
+            break
+
+    if wlevel:
+        wanted = wanted[wlevel:]
+
+    return wlevel, wanted
+
+
 @special(_symbol_import)
 def special_import(code, source, tc=False):
     """
@@ -1723,9 +1737,14 @@ def special_import(code, source, tc=False):
     if rest:
         raise code.error("too many arguments to import", source)
 
-    code.pseudop_const(0)
+    if not isinstance(name, (symbol, str)):
+        raise code.error("import argument must be symbol", source)
+
+    level, name = _helper_import_level(str(name))
+
+    code.pseudop_const(level)
     code.pseudop_const(None)
-    code.pseudop_import_name(str(name))
+    code.pseudop_import_name(name)
 
     return None
 
@@ -1746,8 +1765,13 @@ def special_import_from(code, source, tc=False):
     if rest is nil:
         raise code.error("too few arguments to import-from", source)
 
+    if not isinstance(name, (symbol, str)):
+        raise code.error("import argument must be symbol", source)
+
+    level, name = _helper_import_level(str(name))
+
     # the LEVEL value
-    code.pseudop_const(0)
+    code.pseudop_const(level)
 
     members = list()
     for mp in rest.follow():
@@ -1764,7 +1788,9 @@ def special_import_from(code, source, tc=False):
 
     # the FROMLIST tuple
     code.pseudop_build_tuple(len(members))
-    code.pseudop_import_name(str(name))
+
+    # do the actual import to get the module onto TOS
+    code.pseudop_import_name(name)
 
     for member in members:
         code.pseudop_import_from(member)
