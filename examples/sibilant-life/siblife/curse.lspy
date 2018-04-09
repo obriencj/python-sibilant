@@ -23,7 +23,7 @@
 (def import-from itertools product repeat)
 (def import-from time sleep)
 
-(def import-from siblife.life LifeBoard)
+(def import-from .life LifeBoard)
 
 
 (define smilies
@@ -269,7 +269,7 @@
      None)
 
 
-(def function main (options)
+(def function cli (options)
      (wrapper curses-main options))
 
 

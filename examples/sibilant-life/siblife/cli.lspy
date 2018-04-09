@@ -17,11 +17,7 @@
 (def import-from argparse ArgumentParser)
 (def import-from os.path basename)
 
-(def import siblife.curse)
-
-
-(defun cli (options)
-  (siblife.curse.main options))
+(def import-from .curse cli)
 
 
 (defun create-option-parser (argv)
@@ -71,7 +67,7 @@
    (else: 0)))
 
 
-(when (eq __name__ "__main__")
+(when-main
   (sys.exit (main)))
 
 
