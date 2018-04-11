@@ -21,7 +21,7 @@ license: LGPL v.3
 """
 
 
-from .lib import *
+from .lib import *  # noqa
 from .importlib import install
 
 install()
