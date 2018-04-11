@@ -44,12 +44,13 @@ import sibilant.builtins  # noqa
 _SOURCE_SUFFIXES = (".lspy", ".sibilant")
 
 
-_path_importer_cache = {}
-_path_hooks = []
+path_importer_cache = {}
+path_hooks = []
 
 
 __all__ = (
-    "install", "is_installed", "import_module",
+    "install", "is_installed",
+    "SibilantPathFinder", "SibilantSourceFileLoader",
 )
 
 
@@ -63,14 +64,14 @@ class SibilantPathFinder(PathFinder):
 
     @classmethod
     def invalidate_caches(cls):
-        for finder in _path_importer_cache.values():
+        for finder in path_importer_cache.values():
             if hasattr(finder, 'invalidate_caches'):
                 finder.invalidate_caches()
 
 
     @classmethod
     def _path_hooks(cls, path):
-        for hook in _path_hooks:
+        for hook in path_hooks:
             try:
                 return hook(path)
             except ImportError:
@@ -89,10 +90,10 @@ class SibilantPathFinder(PathFinder):
                 # a valid directory later on.
                 return None
         try:
-            finder = _path_importer_cache[path]
+            finder = path_importer_cache[path]
         except KeyError:
             finder = cls._path_hooks(path)
-            _path_importer_cache[path] = finder
+            path_importer_cache[path] = finder
         return finder
 
 
@@ -122,10 +123,18 @@ class SibilantSourceFileLoader(FileLoader):
         load_module(module)
 
 
-# go ahead and setup the _path_hooks in advance. Even if we don't run
+class SibilantSourceZipFileLoader(SibilantSourceFileLoader):
+
+    def __init__(self, fullname, path):
+        pass
+
+
+    def get_data(self, filename):
+        pass
+
+
+# go ahead and setup the path_hooks in advance. Even if we don't run
 # install, this lets us run import_module
-_path_hooks.append(FileFinder.path_hook((SibilantSourceFileLoader,
-                                         _SOURCE_SUFFIXES)))
 
 
 def _install():
@@ -133,9 +142,19 @@ def _install():
 
     def install():
         nonlocal done
-        if not done:
-            sys.meta_path.append(SibilantPathFinder)
-            done = True
+        if done:
+            return
+
+        # teaches Python the meaning of our particular suffixes
+        path_hooks.append(FileFinder.path_hook((SibilantSourceFileLoader,
+                                                _SOURCE_SUFFIXES)))
+
+        # teaches Python to actually look for sibilant's files
+        sys.meta_path.append(SibilantPathFinder)
+        sys.meta_path.append(SibilantZipPathFinder)
+
+        done = True
+
 
     def is_installed():
         return done
@@ -144,21 +163,7 @@ def _install():
 
 
 install, is_installed = _install()
-
-
-@contextmanager
-def temporary_install():
-    if is_installed():
-        yield None
-    else:
-        sys.meta_path.append(SibilantPathFinder)
-        yield None
-        sys.meta_path.remove(SibilantPathFinder)
-
-
-def import_module(name, globals_=None, locals_=None, fromlist=0, level=0):
-    with temporary_install():
-        return __import__(name, globals_, locals_, fromlist, level)
+del _install
 
 
 #
