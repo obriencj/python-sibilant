@@ -46,9 +46,6 @@
 	   (else:
 	    (setf sys.argv options.args)))
 
-     (when options.importer
-       (import sibilant.importer))
-
      (when options.tweakpath
        (sys.path.insert 0 "."))
 
@@ -89,11 +86,6 @@
 
      (arguments
       parser
-
-      (--no-importer
-       dest: "importer" action: "store_false" default: True
-       help:
-       "Do not enable the sibilant importer extension")
 
       (--no-tweak-path
        dest: "tweakpath" action: "store_false" default: True
