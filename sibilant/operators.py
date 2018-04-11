@@ -21,7 +21,7 @@ license: LGPL v.3
 """
 
 
-from . import symbol, nil
+from .lib import symbol, nil
 
 
 _symbol_add = symbol("add")

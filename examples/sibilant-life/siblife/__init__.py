@@ -23,9 +23,8 @@ Sibilant Example Project
 
 # this is the only part that is really important. You need to have
 # your top-level package or module enable the sibilant importer. The
-# easiest way to do that is to just import sibilant.importer
-
-import sibilant.importer  # noqa
+# easiest way to do that is to just import sibilant
+import sibilant  # noqa
 
 
 if __name__ == "__main__":

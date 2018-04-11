@@ -23,8 +23,8 @@ license: LGPL v.3
 """
 
 
-from . import symbol, keyword, cons, nil, is_pair, setcdr
-from . import SibilantSyntaxError
+from .lib import symbol, keyword, cons, nil, is_pair, setcdr
+from .lib import SibilantSyntaxError
 
 from contextlib import contextmanager
 from fractions import Fraction as fraction

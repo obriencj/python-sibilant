@@ -18,7 +18,7 @@ The built-in compile-time special forms
 """
 
 
-from . import (
+from .lib import (
     symbol, is_symbol, keyword, is_keyword,
     nil, is_nil, cons, cdr, is_pair, is_proper,
     get_position, fill_position,

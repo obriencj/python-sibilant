@@ -49,7 +49,7 @@ def __setup__(glbls):
     from fractions import Fraction as fraction
     from functools import partial, reduce, wraps
 
-    import sibilant
+    import sibilant.lib as lib
     import sibilant.compiler as compiler
     import sibilant.tco as tco
     import sibilant.specials as specials
@@ -77,7 +77,7 @@ def __setup__(glbls):
 
     def _ty(type_, name):
         _val(type_, name)
-        _op(sibilant.TypePredicate(name + "?", type_), None, True)
+        _op(lib.TypePredicate(name + "?", type_), None, True)
 
 
     # === mass re-export from other modules ==
@@ -102,38 +102,38 @@ def __setup__(glbls):
 
     # == sibilant data types ===
 
-    _ty(sibilant.pair, "pair")
-    _op(sibilant.cons, "cons")
-    _op(sibilant.car, "car")
-    _op(sibilant.setcar, "set-car")
-    _op(sibilant.cdr, "cdr")
-    _op(sibilant.setcdr, "set-cdr")
-    _op(sibilant.is_proper, "proper?")
-    _op(sibilant.build_proper, "build-proper")
-    _val(sibilant.nil, "nil")
-    _op(sibilant.is_nil, "nil?")
+    _ty(lib.pair, "pair")
+    _op(lib.cons, "cons")
+    _op(lib.car, "car")
+    _op(lib.setcar, "set-car")
+    _op(lib.cdr, "cdr")
+    _op(lib.setcdr, "set-cdr")
+    _op(lib.is_proper, "proper?")
+    _op(lib.build_proper, "build-proper")
+    _val(lib.nil, "nil")
+    _op(lib.is_nil, "nil?")
 
-    _ty(sibilant.symbol, "symbol")
-    _ty(sibilant.keyword, "keyword")
+    _ty(lib.symbol, "symbol")
+    _ty(lib.keyword, "keyword")
 
-    _op(sibilant.build_unpack_pair, "build-unpack-pair")
+    _op(lib.build_unpack_pair, "build-unpack-pair")
 
-    _op(sibilant.reapply, "reapply")
+    _op(lib.reapply, "reapply")
 
-    _ty(sibilant.values, "values")
+    _ty(lib.values, "values")
 
-    _op(sibilant.first, "first")
-    _op(sibilant.second, "second", rename=True)
-    _op(sibilant.third, "third", rename=True)
-    _op(sibilant.fourth, "fourth", rename=True)
-    _op(sibilant.fifth, "fifth", rename=True)
-    _op(sibilant.sixth, "sixth", rename=True)
-    _op(sibilant.seventh, "seventh", rename=True)
-    _op(sibilant.eighth, "eighth", rename=True)
-    _op(sibilant.ninth, "ninth", rename=True)
-    _op(sibilant.tenth, "tenth", rename=True)
+    _op(lib.first, "first")
+    _op(lib.second, "second", rename=True)
+    _op(lib.third, "third", rename=True)
+    _op(lib.fourth, "fourth", rename=True)
+    _op(lib.fifth, "fifth", rename=True)
+    _op(lib.sixth, "sixth", rename=True)
+    _op(lib.seventh, "seventh", rename=True)
+    _op(lib.eighth, "eighth", rename=True)
+    _op(lib.ninth, "ninth", rename=True)
+    _op(lib.tenth, "tenth", rename=True)
 
-    _op(sibilant.last, "last")
+    _op(lib.last, "last")
 
 
     # === sibilant compiler builtins ===

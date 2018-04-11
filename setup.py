@@ -86,7 +86,7 @@ setup(
     url = "https://github.com/obriencj/python-sibilant",
     license = "GNU Lesser General Public License",
 
-    zip_safe = True,
+    zip_safe = False,
 
     classifiers = [
         "Intended Audience :: Developers",

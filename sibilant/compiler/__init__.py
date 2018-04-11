@@ -36,7 +36,7 @@ from platform import python_implementation
 from sys import version_info
 from types import CodeType
 
-from .. import (
+from ..lib import (
     SibilantException, SibilantSyntaxError,
     symbol, is_symbol, keyword, is_keyword,
     cons, nil, is_pair, is_proper,
