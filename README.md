@@ -112,17 +112,17 @@ added. Below are a few of the key features
 ### Importer
 
 Python 3 provides an extensible import system via `importlib`. When
-the `sibilant.importer` module is loaded, this system will be extended
+the `sibilant` module is loaded, this system will be extended
 to support treating sibilant source files (files found in `sys.path`
 and ending in `.lspy` or `.sibilant`) as packages or modules.
 
 In other words, to enable loading of sibilant code at runtime, you
-just need to have `import sibilant.importer` at the beginning of your
+just need to have `import sibilant` at the beginning of your
 top-level module.
 
 From within a sibilant module the `import` function allows fetching a
-module from the importer. `defimport` and `defimportfrom` will bind
-modules or their contents to the global namespace.
+module from the importer. `def import` and `def import-from` will bind
+modules or their contents.
 
 
 ### Compile to File
