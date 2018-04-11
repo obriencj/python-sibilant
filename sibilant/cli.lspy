@@ -1,0 +1,159 @@
+
+
+(def import sys)
+(def import-from os.path basename)
+
+
+(def import-from .module new_module init_module load_module compile_to_file)
+(def import-from .parse source_open)
+(def import-from .repl repl)
+
+
+(define DEFAULT_HISTFILE None)
+
+
+(def class CLIException (Exception))
+
+
+(def function cli_compile (options)
+
+     (var (builtins_name (when options.bootstrap "sibilant.bootstrap"))
+	  (filename options.filename)
+	  (name (or options.compile options.bootstrap)))
+
+     (unless filename
+       (raise (CLIException "no filename provided for compilation")))
+
+     (cond
+      ((filename.endswith ".lspy")
+       (define destname (#str (item-slice filename stop: -4) "pyc")))
+      ((filename.endswith ".sibilant")
+       (define destname (#str (item-slice filename stop: -8) "pyc")))
+      (else:
+       (raise (CLIException "filename should end in .lspy or .sibilant"))))
+
+     (compile_to_file name filename destname builtins_name: builtins_name))
+
+
+(def function cli (options)
+     " The sibilant command line interface "
+
+     (define filename options.filename)
+
+     (cond (filename
+	    (setf sys.argv (#list filename))
+	    (sys.argv.extend options.args))
+	   (else:
+	    (setf sys.argv options.args)))
+
+     (when options.importer
+       (import sibilant.importer))
+
+     (when options.tweakpath
+       (sys.path.insert 0 "."))
+
+     (when (or options.compile options.bootstrap)
+       (return (cli_compile options)))
+
+     (define mod (new_module "__main__"))
+
+     (when filename
+       (with ((source_open filename) as: source)
+	     (init_module mod source)
+	     (load_module mod))
+
+       (unless options.interactive
+	 (return)))
+
+     (repl mod))
+
+
+(defmacro arguments (parent . args)
+  `(let ((_add_argument_ (attr ,parent add_argument)))
+    ,@(iter-each
+       ((name params) args)
+       (begin
+	(define names (if (pair? name)
+			  then: (map str (name.unpack))
+			  else: (#tuple (str name))))
+	`(_add_argument_ ,@names ,@params)))))
+
+
+(def function cli-option-parser (name)
+     " Create an `ArgumentParser` instance with the options needed for
+       the `cli` function "
+
+     (def import-from argparse ArgumentParser REMAINDER)
+
+     (define parser (ArgumentParser prog: (basename name)))
+
+     (arguments
+      parser
+
+      (--no-importer
+       dest: "importer" action: "store_false" default: True
+       help:
+       "Do not enable the sibilant importer extension")
+
+      (--no-tweak-path
+       dest: "tweakpath" action: "store_false" default: True
+       help:
+       "Do not add the current directory to sys.path")
+
+      (--histfile
+       dest: "histfile" action: "store" default: DEFAULT_HISTFILE
+       help:
+       "REPL history file"))
+
+     (arguments
+      (parser.add_mutually_exclusive_group)
+
+      ((-i --interactive)
+       dest: "interactive" action: "store_true" default: False
+       help:
+       "Enter interactive mdoe after executing the given script")
+
+      ((-C --compile)
+       dest: "compile" action: "store" default: None
+       help:
+       "Compile the file into a .pyc with the specified module name")
+
+      ((-B --bootstrap-compile)
+       dest: "bootstrap" action: "store" default: None
+       help:
+       "Compile the file into a .pyc with the specified module name,
+        using only bootstrap builtins"))
+
+     (arguments
+      parser
+
+      (filename nargs: "?" default: None)
+      (args nargs: REMAINDER default: (#list)))
+
+     parser)
+
+
+(def function main (args: sys.argv)
+     " Entry point for the sibilant command-line interface "
+
+     (define-values (name . args) args)
+
+     (var (parser (cli-option-parser name))
+	  (options (parser.parse_args args)))
+
+     (try
+      (cli options)
+
+      ((KeyboardInterrupt)
+       (print file: sys.stderr)
+       130)
+
+      (else:
+       0)))
+
+
+(when-main
+ (sys.exit (main)))
+
+
+;; The end.
