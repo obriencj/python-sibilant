@@ -33,6 +33,9 @@ Usage: $0 COMMAND [CMD_OPTS]
 Builds and deploys into a virtualenv under:
  $VDIR
 
+This is based on the current branch of this git repository:
+ $BRANCH
+
 COMMAND may be one of the following:
 
   help          show this message and exit
@@ -53,10 +56,11 @@ EOF
 fi
 
 
-echo -e "Current branch is $BRANCH so working in:\n $VDIR"
+# echo -e "Current branch is $BRANCH so working in:\n $VDIR"
 
 case "$CMD" in
     init)
+	echo -e "Current branch is $BRANCH so working in:\n $VDIR"
 	mkdir -p "$VDIR"
 	$VIRTUALENV "$VDIR" "$@" || exit $?
 	;;
@@ -102,7 +106,8 @@ case "$CMD" in
 	;;
 
     *)
-	echo -e "\nUnknown command: $CMD"
+	echo -e "Unknown command: $CMD"
+	echo -e "Try:  $0 help"
 	exit 1
 	;;
 esac
