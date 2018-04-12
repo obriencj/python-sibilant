@@ -1,8 +1,34 @@
+;; This library is free software; you can redistribute it and/or modify
+;; it under the terms of the GNU Lesser General Public License as
+;; published by the Free Software Foundation; either version 3 of the
+;; License, or (at your option) any later version.
+;;
+;; This library is distributed in the hope that it will be useful, but
+;; WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;; Lesser General Public License for more details.
+;;
+;; You should have received a copy of the GNU Lesser General Public
+;; License along with this library; if not, see
+;; <http://www.gnu.org/licenses/>.
+
+;; Basic functionality of sibilant. This module is combined with the
+;; bootstrap module to provide __builtins__ for other modules written
+;; in sibilant.
+
+
+(doc "
+sibilant.cli
+
+Command-Line Interface for sibilant
+
+author: Christopher O'Brien <obriencj@gmail.com>
+license: LGPL v.3
+")
 
 
 (def import sys)
 (def import-from os.path basename)
-
 
 (def import-from .module new_module init_module load_module compile_to_file)
 (def import-from .parse source_open)

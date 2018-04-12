@@ -1,0 +1,109 @@
+;; This library is free software; you can redistribute it and/or modify
+;; it under the terms of the GNU Lesser General Public License as
+;; published by the Free Software Foundation; either version 3 of the
+;; License, or (at your option) any later version.
+;;
+;; This library is distributed in the hope that it will be useful, but
+;; WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;; Lesser General Public License for more details.
+;;
+;; You should have received a copy of the GNU Lesser General Public
+;; License along with this library; if not, see
+;; <http://www.gnu.org/licenses/>.
+
+;; Basic functionality of sibilant. This module is combined with the
+;; bootstrap module to provide __builtins__ for other modules written
+;; in sibilant.
+
+
+(doc "
+sibilant.repl
+
+Read-Eval-Print Loop for sibilant
+
+author: Christopher O'Brien <obriencj@gmail.com>
+license: LGPL v.3
+")
+
+
+(def import sys)
+(def import-from traceback format_exception format_exception_only)
+
+(def import-from .module init_module load_module_1)
+(def import-from .parse source_str)
+
+
+(def function repl (mod stdin: sys.stdin
+			stdout: sys.stdout
+			stderr: sys.stderr)
+
+     (define env mod.__dict__)
+
+     (while True
+       (try
+	(begin
+	 (var (line (input "sibilant > "))
+	      (source (source_str line filename: "<stdin>")))
+
+	 (init_module mod source)
+
+	 (define result (load_module_1 mod))
+	 (setf (item env "_") result)
+
+	 (unless (None? result)
+	   (print result file: stdout)))
+
+	((KeyboardInterrupt as: ki)
+	 (print ki file: stderr)
+	 (stderr.flush)
+	 (break))
+
+	((EOFError as: eofe)
+	 (print file: stderr)
+	 (stderr.flush)
+	 (break))
+
+	((SyntaxError as: rse)
+	 (show_syntaxerr file: stderr)
+	 (stderr.flush))
+
+	((Exception as: se)
+	 (show_syntaxerr file: stderr)
+	 (stderr.flush)))
+
+       (stdout.flush))
+
+     (print file: stdout)
+     env)
+
+
+(def function show_syntaxerr (file: sys.stderr)
+     (define-values (type_ value tb) (sys.exc_info))
+     (setf sys.last_type type_)
+     (setf sys.last_value value)
+     (setf sys.last_traceback tb)
+
+     (print (str.join "" (format_exception_only type_ value))
+	    file: file))
+
+
+(def function show_traceback (skip: 1 file: sys.stderr)
+     (define-values (type_ value tb) (sys.exc_info))
+     (setf sys.last_type type_)
+     (setf sys.last_value value)
+     (setf sys.last_traceback tb)
+
+     (while (>= skip 0)
+       (setq tb tb.tb_next)
+       (decr skip))
+
+     (try
+      (print (str.join "" (format_exception type_ value tb))
+	     file: file)
+      (finally:
+       None)))
+
+
+;;
+;; The end.
