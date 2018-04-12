@@ -24,7 +24,7 @@ from .lib import (
     get_position, fill_position,
 )
 
-from .compiler import Special, gather_formals
+from .compiler import Special, gather_formals, Mode
 from .tco import trampoline, tailcall
 
 from textwrap import dedent
@@ -84,6 +84,8 @@ def special(namesym, *aliases, glbls=globals()):
             alias = str(alias)
             __all__.append(alias)
             glbls[alias] = inst
+
+        return compilefn
 
     return deco
 
@@ -158,22 +160,24 @@ def _helper_nil(code):
 def special_doc(code, source, tc=False):
     """
     (doc STR STR...)
-    joins STR together and sets it as the docstr for the parent scope
+    joins STR together and sets it as the docstr for the current scope
     """
 
     called_by, rest = source
 
     # collapse the doc
     docstr = "\n".join(d.strip() for d in map(str, rest.unpack()))
-
     docstr = dedent(docstr).strip()
 
-    # force it into const slot zero
-    code.set_doc(docstr)
+    # set the module's docstring -- this works for module and class
+    # definitions.
+    code.declare_var("__doc__")
+    code.pseudop_const(docstr)
+    code.pseudop_set_var("__doc__")
 
-    # code.declare_var("__doc__")
-    # code.pseudop_const(docstr)
-    # code.pseudop_set_var("__doc__")
+    # force it as the code's docstring as well -- this works for
+    # function definitions.
+    code.set_doc(docstr)
 
     # doc special expression evaluates to None
     code.pseudop_const(None)
@@ -1627,6 +1631,9 @@ def special_define(code, source, tc=False):
     Defines or sets a value in a local context. If EXPRESSION is
     omitted, the symbol is declared but unassigned.
     """
+
+    if code.mode is Mode.MODULE:
+        return special_define_global(code, source, tc)
 
     try:
         called_by, (binding, body) = source
