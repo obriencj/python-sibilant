@@ -29,7 +29,7 @@ from .lib import (
     build_tuple, build_list, build_set, build_dict
 )
 
-from functools import partial, reduce
+from functools import reduce
 
 import operator as pyop
 from operator import (
