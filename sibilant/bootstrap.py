@@ -162,6 +162,7 @@ def __setup__(glbls):
     _ty(list, "list")
     _ty(dict, "dict")
     _ty(set, "set")
+    _ty(frozenset, "frozenset")
 
     _op(lambda value: hasattr(value, "__iter__"),
         "iterable?", rename=True)
