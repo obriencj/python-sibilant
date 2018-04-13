@@ -34,11 +34,15 @@ license: LGPL v.3
 (def import-from .parse source_str)
 
 
-(def function repl (mod stdin: sys.stdin
-			stdout: sys.stdout
-			stderr: sys.stderr)
-
+(def function repl (mod stdin: None stdout: None stderr: None)
      (define env mod.__dict__)
+     (setq stdin (or stdin sys.stdin))
+     (setq stdout (or stdout sys.stdout))
+     (setq stderr (or stderr sys.stderr))
+
+     (try
+      (import readline)
+      ((ImportError) None))
 
      (while True
        (try
@@ -65,11 +69,11 @@ license: LGPL v.3
 	 (break))
 
 	((SyntaxError as: rse)
-	 (show_syntaxerr file: stderr)
+	 (show_syntaxerr stderr)
 	 (stderr.flush))
 
 	((Exception as: se)
-	 (show_syntaxerr file: stderr)
+	 (show_traceback 1 stderr)
 	 (stderr.flush)))
 
        (stdout.flush))
@@ -78,31 +82,29 @@ license: LGPL v.3
      env)
 
 
-(def function show_syntaxerr (file: sys.stderr)
+(def function show_syntaxerr (to-file)
      (define-values (type_ value tb) (sys.exc_info))
      (setf sys.last_type type_)
      (setf sys.last_value value)
      (setf sys.last_traceback tb)
 
      (print (str.join "" (format_exception_only type_ value))
-	    file: file))
+	    file: to-file))
 
 
-(def function show_traceback (skip: 1 file: sys.stderr)
+(def function show_traceback (skip to-file)
      (define-values (type_ value tb) (sys.exc_info))
      (setf sys.last_type type_)
      (setf sys.last_value value)
      (setf sys.last_traceback tb)
 
-     (while (>= skip 0)
-       (setq tb tb.tb_next)
-       (decr skip))
+     (setq tb (let skip-tb ((index skip) (tb tb))
+		   (if (> index 0)
+		       then: (skip-tb (- index 1) tb.tb_next)
+		       else: tb)))
 
-     (try
-      (print (str.join "" (format_exception type_ value tb))
-	     file: file)
-      (finally:
-       None)))
+     (print (str.join "" (format_exception type_ value tb))
+	    file: to-file))
 
 
 ;;
