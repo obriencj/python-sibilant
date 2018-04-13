@@ -98,10 +98,9 @@ license: LGPL v.3
      (setf sys.last_value value)
      (setf sys.last_traceback tb)
 
-     (setq tb (let skip-tb ((index skip) (tb tb))
-		   (if (> index 0)
-		       then: (skip-tb (- index 1) tb.tb_next)
-		       else: tb)))
+     (while (and (> skip 0) tb.tb_next)
+       (setq tb tb.tb_next)
+       (decr skip))
 
      (print (str.join "" (format_exception type_ value tb))
 	    file: to-file))
