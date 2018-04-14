@@ -17,19 +17,19 @@
 
 ;; this macro simply prints the source for an expression, the word
 ;; "is", and then evaluates and prints the result of the expression.
-(defmacro print-example (expression)
+(defmacro print-example [expression]
   `(print ,(str expression) "is" ,expression))
 
 
 ;; a contrived dollars class, based on the float type.
-(defclass dollars (float)
+(defclass dollars [float]
   " Simple wrapper for float which formats the value as a dollars.
     Please don't ever actually represent currency using a float, this
     is just because I am being very lazy for this example. "
 
-  (def function __str__ (self)
+  (def function __str__ [self]
 	  (% "$%0.02f" self))
-  (def function __repr__ (self)
+  (def function __repr__ [self]
 	  (% "(dollars %0.02f)" self)))
 
 
@@ -38,7 +38,7 @@
 ;; stream, and will return the source object to be used in place of
 ;; that value. In this case, simply wrapping whatever is read in a
 ;; call to dollars
-(defun read-dollars (stream c)
+(defun read-dollars [stream c]
   `(dollars ,(read stream)))
 
 (set-macro-character "$" read-dollars terminating: False)
@@ -48,7 +48,7 @@
 ;; it is translated by the above registered macro. The conversion of
 ;; $100 to (dollars 100) happens at read time, which is before compile
 ;; time, and also before run time.
-(defun example ()
+(defun example []
   (define X $100)
   (print-example (type X))
   (print-example (repr X))
