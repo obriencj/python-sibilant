@@ -592,6 +592,9 @@ class ValuesTest(TestCase):
         a = values(1, 2, 3)
         b = values(4, 5, 6)
 
+        self.assertEqual(len(a), 3)
+        self.assertEqual(len(b), 3)
+
         self.assertEqual(sum(a), 6)
         self.assertEqual(sum(b), 15)
 
@@ -615,6 +618,13 @@ class ValuesTest(TestCase):
 
         self.assertNotEqual(c, (1, 2, 3))
         self.assertNotEqual((1, 2, 3), c)
+
+        self.assertEqual(len(c), 3)
+
+        self.assertEqual(len(values()), 0)
+        self.assertEqual(len(values(foo=2)), 0)
+        self.assertEqual(len(values(9)), 1)
+        self.assertEqual(len(values(9, foo=8)), 1)
 
 
     def test_mapping(self):

@@ -280,6 +280,38 @@ class TestParse(TestCase):
 
         self.assertEqual(col, exp)
 
+        src = "[testing a thing]"
+        col = parse_source(src)
+        self.assertEqual(col, exp)
+
+        src = "{testing a thing}"
+        col = parse_source(src)
+        self.assertEqual(col, exp)
+
+        with self.assertRaises(SyntaxError):
+            src = "(no way]"
+            col = parse_source(src)
+
+        with self.assertRaises(SyntaxError):
+            src = "[no way)"
+            col = parse_source(src)
+
+        with self.assertRaises(SyntaxError):
+            src = "{no way]"
+            col = parse_source(src)
+
+        with self.assertRaises(SyntaxError):
+            src = "[no way}"
+            col = parse_source(src)
+
+        with self.assertRaises(SyntaxError):
+            src = "{no way)"
+            col = parse_source(src)
+
+        with self.assertRaises(SyntaxError):
+            src = "(no way}"
+            col = parse_source(src)
+
 
     def test_dot(self):
         src = "(testing . 123)"

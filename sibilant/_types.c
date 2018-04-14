@@ -1515,6 +1515,12 @@ static PyObject *values_iter(PyObject *self) {
 }
 
 
+static Py_ssize_t values_args_length(PyObject *self) {
+  SibValues *s = (SibValues *) self;
+  return PyTuple_GET_SIZE(s->args);
+}
+
+
 static PyObject *values_args_getitem(PyObject *self, Py_ssize_t index) {
   SibValues *s = (SibValues *) self;
   return PySequence_GetItem(s->args, index);
@@ -1919,6 +1925,7 @@ static PyNumberMethods values_as_number = {
 
 
 static PySequenceMethods values_as_sequence = {
+  .sq_length = values_args_length,
   .sq_item = values_args_getitem,
 };
 
