@@ -284,10 +284,6 @@ class TestParse(TestCase):
         col = parse_source(src)
         self.assertEqual(col, exp)
 
-        src = "{testing a thing}"
-        col = parse_source(src)
-        self.assertEqual(col, exp)
-
         with self.assertRaises(SyntaxError):
             src = "(no way]"
             col = parse_source(src)
@@ -311,6 +307,17 @@ class TestParse(TestCase):
         with self.assertRaises(SyntaxError):
             src = "(no way}"
             col = parse_source(src)
+
+
+    def test_implicit_begin(self):
+
+        src = "{testing a thing}"
+        col = parse_source(src)
+        self.assertEqual(col, cons(symbol("begin"),
+                                   symbol("testing"),
+                                   symbol("a"),
+                                   symbol("thing"),
+                                   nil))
 
 
     def test_dot(self):

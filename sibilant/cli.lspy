@@ -52,12 +52,12 @@ license: LGPL v.3
 
      (define destname
        (cond
-	{(filename.endswith ".lspy")
-	 (#str (item-slice filename stop: -4) "pyc")}
-	{(filename.endswith ".sibilant")
-	 (#str (item-slice filename stop: -8) "pyc")}
-	{else:
-	 (raise! CLIException "filename should end in .lspy or .sibilant")}))
+	[(filename.endswith ".lspy")
+	 (#str (item-slice filename stop: -4) "pyc")]
+	[(filename.endswith ".sibilant")
+	 (#str (item-slice filename stop: -8) "pyc")]
+	[else:
+	 (raise! CLIException "filename should end in .lspy or .sibilant")]))
 
      (compile_to_file name filename destname builtins_name: builtins_name))
 
@@ -68,11 +68,11 @@ license: LGPL v.3
      (define filename options.filename)
 
      (cond
-      {filename
+      [filename
        (setf sys.argv (#list filename))
-       (sys.argv.extend options.args)}
-      {else:
-       (setf sys.argv options.args)})
+       (sys.argv.extend options.args)]
+      [else:
+       (setf sys.argv options.args)])
 
      (when options.tweakpath
 	   (sys.path.insert 0 "."))
@@ -97,11 +97,10 @@ license: LGPL v.3
   `(let [[_add_argument_ (attr ,parent add_argument)]]
     ,@(iter-each
        [[name params] args]
-       (begin
-	 (define names (if (pair? name)
-			   then: (map str (name.unpack))
-			   else: (#tuple (str name))))
-	 `(_add_argument_ ,@names ,@params)))))
+       {(define names (if (pair? name)
+			  then: (map str (name.unpack))
+			  else: (#tuple (str name))))
+	`(_add_argument_ ,@names ,@params)})))
 
 
 (def function cli-option-parser [name]
@@ -167,12 +166,11 @@ license: LGPL v.3
      (try
       (cli options)
 
-      {[KeyboardInterrupt]
+      ([KeyboardInterrupt]
        (print file: sys.stderr)
-       130}
+       130)
 
-      {else:
-       0}))
+      (else: 0)))
 
 
 (when-main
