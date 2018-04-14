@@ -184,11 +184,11 @@
      subp)
 
 
-(def function create-option-parser [argv]
+(def function create-option-parser [name]
      " the sibapp CLI argument parser "
 
      (define parser (ArgumentParser
-		     prog: (basename (item argv 0))
+		     prog: (basename name)
 		     description: "This is sibapp"))
 
      ;; set the default command handler to print out help
