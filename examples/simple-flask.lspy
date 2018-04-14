@@ -5,21 +5,24 @@
 (def import-from werkzeug.routing parse_rule)
 
 
-(defmacro url-rule (name rule . body)
+(defmacro url-rule [name rule . body]
   (define formals
-    (iter-each ((converter wut name) (parse_rule (str rule)))
+    (iter-each [[converter _ignored name] (parse_rule (str rule))]
 	       (symbol name) unless: (None? converter)))
 
-  `(app.add_url_rule ,(str rule)
-		     endpoint: ,(str name)
-		     view_func: (function ,name (,@formals) ,@body)))
+  `(app.add_url_rule
+    ,(str rule)
+    endpoint: ,(str name)
+    view_func: (function ,name (,@formals) ,@body)))
 
 
 (defmacro template strings
-  `(str.format (str.join " " (map str (#tuple ,@strings))) **: (locals)))
+  `(str.format
+    (str.join " " (map str (#tuple ,@strings)))
+    **: (locals)))
 
 
-(defmacro declare-app (name)
+(defmacro declare-app [name]
   `(define app (Flask ,(str name))))
 
 
@@ -41,9 +44,9 @@
 (url-rule
  reverse-words /reverse/<words>
 
- (var (rwords (escape (item-slice words step: -1)))
-      (words (escape words))
-      (lcls (escape (locals))))
+ (var [rwords (escape (item-slice words step: -1))]
+      [words (escape words)]
+      [lcls (escape (locals))])
 
  (#str
   "<code>\n"
