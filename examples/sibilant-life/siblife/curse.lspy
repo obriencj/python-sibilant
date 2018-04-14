@@ -27,7 +27,7 @@
 
 
 (define smilies
-  (values "\U0001f615"
+  (#tuple "\U0001f615"
 	  "\U0001f610"
 	  "\U0001f642"
 	  "\U0001f600"
@@ -36,8 +36,8 @@
 
 (def function smilie-renderer (cell)
      (if cell
-	 then: (values (item smilies (% cell (len smilies))) 0)
-	 else: (values " " 0)))
+	 then: (#tuple (item smilies (% cell (len smilies))) 0)
+	 else: (#tuple " " 0)))
 
 
 (def function make-char-renderer (alive: "O" dead: " ")
@@ -45,13 +45,13 @@
      (setf dead (item dead 0))
      (lambda (cell)
        (if cell
-	   then: (values alive 0)
-	   else: (values dead 0))))
+	   then: (#tuple alive 0)
+	   else: (#tuple dead 0))))
 
 
 (def function digit-renderer (cell)
      (when (< 9 cell) (setq cell 9))
-     (values (if cell (str cell) " ") 0))
+     (#tuple (if cell (str cell) " ") 0))
 
 
 (def function get-renderer (by-name)
@@ -104,7 +104,7 @@
 		     (screen.addch (+ 1 y) (+ 1 x) cell)
 		     ((Exception as: e)
 		      (raise (Exception (% " x: %r, y: %r, cell: %r"
-					   (values x y cell))))))
+					   (#tuple x y cell))))))
 
 		     None)
 
