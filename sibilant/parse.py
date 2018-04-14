@@ -53,7 +53,7 @@ IN_PROGRESS = keyword("work-in-progress")
 VALUE = keyword("value")
 DOT = keyword("dot")
 SKIP = keyword("skip")
-CLOSE_PAREN = keyword("close-pair")
+CLOSE_PAIR = keyword("close-pair")
 EOF = keyword("eof")
 
 
@@ -110,6 +110,11 @@ class Reader(object):
         self.reader_macros = {}
         self.atom_patterns = []
         self.terminating = ["\n", "\r", "\t", " "]
+        self.pair_open_close = (
+            ("(", ")"),
+            ("[", "]"),
+            ("{", "}"),
+        )
         self._terms = "".join(self.terminating)
 
         if not nodefaults:
@@ -264,8 +269,10 @@ class Reader(object):
     def _add_default_macros(self):
         sm = self.set_event_macro
 
-        sm("(", self._read_pair, True)
-        sm(")", self._close_paren, True)
+        for o, c in self.pair_open_close:
+            sm(o, self._read_pair, True)
+            sm(c, self._close_pair, True)
+
         sm('"', self._read_string, True)
         sm("'", self._read_quote, True)
         sm("`", self._read_quasiquote, True)
@@ -346,7 +353,7 @@ class Reader(object):
         while True:
             event, position, value = self._read(stream)
 
-            if event is CLOSE_PAREN:
+            if event is CLOSE_PAIR:
                 break
 
             elif event is DOT:
@@ -355,6 +362,8 @@ class Reader(object):
                     # is therefore invalid.
                     raise stream.error("invalid dotted list",
                                        position)
+
+                dot_position = position
 
                 # improper list, the next item is the tail. Read it
                 # and be done.
@@ -367,10 +376,10 @@ class Reader(object):
 
                 # make sure that the list ends immediately after the
                 # dotted value.
-                close_event, close_pos, value = self._read(stream)
-                if close_event is not CLOSE_PAREN:
+                event, position, value = self._read(stream)
+                if event is not CLOSE_PAIR:
                     raise stream.error("invalid use of dot in list",
-                                       close_pos)
+                                       dot_position)
                 else:
                     break
 
@@ -390,15 +399,19 @@ class Reader(object):
                 setcdr(work, new_work)
                 work = new_work
 
+        if (char, value) not in self.pair_open_close:
+            raise stream.error("mismatched open and close characters",
+                               position)
+
         return VALUE, result
 
 
-    def _close_paren(self, stream, char):
+    def _close_pair(self, stream, char):
         """
         The character macro handler for a closing parenthesis
         """
 
-        return CLOSE_PAREN, None
+        return CLOSE_PAIR, char
 
 
     def _read_string(self, stream, char):
@@ -406,20 +419,22 @@ class Reader(object):
         The character macro handler for string literals
         """
 
-        def combine():
-            is_escp = partial(str.__eq__, "\\")
-            is_char = partial(str.__eq__, char)
-            sr = partial(stream.read, 1)
-            for C in iter(sr, ''):
-                if is_char(C):
-                    break
-                yield C
-                if is_escp(C):
-                    yield sr()
-            else:
-                raise stream.error("Unexpected EOF")
+        result = []
 
-        data = "".join(combine()).encode()
+        is_escp = partial(str.__eq__, "\\")
+        is_char = partial(str.__eq__, char)
+
+        sr = partial(stream.read, 1)
+        for C in iter(sr, ''):
+            if is_char(C):
+                break
+            result.append(C)
+            if is_escp(C):
+                result.append(sr())
+        else:
+            raise stream.error("Unexpected EOF")
+
+        data = "".join(result).encode()
         return VALUE, data.decode("unicode-escape")
 
 
