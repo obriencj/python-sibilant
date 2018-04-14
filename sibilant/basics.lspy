@@ -556,17 +556,17 @@
     (when details
           (show-code obj)
           (print "Disassembly:"))
-    (dis obj))
+    (dis obj)))
 
-  (defmacro compile->disassemble [expr]
-    "
-    (compile->disassemble EXPR)
 
-    compiles EXPR in the current scope, then decompiles it and
-    displays the bytecode operations it would have executed
-    "
-    `(disassemble (compile ',expr)))
-  )
+(defmacro disassemble-expr [expr]
+  "
+  (disassemble-expr EXPR)
+
+  compiles EXPR, then decompiles it and displays the bytecode
+  operations it would have executed
+  "
+  `(disassemble (compile ',expr)))
 
 
 ;; === generator stuff ===
