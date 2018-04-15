@@ -45,21 +45,25 @@ license: LGPL v.3
 
      (var [builtins_name (when options.bootstrap "sibilant.bootstrap")]
 	  [filename options.filename]
-	  [name (or options.compile options.bootstrap)])
+	  [pkg (or options.compile options.bootstrap)])
 
      (unless filename
        (raise! CLIException "no filename provided for compilation"))
 
-     (define destname
+     (define modname
        (cond
 	[(filename.endswith ".lspy")
-	 (#str (item-slice filename stop: -4) "pyc")]
+	 (item-slice filename stop: -5)]
 	[(filename.endswith ".sibilant")
-	 (#str (item-slice filename stop: -8) "pyc")]
+	 (item-slice filename stop: -9)]
 	[else:
 	 (raise! CLIException "filename should end in .lspy or .sibilant")]))
 
-     (compile_to_file name filename destname builtins_name: builtins_name))
+     (var [destfile (#str modname ".pyc")]
+	  [name (if (== modname "__init__")
+		    then: pkg else: (#str pkg "." modname))])
+
+     (compile_to_file name pkg filename destfile builtins_name: builtins_name))
 
 
 (def function cli [options]
@@ -135,12 +139,12 @@ license: LGPL v.3
       [[-C --compile]
        dest: "compile" action: "store" default: None
        help:
-       "Compile the file into a .pyc with the specified module name"]
+       "Compile the file into a .pyc in the specified package"]
 
       [[-B --bootstrap-compile]
        dest: "bootstrap" action: "store" default: None
        help:
-       "Compile the file into a .pyc with the specified module name,
+       "Compile the file into a .pyc in the specified package,
         using only bootstrap builtins"])
 
      (arguments

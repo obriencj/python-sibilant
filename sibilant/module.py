@@ -54,8 +54,11 @@ __all__ = (
 )
 
 
-def new_module(name):
-    return ModuleType(name)
+def new_module(name, package_name=None):
+    mod = ModuleType(name)
+    if package_name:
+        mod.__package__ = package_name
+    return mod
 
 
 class FakeModule():
@@ -82,7 +85,10 @@ def init_module(module, source_stream,
 
     if filename:
         module.__file__ = filename
-        module.__path__ = split(filename)
+
+        modpath = split(filename)
+        if modpath[1].startswith("__init__."):
+            module.__path__ = modpath[:1]
 
     module.__stream__ = source_stream
 
@@ -341,7 +347,9 @@ def marshal_wrapper(code_objs, filename=None, mtime=0, source_size=0,
     return _code_to_bytecode(code, mtime, source_size)
 
 
-def compile_to_file(name, source_file, dest_file, builtins_name=None):
+def compile_to_file(name, pkgname, source_file, dest_file,
+                    builtins_name=None):
+
     mtime = getmtime(source_file)
     source_size = getsize(source_file)
 
@@ -351,7 +359,7 @@ def compile_to_file(name, source_file, dest_file, builtins_name=None):
         code_objs.append(code)
 
     with source_open(source_file) as source_stream:
-        mod = new_module(name)
+        mod = new_module(name, package_name=pkgname)
         init_module(mod, source_stream)
         load_module(mod, compile_time=hook_compile_time(accumulate))
 
