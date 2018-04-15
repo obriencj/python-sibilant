@@ -261,7 +261,8 @@ class Syntax(Compiled):
 
 
     def compile(self, compiler, source_obj, tc=False):
-        return self.transform(source_obj)
+        res = self.transform(source_obj)
+        return _symbol_None if res is None else res
 
 
 def is_syntax(obj):
