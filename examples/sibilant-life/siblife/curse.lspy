@@ -183,7 +183,7 @@
 	    (sleep 0.1))
 
      (stdscr.nodelay 0)
-     (display-menu stdscr menu-y))
+     (display-menu stdscr menu-y)
 
      None)
 

@@ -184,7 +184,7 @@
        center cell following the rules for Conway's Game of Life. "
 
      ;; group starts as a generator, need to actualize it
-     (setq group (#tuple group))
+     (setq group (tuple group))
 
      ;; state of the center of the group
      (define center (item group 4))
