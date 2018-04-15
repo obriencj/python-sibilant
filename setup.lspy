@@ -61,30 +61,30 @@ Sibilant, a LISP for Python
 
    entry_points:
    (dict
-    console_scripts: (#list "sibilant=sibilant.cli:main")))
+    console_scripts: (#list "sibilant=sibilant.cli:main"))
 
-  install_requires:
-  (#list "appdirs")
+   install_requires:
+   (#list "appdirs")
 
-  python_requires: ">=3.5, <3.7"
+   python_requires: ">=3.5, <3.7"
 
-  description: "LISP dialect for Python"
+   description: "LISP dialect for Python"
 
-  author: "Christopher O'Brien"
-  author_email: "obriencj@gmail.com"
-  url: "https://github.com/obriencj/python-sibilant"
-  license: "GNU Lesser General Public License"
+   author: "Christopher O'Brien"
+   author_email: "obriencj@gmail.com"
+   url: "https://github.com/obriencj/python-sibilant"
+   license: "GNU Lesser General Public License"
 
-  zip_safe: False
+   zip_safe: False
 
-  classifiers:
-  (#list
-   "Intended Audience :: Developers"
-   "Programming Language :: Python :: 3 :: Only"
-   "Programming Language :: Python :: 3.5"
-   "Programming Language :: Python :: 3.6"
-   "Programming Language :: Python :: Implementation :: CPython"
-   "Topic :: Software Development"))
+   classifiers:
+   (#list
+    "Intended Audience :: Developers"
+    "Programming Language :: Python :: 3 :: Only"
+    "Programming Language :: Python :: 3.5"
+    "Programming Language :: Python :: 3.6"
+    "Programming Language :: Python :: Implementation :: CPython"
+    "Topic :: Software Development")))
 
 
 (when-main
