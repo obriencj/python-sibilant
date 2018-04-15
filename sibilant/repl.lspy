@@ -42,12 +42,11 @@ license: LGPL v.3
 
      (try
       (import readline)
-      {[ImportError] None})
+      ([ImportError] None))
 
      (while True
        (try
-	(begin
-	 (var [line (input "sibilant > ")]
+	{(var [line (input "sibilant > ")]
 	      [source (source_str line filename: "<stdin>")])
 
 	 (init_module mod source)
@@ -56,25 +55,25 @@ license: LGPL v.3
 	 (setf (item env "_") result)
 
 	 (unless (None? result)
-		 (print result file: stdout)))
+		 (print result file: stdout))}
 
-	{[KeyboardInterrupt as: ki]
+	([KeyboardInterrupt as: ki]
 	 (print ki file: stderr)
 	 (stderr.flush)
-	 (break)}
+	 (break))
 
-	{[EOFError as: eofe]
+	([EOFError as: eofe]
 	 (print file: stderr)
 	 (stderr.flush)
-	 (break)}
+	 (break))
 
-	{[SyntaxError as: rse]
+	([SyntaxError as: rse]
 	 (show_syntaxerr stderr)
-	 (stderr.flush)}
+	 (stderr.flush))
 
-	{[Exception as: se]
+	([Exception as: se]
 	 (show_traceback 1 stderr)
-	 (stderr.flush)})
+	 (stderr.flush)))
 
        (stdout.flush))
 

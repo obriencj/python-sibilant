@@ -41,6 +41,7 @@ __all__ = (
 )
 
 
+_symbol_begin = symbol("begin")
 _symbol_fraction = symbol("fraction")
 _symbol_quasiquote = symbol("quasiquote")
 _symbol_quote = symbol("quote")
@@ -110,11 +111,6 @@ class Reader(object):
         self.reader_macros = {}
         self.atom_patterns = []
         self.terminating = ["\n", "\r", "\t", " "]
-        self.pair_open_close = (
-            ("(", ")"),
-            ("[", "]"),
-            ("{", "}"),
-        )
         self._terms = "".join(self.terminating)
 
         if not nodefaults:
@@ -269,9 +265,14 @@ class Reader(object):
     def _add_default_macros(self):
         sm = self.set_event_macro
 
-        for o, c in self.pair_open_close:
-            sm(o, self._read_pair, True)
-            sm(c, self._close_pair, True)
+        sm('(', partial(self._read_pair, ')'), True)
+        sm(')', self._close_pair, True)
+
+        sm('[', partial(self._read_pair, ']'), True)
+        sm(']', self._close_pair, True)
+
+        sm('{', partial(self._read_begin, '}'), True)
+        sm('}', self._close_pair, True)
 
         sm('"', self._read_string, True)
         sm("'", self._read_quote, True)
@@ -342,7 +343,7 @@ class Reader(object):
         return VALUE, conv(atom)
 
 
-    def _read_pair(self, stream, char):
+    def _read_pair(self, closer, stream, char):
         """
         The character macro handler for pair notation
         """
@@ -399,11 +400,22 @@ class Reader(object):
                 setcdr(work, new_work)
                 work = new_work
 
-        if (char, value) not in self.pair_open_close:
+        if value != closer:
             raise stream.error("mismatched open and close characters",
                                position)
 
         return VALUE, result
+
+
+    def _read_begin(self, closer, stream, char):
+        event, result = self._read_pair(closer, stream, char)
+
+        if event is VALUE:
+            new_result = cons(_symbol_begin, result)
+            new_result.set_position(result.get_position())
+            result = new_result
+
+        return event, result
 
 
     def _close_pair(self, stream, char):

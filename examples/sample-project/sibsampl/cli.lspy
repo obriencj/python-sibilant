@@ -33,38 +33,37 @@
 
 
 ;; the natural, tail-call recursive impl
-(def function fibonacci (index carry: 0 accu: 1)
-  (if (== index 0) then: carry
-      else: (fibonacci (- index 1) accu (+ accu carry))))
+(def function fibonacci [index carry: 0 accu: 1]
+     (if (== index 0)
+	 then: carry
+	 else: (fibonacci (- index 1) accu (+ accu carry))))
 
 
 ;; recursive, but no tailcall
-(def function fibonacci_notc (index carry: 0 accu: 1)
-  (define result)
-  (if (== index 0)
-      then: (setq result carry)
-      else: (setq result (fibonacci_notc (- index 1) accu (+ accu carry))))
-  result)
+(def function fibonacci_notc [index carry: 0 accu: 1]
+     (when index
+	   (setq carry (fibonacci_notc (- index 1) accu (+ accu carry))))
+     carry)
 
 
 ;; non-tailcall, memoized fibonacci implementation.
 (define fibonacci_lru
-
-  (begin
+  {
    (define fibonacci_
      ((lru_cache 10000)
       ;; note to self: I really need to add a way to do pythonic decorators
       ;; with my (def function ...) syntax
 
-      (lambda (index)
+      (lambda [index]
 	(if (< index 2) then: index
 	    else: (+ (fibonacci_ (- index 1)) (fibonacci_ (- index 2)))))))
 
-   (function fibonacci_lru (index)
-	    ;; since the purpose here is in timing things, we need to
-	    ;; make sure to clear the lru_cache between invocations.
-	    (fibonacci_.cache_clear)
-	    (fibonacci_ index))))
+   (function fibonacci_lru [index]
+	     ;; since the purpose here is in timing things, we need to
+	     ;; make sure to clear the lru_cache between invocations.
+	     (fibonacci_.cache_clear)
+	     (fibonacci_ index))
+   })
 
 
 ;; tail-call optimized BUT NOT RECURSIVE (had to make two functions to
@@ -73,75 +72,74 @@
 ;; bounces.
 (define fibonacci_tco
   (labels
-      ((fib-1 (index carry accu)
-	      (if (== index 0) then: carry
-		  else: (fib-2 (- index 1) accu (+ accu carry))))
-       (fib-2 (index carry accu)
-	      (if (== index 0) then: carry
-		  else: (fib-1 (- index 1) accu (+ accu carry)))))
+   [[fib-1 [index carry accu]
+	   (if (== index 0) then: carry
+	       else: (fib-2 (- index 1) accu (+ accu carry)))]
+    [fib-2 [index carry accu]
+	   (if (== index 0) then: carry
+	       else: (fib-1 (- index 1) accu (+ accu carry)))]]
 
-    (function fibonacci_tco (index)
-	      (fib-1 index 0 1))))
+   (function fibonacci_tco (index)
+	     (fib-1 index 0 1))))
 
 
 ;; looping version
-(def function fibonacci_while (index)
-  (var (carry 0) (accu 1))
+(def function fibonacci_while [index]
+     (var [carry 0]
+	  [accu 1])
 
-  (while (< 0 index)
-    (setq-values
-     (index carry accu)
-     (values (- index 1) accu (+ accu carry)))
-    carry))
+     (while (< 0 index)
+	    (setq-values
+	     (index carry accu)
+	     (#tuple (- index 1) accu (+ accu carry)))
+	    carry))
 
 
-(def function funtime (fib value loops)
+(def function funtime [fib value loops]
      (try
       (timeit.timeit stmt: (partial fib value)
 		     number: loops)
-      ((BaseException as: be) (print be) 0.0)))
+      [[BaseException as: be] (print be) 0.0]))
 
 
-(define fmt
-  (attr
-   "{title} over {num} loops -> {secs:7.4f} seconds ({percent:0.2f}% runtime)"
-   format))
+(var
+ [fmtstr (#str "{title} over {num}"
+	       " loops -> {secs:7.4f} seconds"
+	       " ({percent:0.2f}% runtime)")]
+ [fmt (partial str.format fmtstr)])
 
 
-(def function time-fibs (value loops *: fibs)
-     (define results (list-each (fib (map second fibs))
-			     (funtime fib value loops)))
-     (define total (apply + results))
-     (define count (len results))
+(def function time-fibs [value loops *: fibs]
+     (var [results (list-each (fib (map second fibs))
+			      (funtime fib value loops))]
+	  [total (apply + results)]
+	  [count (len results)])
 
-     (for-each ((index (title fib)) (enumerate fibs))
+     (for-each [[index [title fib]] (enumerate fibs)]
 	       (define secs (item results index))
 	       (print (fmt title: title num: loops
-			   secs: secs
-			   percent: (/ secs total)))))
+			   secs: secs percent: (/ secs total)))))
 
 
-(def function cli-command-timeit (options)
+(def function cli-command-timeit [options]
   (def import-from sys getrecursionlimit setrecursionlimit)
 
-  (var (f options.of) (n options.times) (l options.limit))
-
-  (var
-   (d0 (try (fibonacci_lru f) ((BaseException) None)))
-   (d1 (fibonacci_while f))
-   (d2 (fibonacci_tco f))
-   (d3 (fibonacci f)))
-
-  (var
-   (p0 (try (pyfibonacci_lru f) ((BaseException) None)))
-   (p1 (pyfibonacci_while f))
-   (p2 (try (pyfibonacci_notc f) ((BaseException) None))))
+  (var [f options.of]
+       [n options.times]
+       [l options.limit]
+       [d0 (try (fibonacci_lru f) ((BaseException) None))]
+       [d1 (fibonacci_while f)]
+       [d2 (fibonacci_tco f)]
+       [d3 (fibonacci f)]
+       [p0 (try (pyfibonacci_lru f) ((BaseException) None))]
+       [p1 (pyfibonacci_while f)]
+       [p2 (try (pyfibonacci_notc f) ((BaseException) None))])
 
   ;; kinda wish I had assert...
   ;; TODO implement 'assert'
   (unless (and (== d1 d2) (== d1 d3) (== d1 p1)
 	       (or (None? d0) (== d0 d1)))
-    (raise (Exception "SHIT BROKE")))
+    (raise! Exception "SHIT BROKE"))
 
   (print (% "calculating fibonacci of %r" f))
   (print (% "answer is %r" d1))
@@ -166,51 +164,51 @@
   None)
 
 
-(def function cli-subp-timeit (parent)
-  (define subp (subparser
-	     parent "timeit"
-	     cli-func: cli-command-timeit))
+(def function cli-subp-timeit [parent]
+     (define subp (subparser
+		   parent "timeit"
+		   cli-func: cli-command-timeit))
 
-  (subp.add_argument "--times" action: "store" type: int
-		     help: "calculate this many times (default 1000)"
-		     default: 1000)
+     (subp.add_argument "--times" action: "store" type: int
+			help: "calculate this many times (default 1000)"
+			default: 1000)
 
-  (subp.add_argument "--of" action: "store" type: int
-		     help: "calculate fibonacci of (default 2000)"
-		     default: 2000)
+     (subp.add_argument "--of" action: "store" type: int
+			help: "calculate fibonacci of (default 2000)"
+			default: 2000)
 
-  (subp.add_argument "--limit" action: "store" type: int
-		     help: "increate recursion limit (default 0)"
-		     default: 0)
+     (subp.add_argument "--limit" action: "store" type: int
+			help: "increate recursion limit (default 0)"
+			default: 0)
 
-  subp)
+     subp)
 
 
-(def function create-option-parser (argv)
-  (doc "the sibapp CLI argument parser")
+(def function create-option-parser [name]
+     " the sibapp CLI argument parser "
 
-  (define parser (ArgumentParser
-	       prog: (basename (item argv 0))
-	       description: "This is sibapp"))
+     (define parser (ArgumentParser
+		     prog: (basename name)
+		     description: "This is sibapp"))
 
-  ;; set the default command handler to print out help
-  (parser.set_defaults
-   cli-func: (lambda (options)
-	       (parser.print_usage sys.stderr)
-	       1))
+     ;; set the default command handler to print out help
+     (parser.set_defaults
+      cli-func: (lambda [options]
+		  (parser.print_usage sys.stderr)
+		  1))
 
-  (cli-subp-timeit parser)
+     (cli-subp-timeit parser)
 
-  parser)
+     parser)
 
 
 (define _inherit_actions
-  (build-tuple
+  (#tuple
    _AppendAction _AppendConstAction
    _StoreAction _StoreConstAction))
 
 
-(def function subparser (parser name cli-func: None help: None)
+(def function subparser [parser name cli-func: None help: None]
   ;; argparse has some crap behaviour that I regularly find myself
   ;; needing to override with this function. I should really move this
   ;; into a sibilant.site.argparse module...
@@ -225,47 +223,48 @@
 		     help: help
 		     description: help))
 
-  (for-each (act parser._subparsers._actions)
+  (for-each [act parser._subparsers._actions]
 	    (when (isinstance act _inherit_actions)
-	      (sp._add_action act)))
+		  (sp._add_action act)))
 
   (sp._defaults.update parser._defaults)
 
   (when (None? cli-func)
 
-    ;; this sub command doesn't have an actual function to run, so
-    ;; let's make a help function specific for it to be called instead
-    (setq cli-func (lambda (options)
-	 (sp.print_usage sys.stderr)
-	 1)))
+	;; this sub command doesn't have an actual function to run, so
+	;; let's make a help function specific for it to be called instead
+	(setq cli-func (lambda [options]
+			 (sp.print_usage sys.stderr)
+			 1)))
 
   (sp.set_defaults cli-func: cli-func)
 
   sp)
 
 
-(def function main (argv: None)
-  (doc "entry point for the sibapp CLI")
+(def function main [argv: None]
+     " entry point for the sibapp CLI "
 
-  ;; grab sys.argv if we aren't given something else
-  (when (None? argv) (setq argv sys.argv))
+     ;; grab sys.argv if we aren't given something else
+     (when (None? argv) (setq argv sys.argv))
 
-  (define parser (create-option-parser argv))
-  (define options (parser.parse_args
-		(item-slice argv 1)))
+     (define-values [name . args] argv)
 
-  (try
-   (options.cli-func options)
+     (var [parser (create-option-parser name)]
+	  [options (parser.parse_args args)])
 
-   ((KeyboardInterrupt as: ki)
-    (print file: sys.stderr)
-    130)
+     (try
+      (options.cli-func options)
 
-   (else: 0)))
+      [[KeyboardInterrupt as: ki]
+       (print file: sys.stderr)
+       130]
+
+      [else: 0]))
 
 
-(when (eq __name__ "__main__")
-  (sys.exit (main)))
+(when-main
+ (sys.exit (main)))
 
 
 ;; The end.

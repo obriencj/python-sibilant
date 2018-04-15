@@ -45,21 +45,25 @@ license: LGPL v.3
 
      (var [builtins_name (when options.bootstrap "sibilant.bootstrap")]
 	  [filename options.filename]
-	  [name (or options.compile options.bootstrap)])
+	  [pkg (or options.compile options.bootstrap)])
 
      (unless filename
        (raise! CLIException "no filename provided for compilation"))
 
-     (define destname
+     (define modname
        (cond
-	{(filename.endswith ".lspy")
-	 (#str (item-slice filename stop: -4) "pyc")}
-	{(filename.endswith ".sibilant")
-	 (#str (item-slice filename stop: -8) "pyc")}
-	{else:
-	 (raise! CLIException "filename should end in .lspy or .sibilant")}))
+	[(filename.endswith ".lspy")
+	 (item-slice filename stop: -5)]
+	[(filename.endswith ".sibilant")
+	 (item-slice filename stop: -9)]
+	[else:
+	 (raise! CLIException "filename should end in .lspy or .sibilant")]))
 
-     (compile_to_file name filename destname builtins_name: builtins_name))
+     (var [destfile (#str modname ".pyc")]
+	  [name (if (== modname "__init__")
+		    then: pkg else: (#str pkg "." modname))])
+
+     (compile_to_file name pkg filename destfile builtins_name: builtins_name))
 
 
 (def function cli [options]
@@ -68,11 +72,11 @@ license: LGPL v.3
      (define filename options.filename)
 
      (cond
-      {filename
+      [filename
        (setf sys.argv (#list filename))
-       (sys.argv.extend options.args)}
-      {else:
-       (setf sys.argv options.args)})
+       (sys.argv.extend options.args)]
+      [else:
+       (setf sys.argv options.args)])
 
      (when options.tweakpath
 	   (sys.path.insert 0 "."))
@@ -97,11 +101,10 @@ license: LGPL v.3
   `(let [[_add_argument_ (attr ,parent add_argument)]]
     ,@(iter-each
        [[name params] args]
-       (begin
-	 (define names (if (pair? name)
-			   then: (map str (name.unpack))
-			   else: (#tuple (str name))))
-	 `(_add_argument_ ,@names ,@params)))))
+       {(define names (if (pair? name)
+			  then: (map str (name.unpack))
+			  else: (#tuple (str name))))
+	`(_add_argument_ ,@names ,@params)})))
 
 
 (def function cli-option-parser [name]
@@ -136,12 +139,12 @@ license: LGPL v.3
       [[-C --compile]
        dest: "compile" action: "store" default: None
        help:
-       "Compile the file into a .pyc with the specified module name"]
+       "Compile the file into a .pyc in the specified package"]
 
       [[-B --bootstrap-compile]
        dest: "bootstrap" action: "store" default: None
        help:
-       "Compile the file into a .pyc with the specified module name,
+       "Compile the file into a .pyc in the specified package,
         using only bootstrap builtins"])
 
      (arguments
@@ -167,12 +170,11 @@ license: LGPL v.3
      (try
       (cli options)
 
-      {[KeyboardInterrupt]
+      ([KeyboardInterrupt]
        (print file: sys.stderr)
-       130}
+       130)
 
-      {else:
-       0}))
+      (else: 0)))
 
 
 (when-main
