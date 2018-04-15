@@ -232,6 +232,42 @@ def is_alias(obj):
     return isinstance(obj, Alias)
 
 
+class Syntax(Compiled):
+    """
+    A transformation which operates directly on the source expression
+    and returns a transformed one. Similar to a macro, but invokes its
+    processing function without any argument unpacking.
+    """
+
+    __objname__ = "syntax"
+
+
+    def __init__(self, name, macrofn):
+        super().__init__(name)
+
+
+    def __new__(cls, name, expandfn):
+        if not callable(expandfn):
+            msg = "expandfn must be callable, not %r" % expandfn
+            raise SibilantException(msg)
+
+        nom = str(name or expandfn.__name__)
+        mbs = {
+            "__doc__": expandfn.__doc__,
+            "transform": staticmethod(expandfn),
+        }
+        cls = type(nom, (cls, ), mbs)
+        return object.__new__(cls)
+
+
+    def compile(self, compiler, source_obj, tc=False):
+        return self.transform(source_obj)
+
+
+def is_syntax(obj):
+    return isinstance(obj, Syntax)
+
+
 class Operator(Compiled):
     __objname__ = "operator"
 

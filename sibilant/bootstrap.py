@@ -139,6 +139,7 @@ def __setup__(glbls):
     # === sibilant compiler builtins ===
 
     _ty(compiler.Special, "special")
+    _ty(compiler.Syntax, "syntax")
     _ty(compiler.Macro, "macro")
     _ty(compiler.Alias, "alias")
     _ty(compiler.Operator, "operator")
