@@ -1,4 +1,4 @@
-#! /usr/bin/env python3 -m sibilant.cli
+#! /usr/bin/env python3 -m sibilant
 
 
 ;; This library is free software; you can redistribute it and/or modify
@@ -91,5 +91,5 @@ Sibilant, a LISP for Python
  (setup_data setup))
 
 
-#
-# The end.
+;;
+;; The end.
