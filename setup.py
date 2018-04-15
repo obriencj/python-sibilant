@@ -24,7 +24,6 @@ Sibilant, a LISP for Python
 """
 
 
-from sys import exit, version_info
 from setuptools import setup, Extension
 
 
@@ -49,10 +48,12 @@ setup(
     packages = [
         "sibilant",
         "sibilant.compiler",
+        "sibilant.site",
     ],
 
     package_data = {
         "sibilant": ["*.lspy"],
+        "sibilant.site": ["*.lspy"],
     },
 
     ext_modules = [
