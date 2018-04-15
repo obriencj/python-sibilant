@@ -1693,7 +1693,7 @@ def special_cond(code, source, tc=False):
         if test is _keyword_else:
             # with code.block_begin():
             _helper_begin(code, body, tc)
-            code.pseudop_jump_forward(done)
+            # code.pseudop_jump_forward(done)
             break
 
         else:
