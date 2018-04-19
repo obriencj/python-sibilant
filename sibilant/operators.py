@@ -16,10 +16,12 @@
 """
 The built-in operators with compile-time optimizations.
 
+Operators are sibilant forms which compile directly to bytedoce, and
+can also be used at runtime to produce an equivalent function.
+
 author: Christopher O'Brien <obriencj@gmail.com>
 license: LGPL v.3
 """
-
 
 
 from .compiler import Operator

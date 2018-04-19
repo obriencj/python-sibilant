@@ -109,7 +109,9 @@ def __setup__(glbls):
     _op(lib.cdr, "cdr")
     _op(lib.setcdr, "set-cdr")
     _op(lib.is_proper, "proper?")
+    _op(lib.is_recursive, "recursive?")
     _op(lib.build_proper, "build-proper")
+    _op(lib.unpack, "unpack")
     _val(lib.nil, "nil")
     _op(lib.is_nil, "nil?")
 
@@ -121,6 +123,8 @@ def __setup__(glbls):
     _op(lib.reapply, "reapply")
 
     _ty(lib.values, "values")
+
+    _op(lib.repeatedly, "repeatedly")
 
     _op(lib.first, "first")
     _op(lib.second, "second", rename=True)

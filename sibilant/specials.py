@@ -15,6 +15,12 @@
 
 """
 The built-in compile-time special forms
+
+Specials are sibilant forms which compile directly to bytecode, and
+have no run-time form.
+
+author: Christopher O'Brien <obriencj@gmail.com>
+license: LGPL v.3
 """
 
 
