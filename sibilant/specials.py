@@ -100,30 +100,30 @@ def special(namesym, *aliases, glbls=globals()):
 
 
 def _helper_binding(code, source, required=True):
+
+    msg = ("a binding must be in the form of (SYM EXPR) or (EXPR as: SYM),"
+           " not %s" % source)
+
     if not is_proper(source):
-        raise code.error("binding must be (SYM EXPR) or (EXPR as: SYM)",
-                         source)
+        raise code.error(msg, source)
 
     sc = source.length()
     if sc == 3:
         expr, (_as, (sym, _rest)) = source
         if not (_as is _keyword_as and is_symbol(sym)):
-            raise code.error("binding must be (SYM EXPR) or (EXPR as: SYM)",
-                             source)
+            raise code.error(msg, source)
 
     elif sc == 2:
         sym, (expr, _rest) = source
         if not is_symbol(sym):
-            raise code.error("binding must be (SYM EXPR) or (EXPR as: SYM)",
-                             source)
+            raise code.error(msg, source)
 
     elif sc == 1 and not required:
         expr, _rest = source
         sym = required
 
     else:
-        raise code.error("binding must be (SYM EXPR) or (EXPR as: SYM)",
-                         source)
+        raise code.error(msg, source)
 
     return sym, expr
 
