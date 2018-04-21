@@ -475,10 +475,11 @@ _symbol_attr = symbol("attr")
 def _label_generator(formatstr="label_%04i"):
     counter = 0
 
-    def gen_label():
+    def gen_label(hint=None):
         nonlocal counter
         counter += 1
-        return formatstr % counter
+        sym = formatstr % counter
+        return sym if hint is None else (hint + sym)
 
     return gen_label
 
@@ -913,9 +914,9 @@ class CodeSpace(metaclass=ABCMeta):
         self.tailcalls += 1
 
 
-    def gen_sym(self):
+    def gen_sym(self, hint=None):
         while True:
-            sym = self._gen_sym()
+            sym = self._gen_sym(hint=hint)
             if sym in self.args or \
                sym in self.fast_vars or \
                sym in self.free_vars or \
