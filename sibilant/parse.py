@@ -28,6 +28,7 @@ from .lib import SibilantSyntaxError
 
 from codecs import decode
 from contextlib import contextmanager
+from decimal import Decimal as decimal
 from fractions import Fraction as fraction
 from functools import partial
 from io import StringIO
@@ -43,6 +44,7 @@ __all__ = (
 
 
 _symbol_begin = symbol("begin")
+_symbol_decimal = symbol("decimal")
 _symbol_fraction = symbol("fraction")
 _symbol_quasiquote = symbol("quasiquote")
 _symbol_quote = symbol("quote")
@@ -63,7 +65,8 @@ _integer_re = regex(r"-?\d+").match
 _bin_re = regex(r"0b[01]+").match
 _oct_re = regex(r"0o[0-7]+").match
 _hex_re = regex(r"0x[\da-f]+").match
-_float_re = regex(r"-?((\d*\.\d+|\d+\.\d*)(e-?\d+)?|(\d+e-?\d+))").match
+_float_re = regex(r"-?((\d*\.\d+|\d+\.\d*)(e-?\d+)?|(\d+e-?\d+))f?").match
+_decimal_re = regex(r"-?((\d*\.\d+)|(\d+\.\d*)|\d+)d").match
 _fraction_re = regex(r"-?\d+/\d+").match
 _complex_re = regex(r"-?\d*\.?\d+\+\d*\.?\d*[ij]").match
 _keyword_re = regex(r"^(:.+|.+:)$").match
@@ -73,7 +76,12 @@ _as_integer = int
 _as_bin = partial(int, base=2)
 _as_oct = partial(int, base=8)
 _as_hex = partial(int, base=16)
-_as_float = float
+
+
+def _as_float(s):
+    if s[-1] == "f":
+        s = s[:-1]
+    return float(s)
 
 
 def _as_fraction(s):
@@ -91,6 +99,16 @@ def _as_fraction(s):
     # rather than parsing over and over every time we evaluate this
     # code)
     return cons(_symbol_fraction, s.numerator, s.denominator, nil)
+
+
+def _as_decimal(s):
+
+    # this will raise a type error if s cannoy be parsed into a
+    # decimal. It presumes strongly that there was a d or D suffix on
+    # the value
+    s = s[:-1]
+    decimal(s)
+    return cons(_symbol_decimal, s, nil)
 
 
 def _as_complex(s):
@@ -340,6 +358,7 @@ class Reader(object):
         ap(symbol("float"), _float_re, _as_float)
         ap(symbol("complex"), _complex_re, _as_complex)
         ap(symbol("fraction"), _fraction_re, _as_fraction)
+        ap(symbol("decimal"), _decimal_re, _as_decimal)
 
 
     def _read_atom(self, stream, c):
