@@ -26,12 +26,13 @@ license: LGPL v.3
 from .lib import symbol, keyword, cons, nil, is_pair, setcdr
 from .lib import SibilantSyntaxError
 
+from codecs import decode
 from contextlib import contextmanager
 from fractions import Fraction as fraction
 from functools import partial
 from io import StringIO
 from os.path import exists
-from re import compile as regex
+from re import compile as regex, UNICODE, VERBOSE
 
 
 __all__ = (
@@ -97,6 +98,24 @@ def _as_complex(s):
         return complex(s[:-1] + "j")
     else:
         return complex(s)
+
+
+ESCAPE_SEQUENCE_RE = regex(r'''
+(\\U........
+| \\u....
+| \\x..
+| \\[0-7]{1,3}
+| \\N\{[^}]+\}
+| \\[\\'"abfnrtv]
+)''', UNICODE | VERBOSE)
+
+
+def _decode_sub(match):
+    return decode(match.group(0), 'unicode-escape')
+
+
+def _as_unicode(s, pattern=ESCAPE_SEQUENCE_RE):
+    return pattern.sub(_decode_sub, s)
 
 
 class ReaderSyntaxError(SibilantSyntaxError):
@@ -446,8 +465,7 @@ class Reader(object):
         else:
             raise stream.error("Unexpected EOF")
 
-        data = "".join(result).encode("unicode-escape")
-        return VALUE, data.decode("unicode-escape")
+        return VALUE, _as_unicode("".join(result))
 
 
     def _read_quote(self, stream, char):

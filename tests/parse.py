@@ -199,6 +199,14 @@ class TestParse(TestCase):
         col = parse_source(src)
         self.assertEqual(col, "hello\n \tworld")
 
+        src = '"¿?"'
+        col = parse_source(src)
+        self.assertEqual(col, "¿?")
+
+        src = '"¿\\n?"'
+        col = parse_source(src)
+        self.assertEqual(col, "¿\n?")
+
 
     def test_quote_symbol(self):
         src = """
