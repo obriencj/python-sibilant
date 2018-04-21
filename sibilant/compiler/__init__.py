@@ -1946,7 +1946,11 @@ class ExpressionCodeSpace(CodeSpace):
     def error(self, message, source):
 
         text = None
-        pos = source.get_position()
+
+        pos = None
+        if is_pair(source) and source is not nil:
+            pos = source.get_position()
+
         if pos and exists(self.filename):
             with open(self.filename, "rt") as fin:
                 for text, _lineno in zip(fin, range(0, pos[0])):
