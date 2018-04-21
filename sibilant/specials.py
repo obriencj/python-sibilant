@@ -293,6 +293,7 @@ def _helper_quote(code, body, tc=False):
         else:
             code.pseudop_get_var("cons")
 
+        index = 0
         for index, expr in enumerate(body.unpack(), 1):
             _helper_quote(code, expr)
 
@@ -615,7 +616,7 @@ def special_with(code, source, tc=False):
     binding, expr = _helper_binding(code, args)
 
     binding = str(binding)
-    code.declare_var(str(binding))
+    code.declare_var(binding)
 
     storage = code.gen_sym()
     code.declare_var(storage)
@@ -784,7 +785,7 @@ def _helper_function(code, name, args, body,
 
     tco = code.tco_enabled
 
-    if not (is_symbol(name) or isinstance(name, str)):
+    if not isinstance(name, (symbol, str)):
         msg = "function names must be symbol or str, not %r" % name
         raise code.error(msg, declared_at)
 
