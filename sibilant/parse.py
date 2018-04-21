@@ -446,7 +446,7 @@ class Reader(object):
         else:
             raise stream.error("Unexpected EOF")
 
-        data = "".join(result).encode()
+        data = "".join(result).encode("unicode-escape")
         return VALUE, data.decode("unicode-escape")
 
 
