@@ -201,7 +201,7 @@ class Reader(object):
             if not c:
                 return EOF, position, None
 
-            macro = self.reader_macros.get(c, self._read_atom)
+            macro = self.reader_macros.get(c, self._read_default)
 
             try:
                 event, value = macro(stream, c)
@@ -209,7 +209,7 @@ class Reader(object):
             except ValueError as ve:
                 # this indicates a conversion issue occurred in the
                 # reader macro, most likely in the default reader
-                # macro of _read_atom
+                # macro of _read_default
                 raise stream.error(ve.args[0], position) from None
 
             if is_pair(value):
@@ -361,24 +361,34 @@ class Reader(object):
         ap(symbol("decimal"), _decimal_re, _as_decimal)
 
 
-    def _read_atom(self, stream, c):
+    def _read_default(self, stream, c):
         """
         The default character macro handler, for when nothing else has
         matched.
         """
+
+        event, atom = self._read_atom(stream, c)
+        if event is VALUE:
+            atom = self.process_atom(atom)
+        return event, atom
+
+
+    def _read_atom(self, stream, c):
 
         atom = c + stream.read_until(self._terms.__contains__)
 
         if atom == ".":
             return DOT, None
 
+        return VALUE, atom
+
+
+    def process_atom(self, atom):
         for name, match, conv in self.atom_patterns:
             if match(atom):
-                break
+                return conv(atom)
         else:
-            conv = symbol
-
-        return VALUE, conv(atom)
+            return symbol(atom)
 
 
     def _read_pair(self, closer, stream, char):
