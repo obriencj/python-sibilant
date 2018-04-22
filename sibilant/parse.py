@@ -55,6 +55,7 @@ _symbol_unquote_splicing = symbol("unquote-splicing")
 
 IN_PROGRESS = keyword("work-in-progress")
 VALUE = keyword("value")
+ATOM = keyword("atom")
 DOT = keyword("dot")
 SKIP = keyword("skip")
 CLOSE_PAIR = keyword("close-pair")
@@ -142,6 +143,10 @@ class ReaderSyntaxError(SibilantSyntaxError):
     """
 
 
+class Atom(str):
+    pass
+
+
 class Reader(object):
 
     def __init__(self, nodefaults=False):
@@ -174,6 +179,27 @@ class Reader(object):
             raise reader_stream.error("invalid syntax", pos)
 
 
+    def read_atom(self, reader_stream):
+        """
+        Returns a cons cell, or unprocessed-atomic value. Raises
+        ReaderSyntaxError to complain about syntactic difficulties in
+        the stream.
+        """
+
+        event, pos, value = self._read(reader_stream, raw=True)
+
+        if event is VALUE:
+            return value
+        elif event is ATOM:
+            return Atom(value)
+        elif event is EOF:
+            # TODO: could probably raise error?
+            # TODO: soft-eof condition possible?
+            return None
+        else:
+            raise reader_stream.error("invalid syntax", pos)
+
+
     def read_and_position(self, reader_stream):
         """
         Returns a cons cell, symbol, or numeric value. Returns None if no
@@ -192,7 +218,7 @@ class Reader(object):
             raise reader_stream.error("invalid syntax", pos)
 
 
-    def _read(self, stream):
+    def _read(self, stream, raw=False):
         while True:
             stream.skip_whitespace()
 
@@ -205,6 +231,9 @@ class Reader(object):
 
             try:
                 event, value = macro(stream, c)
+                if not raw and event is ATOM:
+                    event = VALUE
+                    value = self.process_atom(value)
 
             except ValueError as ve:
                 # this indicates a conversion issue occurred in the
@@ -367,20 +396,12 @@ class Reader(object):
         matched.
         """
 
-        event, atom = self._read_atom(stream, c)
-        if event is VALUE:
-            atom = self.process_atom(atom)
-        return event, atom
-
-
-    def _read_atom(self, stream, c):
-
         atom = c + stream.read_until(self._terms.__contains__)
 
         if atom == ".":
             return DOT, None
 
-        return VALUE, atom
+        return ATOM, atom
 
 
     def process_atom(self, atom):

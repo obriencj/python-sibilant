@@ -81,6 +81,8 @@
        ([NameError as: ne] None))))
 
 (_reader_macro read read)
+(_reader_macro read-atom read_atom)
+(_reader_macro process-atom process_atom)
 (_reader_macro set-event-macro set_event_macro)
 (_reader_macro get-event-macro get_event_macro)
 (_reader_macro clear-event-macro clear_event_macro)
