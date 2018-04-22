@@ -47,6 +47,7 @@ def __setup__(glbls):
 
     from copy import copy, deepcopy
     from fractions import Fraction as fraction
+    from decimal import Decimal as decimal
     from functools import partial, reduce, wraps
 
     import sibilant.lib as lib
@@ -201,6 +202,7 @@ def __setup__(glbls):
     _ty(float, "float")
     _ty(complex, "complex")
     _ty(fraction, "fraction")
+    _ty(decimal, "decimal")
     _ty(range, "range")
     _ty(memoryview, "memoryview")
     _ty(slice, "slice")
