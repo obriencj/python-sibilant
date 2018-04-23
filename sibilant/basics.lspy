@@ -165,6 +165,15 @@
   `(raise (,exc_type ,@exc_args)))
 
 
+;; === optimized assert
+
+(defmacro assert [expr message: None]
+  (unless sys.flags.optimize
+	  (if (None? message)
+	      then: `(unless ,expr (raise! AssertionError))
+	      else: `(unless ,expr (raise! AssertionError ,message)))))
+
+
 ;; === setf and general variables ===
 
 (let [[*gv-forms* (#dict)]]
@@ -246,24 +255,24 @@
 			       `(,,factory ,@source))))
 
   (defmacro def source
-    (let [[scope ':local]
-	  [target None]
-	  [d-scope None]
-	  [d-target None]]
+    (var [scope ':local]
+	 [target None]
+	 [d-scope None]
+	 [d-target None])
 
-      (if (keyword? (item source 0))
-	  then: (setq-values [scope target . source] source)
-	  else: (setq-values [target . source] source))
+    (if (keyword? (item source 0))
+	then: (setq-values [scope target . source] source)
+	else: (setq-values [target . source] source))
 
-      (setq d-scope (dict.get *gd-scopes* scope None))
-      (when (None? d-scope)
-	(raise! Exception (% "undefined def scope %r" scope)))
+    (setq d-scope (dict.get *gd-scopes* scope None))
+    (when (None? d-scope)
+	  (raise! Exception (% "undefined def scope %r" scope)))
 
-      (setq d-target (dict.get *gd-targets* target None))
-      (when (None? d-target)
-	(raise! Exception (% "undefined def target %r" target)))
+    (setq d-target (dict.get *gd-targets* target None))
+    (when (None? d-target)
+	  (raise! Exception (% "undefined def target %r" target)))
 
-      (d-target d-scope source)))
+    (d-target d-scope source))
 
   None)
 
@@ -518,8 +527,7 @@
   `(let [[src ,source] [glbls ,env] [fname ,filename]]
      (def import-from io IOBase)
      (def import-from types CodeType)
-     (def import-from sibilant.parse
-       source_stream source_str)
+     (def import-from sibilant.parse source_stream source_str)
      (def import-from sibilant.module
        fake_module_from_env init_module parse_time compile_time run_time)
 
