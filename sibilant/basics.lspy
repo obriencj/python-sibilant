@@ -718,5 +718,72 @@
      [-inf -∞])
 
 
+;; === #fmt strings ===
+
+
+(let []
+  (def import-from re [compile as: regex] UNICODE VERBOSE)
+
+  (def import-from sibilant.parse
+       [default_reader as: reader] source_str)
+
+  (define fmt_re
+    (regex "(
+    (\\n\\r|\\n)
+    |{{
+    |}}
+    |(?:{(\\w[^\\!\\:]+
+         |\\(.*\\))(\\!.)?([^}]+)?)}
+    )" (+ UNICODE VERBOSE)))
+
+  (def function parse_source [src_str]
+       (reader.read (source_str src_str "<format string>")))
+
+  (defmacro #fmt [text . rest]
+    (var [result (#list)]
+	 [offset 0])
+
+    (for-each [f (fmt_re.finditer text)]
+        (define-values [start stop] (f.span))
+	(result.append (item-slice text offset start))
+	(setq offset stop)
+
+	(var [g (f.groups)]
+	     [c (item g 0)])
+
+	(if (in (#tuple "{{" "}}" "\n" "\n\r") c)
+	    then: (result.append (item c 0))
+	    else:
+	    { (var [expr (parse_source (item g 2))]
+		   [conv (item g 3)]
+		   [fmt (item g 4)])
+
+	      (setq expr
+		    (cond
+		     [(not conv) expr]
+		     [(== "!r" conv)
+		      `(repr ,expr)]
+		     [(== "!s" conv)
+		      `(str ,expr)]
+		     [else:
+		      (raise! Exception "bad format conversion")]))
+
+	      (when fmt
+		(setq fmt (item-slice fmt 1)))
+
+	      (setq expr
+		    (if fmt
+			then: `(format ,expr ,fmt)
+			else: `(format ,expr)))
+
+	      (result.append expr)}))
+
+    (result.append (item-slice text offset))
+
+    (if rest
+	then: `(#str ,@result (#fmt ,@rest))
+	else: `(#str ,@result))))
+
+
 ;;
 ;; The end.
