@@ -37,13 +37,14 @@
 
 
 (defmacro declare-app [name]
+  " Flask wants its application to be named app "
   `(define app (Flask ,(str name))))
 
 
 ;;;
 
 
-(declare-app flasky)
+(declare-app simple-flask)
 
 
 (url-rule
