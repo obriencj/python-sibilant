@@ -112,6 +112,15 @@
 	 (else: ,@body)))
 
 
+;; === easier attr calling ===
+
+(defmacro ! [member inst_expr . args]
+  `(,(reduce (lambda [a b] `(attr ,a ,b))
+	     (member.rsplit ".")
+	     inst_expr)
+    ,@args))
+
+
 ;; === math shortcuts ===
 
 (defmacro incr [dest by: 1]
