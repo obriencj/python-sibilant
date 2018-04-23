@@ -145,7 +145,12 @@ license: LGPL v.3
        dest: "bootstrap" action: "store" default: None
        help:
        "Compile the file into a .pyc in the specified package,
-        using only bootstrap builtins"])
+        using only bootstrap builtins"]
+
+     [-O
+      dest: "optimize" action: "store_true" default: False
+      help:
+      "Disable assert expressions"])
 
      (arguments
       parser
@@ -166,6 +171,15 @@ license: LGPL v.3
 
      (var [parser (cli-option-parser name)]
 	  [options (parser.parse_args args)])
+
+     (when (and options.optimize (== 0 sys.flags.optimize))
+	   ;; Python won't let us set the optimize flag ourselves, we
+	   ;; have to actively restart the environment with -O in
+	   ;; order to flip that on. So detect if the option is set
+	   ;; but debug mode is not on, and then restart as needed
+	   (def import-from os execl)
+	   ; (argv.remove "-O")
+	   (execl sys.executable sys.executable "-O" *: argv))
 
      (try
       (cli options)

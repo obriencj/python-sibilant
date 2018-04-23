@@ -237,6 +237,9 @@ def __setup__(glbls):
 
     _op(sys.exit, "exit")
 
+    _val(sys, "sys")
+    # _val(__debug__, "__debug__")
+
     # done with setup
     # return tuple(_all_)
     return None
