@@ -22,15 +22,24 @@
 
 
 ;; a contrived dollars class, based on the float type.
-(defclass dollars [float]
+(defclass dollars [decimal]
   " Simple wrapper for float which formats the value as a dollars.
     Please don't ever actually represent currency using a float, this
     is just because I am being very lazy for this example. "
 
   (def function __str__ [self]
-	  (% "$%0.02f" self))
+       (% "$%0.02f" self))
   (def function __repr__ [self]
-	  (% "(dollars %0.02f)" self)))
+       (% "(dollars %0.02f)" self))
+
+  (def function __add__ [self other]
+       (dollars (+ (decimal self) (decimal other))))
+
+  (def function __sub__ [self other]
+       (dollars (- (decimal self) (decimal other)))))
+
+
+(def import-from sibilant.parse [_float_re as: float-like])
 
 
 ;; here's a very simple reader macro based on the dollarsign
@@ -39,7 +48,23 @@
 ;; that value. In this case, simply wrapping whatever is read in a
 ;; call to dollars
 (defun read-dollars [stream c]
-  `(dollars ,(read stream)))
+  (var [found (read-atom stream)])
+
+  ;; here's some magic. If the dollars argument appears to be a float
+  ;; literal, which is the default for decimal-like values, munge it
+  ;; to be a decimal literal instead.
+  ;; eg:  1.00 becomes 1.00d
+  ;;      1.5f becomes 1.fd
+  (when (atom? found)
+    (when (float-like found)
+      (setq found
+	    (if (found.endswith "f")
+		then: (#str (item-slice found stop: -1) "d")
+		else: (#str found "d"))))
+    (setq found (process-atom found)))
+
+  ;; process the munged atom, turning it into the parser's default form
+  `(dollars ,found))
 
 (set-macro-character "$" read-dollars terminating: False)
 

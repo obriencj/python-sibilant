@@ -56,6 +56,8 @@ def __setup__(glbls):
     import sibilant.specials as specials
     import sibilant.operators as operators
 
+    from sibilant.parse import Atom as atom
+
 
     _all_ = []
 
@@ -154,6 +156,8 @@ def __setup__(glbls):
     _op(tco.tailcall_enable, "tailcall-enable")
 
     _op(compiler.current, "active-compiler")
+
+    _ty(atom, "atom")
 
 
     # === some python builtin types ===

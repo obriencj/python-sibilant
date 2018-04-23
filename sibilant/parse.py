@@ -55,6 +55,7 @@ _symbol_unquote_splicing = symbol("unquote-splicing")
 
 IN_PROGRESS = keyword("work-in-progress")
 VALUE = keyword("value")
+ATOM = keyword("atom")
 DOT = keyword("dot")
 SKIP = keyword("skip")
 CLOSE_PAIR = keyword("close-pair")
@@ -142,6 +143,10 @@ class ReaderSyntaxError(SibilantSyntaxError):
     """
 
 
+class Atom(str):
+    pass
+
+
 class Reader(object):
 
     def __init__(self, nodefaults=False):
@@ -174,6 +179,27 @@ class Reader(object):
             raise reader_stream.error("invalid syntax", pos)
 
 
+    def read_atom(self, reader_stream):
+        """
+        Returns a cons cell, or unprocessed-atomic value. Raises
+        ReaderSyntaxError to complain about syntactic difficulties in
+        the stream.
+        """
+
+        event, pos, value = self._read(reader_stream, raw=True)
+
+        if event is VALUE:
+            return value
+        elif event is ATOM:
+            return Atom(value)
+        elif event is EOF:
+            # TODO: could probably raise error?
+            # TODO: soft-eof condition possible?
+            return None
+        else:
+            raise reader_stream.error("invalid syntax", pos)
+
+
     def read_and_position(self, reader_stream):
         """
         Returns a cons cell, symbol, or numeric value. Returns None if no
@@ -192,7 +218,7 @@ class Reader(object):
             raise reader_stream.error("invalid syntax", pos)
 
 
-    def _read(self, stream):
+    def _read(self, stream, raw=False):
         while True:
             stream.skip_whitespace()
 
@@ -201,15 +227,18 @@ class Reader(object):
             if not c:
                 return EOF, position, None
 
-            macro = self.reader_macros.get(c, self._read_atom)
+            macro = self.reader_macros.get(c, self._read_default)
 
             try:
                 event, value = macro(stream, c)
+                if not raw and event is ATOM:
+                    event = VALUE
+                    value = self.process_atom(value)
 
             except ValueError as ve:
                 # this indicates a conversion issue occurred in the
                 # reader macro, most likely in the default reader
-                # macro of _read_atom
+                # macro of _read_default
                 raise stream.error(ve.args[0], position) from None
 
             if is_pair(value):
@@ -361,7 +390,7 @@ class Reader(object):
         ap(symbol("decimal"), _decimal_re, _as_decimal)
 
 
-    def _read_atom(self, stream, c):
+    def _read_default(self, stream, c):
         """
         The default character macro handler, for when nothing else has
         matched.
@@ -372,13 +401,15 @@ class Reader(object):
         if atom == ".":
             return DOT, None
 
+        return ATOM, atom
+
+
+    def process_atom(self, atom):
         for name, match, conv in self.atom_patterns:
             if match(atom):
-                break
+                return conv(atom)
         else:
-            conv = symbol
-
-        return VALUE, conv(atom)
+            return symbol(atom)
 
 
     def _read_pair(self, closer, stream, char):
