@@ -73,8 +73,9 @@ def __setup__(glbls):
                 glbls[key] = val
                 _all.add(key)
 
-    # special case, since we're ignoring all the other __ entries
+    # special cases, since we're ignoring all the other __ entries
     glbls["__import__"] = __import__
+    # glbls["__debug__"] = __debug__
 
     # return tuple(_all)
     return None
