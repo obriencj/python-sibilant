@@ -118,6 +118,11 @@ license: LGPL v.3
      (arguments
       parser
 
+      [-O
+       dest: "optimize" action: "store_true" default: False
+       help:
+       "Disable assert expressions"]
+
       [--no-tweak-path
        dest: "tweakpath" action: "store_false" default: True
        help:
@@ -145,12 +150,7 @@ license: LGPL v.3
        dest: "bootstrap" action: "store" default: None
        help:
        "Compile the file into a .pyc in the specified package,
-        using only bootstrap builtins"]
-
-     [-O
-      dest: "optimize" action: "store_true" default: False
-      help:
-      "Disable assert expressions"])
+        using only bootstrap builtins"])
 
      (arguments
       parser
