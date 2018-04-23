@@ -220,13 +220,18 @@ relegated to a simple build dependency in producing sibilant proper.
 
 ## Should You Use Sibilant?
 
-Probably not. Instead you should almost certainly use [Racket] from
-the beginning. However if you're really stuck to an existing Python
-environment, you just might be happy with Sibilant. There's bound to
-be something nice that it's missing which you want super badly -- [let
-me know] your cool use-case!
+Probably not. Instead you should almost certainly use a well-defined
+and maintained Lisp or Scheme from the beginning.  Here's some really
+great ones:
 
-[Racket]: https://racket-lang.org
+* Chez Scheme - <https://www.scheme.com/>
+* Guile - <https://www.gnu.org/software/guile/>
+* Racket - <https://racket-lang.org>
+* Clojure - <https://clojure.org>
+
+However if you're really stuck to an existing Python environment, you
+just might enjoying giving Sibilant a shot. [Let me know] your cool
+use-case!
 
 [let me know]: https://github.com/obriencj/python-sibilant/issues
 
