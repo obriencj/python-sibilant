@@ -15,6 +15,12 @@
 ;; <http://www.gnu.org/licenses/>.
 
 
+
+;; ===
+;; this is some helper macros which might make their way into a
+;; sibilant.site.flask module at some point.
+;; ===
+
 (def import-from flask Flask escape)
 (def import-from werkzeug.routing parse_rule)
 
@@ -30,18 +36,17 @@
     view_func: (function ,name (,@formals) ,@body)))
 
 
-(defmacro template strings
-  `(str.format
-    (str.join " " (map str (#tuple ,@strings)))
-    **: (locals)))
-
-
 (defmacro declare-app [name]
-  " Flask wants its application to be named app "
+  ;; Flask wants its application to be named app, so that's what we
+  ;; bind it to.
   `(define app (Flask ,(str name))))
 
 
-;;;
+;;; === This is our actual app ===
+
+
+;; one day, this will be how you'd import all the macros
+;; (site-import flask)
 
 
 (declare-app simple-flask)
@@ -50,24 +55,21 @@
 (url-rule
  index /
 
- (define lcls (escape (locals)))
- (template
-  "<p>This is a simple web app. What more do you want?</p>"
-  "<code>{lcls}</code>"))
+ (#fmt """
+  <p>This is a simple web app. What more do you want?</p>
+  <code>{(escape (locals))}</code>
+  """))
 
 
 (url-rule
  reverse-words /reverse/<words>
 
- (var [rwords (escape (item-slice words step: -1))]
-      [words (escape words)]
-      [lcls (escape (locals))])
-
- (#str
-  "<code>\n"
-  "<p>\U0001f615 Original: " words "</p>\n"
-  "<p>\U0001f60e Reversed: " rwords "</p>\n"
-  "<p>Locals: " lcls "</p></code>\n"))
+ (#fmt """
+  <code>
+  <p>\U0001f615 Original: {(escape words)}</p>
+  <p>\U0001f60e Reversed: {(escape (item-slice words step: -1))}</p>
+  <p>Locals: {(escape (locals))}</p></code>
+  """))
 
 
 ;; you can either run this directly, or you can compile it to a .pyc
