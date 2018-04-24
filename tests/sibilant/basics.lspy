@@ -163,11 +163,11 @@
 
 	  (self.assertTrue (set? data))
 	  (self.assertEqual (len data) 5)
-	  (self.assertTrue (in data 1))
-	  (self.assertTrue (in data 2))
-	  (self.assertTrue (in data 3))
-	  (self.assertTrue (in data 4))
-	  (self.assertTrue (in data 5))
+	  (self.assertTrue (contains data 1))
+	  (self.assertTrue (contains data 2))
+	  (self.assertTrue (contains data 3))
+	  (self.assertTrue (contains data 4))
+	  (self.assertTrue (contains data 5))
 
 	  None)
 

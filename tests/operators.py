@@ -1429,14 +1429,14 @@ class Comparators(TestCase):
 
     def test_in(self):
         src = """
-        (in X 1)
+        (in 1 X)
         """
         stmt, env = compile_expr(src, X=[0, 1, 2])
         res = stmt()
         self.assertEqual(res, True)
 
         src = """
-        (in X 9)
+        (in 9 X)
         """
         stmt, env = compile_expr(src, X=[0, 1, 2])
         res = stmt()
@@ -1445,14 +1445,46 @@ class Comparators(TestCase):
 
     def test_apply_in(self):
         src = """
-        (apply in `(,X 1))
+        (apply in `(1 ,X))
         """
         stmt, env = compile_expr(src, X=[0, 1, 2])
         res = stmt()
         self.assertEqual(res, True)
 
         src = """
-        (apply in `(,X 9))
+        (apply in `(9 ,X))
+        """
+        stmt, env = compile_expr(src, X=[0, 1, 2])
+        res = stmt()
+        self.assertEqual(res, False)
+
+
+    def test_contains(self):
+        src = """
+        (contains X 1)
+        """
+        stmt, env = compile_expr(src, X=[0, 1, 2])
+        res = stmt()
+        self.assertEqual(res, True)
+
+        src = """
+        (contains X 9)
+        """
+        stmt, env = compile_expr(src, X=[0, 1, 2])
+        res = stmt()
+        self.assertEqual(res, False)
+
+
+    def test_apply_contains(self):
+        src = """
+        (apply contains `(,X 1))
+        """
+        stmt, env = compile_expr(src, X=[0, 1, 2])
+        res = stmt()
+        self.assertEqual(res, True)
+
+        src = """
+        (apply contains `(,X 9))
         """
         stmt, env = compile_expr(src, X=[0, 1, 2])
         res = stmt()
@@ -1461,14 +1493,14 @@ class Comparators(TestCase):
 
     def test_not_in(self):
         src = """
-        (not-in X 1)
+        (not-in 1 X)
         """
         stmt, env = compile_expr(src, X=[0, 1, 2])
         res = stmt()
         self.assertEqual(res, False)
 
         src = """
-        (not-in X 9)
+        (not-in 9 X)
         """
         stmt, env = compile_expr(src, X=[0, 1, 2])
         res = stmt()
@@ -1477,14 +1509,46 @@ class Comparators(TestCase):
 
     def test_apply_not_in(self):
         src = """
-        (apply not-in `(,X 1))
+        (apply not-in `(1 ,X))
         """
         stmt, env = compile_expr(src, X=[0, 1, 2])
         res = stmt()
         self.assertEqual(res, False)
 
         src = """
-        (apply not-in `(,X 9))
+        (apply not-in `(9 ,X))
+        """
+        stmt, env = compile_expr(src, X=[0, 1, 2])
+        res = stmt()
+        self.assertEqual(res, True)
+
+
+    def test_not_contains(self):
+        src = """
+        (not-contains X 1)
+        """
+        stmt, env = compile_expr(src, X=[0, 1, 2])
+        res = stmt()
+        self.assertEqual(res, False)
+
+        src = """
+        (not-contains X 9)
+        """
+        stmt, env = compile_expr(src, X=[0, 1, 2])
+        res = stmt()
+        self.assertEqual(res, True)
+
+
+    def test_apply_not_contains(self):
+        src = """
+        (apply not-contains `(,X 1))
+        """
+        stmt, env = compile_expr(src, X=[0, 1, 2])
+        res = stmt()
+        self.assertEqual(res, False)
+
+        src = """
+        (apply not-contains `(,X 9))
         """
         stmt, env = compile_expr(src, X=[0, 1, 2])
         res = stmt()
