@@ -392,12 +392,12 @@
 
 
 (defmacro let-values [bind_vals . body]
-  "
-  (let-values (BINDINGS VALS) . BODY)
+  """
+  (let-values [BINDINGS VALS] . BODY)
 
   where BINDINGS is a nested pair of symbols in the same structure as
   values from VALS.
-  "
+  """
 
   `(let []
      (define-values ,@bind_vals)
@@ -451,7 +451,7 @@
 ;; === python object system classes ==
 
 (defmacro class [name bases . body]
-  "
+  """
   (class NAME (parents... ) . BODY)
 
   Create a new python type instance with the given name, and parent
@@ -461,7 +461,7 @@
 
   Use (def class NAME (parents... ) . BODY) to bothe create and bind
   the class in the local namespace.
-  "
+  """
 
   `(flet [[create-class [name fields *: bases metaclass: type]
 			(metaclass name bases fields)]
@@ -474,7 +474,7 @@
 
 
 (defmacro compile [source env: '(globals) filename: "<anon>"]
-  "
+  """
   (compile SOURCE)
 
   Returns a python code object
@@ -489,7 +489,7 @@
 
   Compiles SOURCE with DICT as the globals, with the source filename
   set to filename.lspy
-  "
+  """
 
   `(let [[src ,source] [glbls ,env] [fname ,filename]]
      (def import-from io IOBase)
@@ -765,8 +765,11 @@
 		      `(repr ,expr)]
 		     [(== "!s" conv)
 		      `(str ,expr)]
+		     [(== "!a" conv)
+		      `(ascii ,expr)]
 		     [else:
-		      (raise! Exception "bad format conversion")]))
+		      (raise! Exception
+			      (% "bad format conversion %r" conv))]))
 
 	      (when fmt
 		(setq fmt (item-slice fmt 1)))
