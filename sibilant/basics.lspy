@@ -177,6 +177,17 @@
 ;; === optimized assert
 
 (defmacro assert [expr message: None]
+  """
+  (assert EXPR)
+  (assert EXPR message: VALUE)
+
+  Raises an AssertionError if EXPR is not True. Optionally provides a
+  VALUE expression which will be evaluated only if the assertion EXPR is
+  not True.
+
+  This macro honors the Python optimization flags, and will have no
+  effect if sys.flags.optimize is non-zero
+  """
   (unless sys.flags.optimize
 	  (if (None? message)
 	      then: `(unless ,expr (raise! AssertionError))
@@ -209,12 +220,12 @@
 
     (cond
      [(symbol? target)
-      (if (in (str target) ".")
+      (if (contains (str target) ".")
 	  then: { (define spltrgt (target.rsplit "." 1))
 		  `(set-attr ,(item spltrgt 0) ,(item spltrgt 1) ,value) }
 	  else:	`(setq ,target ,value))]
 
-     [(and (proper? target) (in *gv-forms* (car target)))
+     [(and (proper? target) (contains *gv-forms* (car target)))
       ((item *gv-forms* (car target)) (cdr target) value)]
 
      [else:
@@ -336,7 +347,7 @@
 
        (else:
 	(define ats `(import ,module))
-	(when (in (str module) ".")
+	(when (contains (str module) ".")
 	  (setq ats (reduce (lambda [t h] `(attr ,t ,h))
 			    (item-slice (module.split ".") start: 1)
 			    ats)))

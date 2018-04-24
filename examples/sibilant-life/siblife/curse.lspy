@@ -216,28 +216,28 @@
 	      (setq event (chr event))
 
 	      (cond
-	       [(in " \n" event)
+	       [(contains " \n" event)
 		(board.toggle x-pos y-pos)
 		(board.display)]
 
-	       [(in "Cc" event)
+	       [(contains "Cc" event)
 		(continuous-mode stdscr board menu-y)]
 
-	       [(in "Ee" event)
+	       [(contains "Ee" event)
 		(board.clear)
 		(board.display)]
 
-	       [(in "Qq" event)
+	       [(contains "Qq" event)
 		(break)]
 
-	       [(in "Rr" event)
+	       [(contains "Rr" event)
 		(board.randomize)
 		(board.display)]
 
-	       [(in "Ss" event)
+	       [(contains "Ss" event)
 		(step stdscr board)]
 
-	       [(in "1234567890" event)
+	       [(contains "1234567890" event)
 		(multi-step stdscr board menu-y
 			    (** 10 (str.index "1234567890" event)))]
 

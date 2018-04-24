@@ -56,6 +56,7 @@ _symbol_build_list = symbol("build-list")
 _symbol_build_set = symbol("build-set")
 _symbol_build_str = symbol("build-str")
 _symbol_build_tuple = symbol("build-tuple")
+_symbol_contains = symbol("contains")
 _symbol_del_item = symbol("del-item")
 _symbol_div = symbol("divide")
 _symbol_div_ = symbol("/")
@@ -92,6 +93,7 @@ _symbol_mult = symbol("multiply")
 _symbol_mult_ = symbol("*")
 _symbol_nil = symbol("nil")
 _symbol_not = symbol("not")
+_symbol_not_contains = symbol("not-contains")
 _symbol_not_eq = symbol("not-eq")
 _symbol_not_eq_ = symbol("!=")
 _symbol_not_in = symbol("not-in")
@@ -594,24 +596,52 @@ def operator_ge(code, source, tc=False):
     _helper_binary(code, source, code.pseudop_compare_gte)
 
 
-@operator(_symbol_in, pyop.contains)
-def operator_in(code, source, tc=False):
+@operator(_symbol_contains, pyop.contains)
+def operator_contains(code, source, tc=False):
     """
-    (in SEQ VALUE)
-    True if SEQ contains VALUE
+    (contains SEQUENCE VALUE)
+    True if SEQUENCE contains VALUE
+
+    Identical to (in VALUE SEQUENCE)
     """
 
     _helper_binary(code, source, code.pseudop_compare_in, True)
 
 
-@operator(_symbol_not_in, (lambda seq, value: value not in seq))
-def operator_not_in(code, source, tc=False):
+@operator(_symbol_in, (lambda value, seq: value in seq))
+def operator_in(code, source, tc=False):
     """
-    (not-in SEQ VALUE)
-    False if SEQ contains VALUE
+    (in VALUE SEQUENCE)
+    True if SEQUENCE contains VALUE
+
+    Identical to (contains SEQUENCE VALUE)
+    """
+
+    _helper_binary(code, source, code.pseudop_compare_in)
+
+
+@operator(_symbol_not_contains, (lambda seq, value: value not in seq))
+def operator_not_contains(code, source, tc=False):
+    """
+    (not-contains SEQUENCE VALUE)
+    False if SEQUENCE contains VALUE
+
+    Identical to (not-in VALUE SEQUENCE)
     """
 
     _helper_binary(code, source, code.pseudop_compare_not_in, True)
+
+
+@operator(_symbol_not_in, (lambda value, seq: value not in seq))
+def operator_not_in(code, source, tc=False):
+    """
+    (not-in VALUE SEQUENCE)
+    False if SEQUENCE contains VALUE
+
+    Identical to (not-contains SEQUENCE VALUE)
+    """
+
+    _helper_binary(code, source, code.pseudop_compare_not_in)
 
 
 @operator(_symbol_is, pyop.is_)
