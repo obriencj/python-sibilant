@@ -214,6 +214,7 @@ def __setup__(glbls):
     _op(sorted, "sorted")
     _ty(reversed, "reversed")
 
+    _op(ascii, "ascii")
     _op(chr, "chr")
     _op(ord, "ord")
     _op(min, "min")
