@@ -340,6 +340,7 @@ class Pseudop(Enum):
     END_FINALLY = _auto()
     FAUX_PUSH = _auto()
     FOR_ITER = _auto()
+    FORMAT = _auto()
     GET_ATTR = _auto()
     GET_GLOBAL = _auto()
     GET_ITEM = _auto()
@@ -1314,6 +1315,10 @@ class CodeSpace(metaclass=ABCMeta):
 
     def pseudop_build_str(self, count):
         self.pseudop(Pseudop.BUILD_STR, count)
+
+
+    def pseudop_format(self, flags):
+        self.pseudop(Pseudop.FORMAT, flags)
 
 
     def pseudop_build_tuple(self, count):
