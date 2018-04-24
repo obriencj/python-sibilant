@@ -554,7 +554,6 @@ class Reader(object):
 
         else:
             # we ran out of stream
-            # print(" _read_3string saw %r" % value)
             raise stream.error("Unexpected EOF")
 
         return VALUE, _as_unicode(value)
