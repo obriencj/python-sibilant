@@ -875,12 +875,14 @@ def collapse_build_str(seq):
 
     for part in seq:
         if type(part) is str:
-            tmp.append(part)
+            if part:
+                tmp.append(part)
         else:
             if tmp:
                 yield "".join(tmp)
                 tmp.clear()
-            yield part
+            if part:
+                yield part
 
     if tmp:
         yield "".join(tmp)
