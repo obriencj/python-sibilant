@@ -505,6 +505,10 @@ class Reader(object):
         is_escp = partial(str.__eq__, "\\")
         is_char = partial(str.__eq__, char)
 
+        if stream.peek(2) == (char * 2):
+            stream.read(2)
+            return self._read_3string(stream, char)
+
         sr = partial(stream.read, 1)
         for C in iter(sr, ''):
             if is_char(C):
@@ -516,6 +520,43 @@ class Reader(object):
             raise stream.error("Unexpected EOF")
 
         return VALUE, _as_unicode("".join(result))
+
+
+    def _read_3string(self, stream, char):
+        seen = 0
+        esc = False
+
+        def seen_3(c):
+            nonlocal seen
+            nonlocal esc
+            if esc:
+                esc = False
+                seen = 0
+            elif c == "\\":
+                esc = True
+            elif c == char:
+                seen += 1
+            else:
+                seen = 0
+            return (seen == 3)
+
+        value = stream.read_until(seen_3)
+        if seen == 3:
+            # using read_until like this means that the read will stop
+            # once it's seen the third instance of the char, so the
+            # first two instances will be at the end of the value and
+            # need to be trimmed off. Also we'll need to snag that
+            # trailing character back off of the stream, since
+            # read_until will have pushed it back when the seen_3
+            # predicate returned False
+            value = value[:-2]
+            stream.read(1)
+
+        else:
+            # we ran out of stream
+            raise stream.error("Unexpected EOF")
+
+        return VALUE, _as_unicode(value)
 
 
     def _read_quote(self, stream, char):

@@ -228,7 +228,11 @@ class Strings(TestCase):
         col = parse_source(src)
         self.assertEqual(col, "hello world")
 
-        src = ' "hello\\n \\tworld" '
+        src = r' "hello\n \tworld" '
+        col = parse_source(src)
+        self.assertEqual(col, "hello\n \tworld")
+
+        src = ' "hello\n \tworld" '
         col = parse_source(src)
         self.assertEqual(col, "hello\n \tworld")
 
@@ -237,6 +241,48 @@ class Strings(TestCase):
         self.assertEqual(col, "¿?")
 
         src = '"¿\\n?"'
+        col = parse_source(src)
+        self.assertEqual(col, "¿\n?")
+
+
+    def test_3string(self):
+        src = r'""""""'
+        col = parse_source(src)
+        self.assertEqual(col, "")
+
+        src = r' """ """ '
+        col = parse_source(src)
+        self.assertEqual(col, " ")
+
+        src = r'"""hello world"""'
+        col = parse_source(src)
+        self.assertEqual(col, 'hello world')
+
+        src = r'"""hello "favorite" world"""'
+        col = parse_source(src)
+        self.assertEqual(col, 'hello "favorite" world')
+
+        src = r'"""hello \""" "\"" ""\" world"""'
+        col = parse_source(src)
+        self.assertEqual(col, 'hello """ """ """ world')
+
+        src = r'"""hello "world\""""'
+        col = parse_source(src)
+        self.assertEqual(col, 'hello "world"')
+
+        src = r' """hello\n \tworld""" '
+        col = parse_source(src)
+        self.assertEqual(col, "hello\n \tworld")
+
+        src = ' """hello\n \tworld""" '
+        col = parse_source(src)
+        self.assertEqual(col, "hello\n \tworld")
+
+        src = '"""¿?"""'
+        col = parse_source(src)
+        self.assertEqual(col, "¿?")
+
+        src = r'"""¿\n?"""'
         col = parse_source(src)
         self.assertEqual(col, "¿\n?")
 
