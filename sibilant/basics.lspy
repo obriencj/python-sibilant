@@ -341,17 +341,17 @@
  (def function sd [src]
       (define-values [binding module] (__import-binding src))
       (cond
-       ((None? binding)
+       [(None? binding)
 	(setq binding (item (module.split ".") 0))
-	(scopefn binding `(import ,module)))
+	(scopefn binding `(import ,module))]
 
-       (else:
+       [else:
 	(define ats `(import ,module))
 	(when (contains (str module) ".")
 	  (setq ats (reduce (lambda [t h] `(attr ,t ,h))
 			    (item-slice (module.split ".") start: 1)
 			    ats)))
-	(scopefn binding ats))))
+	(scopefn binding ats)]))
 
  `{,@(map sd source)})
 
@@ -359,8 +359,8 @@
 (gd-define-target
  import-from [scopefn source]
 
- (define module (item source 0))
- (define source (item-slice source start: 1))
+ (var [module (item source 0)]
+      [source (item-slice source start: 1)])
 
  (def function sd [src]
       (define-values [binding modsrc] (__import-binding src))
@@ -397,8 +397,8 @@
 
 
 (defmacro flet [declarations . body]
-  (setq declarations (tuple (declarations.unpack)))
-  `(let [,@(map (lambda [d] `(,(car d) (lambda ,@(cdr d)))) declarations)]
+  `(let [,@(map (lambda [d] `(,(car d) (lambda ,@(cdr d))))
+		(declarations.unpack))]
      ,@body))
 
 
@@ -504,8 +504,7 @@
 
   `(let [[src ,source] [glbls ,env] [fname ,filename]]
      (def import-from io IOBase)
-     (def import-from sibilant.parse
-       source_stream source_str)
+     (def import-from sibilant.parse source_stream source_str)
      (def import-from sibilant.module
        fake_module_from_env init_module parse_time compile_time)
 
@@ -526,7 +525,7 @@
 
 
 (defmacro eval [source env: '(globals) filename: "<anon>"]
-  "
+  """
   (eval SOURCE)
 
   Evaluates SOURCE with the current globals.
@@ -538,11 +537,11 @@
    * cons pair representing source forms
    * symbol or keyword object
 
-  (eval SOURCE env: DICT filename: \"filename.lspy\")
+  (eval SOURCE env: DICT filename: "filename.lspy")
 
   Evaluates SOURCE with DICT as the globals, with the source filename
   set to filename.lspy
-  "
+  """
 
   `(let [[src ,source] [glbls ,env] [fname ,filename]]
      (def import-from io IOBase)
@@ -575,12 +574,12 @@
   (def import-from dis dis [show_code as: show-code])
 
   (defun disassemble [obj details: False]
-    "
+    """
     (disassemble OBJ)
     (disassemble OBJ details: True)
 
     display bytecode and optional constant and variable details
-    "
+    """
 
     (when details
           (show-code obj)
@@ -589,12 +588,12 @@
 
 
 (defmacro disassemble-expr [expr]
-  "
+  """
   (disassemble-expr EXPR)
 
   compiles EXPR, then decompiles it and displays the bytecode
   operations it would have executed
-  "
+  """
   `(disassemble (compile ',expr)))
 
 
@@ -605,7 +604,7 @@
 
 
 (defmacro iter-each [bindings emit *: () when: None unless: None]
-  "
+  """
   (iter-each (BINDINGS SEQUENCE) EXPRESSION)
   (iter-each (BINDINGS SEQUENCE) EXPRESSION when: WHENTEST)
   (iter-each (BINDINGS SEQUENCE) EXPRESSION unless: UNLESSTEST)
@@ -615,7 +614,7 @@
   iterating over SEQUENCE. The optional when and unless forms may be
   specified as predicate expressions to be evaluated on each iteration
   to determine if the given values should be skipped.
-  "
+  """
 
   (setq emit `(yield ,emit))
   (when unless (setq emit `(unless ,unless ,emit)))
@@ -638,13 +637,13 @@
       [set_ set]]
 
   (defun as-tuple [value]
-    "
-    (to-tuple VALUE)
+    """
+    (as-tuple VALUE)
 
     Converts VALUE to a tuple. If VALUE is a cons pair, will unpack
     it. Otherwise, VALUE will be iterated over and its contents
     collected.
-    "
+    """
 
     (tuple_
      (if (pair_? value)
@@ -653,13 +652,13 @@
 
 
   (defun as-list [value]
-    "
-    (to-list VALUE)
+    """
+    (as-list VALUE)
 
     Converts VALUE to a list. If VALUE is a cons pair, will unpack
     it. Otherwise, VALUE will be iterated over and its contents
     collected.
-    "
+    """
 
     (list_
      (if (pair_? value)
@@ -668,13 +667,13 @@
 
 
   (defun as-set [value]
-    "
-    (to-set VALUE)
+    """
+    (as-set VALUE)
 
     Converts VALUE to a set. If VALUE is a cons pair, will unpack
     it. Otherwise, VALUE will be iterated over and its contents
     collected.
-    "
+    """
 
     (set_
      (if (pair_? value)
@@ -683,19 +682,19 @@
 
 
   (defun length [value]
-    "
+    """
     (length VALUE)
 
     The number of items in VALUE. If VALUE is a cons pair, will unpack
     it. Otherwise, identical to (len VALUE)
-    "
+    """
     (if (pair_? value)
 	then: (value.length)
 	else: (len_ value)))
 
 
   (defun apply [fun arglist: (#tuple) kwargs: (#dict)]
-    "
+    """
     (apply FUN)
     (apply FUN arglist: POSITIONALS)
     (apply FUN kwargs: KEYWORDS)
@@ -707,9 +706,10 @@
 
     If POSITIONALS is a a cons pair, it will be unpacked instead of
     iterated.
-    "
+    """
 
-    (when (pair_? arglist) (setq arglist (arglist.unpack)))
+    (when (pair_? arglist)
+      (setq arglist (arglist.unpack)))
     (fun *: arglist **: kwargs))
 
 
