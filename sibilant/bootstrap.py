@@ -189,7 +189,6 @@ def __setup__(glbls):
     _op(callable, "callable?")
     _op(next, "next")
     _op(len, "len")
-    _op(format, "format")
     _op(getattr, "getattr")
     _op(setattr, "setattr")
     _op(isinstance, "isinstance")

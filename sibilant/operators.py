@@ -64,6 +64,7 @@ _symbol_eq = symbol("eq")
 _symbol_eq_ = symbol("==")
 _symbol_floordiv = symbol("floor-divide")
 _symbol_floordiv_ = symbol("//")
+_symbol_format = symbol("format")
 _symbol_ge = symbol("ge")
 _symbol_ge_ = symbol(">=")
 _symbol_gt = symbol("gt")
@@ -405,7 +406,7 @@ def _helper_ternary(code, source, opfun):
     except ValueError:
         raise code.error("too few arguments to %s" % name, source)
 
-    if rest is not nil:
+    if rest:
         raise code.error("too many arguments to %s" % name, source)
 
     code.pseudop_position_of(source)
@@ -443,7 +444,7 @@ def _helper_binary(code, source, opfun, flip=False):
     except ValueError:
         raise code.error("too few arguments to %s" % name, source)
 
-    if rest is not nil:
+    if rest:
         raise code.error("too many arguments to %s" % name, source)
 
     code.pseudop_position_of(source)
@@ -724,7 +725,7 @@ def _helper_unary(code, source, opfun):
     except ValueError:
         raise code.error("too few arguments to %s" % name, source)
 
-    if rest is not nil:
+    if rest:
         raise code.error("too many arguments to %s" % name, source)
 
     code.pseudop_position_of(source)
@@ -945,6 +946,38 @@ def operator_build_str(code, source, tc=False):
         code.add_expression(part)
 
     code.pseudop_build_str(len(parts))
+
+    return None
+
+
+@operator(_symbol_format, format)
+def operator_format(code, source, tc=False):
+    """
+    (format VALUE)
+    (format VALUE SPEC)
+
+    Formats value using the formatting mini-language
+    """
+
+    try:
+        called_by, (val, rest) = source
+    except ValueError:
+        raise code.error("too few arguments to format", source)
+
+    if rest:
+        spec, rest = rest
+    else:
+        spec = None
+
+    if rest:
+        raise code.error("too many arguments to format", source)
+
+    code.add_expression(val)
+    if spec:
+        code.add_expression(spec)
+        code.pseudop_format(0x04)
+    else:
+        code.pseudop_format(0x00)
 
     return None
 
