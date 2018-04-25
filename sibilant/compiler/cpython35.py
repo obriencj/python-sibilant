@@ -428,6 +428,22 @@ class CPython35(ExpressionCodeSpace):
         self.pseudop_call(1)
 
 
+    def pseudop_format(self, flags):
+        # emulate the FORMAT_VALUE opcode using the format function
+
+        # TOS format str if flags & 0x01
+        # TOS2 value
+
+        self.pseudop_get_global("format")
+
+        if flags & 0x04:
+            self.pseudop_rot_three()
+            self.pseudop_call(2)
+        else:
+            self.pseudop_rot_two()
+            self.pseudop_call(1)
+
+
     def pseudop_lambda(self, code, defaults=(), kwonly=()):
         for arg, expr in defaults:
             self.add_expression(expr)

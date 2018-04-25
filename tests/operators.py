@@ -2081,5 +2081,31 @@ class TypeBuilders(TestCase):
         self.assertEqual(res(" "), "ab c")
 
 
+class Format(TestCase):
+
+    def test_format(self):
+        src = """(format 100)"""
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, "100")
+
+        src = """(format 100 "05")"""
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, "00100")
+
+
+    def test_apply_format(self):
+        src = """(apply format '(100))"""
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, "100")
+
+        src = """(apply format '(100 "05"))"""
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, "00100")
+
+
 #
 # The end.

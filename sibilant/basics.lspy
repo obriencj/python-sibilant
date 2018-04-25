@@ -403,12 +403,12 @@
 
 
 (defmacro let-values [bind_vals . body]
-  "
-  (let-values (BINDINGS VALS) . BODY)
+  """
+  (let-values [BINDINGS VALS] . BODY)
 
   where BINDINGS is a nested pair of symbols in the same structure as
   values from VALS.
-  "
+  """
 
   `(let []
      (define-values ,@bind_vals)
@@ -462,7 +462,7 @@
 ;; === python object system classes ==
 
 (defmacro class [name bases . body]
-  "
+  """
   (class NAME (parents... ) . BODY)
 
   Create a new python type instance with the given name, and parent
@@ -472,7 +472,7 @@
 
   Use (def class NAME (parents... ) . BODY) to bothe create and bind
   the class in the local namespace.
-  "
+  """
 
   `(flet [[create-class [name fields *: bases metaclass: type]
 			(metaclass name bases fields)]
@@ -485,7 +485,7 @@
 
 
 (defmacro compile [source env: '(globals) filename: "<anon>"]
-  "
+  """
   (compile SOURCE)
 
   Returns a python code object
@@ -500,7 +500,7 @@
 
   Compiles SOURCE with DICT as the globals, with the source filename
   set to filename.lspy
-  "
+  """
 
   `(let [[src ,source] [glbls ,env] [fname ,filename]]
      (def import-from io IOBase)
@@ -727,6 +727,76 @@
 
 (var [-∞ (- ∞)]
      [-inf -∞])
+
+
+;; === #fmt strings ===
+
+
+(let []
+  (def import-from re [compile as: regex] UNICODE VERBOSE)
+
+  (def import-from sibilant.parse
+       [default_reader as: reader] source_str)
+
+  (define fmt_re
+    (regex "(
+    (\\n\\r|\\n)
+    |{{
+    |}}
+    |(?:{([^\\(][^\\!\\:]+
+         |\\(.*\\))(\\!.)?([^}]+)?)}
+    )" (+ UNICODE VERBOSE)))
+
+  (def function parse_source [src_str]
+       (reader.read (source_str src_str "<format string>")))
+
+  (defmacro #fmt [text . rest]
+    (var [result (#list)]
+	 [offset 0])
+
+    (for-each [f (fmt_re.finditer text)]
+        (define-values [start stop] (f.span))
+	(result.append (item-slice text offset start))
+	(setq offset stop)
+
+	(var [g (f.groups)]
+	     [c (item g 0)])
+
+	(if (contains (#tuple "{{" "}}" "\n" "\n\r") c)
+	    then: (result.append (item c 0))
+	    else:
+	    { (var [expr (parse_source (item g 2))]
+		   [conv (item g 3)]
+		   [fmt (item g 4)])
+
+	      (setq expr
+		    (cond
+		     [(not conv) expr]
+		     [(== "!r" conv)
+		      `(repr ,expr)]
+		     [(== "!s" conv)
+		      `(str ,expr)]
+		     [(== "!a" conv)
+		      `(ascii ,expr)]
+		     [else:
+		      (raise! Exception
+			      (% "bad format conversion %r" conv))]))
+
+	      (when fmt
+		(setq fmt (item-slice fmt 1)))
+
+	      (setq expr
+		    (if fmt
+			then: `(format ,expr ,fmt)
+			else: `(format ,expr)))
+
+	      (result.append expr)}))
+
+    (result.append (item-slice text offset))
+
+    (if rest
+	then: `(#str ,@result (#fmt ,@rest))
+	else: `(#str ,@result))))
 
 
 ;;

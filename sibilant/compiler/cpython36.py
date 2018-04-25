@@ -307,6 +307,9 @@ class CPython36(ExpressionCodeSpace):
             elif op is _Pseudop.BUILD_STR:
                 yield _Opcode.BUILD_STRING, args[0]
 
+            elif op is _Pseudop.FORMAT:
+                yield _Opcode.FORMAT_VALUE, args[0]
+
             elif op is _Pseudop.SETUP_WITH:
                 yield _Opcode.SETUP_WITH, args[0]
 
@@ -614,6 +617,12 @@ class CPython36(ExpressionCodeSpace):
             if args[1]:
                 pop()
             if args[2]:
+                pop()
+            push()
+
+        elif op is _Pseudop.FORMAT:
+            pop()
+            if args[0] & 0x04:
                 pop()
             push()
 
