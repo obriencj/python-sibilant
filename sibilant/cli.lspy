@@ -139,7 +139,7 @@ license: LGPL v.3
       [[-i --interactive]
        dest: "interactive" action: "store_true" default: False
        help:
-       "Enter interactive mdoe after executing the given script"]
+       "Enter interactive mode after executing the given script"]
 
       [[-C --compile]
        dest: "compile" action: "store" default: None
