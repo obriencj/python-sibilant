@@ -52,6 +52,12 @@
 (declare-app simple-flask)
 
 
+(defmacro present-source [expr]
+  `(#str "<div>" ,expr "</div>"
+	 "<div><p>The source expression for this page was:</p>"
+	 "<code>" ,(str (escape expr)) "</div></code>" ))
+
+
 (url-rule
  index /
 
