@@ -52,7 +52,7 @@ def __setup__(glbls):
         # it might have been pre-compiled
         import sibilant.basics as basics
 
-    except ImportError:
+    except (ImportError, AttributeError):
         # if not that's fine, we can do it manually
         src = get_data(__name__, "basics.lspy").decode("utf8")
         filename = join(dirname(__file__), "basics.lspy")
