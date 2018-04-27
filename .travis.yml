@@ -5,9 +5,12 @@ python:
   - "3.5"
   - "3.6"
 
+before_install:
+  - "sudo apt-get -qq update"
+  - "sudo apt-get -qq install -y gdb"
+
 install:
   - "pip install appdirs flake8"
-  - "sudo apt-get install -y gdb"
 
 before_script:
   - "ulimit -c unlimited -S"
