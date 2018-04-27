@@ -643,7 +643,7 @@ class CodeSpace(metaclass=ABCMeta):
         # accessors
         self.global_vars = []
 
-        self.args: List[symbol] = []
+        self.args = []
         for arg in args:
             # n = str(arg)
             _list_unique_append(self.args, arg)
@@ -894,7 +894,7 @@ class CodeSpace(metaclass=ABCMeta):
                 sym not in self.global_vars)
 
 
-    def gen_sym(self, name: str = None):
+    def gen_sym(self, name=None):
         return gensym(name, self._gen_sym_predicate)
 
 
