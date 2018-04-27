@@ -151,13 +151,13 @@ def repeatedly(value):
 cadr = lambda c: car(cdr(c))  # noqa
 caddr = lambda c: car(reapply(cdr, c, 2))  # noqa
 cadddr = lambda c: car(reapply(cdr, c, 3))  # noqa
-caddddr = lambda c: car(repply(cdr, c, 4))  # noqa
-cadddddr = lambda c: car(repply(cdr, c, 5))  # noqa
-caddddddr = lambda c: car(repply(cdr, c, 6))  # noqa
-cadddddddr = lambda c: car(repply(cdr, c, 7))  # noqa
-caddddddddr = lambda c: car(repply(cdr, c, 8))  # noqa
-cadddddddddr = lambda c: car(repply(cdr, c, 9))  # noqa
-caddddddddddr = lambda c: car(repply(cdr, c, 10))  # noqa
+caddddr = lambda c: car(reapply(cdr, c, 4))  # noqa
+cadddddr = lambda c: car(reapply(cdr, c, 5))  # noqa
+caddddddr = lambda c: car(reapply(cdr, c, 6))  # noqa
+cadddddddr = lambda c: car(reapply(cdr, c, 7))  # noqa
+caddddddddr = lambda c: car(reapply(cdr, c, 8))  # noqa
+cadddddddddr = lambda c: car(reapply(cdr, c, 9))  # noqa
+caddddddddddr = lambda c: car(reapply(cdr, c, 10))  # noqa
 
 first = car
 second = cadr
