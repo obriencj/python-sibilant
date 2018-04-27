@@ -93,7 +93,7 @@ def init_module(module, source_stream,
     module.__stream__ = source_stream
 
     if builtins is None:
-        builtins = __import__("sibilant.builtins").builtins
+        import sibilant.builtins as builtins
     module.__builtins__ = builtins
 
     if reader:
