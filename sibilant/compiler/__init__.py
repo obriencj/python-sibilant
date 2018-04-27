@@ -24,6 +24,7 @@ license: LGPL v.3
 
 
 import dis
+import sys
 import threading
 
 from abc import ABCMeta, abstractmethod
@@ -188,7 +189,8 @@ class Macro(Compiled):
             expr = self.expand(*args, **kwargs)
 
         else:
-            expr = self.expand(*source.unpack())
+            data = list(source.unpack())
+            expr = self.expand(*data)
 
         fill_position(expr, source_obj.get_position())
 

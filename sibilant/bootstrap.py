@@ -120,9 +120,11 @@ def __setup__(glbls):
 
     _ty(lib.symbol, "symbol")
     _ty(lib.keyword, "keyword")
+    _op(lib.gensym, "gensym")
 
     _op(lib.build_unpack_pair, "build-unpack-pair")
 
+    _op(lib.apply, "apply")
     _op(lib.reapply, "reapply")
 
     _ty(lib.values, "values")
@@ -172,6 +174,8 @@ def __setup__(glbls):
     _ty(dict, "dict")
     _ty(set, "set")
     _ty(frozenset, "frozenset")
+
+    _op(id, "id")
 
     _op(lambda value: hasattr(value, "__iter__"),
         "iterable?", rename=True)

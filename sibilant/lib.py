@@ -17,7 +17,7 @@ from functools import partial
 
 import operator
 
-from ._types import symbol, keyword
+from ._types import symbol, keyword, gensym
 from ._types import pair, nil, cons, car, cdr, setcar, setcdr
 from ._types import build_unpack_pair
 from ._types import reapply
@@ -29,6 +29,7 @@ __all__ = (
     "SibilantException", "NotYetImplemented",
     "symbol", "is_symbol",
     "keyword", "is_keyword",
+    "gensym",
 
     "pair", "cons", "nil",
     "car", "cdr", "setcar", "setcdr",
@@ -134,6 +135,12 @@ def set_position(value, position, follow=False):
 def fill_position(value, position, follow=True):
     if position and is_pair(value):
         value.fill_position(position, follow)
+
+
+def apply(fun, args=(), kwargs={}):
+    if is_pair(args):
+        args = args.unpack()
+    return fun(*args, **kwargs)
 
 
 def repeatedly(value):
