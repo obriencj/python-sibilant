@@ -318,13 +318,13 @@ def marshal_wrapper(code_objs, filename=None, mtime=0, source_size=0,
         codespace.pseudop_const(0)
         codespace.pseudop_const("exec_marshal_module")
         codespace.pseudop_build_tuple(1)
-        codespace.pseudop_import_name("sibilant.module")
-        codespace.pseudop_import_from("exec_marshal_module")
+        codespace.pseudop_import_name(symbol("sibilant.module"))
+        codespace.pseudop_import_from(symbol("exec_marshal_module"))
         codespace.pseudop_rot_two()
         codespace.pseudop_pop()
 
         # argument 1. globals()
-        codespace.pseudop_get_var("globals")
+        codespace.pseudop_get_var(symbol("globals"))
         codespace.pseudop_call(0)
 
         # argument 2. tuple(code_objs)

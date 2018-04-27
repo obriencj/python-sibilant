@@ -34,6 +34,7 @@ from itertools import count
 from os.path import exists
 from platform import python_implementation
 from sys import version_info
+from typing import List, Union
 from types import CodeType
 
 from ..lib import (
@@ -426,6 +427,15 @@ _CONST_TYPES = (
 )
 
 
+ConstTypes = Union[
+    CodeType,
+    str, bytes,
+    tuple, list, dict, set,
+    bool, int, float, complex,
+    type(None), type(...),
+]
+
+
 # a bunch of commonly used symbols, so we don't have to try and
 # recreate over and over.
 
@@ -633,11 +643,11 @@ class CodeSpace(metaclass=ABCMeta):
         # accessors
         self.global_vars = []
 
-        self.args = []
+        self.args: List[symbol] = []
         for arg in args:
-            n = str(arg)
-            _list_unique_append(self.args, n)
-            _list_unique_append(self.fast_vars, n)
+            # n = str(arg)
+            _list_unique_append(self.args, arg)
+            _list_unique_append(self.fast_vars, arg)
 
         self.kwonly = kwonly
         self.varargs = varargs
@@ -645,7 +655,7 @@ class CodeSpace(metaclass=ABCMeta):
 
         # this holds a combination of global var keys and member
         # attribute keys
-        self.names = []
+        self.names: List[symbol] = []
 
         # first const is required -- it'll be None or a doc string and
         # then None
@@ -875,8 +885,8 @@ class CodeSpace(metaclass=ABCMeta):
         self.tailcalls += 1
 
 
-    def _gen_sym_predicate(self, sym: symbol) -> bool:
-        sym = str(sym)
+    def _gen_sym_predicate(self, sym: symbol):
+        # sym = str(sym)
         return (sym not in self.args and
                 sym not in self.fast_vars and
                 sym not in self.free_vars and
@@ -884,8 +894,8 @@ class CodeSpace(metaclass=ABCMeta):
                 sym not in self.global_vars)
 
 
-    def gen_sym(self):
-        return str(gensym(self._gen_sym_predicate))
+    def gen_sym(self, name: str = None):
+        return gensym(name, self._gen_sym_predicate)
 
 
     def set_doc(self, docstr: str) -> None:
@@ -960,7 +970,7 @@ class CodeSpace(metaclass=ABCMeta):
         return cs.activate(self.env)
 
 
-    def declare_const(self, value):
+    def declare_const(self, value: ConstTypes):
         """
         Declare a constant value
         """
@@ -969,22 +979,23 @@ class CodeSpace(metaclass=ABCMeta):
         _list_unique_append(self.consts, value)
 
 
-    def declare_var(self, namesym):
+    def declare_var(self, namesym: symbol):
         """
         Declare a local variable by name
         """
 
-        name = str(namesym)
+        # name = str(namesym)
+        assert is_symbol(namesym)
 
         if self.mode is Mode.MODULE:
-            return self.request_global(name)
+            return self.request_global(namesym)
 
         else:
-            if not (name in self.cell_vars or name in self.free_vars):
-                _list_unique_append(self.fast_vars, name)
+            if not (namesym in self.cell_vars or namesym in self.free_vars):
+                _list_unique_append(self.fast_vars, namesym)
 
 
-    def request_var(self, name):
+    def request_var(self, namesym: symbol):
         """
         State that this code space wants to consume a var by name.
 
@@ -996,11 +1007,13 @@ class CodeSpace(metaclass=ABCMeta):
         reference.
         """
 
-        name = str(name)
-        if (name in self.fast_vars) or \
-           (name in self.free_vars) or \
-           (name in self.cell_vars) or \
-           (name in self.global_vars):
+        assert is_symbol(namesym)
+
+        # name = str(name)
+        if (namesym in self.fast_vars) or \
+           (namesym in self.free_vars) or \
+           (namesym in self.cell_vars) or \
+           (namesym in self.global_vars):
 
             # either the name is already available in this scope as a
             # load_fast, or we've already figured out whether it needs
@@ -1011,43 +1024,47 @@ class CodeSpace(metaclass=ABCMeta):
             # we need to figure out if access to this var will be via
             # a load_closure, or load_global call
 
-            if self.parent and self.parent.request_cell(name):
+            if self.parent and self.parent.request_cell(namesym):
                 # we asked our parent if we can get it as a closure,
                 # and they said yes
-                _list_unique_append(self.free_vars, name)
+                _list_unique_append(self.free_vars, namesym)
             else:
-                self.request_global(name)
+                self.request_global(namesym)
 
 
-    def request_global(self, name):
-        _list_unique_append(self.global_vars, name)
-        _list_unique_append(self.names, name)
+    def request_global(self, namesym: symbol):
+        assert is_symbol(namesym)
+
+        _list_unique_append(self.global_vars, namesym)
+        _list_unique_append(self.names, namesym)
 
 
-    def request_cell(self, name):
-        if name in self.global_vars:
+    def request_cell(self, namesym: symbol):
+        assert is_symbol(namesym)
+
+        if namesym in self.global_vars:
             # no, we won't provide a cell for a global
             return False
 
-        elif ((name in self.cell_vars) or
-              (name in self.free_vars)):
+        elif ((namesym in self.cell_vars) or
+              (namesym in self.free_vars)):
             # yup, we can provide that cell. It's either already a
             # cell we created to give away, or a cell we ourselves
             # already inherited.
             return True
 
-        elif name in self.fast_vars:
+        elif namesym in self.fast_vars:
             # we need to convert this fast var into a cell var for our
             # child namespace to use
             # self.fast_vars.remove(name)
-            _list_unique_append(self.cell_vars, name)
+            _list_unique_append(self.cell_vars, namesym)
             return True
 
-        elif self.parent and self.parent.request_cell(name):
+        elif self.parent and self.parent.request_cell(namesym):
             # we asked our parent and they had it, so now it's a cell
             # for them, and a free for us, and we can affirm that we
             # can provide it
-            _list_unique_append(self.free_vars, name)
+            _list_unique_append(self.free_vars, namesym)
             return True
 
         else:
@@ -1056,9 +1073,10 @@ class CodeSpace(metaclass=ABCMeta):
             return False
 
 
-    def request_name(self, name):
-        name = str(name)
-        _list_unique_append(self.names, name)
+    def request_name(self, namesym: symbol):
+        assert is_symbol(namesym)
+
+        _list_unique_append(self.names, namesym)
 
 
     def helper_prep_varargs(self):
@@ -1078,11 +1096,12 @@ class CodeSpace(metaclass=ABCMeta):
             offset = -1
 
         varname = self.args[offset]
+        assert (is_symbol(varname))
 
         if self.declared_at:
             self.pseudop_position(*self.declared_at)
 
-        self.pseudop_get_var("build-proper")
+        self.pseudop_get_var(symbol("build-proper"))
         self.pseudop_get_var(varname)
         self.pseudop_call_var(0, 0)
         self.pseudop_set_var(varname)
@@ -1115,19 +1134,22 @@ class CodeSpace(metaclass=ABCMeta):
             pass
 
 
-    def pseudop_get_attr(self, name):
-        self.request_name(name)
-        self.pseudop(Pseudop.GET_ATTR, name)
+    def pseudop_get_attr(self, namesym: symbol):
+        assert is_symbol(namesym)
+        self.request_name(namesym)
+        self.pseudop(Pseudop.GET_ATTR, namesym)
 
 
-    def pseudop_set_attr(self, name):
-        self.request_name(name)
-        self.pseudop(Pseudop.SET_ATTR, name)
+    def pseudop_set_attr(self, namesym: symbol):
+        assert is_symbol(namesym)
+        self.request_name(namesym)
+        self.pseudop(Pseudop.SET_ATTR, namesym)
 
 
-    def pseudop_del_attr(self, name):
-        self.request_name(name)
-        self.pseudop(Pseudop.DEL_ATTR, name)
+    def pseudop_del_attr(self, namesym: symbol):
+        assert is_symbol(namesym)
+        self.request_name(namesym)
+        self.pseudop(Pseudop.DEL_ATTR, namesym)
 
 
     def pseudop_faux_push(self, count=1):
@@ -1165,7 +1187,7 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop(Pseudop.CALL_VAR_KW, argc, kwdc)
 
 
-    def pseudop_const(self, val):
+    def pseudop_const(self, val: ConstTypes):
         """
         Pushes a pseudo op to load a constant value
         """
@@ -1173,33 +1195,37 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop(Pseudop.CONST, val)
 
 
-    def pseudop_set_local(self, name):
+    def pseudop_set_local(self, namesym: symbol):
         """
         Declares var as local, assigns TOS to is
         """
-        self.declare_var(name)
-        self.pseudop(Pseudop.SET_LOCAL, name)
+        assert is_symbol(namesym)
+        self.declare_var(namesym)
+        self.pseudop(Pseudop.SET_LOCAL, namesym)
 
 
-    def pseudop_get_var(self, name):
+    def pseudop_get_var(self, namesym: symbol):
         """
         Pushes a pseudo op to load a named value
         """
-        self.request_var(name)
-        self.pseudop(Pseudop.GET_VAR, name)
+        assert is_symbol(namesym)
+        self.request_var(namesym)
+        self.pseudop(Pseudop.GET_VAR, namesym)
 
 
-    def pseudop_set_var(self, name):
+    def pseudop_set_var(self, namesym: symbol):
         """
         Pushes a pseudo op to assign to a named value
         """
-        self.request_var(name)
-        self.pseudop(Pseudop.SET_VAR, name)
+        assert is_symbol(namesym)
+        self.request_var(namesym)
+        self.pseudop(Pseudop.SET_VAR, namesym)
 
 
-    def pseudop_del_var(self, name):
-        self.request_var(name)
-        self.pseudop(Pseudop.DEL_VAR, name)
+    def pseudop_del_var(self, namesym: symbol):
+        assert is_symbol(namesym)
+        self.request_var(namesym)
+        self.pseudop(Pseudop.DEL_VAR, namesym)
 
 
     def pseudop_lambda(self, code, *params):
@@ -1252,22 +1278,25 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop(Pseudop.YIELD_FROM)
 
 
-    def pseudop_get_global(self, name):
-        self.request_global(name)
-        self.pseudop(Pseudop.GET_GLOBAL, name)
+    def pseudop_get_global(self, namesym: symbol):
+        assert is_symbol(namesym)
+        self.request_global(namesym)
+        self.pseudop(Pseudop.GET_GLOBAL, namesym)
 
 
-    def pseudop_set_global(self, name):
+    def pseudop_set_global(self, namesym: symbol):
         """
         Pushes a pseudo op to globally define TOS to name
         """
-        self.request_global(name)
-        self.pseudop(Pseudop.SET_GLOBAL, name)
+        assert is_symbol(namesym)
+        self.request_global(namesym)
+        self.pseudop(Pseudop.SET_GLOBAL, namesym)
 
 
-    def pseudop_del_global(self, name):
-        self.request_global(name)
-        self.pseudop(Pseudop.DEL_GLOBAL, name)
+    def pseudop_del_global(self, namesym: symbol):
+        assert is_symbol(namesym)
+        self.request_global(namesym)
+        self.pseudop(Pseudop.DEL_GLOBAL, namesym)
 
 
     def pseudop_label(self, name):
@@ -1342,14 +1371,16 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop(Pseudop.BUILD_MAP_UNPACK, count)
 
 
-    def pseudop_import_name(self, name):
-        self.request_name(name)
-        self.pseudop(Pseudop.IMPORT_NAME, name)
+    def pseudop_import_name(self, namesym: symbol):
+        assert is_symbol(namesym)
+        self.request_name(namesym)
+        self.pseudop(Pseudop.IMPORT_NAME, namesym)
 
 
-    def pseudop_import_from(self, name):
-        self.request_name(name)
-        self.pseudop(Pseudop.IMPORT_FROM, name)
+    def pseudop_import_from(self, namesym: symbol):
+        assert is_symbol(namesym)
+        self.request_name(namesym)
+        self.pseudop(Pseudop.IMPORT_FROM, namesym)
 
 
     pseudop_with_cleanup_start = _op("WITH_CLEANUP_START")
@@ -1593,12 +1624,12 @@ class CodeSpace(metaclass=ABCMeta):
 
         consts = tuple(self.consts)
 
-        names = tuple(self.names)
+        names = tuple(map(str, self.names))
 
         varnames = list(self.fast_vars)
         for v in self.cell_vars:
             _list_unique_append(varnames, v)
-        varnames = tuple(varnames)
+        varnames = tuple(map(str, varnames))
 
         nlocals = len(varnames)
 
@@ -1609,8 +1640,8 @@ class CodeSpace(metaclass=ABCMeta):
         firstlineno = self.declared_at[0] if self.declared_at else None
         firstlineno, lnotab = self.lnt_compile(lnt, firstline=firstlineno)
 
-        freevars = tuple(self.free_vars)
-        cellvars = tuple(self.cell_vars)
+        freevars = tuple(map(str, self.free_vars))
+        cellvars = tuple(map(str, self.cell_vars))
 
         ret = CodeType(argcount, kwonly, nlocals, stacksize, flags, code,
                        consts, names, varnames, filename, name,
@@ -1684,7 +1715,7 @@ class ExpressionCodeSpace(CodeSpace):
         while expr is not None:
             if expr is nil:
                 # convert nil expressions to a literal nil
-                self.pseudop_get_var("nil")
+                self.pseudop_get_var(symbol("nil"))
                 expr = None
 
             elif is_pair(expr):
@@ -1806,7 +1837,7 @@ class ExpressionCodeSpace(CodeSpace):
         # either this isn't a self-referential function, or it is and
         # the tailcall isn't recursive, so we'll use the trampoline
         # instead.
-        self.pseudop_get_var("tailcall")
+        self.pseudop_get_var(symbol("tailcall"))
         self.pseudop_rot_two()
         self.pseudop_call(1)
 
@@ -1819,7 +1850,7 @@ class ExpressionCodeSpace(CodeSpace):
         # first check, make sure we've got a self-ref available. If we
         # don't then we cannot ensure it's actually a recursive call
         # at runtime, so a jump0 is unsafe.
-        if not (self.free_vars and self.free_vars[0] == ""):
+        if not (self.free_vars and self.free_vars[0] is symbol("")):
             return
 
         # next, let's see if the parameters being passed line up with
@@ -1872,7 +1903,7 @@ class ExpressionCodeSpace(CodeSpace):
         tclabel = self.gen_label()
 
         self.pseudop_dup()
-        self.pseudop_get_var("")
+        self.pseudop_get_var(symbol(""))
         self.pseudop_compare_is()
         self.pseudop_pop_jump_if_false(tclabel)
         self.pseudop_pop()
@@ -1903,10 +1934,12 @@ class ExpressionCodeSpace(CodeSpace):
         pass
 
 
-    def compile_symbol(self, sym, tc=False):
+    def compile_symbol(self, sym: symbol, tc=False):
         """
         The various ways that a symbol on its own can evaluate.
         """
+
+        assert (is_symbol(sym))
 
         self.require_active()
 
@@ -1929,7 +1962,7 @@ class ExpressionCodeSpace(CodeSpace):
         else:
             ex = sym.rsplit(".", 1)
             if len(ex) == 1:
-                return self.pseudop_get_var(str(sym))
+                return self.pseudop_get_var(sym)
             else:
                 return cons(_symbol_attr, *ex, nil)
 
@@ -1939,7 +1972,7 @@ class ExpressionCodeSpace(CodeSpace):
         # passed anywhere at runtime -- it's mostly meant for use
         # as a marker in source expressions for specials.
 
-        self.pseudop_get_var("keyword")
+        self.pseudop_get_var(symbol("keyword"))
         self.pseudop_const(str(kwd))
         self.pseudop_call(1)
         return None
@@ -1967,11 +2000,11 @@ class ExpressionCodeSpace(CodeSpace):
                                    filename=self.filename)
 
 
-    def find_compiled(self, namesym):
+    def find_compiled(self, namesym: symbol):
         return _find_compiled(self.env, namesym)
 
 
-def _list_unique_append(onto_list, value):
+def _list_unique_append(onto_list: List[symbol], value: symbol) -> int:
     # we have to manually loop and use the `is` operator, because the
     # list.index method will match False with 0 and True with 1, which
     # incorrectly collapses consts pools when both values are present
@@ -2298,7 +2331,7 @@ def unpack_formals(args, kwds,
     return args, var, kwds, (kwvar if kwvariadic else None)
 
 
-def _find_compiled(env, namesym):
+def _find_compiled(env, namesym: symbol):
     # okay, let's look through the environment by name
     name = str(namesym)
 
