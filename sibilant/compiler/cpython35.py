@@ -425,7 +425,7 @@ class CPython35(ExpressionCodeSpace):
         self.pseudop_build_tuple(count)
 
         self.pseudop_const("")
-        self.pseudop_get_attr("join")
+        self.pseudop_get_attr(symbol("join"))
         self.pseudop_rot_two()
         self.pseudop_call(1)
 
@@ -436,7 +436,7 @@ class CPython35(ExpressionCodeSpace):
         # TOS format str if flags & 0x01
         # TOS2 value
 
-        self.pseudop_get_global("format")
+        self.pseudop_get_global(symbol("format"))
 
         if flags & 0x04:
             self.pseudop_rot_three()
