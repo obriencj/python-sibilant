@@ -655,7 +655,7 @@ class CodeSpace(metaclass=ABCMeta):
 
         # this holds a combination of global var keys and member
         # attribute keys
-        self.names: List[symbol] = []
+        self.names = []
 
         # first const is required -- it'll be None or a doc string and
         # then None
@@ -970,7 +970,7 @@ class CodeSpace(metaclass=ABCMeta):
         return cs.activate(self.env)
 
 
-    def declare_const(self, value: ConstTypes):
+    def declare_const(self, value):
         """
         Declare a constant value
         """
@@ -1187,7 +1187,7 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop(Pseudop.CALL_VAR_KW, argc, kwdc)
 
 
-    def pseudop_const(self, val: ConstTypes):
+    def pseudop_const(self, val):
         """
         Pushes a pseudo op to load a constant value
         """
