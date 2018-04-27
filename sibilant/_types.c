@@ -323,7 +323,7 @@ PyObject *sib_gensym(PyObject *name, PyObject *predicate) {
     }
 
     if (predicate) {
-      maybe = PyObject_CallFunctionObjArgs(predicate, maybe_symbol);
+      maybe = PyObject_CallFunctionObjArgs(predicate, maybe_symbol, NULL);
       if (! maybe)
 	return NULL;
 
