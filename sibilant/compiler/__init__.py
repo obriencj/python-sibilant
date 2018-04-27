@@ -34,7 +34,6 @@ from itertools import count
 from os.path import exists
 from platform import python_implementation
 from sys import version_info
-from typing import List, Union
 from types import CodeType
 
 from ..lib import (
@@ -425,15 +424,6 @@ _CONST_TYPES = (
     bool, int, float, complex,
     type(None), type(...),
 )
-
-
-ConstTypes = Union[
-    CodeType,
-    str, bytes,
-    tuple, list, dict, set,
-    bool, int, float, complex,
-    type(None), type(...),
-]
 
 
 # a bunch of commonly used symbols, so we don't have to try and
@@ -898,7 +888,7 @@ class CodeSpace(metaclass=ABCMeta):
         return gensym(name, self._gen_sym_predicate)
 
 
-    def set_doc(self, docstr: str) -> None:
+    def set_doc(self, docstr: str):
         """
         Python expects doc strings to be the first constant (followed
         immediately by None) in a code object's const pool.
@@ -2004,7 +1994,7 @@ class ExpressionCodeSpace(CodeSpace):
         return _find_compiled(self.env, namesym)
 
 
-def _list_unique_append(onto_list: List[symbol], value: symbol) -> int:
+def _list_unique_append(onto_list, value: symbol):
     # we have to manually loop and use the `is` operator, because the
     # list.index method will match False with 0 and True with 1, which
     # incorrectly collapses consts pools when both values are present
