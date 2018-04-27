@@ -7,9 +7,17 @@ python:
 
 install:
   - "pip install appdirs flake8"
+  - "sudo apt-get install -y gdb"
+
+before_script:
+  - "ulimit -c unlimited -S"
 
 script:
   - "python setup.py test flake8"
+
+after_failure:
+  - COREFILE=$(find . -maxdepth 1 -name "*core*" | head -n 1)
+  - if [[ -f "$COREFILE" ]] ; then gdb -c "$COREFILE" python -ex "thread apply all bt" -ex "set pagination 0" -batch; fi
 
 notifications:
   irc:
