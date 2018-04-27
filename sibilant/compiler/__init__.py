@@ -24,7 +24,6 @@ license: LGPL v.3
 
 
 import dis
-import sys
 import threading
 
 from abc import ABCMeta, abstractmethod
@@ -39,7 +38,8 @@ from types import CodeType
 
 from ..lib import (
     SibilantException, SibilantSyntaxError,
-    symbol, is_symbol, keyword, is_keyword,
+    symbol, is_symbol, gensym,
+    keyword, is_keyword,
     cons, nil, is_pair, is_proper,
     get_position, fill_position,
 )
@@ -268,7 +268,7 @@ def is_operator(obj):
     return isinstance(obj, Operator)
 
 
-class Opcode(Enum):
+class OpcodeEnum(Enum):
 
     def hasconst(self):
         return self.value in dis.hasconst
@@ -295,7 +295,7 @@ class Opcode(Enum):
         return dis.stack_effect(self.value, arg)
 
 
-Opcode = Opcode("Opcode", dis.opmap)
+Opcode = OpcodeEnum("Opcode", dis.opmap)
 
 
 # Python 3.6 has this in the enum module, but I support 3.5 so I'll
@@ -655,12 +655,9 @@ class CodeSpace(metaclass=ABCMeta):
 
         if parent:
             self.gen_label = parent.gen_label
-            self._gen_sym = parent._gen_sym
 
         else:
             self.gen_label = _label_generator()
-            gs = "gensym_%08x" % id(self)
-            self._gen_sym = _label_generator(gs + "_%02x")
 
 
     def __del__(self):
@@ -668,7 +665,6 @@ class CodeSpace(metaclass=ABCMeta):
         del self.parent
         del self.blocks
         del self.gen_label
-        del self._gen_sym
         self.consts.clear()
         del self.consts
 
@@ -879,21 +875,20 @@ class CodeSpace(metaclass=ABCMeta):
         self.tailcalls += 1
 
 
+    def _gen_sym_predicate(self, sym: symbol) -> bool:
+        sym = str(sym)
+        return (sym not in self.args and
+                sym not in self.fast_vars and
+                sym not in self.free_vars and
+                sym not in self.cell_vars and
+                sym not in self.global_vars)
+
+
     def gen_sym(self):
-        while True:
-            sym = self._gen_sym()
-            if sym in self.args or \
-               sym in self.fast_vars or \
-               sym in self.free_vars or \
-               sym in self.cell_vars or \
-               sym in self.global_vars:
-
-                continue
-            else:
-                return sym
+        return str(gensym(self._gen_sym_predicate))
 
 
-    def set_doc(self, docstr):
+    def set_doc(self, docstr: str) -> None:
         """
         Python expects doc strings to be the first constant (followed
         immediately by None) in a code object's const pool.
