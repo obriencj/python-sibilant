@@ -30,9 +30,12 @@ from sibilant.compiler import (
 )
 
 from . import (
-    compile_expr, make_accumulator, make_raise_accumulator,
+    compile_expr_bootstrap, make_accumulator, make_raise_accumulator,
     make_manager,
 )
+
+
+compile_expr = compile_expr_bootstrap
 
 
 class BinaryOperators(TestCase):
