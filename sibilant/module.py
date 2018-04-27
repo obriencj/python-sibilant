@@ -41,6 +41,7 @@ from os.path import split, getmtime, getsize
 from types import ModuleType
 
 from sibilant.compiler import Mode, code_space_for_version
+from sibilant.lib import symbol
 from sibilant.tco import trampoline, tailcall, tailcall_enable
 from sibilant.parse import default_reader, source_open, source_str
 
@@ -93,7 +94,7 @@ def init_module(module, source_stream,
     module.__stream__ = source_stream
 
     if builtins is None:
-        builtins = __import__("sibilant.builtins").builtins
+        import sibilant.builtins as builtins
     module.__builtins__ = builtins
 
     if reader:
@@ -318,13 +319,13 @@ def marshal_wrapper(code_objs, filename=None, mtime=0, source_size=0,
         codespace.pseudop_const(0)
         codespace.pseudop_const("exec_marshal_module")
         codespace.pseudop_build_tuple(1)
-        codespace.pseudop_import_name("sibilant.module")
-        codespace.pseudop_import_from("exec_marshal_module")
+        codespace.pseudop_import_name(symbol("sibilant.module"))
+        codespace.pseudop_import_from(symbol("exec_marshal_module"))
         codespace.pseudop_rot_two()
         codespace.pseudop_pop()
 
         # argument 1. globals()
-        codespace.pseudop_get_var("globals")
+        codespace.pseudop_get_var(symbol("globals"))
         codespace.pseudop_call(0)
 
         # argument 2. tuple(code_objs)

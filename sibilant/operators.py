@@ -982,8 +982,5 @@ def operator_format(code, source, tc=False):
     return None
 
 
-__all__ = tuple(__all__)
-
-
 #
 # The end.

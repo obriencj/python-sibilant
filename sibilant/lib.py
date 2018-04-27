@@ -17,7 +17,7 @@ from functools import partial
 
 import operator
 
-from ._types import symbol, keyword
+from ._types import symbol, keyword, gensym
 from ._types import pair, nil, cons, car, cdr, setcar, setcdr
 from ._types import build_unpack_pair
 from ._types import reapply
@@ -29,6 +29,9 @@ __all__ = (
     "SibilantException", "NotYetImplemented",
     "symbol", "is_symbol",
     "keyword", "is_keyword",
+
+    "gensym",
+    "lazygensym", "is_lazygensym",
 
     "pair", "cons", "nil",
     "car", "cdr", "setcar", "setcdr",
@@ -136,6 +139,12 @@ def fill_position(value, position, follow=True):
         value.fill_position(position, follow)
 
 
+def apply(fun, args=(), kwargs={}):
+    if is_pair(args):
+        args = args.unpack()
+    return fun(*args, **kwargs)
+
+
 def repeatedly(value):
     while True:
         yield value
@@ -144,13 +153,13 @@ def repeatedly(value):
 cadr = lambda c: car(cdr(c))  # noqa
 caddr = lambda c: car(reapply(cdr, c, 2))  # noqa
 cadddr = lambda c: car(reapply(cdr, c, 3))  # noqa
-caddddr = lambda c: car(repply(cdr, c, 4))  # noqa
-cadddddr = lambda c: car(repply(cdr, c, 5))  # noqa
-caddddddr = lambda c: car(repply(cdr, c, 6))  # noqa
-cadddddddr = lambda c: car(repply(cdr, c, 7))  # noqa
-caddddddddr = lambda c: car(repply(cdr, c, 8))  # noqa
-cadddddddddr = lambda c: car(repply(cdr, c, 9))  # noqa
-caddddddddddr = lambda c: car(repply(cdr, c, 10))  # noqa
+caddddr = lambda c: car(reapply(cdr, c, 4))  # noqa
+cadddddr = lambda c: car(reapply(cdr, c, 5))  # noqa
+caddddddr = lambda c: car(reapply(cdr, c, 6))  # noqa
+cadddddddr = lambda c: car(reapply(cdr, c, 7))  # noqa
+caddddddddr = lambda c: car(reapply(cdr, c, 8))  # noqa
+cadddddddddr = lambda c: car(reapply(cdr, c, 9))  # noqa
+caddddddddddr = lambda c: car(reapply(cdr, c, 10))  # noqa
 
 first = car
 second = cadr
@@ -177,6 +186,30 @@ def last(seq, empty=None):
     for val in iter(seq):
         pass
     return val
+
+
+class lazygensym(object):
+
+
+    def __init__(self, name=None, predicate=None):
+        self._name = name
+        self._predicate = predicate
+        self._symbol = None
+
+
+    def __call__(self):
+        sym = self._symbol
+        if sym is None:
+            sym = gensym(self._name, self._predicate)
+            self._symbol = sym
+        return sym
+
+
+    def __str__(self):
+        return str(self())
+
+
+is_lazygensym = TypePredicate("lazygensym?", lazygensym)
 
 
 #

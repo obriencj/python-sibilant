@@ -262,7 +262,8 @@ class Reader(object):
             if terminating:
                 self.terminating.append(c)
 
-        self._terms = "".join(self.terminating)
+        if terminating:
+            self._terms = "".join(self.terminating)
 
 
     def get_event_macro(self, char):

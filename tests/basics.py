@@ -41,6 +41,61 @@ class Object(object):
     pass
 
 
+class BuiltinDefun(TestCase):
+
+
+    def test_defun(self):
+        src = """
+        (defun add_8 (x) (+ x 8))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), None)
+
+        add_8 = env["add_8"]
+        self.assertTrue(callable(add_8))
+        self.assertEqual(add_8.__name__, "add_8")
+        self.assertEqual(add_8(1), 9)
+        self.assertEqual(add_8(2), 10)
+
+        stmt, env = compile_expr(src, add_8=None)
+        self.assertEqual(stmt(), None)
+
+        add_8 = env["add_8"]
+        self.assertTrue(callable(add_8))
+        self.assertEqual(add_8.__name__, "add_8")
+        self.assertEqual(add_8(1), 9)
+        self.assertEqual(add_8(2), 10)
+
+
+class BuiltinDefmacro(TestCase):
+
+
+    def test_defmacro(self):
+        src = """
+        (defmacro swap_test (a b c)
+          (cons c b a '()))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), None)
+
+        swap_test = env["swap_test"]
+        self.assertTrue(isinstance(swap_test, Macro))
+        self.assertTrue(is_macro(swap_test))
+        self.assertEqual(swap_test.__name__, "swap_test")
+
+        self.assertRaises(TypeError, swap_test, 1, 2, 3)
+
+        self.assertEqual(swap_test.expand(1, 2, 3),
+                         cons(3, 2, 1, nil))
+
+        src = """
+        (swap_test 'world 'hello cons)
+        """
+        # compiles to equivalent of (cons 'hello 'world)
+        stmt, env = compile_expr(src, swap_test=swap_test)
+        self.assertEqual(stmt(), cons(symbol("hello"), symbol("world")))
+
+
 class BuiltinsSetf(TestCase):
 
     def test_setf_var(self):

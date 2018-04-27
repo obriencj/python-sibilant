@@ -37,8 +37,11 @@ from sibilant.compiler import (
 )
 
 from . import (
-    Object, compile_expr, compile_expr_no_tco,
+    Object, compile_expr_bootstrap, compile_expr_no_tco,
 )
+
+
+compile_expr = compile_expr_bootstrap
 
 
 class TestCompiler(TestCase):
@@ -277,10 +280,12 @@ class KeywordArgs(TestCase):
 
     def test_macro_formals(self):
         src = """
-        (defmacro test (work for: '_ in: () when: True unless: True)
-          `(values work for in when unless))
+        (define test
+          (macro "test"
+            (function test (work for: '_ in: () when: True unless: True)
+               `(values work for in when unless))))
 
-        (test (+ a 5) a in seq))
+        (test (+ a 5) a in seq)
         """
         stmt, env = compile_expr(src, seq=(1, 2, 3))
         res = stmt()
@@ -289,7 +294,7 @@ class KeywordArgs(TestCase):
 
     def test_formals(self):
 
-        compile_expr = compile_expr_no_tco
+        # compile_expr = compile_expr
 
         src = """
         (lambda (a b c)
