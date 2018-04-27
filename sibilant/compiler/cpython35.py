@@ -28,6 +28,8 @@ from . import (
     gather_parameters,
 )
 
+from ..lib import symbol
+
 
 class CPython35(ExpressionCodeSpace):
     """
@@ -470,13 +472,14 @@ class CPython35(ExpressionCodeSpace):
             # free/cell vars and provide them.
 
             for f in code.co_freevars:
-                if f in self.cell_vars:
-                    fi = self.cell_vars.index(f)
-                elif f in self.free_vars:
+                fsym = symbol(f)
+                if fsym in self.cell_vars:
+                    fi = self.cell_vars.index(fsym)
+                elif fsym in self.free_vars:
                     fi = len(self.cell_vars)
-                    fi += self.free_vars.index(f)
+                    fi += self.free_vars.index(fsym)
                 else:
-                    assert False, "missing local var %r" % f
+                    assert False, "missing local var %r" % fsym
 
                 yield _Opcode.LOAD_CLOSURE, fi, 0
 
