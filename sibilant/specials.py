@@ -618,7 +618,7 @@ def special_with(code, source, tc=False):
     # binding = str(binding)
     code.declare_var(binding)
 
-    storage = code.gen_sym("with")
+    storage = code.gensym("with")
     code.declare_var(storage)
 
     with code.block_with(expr):
@@ -893,7 +893,7 @@ def special_while(code, source, tc=False):
     except ValueError:
         raise code.error("too few arguments to while", source)
 
-    storage = code.gen_sym()
+    storage = code.gensym("while")
     code.declare_var(storage)
 
     # initial value, just in case we never actually loop
@@ -944,7 +944,7 @@ def special_for_each(code, source, tc=False):
     if not is_nil(rest):
         raise code.error("too many arguments to for-each", source)
 
-    storage = code.gen_sym()
+    storage = code.gensym("for-each")
     code.declare_var(storage)
 
     code.pseudop_const(None)
@@ -1343,7 +1343,7 @@ def special_try(code, source, tc=False):
 
     ca, act_else, act_finally = _collect_catches(code, catches)
 
-    storage = code.gen_sym()
+    storage = code.gensym("try")
     code.declare_var(storage)
 
     if act_finally:
@@ -1819,12 +1819,6 @@ def special_import_from(code, source, tc=False):
     code.pseudop_build_tuple(len(members))
 
     return None
-
-
-# --- and finally clean up ---
-
-
-__all__ = tuple(__all__)
 
 
 #

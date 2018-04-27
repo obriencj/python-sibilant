@@ -29,7 +29,9 @@ __all__ = (
     "SibilantException", "NotYetImplemented",
     "symbol", "is_symbol",
     "keyword", "is_keyword",
+
     "gensym",
+    "lazygensym", "is_lazygensym",
 
     "pair", "cons", "nil",
     "car", "cdr", "setcar", "setcdr",
@@ -184,6 +186,30 @@ def last(seq, empty=None):
     for val in iter(seq):
         pass
     return val
+
+
+class lazygensym(object):
+
+
+    def __init__(self, name=None, predicate=None):
+        self._name = name
+        self._predicate = predicate
+        self._symbol = None
+
+
+    def __call__(self):
+        sym = self._symbol
+        if sym is None:
+            sym = gensym(self._name, self._predicate)
+            self._symbol = sym
+        return sym
+
+
+    def __str__(self):
+        return str(self())
+
+
+is_lazygensym = TypePredicate("lazygensym?", lazygensym)
 
 
 #

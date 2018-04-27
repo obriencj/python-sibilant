@@ -35,10 +35,12 @@ from os.path import exists
 from platform import python_implementation
 from sys import version_info
 from types import CodeType
+from typing import Union
 
 from ..lib import (
     SibilantException, SibilantSyntaxError,
-    symbol, is_symbol, gensym,
+    symbol, is_symbol,
+    lazygensym,
     keyword, is_keyword,
     cons, nil, is_pair, is_proper,
     get_position, fill_position,
@@ -58,6 +60,9 @@ __all__ = (
     "Operator", "is_operator",
     "gather_formals", "gather_parameters",
 )
+
+
+Symbol = Union[lazygensym, symbol]
 
 
 _keyword_star = keyword("*")
@@ -875,7 +880,7 @@ class CodeSpace(metaclass=ABCMeta):
         self.tailcalls += 1
 
 
-    def _gen_sym_predicate(self, sym: symbol):
+    def _gensym_predicate(self, sym: symbol):
         # sym = str(sym)
         return (sym not in self.args and
                 sym not in self.fast_vars and
@@ -884,8 +889,12 @@ class CodeSpace(metaclass=ABCMeta):
                 sym not in self.global_vars)
 
 
-    def gen_sym(self, name=None):
-        return gensym(name, self._gen_sym_predicate)
+    def gensym(self, name=None):
+        """
+        produces a deferral which will turn into a gensym call
+        """
+
+        return lazygensym(name, self._gensym_predicate)
 
 
     def set_doc(self, docstr: str):
@@ -969,13 +978,13 @@ class CodeSpace(metaclass=ABCMeta):
         _list_unique_append(self.consts, value)
 
 
-    def declare_var(self, namesym: symbol):
+    def declare_var(self, namesym: Symbol):
         """
         Declare a local variable by name
         """
 
         # name = str(namesym)
-        assert is_symbol(namesym)
+        # assert is_symbol(namesym)
 
         if self.mode is Mode.MODULE:
             return self.request_global(namesym)
@@ -985,7 +994,7 @@ class CodeSpace(metaclass=ABCMeta):
                 _list_unique_append(self.fast_vars, namesym)
 
 
-    def request_var(self, namesym: symbol):
+    def request_var(self, namesym: Symbol):
         """
         State that this code space wants to consume a var by name.
 
@@ -997,7 +1006,7 @@ class CodeSpace(metaclass=ABCMeta):
         reference.
         """
 
-        assert is_symbol(namesym)
+        # assert is_symbol(namesym)
 
         # name = str(name)
         if (namesym in self.fast_vars) or \
@@ -1022,15 +1031,15 @@ class CodeSpace(metaclass=ABCMeta):
                 self.request_global(namesym)
 
 
-    def request_global(self, namesym: symbol):
-        assert is_symbol(namesym)
+    def request_global(self, namesym: Symbol):
+        # assert is_symbol(namesym)
 
         _list_unique_append(self.global_vars, namesym)
         _list_unique_append(self.names, namesym)
 
 
-    def request_cell(self, namesym: symbol):
-        assert is_symbol(namesym)
+    def request_cell(self, namesym: Symbol):
+        # assert is_symbol(namesym)
 
         if namesym in self.global_vars:
             # no, we won't provide a cell for a global
@@ -1063,8 +1072,8 @@ class CodeSpace(metaclass=ABCMeta):
             return False
 
 
-    def request_name(self, namesym: symbol):
-        assert is_symbol(namesym)
+    def request_name(self, namesym: Symbol):
+        # assert is_symbol(namesym)
 
         _list_unique_append(self.names, namesym)
 
@@ -1086,7 +1095,7 @@ class CodeSpace(metaclass=ABCMeta):
             offset = -1
 
         varname = self.args[offset]
-        assert (is_symbol(varname))
+        # assert (is_symbol(varname))
 
         if self.declared_at:
             self.pseudop_position(*self.declared_at)
@@ -1124,20 +1133,20 @@ class CodeSpace(metaclass=ABCMeta):
             pass
 
 
-    def pseudop_get_attr(self, namesym: symbol):
-        assert is_symbol(namesym)
+    def pseudop_get_attr(self, namesym: Symbol):
+        # assert is_symbol(namesym)
         self.request_name(namesym)
         self.pseudop(Pseudop.GET_ATTR, namesym)
 
 
-    def pseudop_set_attr(self, namesym: symbol):
-        assert is_symbol(namesym)
+    def pseudop_set_attr(self, namesym: Symbol):
+        # assert is_symbol(namesym)
         self.request_name(namesym)
         self.pseudop(Pseudop.SET_ATTR, namesym)
 
 
-    def pseudop_del_attr(self, namesym: symbol):
-        assert is_symbol(namesym)
+    def pseudop_del_attr(self, namesym: Symbol):
+        # assert is_symbol(namesym)
         self.request_name(namesym)
         self.pseudop(Pseudop.DEL_ATTR, namesym)
 
@@ -1185,35 +1194,35 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop(Pseudop.CONST, val)
 
 
-    def pseudop_set_local(self, namesym: symbol):
+    def pseudop_set_local(self, namesym: Symbol):
         """
         Declares var as local, assigns TOS to is
         """
-        assert is_symbol(namesym)
+        # assert is_symbol(namesym)
         self.declare_var(namesym)
         self.pseudop(Pseudop.SET_LOCAL, namesym)
 
 
-    def pseudop_get_var(self, namesym: symbol):
+    def pseudop_get_var(self, namesym: Symbol):
         """
         Pushes a pseudo op to load a named value
         """
-        assert is_symbol(namesym)
+        # assert is_symbol(namesym)
         self.request_var(namesym)
         self.pseudop(Pseudop.GET_VAR, namesym)
 
 
-    def pseudop_set_var(self, namesym: symbol):
+    def pseudop_set_var(self, namesym: Symbol):
         """
         Pushes a pseudo op to assign to a named value
         """
-        assert is_symbol(namesym)
+        # assert is_symbol(namesym)
         self.request_var(namesym)
         self.pseudop(Pseudop.SET_VAR, namesym)
 
 
-    def pseudop_del_var(self, namesym: symbol):
-        assert is_symbol(namesym)
+    def pseudop_del_var(self, namesym: Symbol):
+        # assert is_symbol(namesym)
         self.request_var(namesym)
         self.pseudop(Pseudop.DEL_VAR, namesym)
 
@@ -1268,23 +1277,23 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop(Pseudop.YIELD_FROM)
 
 
-    def pseudop_get_global(self, namesym: symbol):
-        assert is_symbol(namesym)
+    def pseudop_get_global(self, namesym: Symbol):
+        # assert is_symbol(namesym)
         self.request_global(namesym)
         self.pseudop(Pseudop.GET_GLOBAL, namesym)
 
 
-    def pseudop_set_global(self, namesym: symbol):
+    def pseudop_set_global(self, namesym: Symbol):
         """
         Pushes a pseudo op to globally define TOS to name
         """
-        assert is_symbol(namesym)
+        # assert is_symbol(namesym)
         self.request_global(namesym)
         self.pseudop(Pseudop.SET_GLOBAL, namesym)
 
 
-    def pseudop_del_global(self, namesym: symbol):
-        assert is_symbol(namesym)
+    def pseudop_del_global(self, namesym: Symbol):
+        # assert is_symbol(namesym)
         self.request_global(namesym)
         self.pseudop(Pseudop.DEL_GLOBAL, namesym)
 
@@ -1361,14 +1370,14 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop(Pseudop.BUILD_MAP_UNPACK, count)
 
 
-    def pseudop_import_name(self, namesym: symbol):
-        assert is_symbol(namesym)
+    def pseudop_import_name(self, namesym: Symbol):
+        # assert is_symbol(namesym)
         self.request_name(namesym)
         self.pseudop(Pseudop.IMPORT_NAME, namesym)
 
 
-    def pseudop_import_from(self, namesym: symbol):
-        assert is_symbol(namesym)
+    def pseudop_import_from(self, namesym: Symbol):
+        # assert is_symbol(namesym)
         self.request_name(namesym)
         self.pseudop(Pseudop.IMPORT_FROM, namesym)
 
@@ -1929,7 +1938,7 @@ class ExpressionCodeSpace(CodeSpace):
         The various ways that a symbol on its own can evaluate.
         """
 
-        assert (is_symbol(sym))
+        # assert (is_symbol(sym))
 
         self.require_active()
 
@@ -1990,7 +1999,7 @@ class ExpressionCodeSpace(CodeSpace):
                                    filename=self.filename)
 
 
-    def find_compiled(self, namesym: symbol):
+    def find_compiled(self, namesym: Symbol):
         return _find_compiled(self.env, namesym)
 
 
@@ -2321,7 +2330,7 @@ def unpack_formals(args, kwds,
     return args, var, kwds, (kwvar if kwvariadic else None)
 
 
-def _find_compiled(env, namesym: symbol):
+def _find_compiled(env, namesym: Symbol):
     # okay, let's look through the environment by name
     name = str(namesym)
 
