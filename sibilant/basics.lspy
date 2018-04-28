@@ -630,90 +630,81 @@
 ;; === some simple converters ===
 
 
-(let [[pair_? pair?]
-      [len_ len]
-      [tuple_ tuple]
-      [list_ list]
-      [set_ set]]
+(defun as-tuple [value]
+  """
+  (as-tuple VALUE)
 
-  (defun as-tuple [value]
-    """
-    (as-tuple VALUE)
+  Converts VALUE to a tuple. If VALUE is a cons pair, will unpack
+  it. Otherwise, VALUE will be iterated over and its contents
+  collected.
+  """
 
-    Converts VALUE to a tuple. If VALUE is a cons pair, will unpack
-    it. Otherwise, VALUE will be iterated over and its contents
-    collected.
-    """
-
-    (tuple_
-     (if (pair_? value)
-	 then: (value.unpack)
-	 else: value)))
+  (tuple
+   (if (pair? value)
+       then: (value.unpack)
+       else: value)))
 
 
-  (defun as-list [value]
-    """
-    (as-list VALUE)
+(defun as-list [value]
+  """
+  (as-list VALUE)
 
-    Converts VALUE to a list. If VALUE is a cons pair, will unpack
-    it. Otherwise, VALUE will be iterated over and its contents
-    collected.
-    """
+  Converts VALUE to a list. If VALUE is a cons pair, will unpack
+  it. Otherwise, VALUE will be iterated over and its contents
+  collected.
+  """
 
-    (list_
-     (if (pair_? value)
-	 then: (value.unpack)
-	 else: value)))
-
-
-  (defun as-set [value]
-    """
-    (as-set VALUE)
-
-    Converts VALUE to a set. If VALUE is a cons pair, will unpack
-    it. Otherwise, VALUE will be iterated over and its contents
-    collected.
-    """
-
-    (set_
-     (if (pair_? value)
-	 then: (value.unpack)
-	 else: value)))
+  (list
+   (if (pair? value)
+       then: (value.unpack)
+       else: value)))
 
 
-  (defun length [value]
-    """
-    (length VALUE)
+(defun as-set [value]
+  """
+  (as-set VALUE)
 
-    The number of items in VALUE. If VALUE is a cons pair, will unpack
-    it. Otherwise, identical to (len VALUE)
-    """
-    (if (pair_? value)
-	then: (value.length)
-	else: (len_ value)))
+  Converts VALUE to a set. If VALUE is a cons pair, will unpack
+  it. Otherwise, VALUE will be iterated over and its contents
+  collected.
+  """
 
-
-  (defun apply [fun arglist: (#tuple) kwargs: (#dict)]
-    """
-    (apply FUN)
-    (apply FUN arglist: POSITIONALS)
-    (apply FUN kwargs: KEYWORDS)
-    (apply FUN arglist: POSITIONALS kwargs: KEYWORDS)
-
-    Invokes FUN as a function, with optional iterable POSITIONALS as
-    positional arguments, and optional mapping KEYWORDS as keyword
-    arguments.
-
-    If POSITIONALS is a a cons pair, it will be unpacked instead of
-    iterated.
-    """
-
-    (when (pair_? arglist)
-      (setq arglist (arglist.unpack)))
-    (fun *: arglist **: kwargs))
+  (set
+   (if (pair? value)
+       then: (value.unpack)
+       else: value)))
 
 
-  None)
+(defun length [value]
+  """
+  (length VALUE)
+
+  The number of items in VALUE. If VALUE is a cons pair, will unpack
+  it. Otherwise, identical to (len VALUE)
+  """
+  (if (pair? value)
+      then: (value.length)
+      else: (len value)))
+
+
+(defun apply [fun arglist: (#tuple) kwargs: (#dict)]
+  """
+  (apply FUN)
+  (apply FUN arglist: POSITIONALS)
+  (apply FUN kwargs: KEYWORDS)
+  (apply FUN arglist: POSITIONALS kwargs: KEYWORDS)
+
+  Invokes FUN as a function, with optional iterable POSITIONALS as
+  positional arguments, and optional mapping KEYWORDS as keyword
+  arguments.
+
+  If POSITIONALS is a a cons pair, it will be unpacked instead of
+  iterated.
+  """
+
+  (when (pair? arglist)
+    (setq arglist (arglist.unpack)))
+  (fun *: arglist **: kwargs))
 
 
 ;; === Have some MATH ===
@@ -738,7 +729,7 @@
   (def import-from sibilant.parse
        [default_reader as: reader] source_str)
 
-  (define fmt_re
+  (define fmt-re
     (regex "(
     (\\n\\r|\\n)
     |{{
@@ -747,14 +738,14 @@
          |\\(.*\\))(\\!.)?([^}]+)?)}
     )" (+ UNICODE VERBOSE)))
 
-  (def function parse_source [src_str]
-       (reader.read (source_str src_str "<format string>")))
+  (def function parse-source [src-str]
+       (reader.read (source_str src-str "<format string>")))
 
   (defmacro #fmt [text . rest]
     (var [result (#list)]
 	 [offset 0])
 
-    (for-each [f (fmt_re.finditer text)]
+    (for-each [f (fmt-re.finditer text)]
         (define-values [start stop] (f.span))
 	(result.append (item-slice text offset start))
 	(setq offset stop)
@@ -765,7 +756,7 @@
 	(if (contains (#tuple "{{" "}}" "\n" "\n\r") c)
 	    then: (result.append (item c 0))
 	    else:
-	    { (var [expr (parse_source (item g 2))]
+	    { (var [expr (parse-source (item g 2))]
 		   [conv (item g 3)]
 		   [fmt (item g 4)])
 
@@ -790,7 +781,7 @@
 			then: `(format ,expr ,fmt)
 			else: `(format ,expr)))
 
-	      (result.append expr)}))
+	      (result.append expr) }))
 
     (result.append (item-slice text offset))
 
