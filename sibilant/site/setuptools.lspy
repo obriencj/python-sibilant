@@ -1,3 +1,9 @@
 
 
-(def import-from setuptools setup Extension)
+(def import-from setuptools
+     [setup as: run-setup] Extension)
+
+
+(defmacro setup parameters
+
+  `(when-main (run-setup setup-data)))

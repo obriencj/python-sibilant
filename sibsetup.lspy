@@ -1,4 +1,4 @@
-#! /usr/bin/env python3 -m sibilant
+#! /usr/bin/env sibilant
 
 
 ;; This library is free software; you can redistribute it and/or modify
@@ -16,79 +16,79 @@
 ;; <http://www.gnu.org/licenses/>.
 
 
-"
+"""
 Sibilant, a LISP for Python
 
 :author: Christopher O'Brien  <obriencj@gmail.com>
 :license: LGPL v.3
-"
+"""
 
 
-(def import-from sibilant.site.setuptools setup Extension)
+(def import-from sibilant.site.setuptools defpackage)
 
 
-(define setup_data
-  (values
-   name: "sibilant"
-   version: "0.9.0"
+(defpackage sibilant "0.9.0"
 
-   packages:
-   (#list
-    "sibilant"
+  packages:
+  [ "sibilant"
     "sibilant.compiler"
-    "sibilant.site")
+    "sibilant.site" ]
 
-   package_data:
-   (#dict
-    ("sibilant" (#list "*.lspy"))
-    ("sibilant.site" (#list "*.lspy")))
+  package_data:
+  [ ["sibilant" ("*.lspy")] ]
 
-   ext_modules:
-   (#list
-    (Extension name: "sibilant._tco"
-	       sources: (#list "sibilant/_tco.c")
-	       extra_compile_args: (#list "--std=c99"))
-    (Extension name: "sibilant._types"
-	       sources: (#list "sibilant/_types.c")
-	       include_dirs: (#list "include")
-	       extra_compile_args: (#list "--std=c99")))
+  ext_modules:
+  [ ["sibilant._tco"
+     sources: (#list "sibilant/_tco.c")
+     extra_compile_args: (#list "--std=c99")]
 
-   headers:
-   (#list
-    "include/py3-sibilant.h")
+    ["sibilant._types"
+     sources: (#list "sibilant/_types.c")
+     include_dirs: (#list "include")
+     extra_compile_args: (#list "--std=c99")] ]
 
-   test_suite: "tests"
+  headers:
+  [ "include/py3-sibilant.h" ]
 
-   entry_points:
-   (dict
-    console_scripts: (#list "sibilant=sibilant.cli:main"))
+  test_suite:
+  "tests"
 
-   install_requires:
-   (#list "appdirs")
+  entry_points:
+  [ [console_scripts (#list "sibilant=sibilant.cli:main")] ]
 
-   python_requires: ">=3.5, <3.7"
+  install_requires:
+  [ "appdirs" ]
 
-   description: "LISP dialect for Python"
+  python_requires:
+  [ ">=3.5, <3.7" ]
 
-   author: "Christopher O'Brien"
-   author_email: "obriencj@gmail.com"
-   url: "https://github.com/obriencj/python-sibilant"
-   license: "GNU Lesser General Public License"
+  description: "LISP dialect for Python"
 
-   zip_safe: False
+  author: "Christopher O'Brien"
+  author_email: "obriencj@gmail.com"
+  url: "https://github.com/obriencj/python-sibilant"
+  license: "GNU Lesser General Public License"
 
-   classifiers:
-   (#list
-    "Intended Audience :: Developers"
+  zip_safe: False
+
+  classifiers:
+  [ "Intended Audience :: Developers"
     "Programming Language :: Python :: 3 :: Only"
     "Programming Language :: Python :: 3.5"
     "Programming Language :: Python :: 3.6"
     "Programming Language :: Python :: Implementation :: CPython"
-    "Topic :: Software Development")))
+    "Topic :: Software Development" ]
 
+  sub_packages:
+  [ [defpackage sibilant-life "0.9.0"
+      [from: "examples/sibilant-life/package.lspy"]]
 
-(when-main
- (setup_data setup))
+    [defpackage sibilant-setuptools "0.9.0"
+      [ packages:
+	[ "sibilant.site.setuptools" ]
+	package_data:
+	[ "sibilant.site.setuptools" ["sibilant/site/setuptools.lspy"] ]]]
+    ])
 
 
 ;;
