@@ -151,11 +151,11 @@
 	  (for-each [[key value] (self.tracked cleanup: False)]
 		    (setq-values [x y] key)
 		    (setf (item dat key) (life-rule (self.get-group x y)))
-		    (followup.update (set (self.group-coord x y))))
+		    (followup.update (self.group-coord x y)))
 
 	  ;; cut out the cells we've already processed from the
 	  ;; followup coordinates
-	  (followup.difference_update (set (self.data.keys)))
+	  (followup.difference_update (self.data.keys))
 
 	  ;; for each of the followup coordinates, calculate if it's
 	  ;; alive or not.
@@ -175,8 +175,7 @@
 
 	  (define kid (copy self))
 	  (kid.age)
-	  kid)
-     )
+	  kid) )
 
 
 (def function life-rule [group]
@@ -187,17 +186,16 @@
      (setq group (tuple group))
 
      ;; state of the center of the group
-     (define center (item group 4))
+     (var [center (item group 4)]
+	  [living 0])
 
-     ;; count of living members of the group
-     (define living (reduce (lambda (accu val)
-			      (if val then: (+ 1 accu) else: accu))
-			    group 0))
+     ;; reduce is cool and all, but all those function calls hurt.
+     (for-each [val group] (when val (incr living)))
 
      (if center
-	 then: (if (or (< living 3) (> living 4))
-		   then: 0
-		   else: (min (+ center 1) 9))
+	 then: (if (within? 3 5 living)
+		   then: (min (+ center 1) 9)
+		   else: 0)
 	 else: (if (== living 3)
 		   then: 1
 		   else: 0)))
