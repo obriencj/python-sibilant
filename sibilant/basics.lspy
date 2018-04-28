@@ -112,6 +112,12 @@
 	 (else: ,@body)))
 
 
+;; === alternative looping ===
+
+(defmacro until [test . body]
+  `(while (not ,test) ,@body))
+
+
 ;; === easier attr calling ===
 
 (defmacro ! [member inst_expr . args]
@@ -132,7 +138,6 @@
 
 
 ;; === simple checks ===
-
 
 (defmacro None? [value]
   `(is None ,value))
