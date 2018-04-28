@@ -911,7 +911,7 @@ def collapse_build_str(seq):
         else:
             if tmp:
                 yield "".join(tmp)
-                tmp.clear()
+                tmp = []
             if part:
                 yield part
 
@@ -935,17 +935,16 @@ def operator_build_str(code, source, tc=False):
 
     # first collapse neighboring string literals together.
     parts = list(collapse_build_str(items.unpack()))
-
-    # if there's nothing left but one string, then return that as a
-    # single literal value instead.
-    if len(parts) == 1 and type(parts[0]) is str:
-        code.pseudop_const(parts[0])
-        return None
-
     for part in parts:
         code.add_expression(part)
 
-    code.pseudop_build_str(len(parts))
+    lp = len(parts)
+    if lp > 1:
+        code.pseudop_build_str(lp)
+    elif lp == 1:
+        pass
+    else:
+        code.pseudop_const("")
 
     return None
 
