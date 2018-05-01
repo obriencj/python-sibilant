@@ -170,7 +170,9 @@
 
   slices a sequence, with optional start, stop, and step parameters
   "
-  `(item ,sequence (slice ,start ,stop ,step)))
+  (if (== step 1)
+      then: `(item ,sequence (#slice ,start ,stop))
+      else: `(item ,sequence (#slice ,start ,stop ,step))))
 
 
 ;; === compose raise and exception initializing
