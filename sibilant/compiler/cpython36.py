@@ -306,6 +306,9 @@ class CPython36(ExpressionCodeSpace):
             elif op is _Pseudop.BUILD_SET:
                 yield _Opcode.BUILD_SET, args[0]
 
+            elif op is _Pseudop.BUILD_SLICE:
+                yield _Opcode.BUILD_SLICE, args[0]
+
             elif op is _Pseudop.BUILD_STR:
                 yield _Opcode.BUILD_STRING, args[0]
 
