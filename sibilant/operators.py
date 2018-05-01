@@ -54,6 +54,7 @@ _symbol_bit_xor_ = symbol("^")
 _symbol_build_dict = symbol("build-dict")
 _symbol_build_list = symbol("build-list")
 _symbol_build_set = symbol("build-set")
+_symbol_build_slice = symbol("build-slice")
 _symbol_build_str = symbol("build-str")
 _symbol_build_tuple = symbol("build-tuple")
 _symbol_contains = symbol("contains")
@@ -72,6 +73,7 @@ _symbol_gt_ = symbol(">")
 _symbol_hash_dict = symbol("#dict")
 _symbol_hash_list = symbol("#list")
 _symbol_hash_set = symbol("#set")
+_symbol_hash_slice = symbol("#slice")
 _symbol_hash_str = symbol("#str")
 _symbol_hash_tuple = symbol("#tuple")
 _symbol_in = symbol("in")
@@ -945,6 +947,40 @@ def operator_build_str(code, source, tc=False):
         pass
     else:
         code.pseudop_const("")
+
+    return None
+
+
+@operator(_symbol_build_slice, slice, _symbol_hash_slice)
+def operator_build_slice(code, source, tc=False):
+    """
+    (build-slice START STOP)
+    (build-slice START STOP STEP)
+
+    Create a slice object.
+    """
+
+    try:
+        called_by, (start, (stop, rest)) = source
+    except ValueError:
+        raise code.error("too few arguments to slice", source)
+
+    if rest:
+        step, rest = rest
+    else:
+        step = None
+
+    if rest:
+        raise code.error("too many arguments to slice", source)
+
+    code.add_expression(start)
+    code.add_expression(stop)
+
+    if step is not None:
+        code.add_expression(step)
+        code.pseudop_build_slice(3)
+    else:
+        code.pseudop_build_slice(2)
 
     return None
 

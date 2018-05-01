@@ -328,6 +328,7 @@ class Pseudop(Enum):
     BUILD_MAP = _auto()
     BUILD_MAP_UNPACK = _auto()
     BUILD_SET = _auto()
+    BUILD_SLICE = _auto()
     BUILD_STR = _auto()
     BUILD_TUPLE = _auto()
     BUILD_TUPLE_UNPACK = _auto()
@@ -1346,6 +1347,11 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop(Pseudop.FORMAT, flags)
 
 
+    def pseudop_build_slice(self, count):
+        # assert (1 < count < 4)
+        self.pseudop(Pseudop.BUILD_SLICE, count)
+
+
     def pseudop_build_tuple(self, count):
         self.pseudop(Pseudop.BUILD_TUPLE, count)
 
@@ -1561,11 +1567,10 @@ class CodeSpace(metaclass=ABCMeta):
             pop(2)
             push()
 
-        elif op is _Pseudop.RAISE:
+        elif op in (_Pseudop.RAISE,
+                    _Pseudop.BUILD_SLICE):
             pop(args[0])
-            # for the sake of counting, let's just pretend that raise
-            # evaluates to something.
-            push()
+            push()   # we pretend RAISE evaluates to something
 
         elif op is _Pseudop.FAUX_PUSH:
             push(args[0])
