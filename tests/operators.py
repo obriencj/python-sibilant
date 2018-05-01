@@ -2084,6 +2084,22 @@ class TypeBuilders(TestCase):
         self.assertEqual(res(" "), "ab c")
 
 
+    def test_build_slice(self):
+        src = """
+        (#slice 0 1)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, slice(0, 1))
+
+        src = """
+        (#slice 0 1 -1)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, slice(0, 1, -1))
+
+
 class Format(TestCase):
 
     def test_format(self):
