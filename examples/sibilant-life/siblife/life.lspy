@@ -81,7 +81,7 @@
 	      then: (for-each [item (list (data.items))]
 			      (yield item)
 			      (setq-values (coord cell) item)
-			      (unless cell (data.pop coord)))
+			      (unless cell (del-item data coord)))
 	      else: (yield-from (data.items))))
 
 
