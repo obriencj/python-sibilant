@@ -481,6 +481,7 @@ def operator_del_item(code, source, tc=False):
     """
 
     _helper_binary(code, source, code.pseudop_del_item)
+    code.pseudop_const(None)
 
 
 @operator(_symbol_pow, pyop.pow, _symbol_pow_)
