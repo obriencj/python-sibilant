@@ -1286,9 +1286,9 @@ class SpecielYieldFrom(TestCase):
                                      (2, 3), (1, 4), (0, 5)])
 
 
-class Delq(TestCase):
+class SetqDelq(TestCase):
 
-    def test_delq_closure(self):
+    def test_setq_delq_closure(self):
         src = """
         (let [[data 123]]
           (define-global set-data (function set-data [value]
@@ -1322,7 +1322,7 @@ class Delq(TestCase):
         self.assertRaises(NameError, getdata)
 
 
-    def test_delq_global(self):
+    def test_setq_delq_global(self):
         src = """
         (let []
           (define-global set-data (function set-data [value]
@@ -1358,6 +1358,41 @@ class Delq(TestCase):
         self.assertEqual(deldata(), None)
         self.assertRaises(NameError, getdata)
         self.assertEqual(env.get("data", None), None)
+
+
+class Attr(TestCase):
+
+
+    def test_attr(self):
+
+        src = """
+        (let [[data (Object)]]
+          (define-global set-data (function set-data [value]
+             (set-attr data sample value)))
+          (define-global del-data (function del-data []
+             (del-attr data sample)))
+          (define-global get-data (function get-data []
+             (attr data sample)))
+          data)
+        """
+        stmt, env = compile_expr(src, Object=Object)
+        data = stmt()
+
+        setdata = env["set-data"]
+        getdata = env["get-data"]
+        deldata = env["del-data"]
+
+        self.assertFalse(hasattr(data, "sample"))
+        self.assertRaises(AttributeError, getdata)
+
+        self.assertEqual(setdata(123), None)
+        self.assertTrue(hasattr(data, "sample"))
+        self.assertEqual(getdata(), 123)
+        self.assertEqual(data.sample, 123)
+
+        self.assertEqual(deldata(), None)
+        self.assertFalse(hasattr(data, "sample"))
+        self.assertRaises(AttributeError, getdata)
 
 
 #

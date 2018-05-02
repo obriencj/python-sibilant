@@ -245,7 +245,7 @@ def special_set_attr(code, source, tc=False):
     code.pseudop_rot_two()
     code.pseudop_set_attr(member)
 
-    # make setf calls evaluate to None
+    # make set-attr calls evaluate to None
     code.pseudop_const(None)
 
     # no further transformations
@@ -274,6 +274,9 @@ def special_del_attr(code, source, tc=False):
     code.pseudop_position_of(source)
     code.add_expression(obj)
     code.pseudop_del_attr(member)
+
+    # make del-attr calls evaluate to None
+    code.pseudop_const(None)
 
     # no further transformations
     return None
