@@ -203,10 +203,11 @@
 
 ;; === setf and general variables ===
 
-(let [[*gv-forms* (#dict)]]
+(let [[*gv-set-forms* (#dict)]
+      [*gv-del-forms* (#dict)]]
 
   (defun gv-define-setter-fn [name fn]
-    (set-item *gv-forms* name fn)
+    (set-item *gv-set-forms* name fn)
     None)
 
   (defmacro gv-define-setter [name formals . body]
@@ -223,7 +224,7 @@
     ;; since sibilant is designed to expand macros lazily, we need to
     ;; jump ahead a bit and make sure that our target gets expanded
     ;; right now so that we can find the right dispatch method.
-    (setq target (macroexpandq None target))
+    (setq target (macroexpandq (globals) target))
 
     (cond
      [(symbol? target)
@@ -232,11 +233,45 @@
 		  `(set-attr ,(item spltrgt 0) ,(item spltrgt 1) ,value) }
 	  else:	`(setq ,target ,value))]
 
-     [(and (proper? target) (contains *gv-forms* (car target)))
-      ((item *gv-forms* (car target)) (cdr target) value)]
+     [(and (proper? target) (contains *gv-set-forms* (car target)))
+      ((item *gv-set-forms* (car target)) (cdr target) value)]
 
      [else:
       (raise! Exception (% "invalid setf target %s" target))]))
+
+
+  (defun gv-define-del-fn [name fn]
+    (set-item *gv-del-forms* name fn)
+    None)
+
+  (defmacro gv-define-del [name formals . body]
+    `(gv-define-del-fn
+      ',name
+      (lambda ,formals ,@body)))
+
+  (defmacro gv-define-simple-del [name del]
+    `(gv-define-del
+      ,name (dest) `(,',del ,@dest)))
+
+  (defmacro delf [target]
+
+    ;; since sibilant is designed to expand macros lazily, we need to
+    ;; jump ahead a bit and make sure that our target gets expanded
+    ;; right now so that we can find the right dispatch method.
+    (setq target (macroexpandq (globals) target))
+
+    (cond
+     [(symbol? target)
+      (if (contains (str target) ".")
+	  then: { (define spltrgt (target.rsplit "." 1))
+		  `(del-attr ,(item spltrgt 0) ,(item spltrgt 1)) }
+	  else:	`(delq ,target))]
+
+     [(and (proper? target) (contains *gv-del-forms* (car target)))
+      ((item *gv-del-forms* (car target)) (cdr target))]
+
+     [else:
+      (raise! Exception (% "invalid delf target %s" target))]))
 
   None)
 
@@ -245,8 +280,12 @@
 (gv-define-simple-setter car set-car)
 (gv-define-simple-setter cdr set-cdr)
 (gv-define-simple-setter item set-item)
-(gv-define-simple-setter global define-global)
+(gv-define-simple-setter global setq-global)
 (gv-define-setter caar [val x] `(set-car (car ,x) ,val))
+
+(gv-define-simple-del attr del-attr)
+(gv-define-simple-del item del-item)
+(gv-define-simple-del global delq-global)
 
 
 ;; === def general targets ===
