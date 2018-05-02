@@ -43,6 +43,10 @@ from . import (
 compile_expr = compile_expr_bootstrap
 
 
+class Object(object):
+    pass
+
+
 class Lambda(TestCase):
 
     def test_lambda(self):
@@ -1280,6 +1284,80 @@ class SpecielYieldFrom(TestCase):
 
         self.assertEqual(list(res), [(5, 0), (4, 1), (3, 2),
                                      (2, 3), (1, 4), (0, 5)])
+
+
+class Delq(TestCase):
+
+    def test_delq_closure(self):
+        src = """
+        (let [[data 123]]
+          (define-global set-data (function set-data [value]
+             (setq data value)))
+          (define-global del-data (function del-data []
+             (delq data)))
+          (define-global get-data (function get-data []
+             data))
+          data)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertEqual(res, 123)
+
+        setdata = env["set-data"]
+        getdata = env["get-data"]
+        deldata = env["del-data"]
+
+        self.assertEqual(getdata(), 123)
+        self.assertEqual(setdata(321), None)
+        self.assertEqual(getdata(), 321)
+
+        self.assertEqual(deldata(), None)
+        self.assertRaises(NameError, getdata)
+
+        self.assertEqual(setdata(789), None)
+        self.assertEqual(getdata(), 789)
+        self.assertEqual(deldata(), None)
+
+        self.assertRaises(NameError, getdata)
+
+
+    def test_delq_global(self):
+        src = """
+        (let []
+          (define-global set-data (function set-data [value]
+             (setq data value)))
+          (define-global del-data (function del-data []
+             (delq data)))
+          (define-global get-data (function get-data []
+             data))
+          data)
+        """
+        stmt, env = compile_expr(src, data=123)
+        res = stmt()
+
+        self.assertEqual(res, 123)
+
+        setdata = env["set-data"]
+        getdata = env["get-data"]
+        deldata = env["del-data"]
+
+        self.assertEqual(getdata(), 123)
+        self.assertEqual(setdata(321), None)
+        self.assertEqual(getdata(), 321)
+        self.assertEqual(env.get("data", None), 321)
+
+        self.assertEqual(deldata(), None)
+        self.assertRaises(NameError, getdata)
+        self.assertEqual(env.get("data", None), None)
+
+        self.assertEqual(setdata(789), None)
+        self.assertEqual(getdata(), 789)
+        self.assertEqual(env.get("data", None), 789)
+
+        self.assertEqual(deldata(), None)
+        self.assertRaises(NameError, getdata)
+        self.assertEqual(env.get("data", None), None)
 
 
 #
