@@ -366,50 +366,6 @@ class CompilerSpecials(TestCase):
         self.assertEqual(env["tacos"], 100)
 
 
-    def test_define_global(self):
-        src = """
-        (define-global tacos 100)
-        """
-        stmt, env = compile_expr(src)
-        self.assertEqual(stmt(), None)
-        self.assertEqual(env["tacos"], 100)
-
-        src = """
-        (let ((beer 999))
-          (define-global tacos beer)
-          (define-global beer 777)
-          beer)
-        """
-        stmt, env = compile_expr(src, tacos=5)
-        self.assertEqual(stmt(), 999)
-        self.assertEqual(env["tacos"], 999)
-        self.assertEqual(env["beer"], 777)
-
-
-    def test_get_global(self):
-        src = """
-        (let ((tacos 100))
-          (global tacos))
-        """
-        stmt, env = compile_expr(src, tacos=5)
-        self.assertEqual(stmt(), 5)
-
-        src = """
-        (let ((tacos 100))
-          (+ (global tacos) tacos))
-        """
-        stmt, env = compile_expr(src, tacos=5)
-        self.assertEqual(stmt(), 105)
-
-        src = """
-        (let ((tacos 100))
-          (define-global tacos 90)
-          (+ (global tacos) tacos))
-        """
-        stmt, env = compile_expr(src, tacos=5)
-        self.assertEqual(stmt(), 190)
-
-
     def test_define(self):
         src = """
         (let ()
@@ -1393,6 +1349,82 @@ class Attr(TestCase):
         self.assertEqual(deldata(), None)
         self.assertFalse(hasattr(data, "sample"))
         self.assertRaises(AttributeError, getdata)
+
+
+class GlobalAccessors(TestCase):
+
+
+    def test_setq_global(self):
+        src = """
+        (define-global tacos 100)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), None)
+        self.assertEqual(env["tacos"], 100)
+
+        src = """
+        (let ((beer 999))
+          (define-global tacos beer)
+          (define-global beer 777)
+          beer)
+        """
+        stmt, env = compile_expr(src, tacos=5)
+        self.assertEqual(stmt(), 999)
+        self.assertEqual(env["tacos"], 999)
+        self.assertEqual(env["beer"], 777)
+
+        src = """
+        (setq-global tacos 100)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), None)
+        self.assertEqual(env["tacos"], 100)
+
+        src = """
+        (let ((beer 999))
+          (setq-global tacos beer)
+          (setq-global beer 777)
+          beer)
+        """
+        stmt, env = compile_expr(src, tacos=5)
+        self.assertEqual(stmt(), 999)
+        self.assertEqual(env["tacos"], 999)
+        self.assertEqual(env["beer"], 777)
+
+
+    def test_global(self):
+        src = """
+        (let ((tacos 100))
+          (global tacos))
+        """
+        stmt, env = compile_expr(src, tacos=5)
+        self.assertEqual(stmt(), 5)
+
+        src = """
+        (let ((tacos 100))
+          (+ (global tacos) tacos))
+        """
+        stmt, env = compile_expr(src, tacos=5)
+        self.assertEqual(stmt(), 105)
+
+        src = """
+        (let ((tacos 100))
+          (define-global tacos 90)
+          (+ (global tacos) tacos))
+        """
+        stmt, env = compile_expr(src, tacos=5)
+        self.assertEqual(stmt(), 190)
+
+
+    def test_delq_global(self):
+        src = """
+        (let ((tacos 100))
+          (delq-global tacos)
+          tacos)
+        """
+        stmt, env = compile_expr(src, tacos=5)
+        self.assertEqual(stmt(), 100)
+        self.assertTrue("tacos" not in env)
 
 
 #

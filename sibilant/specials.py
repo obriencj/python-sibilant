@@ -49,6 +49,7 @@ _symbol_define_global = symbol("define-global")
 _symbol_define_values = symbol("define-values")
 _symbol_del_attr = symbol("del-attr")
 _symbol_delq = symbol("delq")
+_symbol_delq_global = symbol("delq-global")
 _symbol_doc = symbol("doc")
 _symbol_for_each = symbol("for-each")
 _symbol_function = symbol("function")
@@ -63,6 +64,7 @@ _symbol_quote = symbol("quote")
 _symbol_return = symbol("return")
 _symbol_set_attr = symbol("set-attr")
 _symbol_setq = symbol("setq")
+_symbol_setq_global = symbol("setq-global")
 _symbol_setq_values = symbol("setq-values")
 _symbol_splice = symbol("unquote-splicing")
 _symbol_try = symbol("try")
@@ -289,7 +291,8 @@ def special_quote(code, source, tc=False):
 
     Returns FORM without evaluating it.
 
-    'FORM same as above
+    'FORM
+    Same as (quote FORM)
     """
 
     called_by, body = source
@@ -1643,7 +1646,7 @@ def special_global(code, source, tc=False):
     except ValueError:
         raise code.error("missing symbol for global lookup", source)
 
-    if rest is not nil:
+    if rest:
         raise code.error("extra values in global lookup", source)
 
     code.pseudop_position_of(source)
@@ -1652,10 +1655,35 @@ def special_global(code, source, tc=False):
     return None
 
 
-@special(_symbol_define_global)
+@special(_symbol_delq_global)
+def special_delq_global(code, source, tc=False):
+    """
+    (delq-global SYM)
+
+    Removes a binding from the global context.
+    """
+
+    try:
+        called_by, (binding, rest) = source
+    except ValueError:
+        raise code.error("missing symbol for delq-global", source)
+
+    if rest:
+        raise code.error("extra values in delq-global", source)
+
+    code.pseudop_position_of(source)
+    code.pseudop_del_global(binding)
+
+    code.pseudop_const(None)
+
+    return None
+
+
+@special(_symbol_define_global, _symbol_setq_global)
 def special_define_global(code, source, tc=False):
     """
     (define-global SYM EXPRESSION)
+    (setq-global SYM EXPRESSION)
 
     Defines or sets a value in global context. If EXPRESSION is
     omitted, it defaults to None.
@@ -1671,8 +1699,8 @@ def special_define_global(code, source, tc=False):
 
     if body:
         body, rest = body
-        if rest is not nil:
-            raise code.error("too many arguments to define", source)
+        if rest:
+            raise code.error("too many arguments to define-global", source)
 
         code.add_expression(body, False)
     else:
