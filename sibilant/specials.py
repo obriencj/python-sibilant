@@ -26,7 +26,7 @@ license: LGPL v.3
 
 from .lib import (
     symbol, is_symbol, keyword, is_keyword,
-    nil, is_nil, cons, cdr, is_pair, is_proper,
+    nil, is_nil, cons, is_pair, is_proper,
     get_position, fill_position,
 )
 
@@ -47,6 +47,8 @@ _symbol_continue = symbol("continue")
 _symbol_define = symbol("define")
 _symbol_define_global = symbol("define-global")
 _symbol_define_values = symbol("define-values")
+_symbol_del_attr = symbol("del-attr")
+_symbol_delq = symbol("delq")
 _symbol_doc = symbol("doc")
 _symbol_for_each = symbol("for-each")
 _symbol_function = symbol("function")
@@ -133,7 +135,7 @@ def _helper_keyword(code, kwd):
     Pushes the pseudo ops necessary to put a keyword on the stack
     """
 
-    code.pseudop_get_var(symbol("keyword"))
+    code.pseudop_get_global(symbol("keyword"))
     code.pseudop_const(str(kwd))
     code.pseudop_call(1)
     return None
@@ -144,7 +146,7 @@ def _helper_symbol(code, sym):
     Pushes the pseudo ops necessary to put a symbol on the stack
     """
 
-    code.pseudop_get_var(symbol("symbol"))
+    code.pseudop_get_global(symbol("symbol"))
     code.pseudop_const(str(sym))
     code.pseudop_call(1)
     return None
@@ -152,13 +154,13 @@ def _helper_symbol(code, sym):
 
 def _helper_nil(code):
     """
-    Pushes the pseud ops necessary to put a nil on the stack
+    Pushes the pseudo ops necessary to put a nil on the stack
     """
 
     # simple, but works. May want to do something other than a var
     # lookup in the future.
 
-    code.pseudop_get_var(symbol("nil"))
+    code.pseudop_get_global(symbol("nil"))
     return None
 
 
@@ -250,6 +252,33 @@ def special_set_attr(code, source, tc=False):
     return None
 
 
+@special(_symbol_del_attr)
+def special_del_attr(code, source, tc=False):
+    """
+    (del-attr OBJECT SYM)
+
+    deletes the attribute from an object
+    """
+
+    try:
+        called_by, (obj, (member, rest)) = source
+    except ValueError:
+        raise code.error("too few arguments to del-attr", source)
+
+    if rest:
+        raise code.error("too many arguments to del-attr", source)
+
+    if not is_symbol(member):
+        raise code.error("del-attr member must be a symbol", source)
+
+    code.pseudop_position_of(source)
+    code.add_expression(obj)
+    code.pseudop_del_attr(member)
+
+    # no further transformations
+    return None
+
+
 @special(_symbol_quote)
 def special_quote(code, source, tc=False):
     """
@@ -265,9 +294,9 @@ def special_quote(code, source, tc=False):
     if not body:
         code.error("Too fuew arguments to quote %s" % source, source)
 
-    body, _rest = body
+    body, rest = body
 
-    if _rest:
+    if rest:
         code.error("Too many arguments to quote %s" % source, source)
 
     code.pseudop_position_of(source)
@@ -1554,10 +1583,10 @@ def special_setq(code, source, tc=False):
 
     if not is_symbol(binding):
         raise code.error("assignment must be by symbolic name",
-                         cdr(source))
+                         source)
 
     value, rest = body
-    if not is_nil(rest):
+    if rest:
         raise code.error("extra values in assignment", source)
 
     if not is_pair(value):
@@ -1567,6 +1596,31 @@ def special_setq(code, source, tc=False):
     code.pseudop_set_var(binding)
 
     # set-var calls should evaluate to None
+    code.pseudop_const(None)
+
+    # no additional transform needed
+    return None
+
+
+@special(_symbol_delq)
+def special_delq(code, source, tc=False):
+    """
+    (delq SYM)
+
+    unbinds the given SYM
+    """
+
+    called_by, (binding, rest) = source
+
+    if not is_symbol(binding):
+        raise code.error("delq must be by symbolic name", source)
+
+    if rest:
+        raise code.error("extra arguments to delq", source)
+
+    code.pseudop_del_var(binding)
+
+    # del-var calls should evaluate to None
     code.pseudop_const(None)
 
     # no additional transform needed
