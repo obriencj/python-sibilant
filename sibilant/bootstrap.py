@@ -45,10 +45,13 @@ def __setup__(glbls):
 
     import sys
 
+    from collections import namedtuple
     from copy import copy, deepcopy
     from fractions import Fraction as fraction
     from decimal import Decimal as decimal
     from functools import partial, reduce, wraps
+    from itertools import islice as take
+    from math import floor, ceil
 
     import sibilant.lib as lib
     import sibilant.compiler as compiler
@@ -122,14 +125,16 @@ def __setup__(glbls):
     _ty(lib.keyword, "keyword")
     _op(lib.gensym, "gensym")
 
+    _ty(lib.values, "values")
+
     _op(lib.build_unpack_pair, "build-unpack-pair")
 
     _op(lib.apply, "apply")
     _op(lib.reapply, "reapply")
 
-    _ty(lib.values, "values")
-
     _op(lib.repeatedly, "repeatedly")
+
+    _op(lib.last, "last")
 
     _op(lib.first, "first")
     _op(lib.second, "second", rename=True)
@@ -141,8 +146,6 @@ def __setup__(glbls):
     _op(lib.eighth, "eighth", rename=True)
     _op(lib.ninth, "ninth", rename=True)
     _op(lib.tenth, "tenth", rename=True)
-
-    _op(lib.last, "last")
 
 
     # === sibilant compiler builtins ===
@@ -162,12 +165,17 @@ def __setup__(glbls):
     _ty(atom, "atom")
 
 
-    # === some python builtin types ===
+    # === some python builtin stuff ===
 
+    _op(namedtuple, "namedtuple")
     _ty(partial, "partial")
     _op(wraps, "wraps")
     _op(copy, "copy")
     _op(deepcopy, "deep-copy")
+
+    _op(floor, "floor")
+    _op(ceil, "ceil")
+    _op(take, "take")
 
     _ty(tuple, "tuple")
     _ty(list, "list")
@@ -179,9 +187,6 @@ def __setup__(glbls):
 
     _op(lambda value: hasattr(value, "__iter__"),
         "iterable?", rename=True)
-
-
-    # === some python builtin functions ===
 
     _ty(map, "map")
     _ty(zip, "zip")

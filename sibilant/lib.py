@@ -14,6 +14,7 @@
 
 
 from functools import partial
+from itertools import islice
 
 import operator
 
@@ -140,14 +141,21 @@ def fill_position(value, position, follow=True):
 
 
 def apply(fun, args=(), kwargs={}):
+    # todo: move to _types
     if is_pair(args):
         args = args.unpack()
     return fun(*args, **kwargs)
 
 
-def repeatedly(value):
-    while True:
-        yield value
+def repeatedly(work, *args, **kwds):
+    # todo: move to _types
+    if args or kwds:
+        invoke = values(*args, **kwds)
+        while True:
+            yield invoke(work)
+    else:
+        while True:
+            yield work()
 
 
 cadr = lambda c: car(cdr(c))  # noqa

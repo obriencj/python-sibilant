@@ -836,5 +836,17 @@
 	else: `(#str ,@result))))
 
 
+(let []
+  (def import-from random random)
+  (defun Maybe [] (bool (floor (* 2 (random))))))
+
+
+(defmacro defrecord [name fields]
+  `(def class ,name []
+	(def function __init__ [self ,@fields]
+	     ,@(iter-each [field (unpack fields)]
+		   `(set-attr self ,field ,field)))))
+
+
 ;;
 ;; The end.
