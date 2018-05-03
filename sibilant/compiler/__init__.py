@@ -1694,7 +1694,7 @@ def code_space_for_version(ver=version_info,
             from .cpython35 import CPython35
             return CPython35
 
-    return None
+    raise UnsupportedVersion(ver, impl)
 
 
 class ExpressionCodeSpace(CodeSpace):
@@ -2039,10 +2039,8 @@ def compile_expression(source_obj, env, filename="<anon>",
     """
 
     factory = code_space_for_version()
-    if not factory:
-        raise UnsupportedVersion(version_info)
-
     codespace = factory(filename=filename, **codespace_args)
+
     with codespace.activate(env):
         codespace.add_expression_with_return(source_obj)
         code = codespace.complete()

@@ -14,7 +14,6 @@
 
 
 from functools import partial
-from itertools import islice
 
 import operator
 
