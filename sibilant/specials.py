@@ -15,16 +15,22 @@
 
 """
 The built-in compile-time special forms
+
+Specials are sibilant forms which compile directly to bytecode, and
+have no run-time form.
+
+author: Christopher O'Brien <obriencj@gmail.com>
+license: LGPL v.3
 """
 
 
-from . import (
+from .lib import (
     symbol, is_symbol, keyword, is_keyword,
-    nil, is_nil, cons, cdr, is_pair, is_proper,
+    nil, is_nil, cons, is_pair, is_proper,
     get_position, fill_position,
 )
 
-from .compiler import Special, gather_formals
+from .compiler import Special, gather_formals, Mode
 from .tco import trampoline, tailcall
 
 from textwrap import dedent
@@ -41,6 +47,9 @@ _symbol_continue = symbol("continue")
 _symbol_define = symbol("define")
 _symbol_define_global = symbol("define-global")
 _symbol_define_values = symbol("define-values")
+_symbol_del_attr = symbol("del-attr")
+_symbol_delq = symbol("delq")
+_symbol_delq_global = symbol("delq-global")
 _symbol_doc = symbol("doc")
 _symbol_for_each = symbol("for-each")
 _symbol_function = symbol("function")
@@ -55,6 +64,7 @@ _symbol_quote = symbol("quote")
 _symbol_return = symbol("return")
 _symbol_set_attr = symbol("set-attr")
 _symbol_setq = symbol("setq")
+_symbol_setq_global = symbol("setq-global")
 _symbol_setq_values = symbol("setq-values")
 _symbol_splice = symbol("unquote-splicing")
 _symbol_try = symbol("try")
@@ -85,6 +95,8 @@ def special(namesym, *aliases, glbls=globals()):
             __all__.append(alias)
             glbls[alias] = inst
 
+        return compilefn
+
     return deco
 
 
@@ -92,30 +104,30 @@ def special(namesym, *aliases, glbls=globals()):
 
 
 def _helper_binding(code, source, required=True):
+
+    msg = ("a binding must be in the form of (SYM EXPR) or (EXPR as: SYM),"
+           " not %s" % source)
+
     if not is_proper(source):
-        raise code.error("binding must be (SYM EXPR) or (EXPR as: SYM)",
-                         source)
+        raise code.error(msg, source)
 
     sc = source.length()
     if sc == 3:
         expr, (_as, (sym, _rest)) = source
         if not (_as is _keyword_as and is_symbol(sym)):
-            raise code.error("binding must be (SYM EXPR) or (EXPR as: SYM)",
-                             source)
+            raise code.error(msg, source)
 
     elif sc == 2:
         sym, (expr, _rest) = source
         if not is_symbol(sym):
-            raise code.error("binding must be (SYM EXPR) or (EXPR as: SYM)",
-                             source)
+            raise code.error(msg, source)
 
     elif sc == 1 and not required:
         expr, _rest = source
         sym = required
 
     else:
-        raise code.error("binding must be (SYM EXPR) or (EXPR as: SYM)",
-                         source)
+        raise code.error(msg, source)
 
     return sym, expr
 
@@ -125,7 +137,7 @@ def _helper_keyword(code, kwd):
     Pushes the pseudo ops necessary to put a keyword on the stack
     """
 
-    code.pseudop_get_var("keyword")
+    code.pseudop_get_global(symbol("keyword"))
     code.pseudop_const(str(kwd))
     code.pseudop_call(1)
     return None
@@ -136,7 +148,7 @@ def _helper_symbol(code, sym):
     Pushes the pseudo ops necessary to put a symbol on the stack
     """
 
-    code.pseudop_get_var("symbol")
+    code.pseudop_get_global(symbol("symbol"))
     code.pseudop_const(str(sym))
     code.pseudop_call(1)
     return None
@@ -144,13 +156,13 @@ def _helper_symbol(code, sym):
 
 def _helper_nil(code):
     """
-    Pushes the pseud ops necessary to put a nil on the stack
+    Pushes the pseudo ops necessary to put a nil on the stack
     """
 
     # simple, but works. May want to do something other than a var
     # lookup in the future.
 
-    code.pseudop_get_var("nil")
+    code.pseudop_get_global(symbol("nil"))
     return None
 
 
@@ -158,22 +170,24 @@ def _helper_nil(code):
 def special_doc(code, source, tc=False):
     """
     (doc STR STR...)
-    joins STR together and sets it as the docstr for the parent scope
+    joins STR together and sets it as the docstr for the current scope
     """
 
     called_by, rest = source
 
     # collapse the doc
     docstr = "\n".join(d.strip() for d in map(str, rest.unpack()))
-
     docstr = dedent(docstr).strip()
 
-    # force it into const slot zero
-    code.set_doc(docstr)
+    # set the module's docstring -- this works for module and class
+    # definitions.
+    code.declare_var(symbol("__doc__"))
+    code.pseudop_const(docstr)
+    code.pseudop_set_var(symbol("__doc__"))
 
-    # code.declare_var("__doc__")
-    # code.pseudop_const(docstr)
-    # code.pseudop_set_var("__doc__")
+    # force it as the code's docstring as well -- this works for
+    # function definitions.
+    code.set_doc(docstr)
 
     # doc special expression evaluates to None
     code.pseudop_const(None)
@@ -203,7 +217,7 @@ def special_get_attr(code, source, tc=False):
 
     code.pseudop_position_of(source)
     code.add_expression(obj)
-    code.pseudop_get_attr(str(member))
+    code.pseudop_get_attr(member)
 
     # no further transformations
     return None
@@ -231,9 +245,39 @@ def special_set_attr(code, source, tc=False):
     code.add_expression(obj)
     code.add_expression(value)
     code.pseudop_rot_two()
-    code.pseudop_set_attr(str(member))
+    code.pseudop_set_attr(member)
 
-    # make setf calls evaluate to None
+    # make set-attr calls evaluate to None
+    code.pseudop_const(None)
+
+    # no further transformations
+    return None
+
+
+@special(_symbol_del_attr)
+def special_del_attr(code, source, tc=False):
+    """
+    (del-attr OBJECT SYM)
+
+    deletes the attribute from an object
+    """
+
+    try:
+        called_by, (obj, (member, rest)) = source
+    except ValueError:
+        raise code.error("too few arguments to del-attr", source)
+
+    if rest:
+        raise code.error("too many arguments to del-attr", source)
+
+    if not is_symbol(member):
+        raise code.error("del-attr member must be a symbol", source)
+
+    code.pseudop_position_of(source)
+    code.add_expression(obj)
+    code.pseudop_del_attr(member)
+
+    # make del-attr calls evaluate to None
     code.pseudop_const(None)
 
     # no further transformations
@@ -247,7 +291,8 @@ def special_quote(code, source, tc=False):
 
     Returns FORM without evaluating it.
 
-    'FORM same as above
+    'FORM
+    Same as (quote FORM)
     """
 
     called_by, body = source
@@ -255,9 +300,9 @@ def special_quote(code, source, tc=False):
     if not body:
         code.error("Too fuew arguments to quote %s" % source, source)
 
-    body, _rest = body
+    body, rest = body
 
-    if _rest:
+    if rest:
         code.error("Too many arguments to quote %s" % source, source)
 
     code.pseudop_position_of(source)
@@ -279,10 +324,11 @@ def _helper_quote(code, body, tc=False):
 
     elif is_pair(body):
         if is_proper(body):
-            code.pseudop_get_var("build-proper")
+            code.pseudop_get_var(symbol("build-proper"))
         else:
-            code.pseudop_get_var("cons")
+            code.pseudop_get_var(symbol("cons"))
 
+        index = 0
         for index, expr in enumerate(body.unpack(), 1):
             _helper_quote(code, expr)
 
@@ -342,7 +388,7 @@ def _helper_quasiquote(code, marked, level=0):
                 if level == 0:
                     return tailcall(code.add_expression)(tail)
                 else:
-                    code.pseudop_get_var("build-proper")
+                    code.pseudop_get_var(symbol("build-proper"))
                     _helper_symbol(code, head)
                     _helper_quasiquote(code, tail, level - 1)
                     code.pseudop_call(2)
@@ -351,12 +397,12 @@ def _helper_quasiquote(code, marked, level=0):
             elif head is _symbol_splice:
                 tail, _rest = tail
                 if level == 0:
-                    code.pseudop_get_var("build-unpack-pair")
+                    code.pseudop_get_var(symbol("build-unpack-pair"))
                     code.add_expression(tail)
                     code.pseudop_call(1)
                     return None
                 else:
-                    code.pseudop_get_var("build-proper")
+                    code.pseudop_get_var(symbol("build-proper"))
                     _helper_symbol(code, head)
                     _helper_quasiquote(code, tail, level - 1)
                     code.pseudop_call(2)
@@ -364,7 +410,7 @@ def _helper_quasiquote(code, marked, level=0):
 
             elif head is _symbol_quasiquote:
                 tail, _rest = tail
-                code.pseudop_get_var("build-proper")
+                code.pseudop_get_var(symbol("build-proper"))
                 _helper_symbol(code, head)
                 _helper_quasiquote(code, tail, level + 1)
                 code.pseudop_call(2)
@@ -388,7 +434,7 @@ def _helper_quasiquote_p(code, marked, level):
         # call onto the stack first, if this is the first item
         nonlocal curr_tup
         # if not curr_tup:
-        #    code.pseudop_get_var("cons")
+        #    code.pseudop_get_var(symbol("cons"))
         curr_tup += 1
 
     def done_curr():
@@ -412,7 +458,7 @@ def _helper_quasiquote_p(code, marked, level):
         done_curr()
         coll_tup += 1
 
-    code.pseudop_get_var("build-unpack-pair")
+    code.pseudop_get_var(symbol("build-unpack-pair"))
 
     for p_expr in marked.follow():
         if p_expr is nil:
@@ -442,7 +488,7 @@ def _helper_quasiquote_p(code, marked, level):
                     break
                 else:
                     push_curr()
-                    code.pseudop_get_var("build-proper")
+                    code.pseudop_get_var(symbol("build-proper"))
                     _helper_symbol(code, expr)
                     _helper_quasiquote(code, u_expr, level - 1)
                     code.pseudop_call(2)
@@ -452,7 +498,7 @@ def _helper_quasiquote_p(code, marked, level):
                 u_expr, tail = p_expr
 
                 push_curr()
-                code.pseudop_get_var("build-proper")
+                code.pseudop_get_var(symbol("build-proper"))
                 _helper_symbol(code, expr)
                 _helper_quasiquote(code, u_expr, level + 1)
                 code.pseudop_call(2)
@@ -467,7 +513,7 @@ def _helper_quasiquote_p(code, marked, level):
                     break
                 else:
                     push_curr()
-                    code.pseudop_get_var("build-proper")
+                    code.pseudop_get_var(symbol("build-proper"))
                     _helper_symbol(code, expr)
                     _helper_quasiquote(code, u_expr, level - 1)
                     code.pseudop_call(2)
@@ -496,7 +542,7 @@ def _helper_quasiquote_p(code, marked, level):
                         continue
                     else:
                         push_curr()
-                        code.pseudop_get_var("build-proper")
+                        code.pseudop_get_var(symbol("build-proper"))
                         _helper_symbol(code, head)
                         _helper_quasiquote(code, u_expr, level - 1)
                         code.pseudop_call(2)
@@ -506,7 +552,7 @@ def _helper_quasiquote_p(code, marked, level):
                     u_expr, tail = tail
 
                     push_curr()
-                    code.pseudop_get_var("build-proper")
+                    code.pseudop_get_var(symbol("build-proper"))
                     _helper_symbol(code, head)
                     _helper_quasiquote(code, u_expr, level + 1)
                     code.pseudop_call(2)
@@ -523,7 +569,7 @@ def _helper_quasiquote_p(code, marked, level):
                         continue
                     else:
                         push_curr()
-                        code.pseudop_get_var("build-proper")
+                        code.pseudop_get_var(symbol("build-proper"))
                         _helper_symbol(code, head)
                         _helper_quasiquote(code, u_expr, level - 1)
                         code.pseudop_call(2)
@@ -604,10 +650,10 @@ def special_with(code, source, tc=False):
 
     binding, expr = _helper_binding(code, args)
 
-    binding = str(binding)
-    code.declare_var(str(binding))
+    # binding = str(binding)
+    code.declare_var(binding)
 
-    storage = code.gen_sym()
+    storage = code.gensym("with")
     code.declare_var(storage)
 
     with code.block_with(expr):
@@ -669,15 +715,15 @@ def special_function(code, source, tc=False):
 
     kid = code.child_context(declared_at=declared_at)
     with kid as subc:
-        subc.declare_var("")
-        subc.declare_var(name)
+        subc.declare_var(symbol(""))
+        subc.declare_var(namesym)
         _helper_function(subc, name, args, body,
-                         self_ref="",
+                         self_ref=symbol(""),
                          declared_at=declared_at)
         subc.pseudop_dup()
-        subc.pseudop_set_var("")
+        subc.pseudop_set_var(symbol(""))
         subc.pseudop_dup()
-        subc.pseudop_set_var(name)
+        subc.pseudop_set_var(namesym)
         subc.pseudop_return()
         kid_code = subc.complete()
 
@@ -711,7 +757,7 @@ def special_let(code, source, tc=False):
 
     bindings, body = rest
     if is_symbol(bindings):
-        named = str(bindings)
+        named = bindings
         bindings, body = body
     else:
         named = None
@@ -737,16 +783,16 @@ def special_let(code, source, tc=False):
         # it a binding to itself by its name as a freevar
         kid = code.child_context(declared_at=declared_at)
         with kid as subc:
-            subc.declare_var("")
+            subc.declare_var(symbol(""))
             subc.declare_var(named)
 
             fnamed = "<let %r>" % named
             _helper_function(subc, fnamed, args, body,
-                             self_ref="",
+                             self_ref=symbol(""),
                              declared_at=declared_at)
 
             subc.pseudop_dup()
-            subc.pseudop_set_var("")
+            subc.pseudop_set_var(symbol(""))
             subc.pseudop_dup()
             subc.pseudop_set_var(named)
             subc.pseudop_return()
@@ -774,30 +820,31 @@ def _helper_function(code, name, args, body,
 
     tco = code.tco_enabled
 
-    if not (is_symbol(name) or isinstance(name, str)):
+    if not isinstance(name, (symbol, str)):
         msg = "function names must be symbol or str, not %r" % name
         raise code.error(msg, declared_at)
 
     formals = gather_formals(args, get_position(args, declared_at))
     pos, defaults, kwonly, star, starstar = formals
 
-    argnames = list(map(str, pos))
+    # argnames = list(map(str, pos))
+    argnames = list(pos)
 
     if defaults:
-        argnames.extend(str(k[0]) for k in defaults)
+        argnames.extend(symbol(k[0]) for k in defaults)
 
     if kwonly:
-        argnames.extend(str(k[0]) for k in kwonly)
+        argnames.extend(symbol(k[0]) for k in kwonly)
 
     if star:
         varargs = True
-        argnames.append(str(star))
+        argnames.append(star)
     else:
         varargs = False
 
     if starstar:
         varkeywords = True
-        argnames.append(str(starstar))
+        argnames.append(starstar)
     else:
         varkeywords = False
 
@@ -825,7 +872,7 @@ def _helper_function(code, name, args, body,
 
         tco = subc.tco_enabled and not subc.generator and subc.tailcalls
         if tco:
-            code.pseudop_get_var("trampoline")
+            code.pseudop_get_var(symbol("trampoline"))
             code.pseudop_rot_two()
             code.pseudop_call(1)
 
@@ -881,7 +928,7 @@ def special_while(code, source, tc=False):
     except ValueError:
         raise code.error("too few arguments to while", source)
 
-    storage = code.gen_sym()
+    storage = code.gensym("while")
     code.declare_var(storage)
 
     # initial value, just in case we never actually loop
@@ -932,7 +979,7 @@ def special_for_each(code, source, tc=False):
     if not is_nil(rest):
         raise code.error("too many arguments to for-each", source)
 
-    storage = code.gen_sym()
+    storage = code.gensym("for-each")
     code.declare_var(storage)
 
     code.pseudop_const(None)
@@ -1060,8 +1107,8 @@ def _helper_binding_split(code, bindings):
 def _helper_setq_values(code, bindings, declare):
     if is_symbol(bindings):
         if declare:
-            code.declare_var(str(bindings))
-        code.pseudop_set_var(str(bindings))
+            code.declare_var(bindings)
+        code.pseudop_set_var(bindings)
         return
 
     bcount = bindings.length()
@@ -1077,8 +1124,8 @@ def _helper_setq_values(code, bindings, declare):
             for b in left:
                 if is_symbol(b):
                     if declare:
-                        code.declare_var(str(b))
-                    code.pseudop_set_var(str(b))
+                        code.declare_var(b)
+                    code.pseudop_set_var(b)
                 elif is_pair(b):
                     _helper_setq_values(code, b, declare)
                 else:
@@ -1087,8 +1134,8 @@ def _helper_setq_values(code, bindings, declare):
 
             if is_symbol(mid):
                 if declare:
-                    code.declare_var(str(b))
-                code.pseudop_set_var(str(mid))
+                    code.declare_var(b)
+                code.pseudop_set_var(mid)
             else:
                 msg = "start bindings must be symbols, not %r" % mid
                 raise code.error(msg, bindings)
@@ -1096,8 +1143,8 @@ def _helper_setq_values(code, bindings, declare):
             for b in right:
                 if is_symbol(b):
                     if declare:
-                        code.declare_var(str(b))
-                    code.pseudop_set_var(str(b))
+                        code.declare_var(b)
+                    code.pseudop_set_var(b)
                 elif is_pair(b):
                     _helper_setq_values(code, b, declare)
                 else:
@@ -1109,8 +1156,8 @@ def _helper_setq_values(code, bindings, declare):
             for b in bindings.unpack():
                 if is_symbol(b):
                     if declare:
-                        code.declare_var(str(b))
-                    code.pseudop_set_var(str(b))
+                        code.declare_var(b)
+                    code.pseudop_set_var(b)
                 elif is_pair(b):
                     _helper_setq_values(code, b, declare)
                 else:
@@ -1122,8 +1169,8 @@ def _helper_setq_values(code, bindings, declare):
         for b in bindings.unpack():
             if is_symbol(b):
                 if declare:
-                    code.declare_var(str(b))
-                code.pseudop_set_var(str(b))
+                    code.declare_var(b)
+                code.pseudop_set_var(b)
             elif is_pair(b):
                 _helper_setq_values(code, b, declare)
             else:
@@ -1331,7 +1378,7 @@ def special_try(code, source, tc=False):
 
     ca, act_else, act_finally = _collect_catches(code, catches)
 
-    storage = code.gen_sym()
+    storage = code.gensym("try")
     code.declare_var(storage)
 
     if act_finally:
@@ -1499,7 +1546,7 @@ def _except_match(code, key, match,
         code.pseudop_pop_jump_if_false(next_label)
 
         if key:
-            key = str(key)
+            # key = str(key)
             code.declare_var(key)
 
             code.pseudop_pop()
@@ -1542,19 +1589,44 @@ def special_setq(code, source, tc=False):
 
     if not is_symbol(binding):
         raise code.error("assignment must be by symbolic name",
-                         cdr(source))
+                         source)
 
     value, rest = body
-    if not is_nil(rest):
+    if rest:
         raise code.error("extra values in assignment", source)
 
     if not is_pair(value):
         code.pseudop_position_of(body)
 
     code.add_expression(value)
-    code.pseudop_set_var(str(binding))
+    code.pseudop_set_var(binding)
 
     # set-var calls should evaluate to None
+    code.pseudop_const(None)
+
+    # no additional transform needed
+    return None
+
+
+@special(_symbol_delq)
+def special_delq(code, source, tc=False):
+    """
+    (delq SYM)
+
+    unbinds the given SYM
+    """
+
+    called_by, (binding, rest) = source
+
+    if not is_symbol(binding):
+        raise code.error("delq must be by symbolic name", source)
+
+    if rest:
+        raise code.error("extra arguments to delq", source)
+
+    code.pseudop_del_var(binding)
+
+    # del-var calls should evaluate to None
     code.pseudop_const(None)
 
     # no additional transform needed
@@ -1574,19 +1646,44 @@ def special_global(code, source, tc=False):
     except ValueError:
         raise code.error("missing symbol for global lookup", source)
 
-    if rest is not nil:
+    if rest:
         raise code.error("extra values in global lookup", source)
 
     code.pseudop_position_of(source)
-    code.pseudop_get_global(str(binding))
+    code.pseudop_get_global(binding)
 
     return None
 
 
-@special(_symbol_define_global)
+@special(_symbol_delq_global)
+def special_delq_global(code, source, tc=False):
+    """
+    (delq-global SYM)
+
+    Removes a binding from the global context.
+    """
+
+    try:
+        called_by, (binding, rest) = source
+    except ValueError:
+        raise code.error("missing symbol for delq-global", source)
+
+    if rest:
+        raise code.error("extra values in delq-global", source)
+
+    code.pseudop_position_of(source)
+    code.pseudop_del_global(binding)
+
+    code.pseudop_const(None)
+
+    return None
+
+
+@special(_symbol_define_global, _symbol_setq_global)
 def special_define_global(code, source, tc=False):
     """
     (define-global SYM EXPRESSION)
+    (setq-global SYM EXPRESSION)
 
     Defines or sets a value in global context. If EXPRESSION is
     omitted, it defaults to None.
@@ -1602,15 +1699,15 @@ def special_define_global(code, source, tc=False):
 
     if body:
         body, rest = body
-        if rest is not nil:
-            raise code.error("too many arguments to define", source)
+        if rest:
+            raise code.error("too many arguments to define-global", source)
 
         code.add_expression(body, False)
     else:
         code.pseudop_const(None)
 
     code.pseudop_position_of(source)
-    code.pseudop_set_global(str(binding))
+    code.pseudop_set_global(binding)
 
     # define expression evaluates to None
     code.pseudop_const(None)
@@ -1628,6 +1725,9 @@ def special_define(code, source, tc=False):
     omitted, the symbol is declared but unassigned.
     """
 
+    if code.mode is Mode.MODULE:
+        return special_define_global(code, source, tc)
+
     try:
         called_by, (binding, body) = source
     except ValueError:
@@ -1636,8 +1736,7 @@ def special_define(code, source, tc=False):
     if not is_symbol(binding):
         raise code.error("define with non-symbol binding", source)
 
-    varname = str(binding)
-    code.declare_var(varname)
+    code.declare_var(binding)
 
     if body:
         body, rest = body
@@ -1646,7 +1745,7 @@ def special_define(code, source, tc=False):
 
         code.add_expression(body, False)
         code.pseudop_position_of(source)
-        code.pseudop_set_var(varname)
+        code.pseudop_set_var(binding)
 
     # define expression evaluates to None
     code.pseudop_const(None)
@@ -1686,7 +1785,7 @@ def special_cond(code, source, tc=False):
         if test is _keyword_else:
             # with code.block_begin():
             _helper_begin(code, body, tc)
-            code.pseudop_jump_forward(done)
+            # code.pseudop_jump_forward(done)
             break
 
         else:
@@ -1706,6 +1805,22 @@ def special_cond(code, source, tc=False):
     return None
 
 
+def _helper_import_level(wanted: symbol):
+    wanted = str(wanted)
+
+    wlevel = 0
+    for c in wanted:
+        if c == '.':
+            wlevel += 1
+        else:
+            break
+
+    if wlevel:
+        wanted = wanted[wlevel:]
+
+    return wlevel, symbol(wanted)
+
+
 @special(_symbol_import)
 def special_import(code, source, tc=False):
     """
@@ -1723,9 +1838,14 @@ def special_import(code, source, tc=False):
     if rest:
         raise code.error("too many arguments to import", source)
 
-    code.pseudop_const(0)
+    if not isinstance(name, (symbol, str)):
+        raise code.error("import argument must be symbol", source)
+
+    level, name = _helper_import_level(name)
+
+    code.pseudop_const(level)
     code.pseudop_const(None)
-    code.pseudop_import_name(str(name))
+    code.pseudop_import_name(name)
 
     return None
 
@@ -1746,8 +1866,13 @@ def special_import_from(code, source, tc=False):
     if rest is nil:
         raise code.error("too few arguments to import-from", source)
 
+    if not isinstance(name, (symbol, str)):
+        raise code.error("import argument must be symbol", source)
+
+    level, name = _helper_import_level(name)
+
     # the LEVEL value
-    code.pseudop_const(0)
+    code.pseudop_const(level)
 
     members = list()
     for mp in rest.follow():
@@ -1758,13 +1883,15 @@ def special_import_from(code, source, tc=False):
         if not is_symbol(member):
             raise code.error("import-from members must be symbols", mp)
 
-        member = str(member)
+        # member = str(member)
         members.append(member)
-        code.pseudop_const(member)
+        code.pseudop_const(str(member))
 
     # the FROMLIST tuple
     code.pseudop_build_tuple(len(members))
-    code.pseudop_import_name(str(name))
+
+    # do the actual import to get the module onto TOS
+    code.pseudop_import_name(name)
 
     for member in members:
         code.pseudop_import_from(member)
@@ -1777,12 +1904,6 @@ def special_import_from(code, source, tc=False):
     code.pseudop_build_tuple(len(members))
 
     return None
-
-
-# --- and finally clean up ---
-
-
-__all__ = tuple(__all__)
 
 
 #

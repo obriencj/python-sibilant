@@ -34,10 +34,17 @@ from sibilant.compiler import (
 )
 
 from . import (
-    compile_expr, compile_dis_expr,
+    compile_expr_bootstrap, compile_dis_expr,
     make_accumulator, make_raise_accumulator,
     make_manager,
 )
+
+
+compile_expr = compile_expr_bootstrap
+
+
+class Object(object):
+    pass
 
 
 class Lambda(TestCase):
@@ -190,8 +197,7 @@ class Quasiquote(TestCase):
 
 
     def qq(self, src_str, expected, **env):
-        from sibilant import bootstrap
-        stmt, env = compile_expr(src_str, bootstrap, **env)
+        stmt, env = compile_expr(src_str, **env)
         res = stmt()
         self.assertEqual(res, expected)
 
@@ -360,99 +366,6 @@ class CompilerSpecials(TestCase):
         self.assertEqual(env["tacos"], 100)
 
 
-    def test_defun(self):
-        src = """
-        (defun add_8 (x) (+ x 8))
-        """
-        stmt, env = compile_expr(src)
-        self.assertEqual(stmt(), None)
-
-        add_8 = env["add_8"]
-        self.assertTrue(callable(add_8))
-        self.assertEqual(add_8.__name__, "add_8")
-        self.assertEqual(add_8(1), 9)
-        self.assertEqual(add_8(2), 10)
-
-        stmt, env = compile_expr(src, add_8=None)
-        self.assertEqual(stmt(), None)
-
-        add_8 = env["add_8"]
-        self.assertTrue(callable(add_8))
-        self.assertEqual(add_8.__name__, "add_8")
-        self.assertEqual(add_8(1), 9)
-        self.assertEqual(add_8(2), 10)
-
-
-    def test_defmacro(self):
-        src = """
-        (defmacro swap_test (a b c)
-          (cons c b a '()))
-        """
-        stmt, env = compile_expr(src)
-        self.assertEqual(stmt(), None)
-
-        swap_test = env["swap_test"]
-        self.assertTrue(isinstance(swap_test, Macro))
-        self.assertTrue(is_macro(swap_test))
-        self.assertEqual(swap_test.__name__, "swap_test")
-
-        self.assertRaises(TypeError, swap_test, 1, 2, 3)
-
-        self.assertEqual(swap_test.expand(1, 2, 3),
-                         cons(3, 2, 1, nil))
-
-        src = """
-        (swap_test 'world 'hello cons)
-        """
-        # compiles to equivalent of (cons 'hello 'world)
-        stmt, env = compile_expr(src, swap_test=swap_test)
-        self.assertEqual(stmt(), cons(symbol("hello"), symbol("world")))
-
-
-    def test_define_global(self):
-        src = """
-        (define-global tacos 100)
-        """
-        stmt, env = compile_expr(src)
-        self.assertEqual(stmt(), None)
-        self.assertEqual(env["tacos"], 100)
-
-        src = """
-        (let ((beer 999))
-          (define-global tacos beer)
-          (define-global beer 777)
-          beer)
-        """
-        stmt, env = compile_expr(src, tacos=5)
-        self.assertEqual(stmt(), 999)
-        self.assertEqual(env["tacos"], 999)
-        self.assertEqual(env["beer"], 777)
-
-
-    def test_get_global(self):
-        src = """
-        (let ((tacos 100))
-          (global tacos))
-        """
-        stmt, env = compile_expr(src, tacos=5)
-        self.assertEqual(stmt(), 5)
-
-        src = """
-        (let ((tacos 100))
-          (+ (global tacos) tacos))
-        """
-        stmt, env = compile_expr(src, tacos=5)
-        self.assertEqual(stmt(), 105)
-
-        src = """
-        (let ((tacos 100))
-          (define-global tacos 90)
-          (+ (global tacos) tacos))
-        """
-        stmt, env = compile_expr(src, tacos=5)
-        self.assertEqual(stmt(), 190)
-
-
     def test_define(self):
         src = """
         (let ()
@@ -508,8 +421,9 @@ class SpecialLet(TestCase):
     def test_named_let(self):
         src = """
         (let fibonacci ((index CALC) (carry 0) (accu 1))
-          (if (== index 0) then: carry
-              else: (fibonacci (- index 1) accu (+ accu carry))))
+          (cond
+            [(== index 0) carry]
+            [else: (fibonacci (- index 1) accu (+ accu carry))]))
         """
 
         check = ((0, 0), (1, 1), (2, 1), (3, 2), (7, 13), (9, 34),
@@ -881,7 +795,7 @@ class SpecialTry(TestCase):
 
         src = """
         (while (< 0 counter)
-          (decr counter)
+          (setq counter (- counter 1))
           (try
             (bad_guy 567)
             ((Exception as: e) (good_guy -111))
@@ -900,7 +814,7 @@ class SpecialTry(TestCase):
 
         src = """
         (while (< 0 counter)
-          (decr counter)
+          (setq counter (- counter 1))
           (try
             (bad_guy 567)
             ((Exception) (good_guy -111))
@@ -953,7 +867,7 @@ class SpecialWhile(TestCase):
 
         src = """
         (while (< 0 x)
-          (decr x)
+          (setq x (- x 1))
           (good_guy (+ 100 x)))
         """
         stmt, env = compile_expr(src, x=5, **locals())
@@ -989,14 +903,14 @@ class SpecialWhile(TestCase):
 
         src = """
         (while keep_going
-          (decr x)
-          (if (< 0 x)
-              then: (begin
-                       (good_guy (+ 100 x))
-                       (continue))
-              else: (begin
-                       (setq keep_going False)
-                       654)))
+          (setq x (- x 1))
+          (cond
+            [(< 0 x)
+             (good_guy (+ 100 x))
+             (continue)]
+            [else:
+             (setq keep_going False)
+             654]))
         """
         stmt, env = compile_expr(src, keep_going=True, x=5, **locals())
         res = stmt()
@@ -1007,14 +921,14 @@ class SpecialWhile(TestCase):
 
         src = """
         (while keep_going
-          (decr x)
-          (if (< 0 x)
-              then: (begin
-                       (good_guy (+ 100 x))
-                       (continue 987))
-              else: (begin
-                       (setq keep_going False)
-                       654)))
+          (setq x (- x 1))
+          (cond
+            [(< 0 x)
+             (good_guy (+ 100 x))
+             (continue 987)]
+            [else:
+             (setq keep_going False)
+             654]))
         """
         stmt, env = compile_expr(src, keep_going=True, x=5, **locals())
         res = stmt()
@@ -1027,13 +941,13 @@ class SpecialWhile(TestCase):
 
         src = """
         (while keep_going
-          (decr x)
-          (if (< 0 x)
-              then: (begin
-                       (good_guy (+ 100 x (continue))))
-              else: (begin
-                       (setq keep_going False)
-                       654)))
+          (setq x (- x 1))
+          (cond
+            [(< 0 x)
+             (good_guy (+ 100 x (continue)))]
+            [else:
+             (setq keep_going False)
+             654]))
         """
         stmt, env = compile_expr(src, keep_going=True, x=500, **locals())
         res = stmt()
@@ -1044,13 +958,13 @@ class SpecialWhile(TestCase):
 
         src = """
         (while keep_going
-          (decr x)
-          (if (< 0 x)
-              then: (begin
-                       (good_guy (+ 100 x (continue 987))))
-              else: (begin
-                       (setq keep_going False)
-                       654)))
+          (setq x (- x 1))
+          (cond
+            [(< 0 x)
+             (good_guy (+ 100 x (continue 987)))]
+            [else:
+             (setq keep_going False)
+             654]))
         """
         stmt, env = compile_expr(src, keep_going=True, x=500, **locals())
         res = stmt()
@@ -1063,13 +977,13 @@ class SpecialWhile(TestCase):
 
         src = """
         (while keep_going
-          (decr x)
-          (if (< 0 x)
-              then: (begin
-                       (good_guy (+ 100 x)))
-              else: (begin
-                       (setq keep_going False)
-                       (break 654))))
+          (setq x (- x 1))
+          (cond
+            [(< 0 x)
+             (good_guy (+ 100 x))]
+            [else:
+             (setq keep_going False)
+             (break 654)]))
         """
         stmt, env = compile_expr(src, keep_going=True, x=5, **locals())
         res = stmt()
@@ -1080,13 +994,13 @@ class SpecialWhile(TestCase):
 
         src = """
         (while keep_going
-          (decr x)
-          (if (< 0 x)
-              then: (begin
-                       (good_guy (+ 100 x)))
-              else: (begin
-                       (setq keep_going False)
-                       (break))))
+          (setq x (- x 1))
+          (cond
+            [(< 0 x)
+             (good_guy (+ 100 x))]
+            [else:
+             (setq keep_going False)
+             (break)]))
         """
         stmt, env = compile_expr(src, keep_going=True, x=5, **locals())
         res = stmt()
@@ -1099,13 +1013,13 @@ class SpecialWhile(TestCase):
 
         src = """
         (while keep_going
-          (decr x)
-          (if (< 0 x)
-              then: (begin
-                       (good_guy (+ 100 x)))
-              else: (begin
-                       (setq keep_going False)
-                       (good_guy (+ 100 x (break 654))))))
+          (setq x (- x 1))
+          (cond
+            [(< 0 x)
+             (good_guy (+ 100 x))]
+            [else:
+             (setq keep_going False)
+             (good_guy (+ 100 x (break 654)))]))
         """
         stmt, env = compile_expr(src, keep_going=True, x=5, **locals())
         res = stmt()
@@ -1116,13 +1030,13 @@ class SpecialWhile(TestCase):
 
         src = """
         (while keep_going
-          (decr x)
-          (if (< 0 x)
-              then: (begin
-                       (good_guy (+ 100 x)))
-              else: (begin
-                       (setq keep_going False)
-                       (good_guy (+ 100 x (break))))))
+          (setq x (- x 1))
+          (cond
+            [(< 0 x)
+             (good_guy (+ 100 x))]
+            [else:
+             (setq keep_going False)
+             (good_guy (+ 100 x (break)))]))
         """
         stmt, env = compile_expr(src, keep_going=True, x=5, **locals())
         res = stmt()
@@ -1292,8 +1206,8 @@ class SpecialYield(TestCase):
         (let ((x 5) (y 0))
           (while x
             (yield (values x y))
-            (incr y)
-            (decr x)))
+            (setq y (+ y 1))
+            (setq x (- x 1))))
         """
         stmt, env = compile_expr(src)
         res = stmt()
@@ -1314,8 +1228,8 @@ class SpecielYieldFrom(TestCase):
             (let ()
               (while x
                 (yield (values x y))
-                (incr y)
-                (decr x))))
+                (setq y (+ y 1))
+                (setq x (- x 1)))))
           (yield (values x y)))
         """
         stmt, env = compile_expr(src)
@@ -1326,6 +1240,191 @@ class SpecielYieldFrom(TestCase):
 
         self.assertEqual(list(res), [(5, 0), (4, 1), (3, 2),
                                      (2, 3), (1, 4), (0, 5)])
+
+
+class SetqDelq(TestCase):
+
+    def test_setq_delq_closure(self):
+        src = """
+        (let [[data 123]]
+          (define-global set-data (function set-data [value]
+             (setq data value)))
+          (define-global del-data (function del-data []
+             (delq data)))
+          (define-global get-data (function get-data []
+             data))
+          data)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertEqual(res, 123)
+
+        setdata = env["set-data"]
+        getdata = env["get-data"]
+        deldata = env["del-data"]
+
+        self.assertEqual(getdata(), 123)
+        self.assertEqual(setdata(321), None)
+        self.assertEqual(getdata(), 321)
+
+        self.assertEqual(deldata(), None)
+        self.assertRaises(NameError, getdata)
+
+        self.assertEqual(setdata(789), None)
+        self.assertEqual(getdata(), 789)
+        self.assertEqual(deldata(), None)
+
+        self.assertRaises(NameError, getdata)
+
+
+    def test_setq_delq_global(self):
+        src = """
+        (let []
+          (define-global set-data (function set-data [value]
+             (setq data value)))
+          (define-global del-data (function del-data []
+             (delq data)))
+          (define-global get-data (function get-data []
+             data))
+          data)
+        """
+        stmt, env = compile_expr(src, data=123)
+        res = stmt()
+
+        self.assertEqual(res, 123)
+
+        setdata = env["set-data"]
+        getdata = env["get-data"]
+        deldata = env["del-data"]
+
+        self.assertEqual(getdata(), 123)
+        self.assertEqual(setdata(321), None)
+        self.assertEqual(getdata(), 321)
+        self.assertEqual(env.get("data", None), 321)
+
+        self.assertEqual(deldata(), None)
+        self.assertRaises(NameError, getdata)
+        self.assertEqual(env.get("data", None), None)
+
+        self.assertEqual(setdata(789), None)
+        self.assertEqual(getdata(), 789)
+        self.assertEqual(env.get("data", None), 789)
+
+        self.assertEqual(deldata(), None)
+        self.assertRaises(NameError, getdata)
+        self.assertEqual(env.get("data", None), None)
+
+
+class Attr(TestCase):
+
+
+    def test_attr(self):
+
+        src = """
+        (let [[data (Object)]]
+          (define-global set-data (function set-data [value]
+             (set-attr data sample value)))
+          (define-global del-data (function del-data []
+             (del-attr data sample)))
+          (define-global get-data (function get-data []
+             (attr data sample)))
+          data)
+        """
+        stmt, env = compile_expr(src, Object=Object)
+        data = stmt()
+
+        setdata = env["set-data"]
+        getdata = env["get-data"]
+        deldata = env["del-data"]
+
+        self.assertFalse(hasattr(data, "sample"))
+        self.assertRaises(AttributeError, getdata)
+
+        self.assertEqual(setdata(123), None)
+        self.assertTrue(hasattr(data, "sample"))
+        self.assertEqual(getdata(), 123)
+        self.assertEqual(data.sample, 123)
+
+        self.assertEqual(deldata(), None)
+        self.assertFalse(hasattr(data, "sample"))
+        self.assertRaises(AttributeError, getdata)
+
+
+class GlobalAccessors(TestCase):
+
+
+    def test_setq_global(self):
+        src = """
+        (define-global tacos 100)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), None)
+        self.assertEqual(env["tacos"], 100)
+
+        src = """
+        (let ((beer 999))
+          (define-global tacos beer)
+          (define-global beer 777)
+          beer)
+        """
+        stmt, env = compile_expr(src, tacos=5)
+        self.assertEqual(stmt(), 999)
+        self.assertEqual(env["tacos"], 999)
+        self.assertEqual(env["beer"], 777)
+
+        src = """
+        (setq-global tacos 100)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), None)
+        self.assertEqual(env["tacos"], 100)
+
+        src = """
+        (let ((beer 999))
+          (setq-global tacos beer)
+          (setq-global beer 777)
+          beer)
+        """
+        stmt, env = compile_expr(src, tacos=5)
+        self.assertEqual(stmt(), 999)
+        self.assertEqual(env["tacos"], 999)
+        self.assertEqual(env["beer"], 777)
+
+
+    def test_global(self):
+        src = """
+        (let ((tacos 100))
+          (global tacos))
+        """
+        stmt, env = compile_expr(src, tacos=5)
+        self.assertEqual(stmt(), 5)
+
+        src = """
+        (let ((tacos 100))
+          (+ (global tacos) tacos))
+        """
+        stmt, env = compile_expr(src, tacos=5)
+        self.assertEqual(stmt(), 105)
+
+        src = """
+        (let ((tacos 100))
+          (define-global tacos 90)
+          (+ (global tacos) tacos))
+        """
+        stmt, env = compile_expr(src, tacos=5)
+        self.assertEqual(stmt(), 190)
+
+
+    def test_delq_global(self):
+        src = """
+        (let ((tacos 100))
+          (delq-global tacos)
+          tacos)
+        """
+        stmt, env = compile_expr(src, tacos=5)
+        self.assertEqual(stmt(), 100)
+        self.assertTrue("tacos" not in env)
 
 
 #

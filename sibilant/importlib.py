@@ -36,10 +36,6 @@ from .module import init_module, load_module
 from .parse import source_str
 
 
-# we're going to pre-import this
-import sibilant.builtins  # noqa
-
-
 # once installed, changing this does nothing.
 _SOURCE_SUFFIXES = (".lspy", ".sibilant")
 

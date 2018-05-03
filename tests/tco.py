@@ -30,7 +30,7 @@ import sibilant.builtins
 
 from sibilant.tco import trampoline, tailcall
 
-from .compiler import compile_expr
+from . import compile_expr
 
 
 @contextmanager

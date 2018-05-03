@@ -37,6 +37,11 @@ def compile_expr(src_str, builtins=None, **base):
     return result, mod.__dict__
 
 
+def compile_expr_bootstrap(src_str, **base):
+    import sibilant.bootstrap as bootstrap
+    return compile_expr(src_str, builtins=bootstrap, **base)
+
+
 def compile_expr_no_tco(src_str, **base):
     mod = fake_module_from_env(base)
 

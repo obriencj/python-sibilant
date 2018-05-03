@@ -28,6 +28,8 @@ from . import (
     gather_parameters,
 )
 
+from ..lib import symbol
+
 
 class CPython35(ExpressionCodeSpace):
     """
@@ -299,6 +301,9 @@ class CPython35(ExpressionCodeSpace):
             elif op is _Pseudop.BUILD_SET:
                 yield _Opcode.BUILD_SET, args[0], 0
 
+            elif op is _Pseudop.BUILD_SLICE:
+                yield _Opcode.BUILD_SLICE, args[0], 0
+
             elif op is _Pseudop.SETUP_WITH:
                 yield _Opcode.SETUP_WITH, args[0], 0
 
@@ -423,9 +428,25 @@ class CPython35(ExpressionCodeSpace):
         self.pseudop_build_tuple(count)
 
         self.pseudop_const("")
-        self.pseudop_get_attr("join")
+        self.pseudop_get_attr(symbol("join"))
         self.pseudop_rot_two()
         self.pseudop_call(1)
+
+
+    def pseudop_format(self, flags):
+        # emulate the FORMAT_VALUE opcode using the format function
+
+        # TOS format str if flags & 0x01
+        # TOS2 value
+
+        self.pseudop_get_global(symbol("format"))
+
+        if flags & 0x04:
+            self.pseudop_rot_three()
+            self.pseudop_call(2)
+        else:
+            self.pseudop_rot_two()
+            self.pseudop_call(1)
 
 
     def pseudop_lambda(self, code, defaults=(), kwonly=()):
@@ -454,13 +475,14 @@ class CPython35(ExpressionCodeSpace):
             # free/cell vars and provide them.
 
             for f in code.co_freevars:
-                if f in self.cell_vars:
-                    fi = self.cell_vars.index(f)
-                elif f in self.free_vars:
+                fsym = symbol(f)
+                if fsym in self.cell_vars:
+                    fi = self.cell_vars.index(fsym)
+                elif fsym in self.free_vars:
                     fi = len(self.cell_vars)
-                    fi += self.free_vars.index(f)
+                    fi += self.free_vars.index(fsym)
                 else:
-                    assert False, "missing local var %r" % f
+                    assert False, "missing local var %r" % fsym
 
                 yield _Opcode.LOAD_CLOSURE, fi, 0
 

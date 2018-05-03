@@ -52,7 +52,7 @@ def __setup__(glbls):
         # it might have been pre-compiled
         import sibilant.basics as basics
 
-    except ImportError:
+    except (ImportError, AttributeError):
         # if not that's fine, we can do it manually
         src = get_data(__name__, "basics.lspy").decode("utf8")
         filename = join(dirname(__file__), "basics.lspy")
@@ -73,8 +73,9 @@ def __setup__(glbls):
                 glbls[key] = val
                 _all.add(key)
 
-    # special case, since we're ignoring all the other __ entries
+    # special cases, since we're ignoring all the other __ entries
     glbls["__import__"] = __import__
+    # glbls["__debug__"] = __debug__
 
     # return tuple(_all)
     return None

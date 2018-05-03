@@ -45,15 +45,21 @@ def __setup__(glbls):
 
     import sys
 
+    from collections import namedtuple
     from copy import copy, deepcopy
     from fractions import Fraction as fraction
+    from decimal import Decimal as decimal
     from functools import partial, reduce, wraps
+    from itertools import islice as take
+    from math import floor, ceil
 
-    import sibilant
+    import sibilant.lib as lib
     import sibilant.compiler as compiler
     import sibilant.tco as tco
     import sibilant.specials as specials
     import sibilant.operators as operators
+
+    from sibilant.parse import Atom as atom
 
 
     _all_ = []
@@ -77,7 +83,7 @@ def __setup__(glbls):
 
     def _ty(type_, name):
         _val(type_, name)
-        _op(sibilant.TypePredicate(name + "?", type_), None, True)
+        _op(lib.TypePredicate(name + "?", type_), None, True)
 
 
     # === mass re-export from other modules ==
@@ -102,38 +108,44 @@ def __setup__(glbls):
 
     # == sibilant data types ===
 
-    _ty(sibilant.pair, "pair")
-    _op(sibilant.cons, "cons")
-    _op(sibilant.car, "car")
-    _op(sibilant.setcar, "set-car")
-    _op(sibilant.cdr, "cdr")
-    _op(sibilant.setcdr, "set-cdr")
-    _op(sibilant.is_proper, "proper?")
-    _op(sibilant.build_proper, "build-proper")
-    _val(sibilant.nil, "nil")
-    _op(sibilant.is_nil, "nil?")
+    _ty(lib.pair, "pair")
+    _op(lib.cons, "cons")
+    _op(lib.car, "car")
+    _op(lib.setcar, "set-car")
+    _op(lib.cdr, "cdr")
+    _op(lib.setcdr, "set-cdr")
+    _op(lib.is_proper, "proper?")
+    _op(lib.is_recursive, "recursive?")
+    _op(lib.build_proper, "build-proper")
+    _op(lib.unpack, "unpack")
+    _val(lib.nil, "nil")
+    _op(lib.is_nil, "nil?")
 
-    _ty(sibilant.symbol, "symbol")
-    _ty(sibilant.keyword, "keyword")
+    _ty(lib.symbol, "symbol")
+    _ty(lib.keyword, "keyword")
+    _op(lib.gensym, "gensym")
 
-    _op(sibilant.build_unpack_pair, "build-unpack-pair")
+    _ty(lib.values, "values")
 
-    _op(sibilant.reapply, "reapply")
+    _op(lib.build_unpack_pair, "build-unpack-pair")
 
-    _ty(sibilant.values, "values")
+    _op(lib.apply, "apply")
+    _op(lib.reapply, "reapply")
 
-    _op(sibilant.first, "first")
-    _op(sibilant.second, "second", rename=True)
-    _op(sibilant.third, "third", rename=True)
-    _op(sibilant.fourth, "fourth", rename=True)
-    _op(sibilant.fifth, "fifth", rename=True)
-    _op(sibilant.sixth, "sixth", rename=True)
-    _op(sibilant.seventh, "seventh", rename=True)
-    _op(sibilant.eighth, "eighth", rename=True)
-    _op(sibilant.ninth, "ninth", rename=True)
-    _op(sibilant.tenth, "tenth", rename=True)
+    _op(lib.repeatedly, "repeatedly")
 
-    _op(sibilant.last, "last")
+    _op(lib.last, "last")
+
+    _op(lib.first, "first")
+    _op(lib.second, "second", rename=True)
+    _op(lib.third, "third", rename=True)
+    _op(lib.fourth, "fourth", rename=True)
+    _op(lib.fifth, "fifth", rename=True)
+    _op(lib.sixth, "sixth", rename=True)
+    _op(lib.seventh, "seventh", rename=True)
+    _op(lib.eighth, "eighth", rename=True)
+    _op(lib.ninth, "ninth", rename=True)
+    _op(lib.tenth, "tenth", rename=True)
 
 
     # === sibilant compiler builtins ===
@@ -150,24 +162,31 @@ def __setup__(glbls):
 
     _op(compiler.current, "active-compiler")
 
+    _ty(atom, "atom")
 
-    # === some python builtin types ===
 
+    # === some python builtin stuff ===
+
+    _op(namedtuple, "namedtuple")
     _ty(partial, "partial")
     _op(wraps, "wraps")
     _op(copy, "copy")
     _op(deepcopy, "deep-copy")
 
+    _op(floor, "floor")
+    _op(ceil, "ceil")
+    _op(take, "take")
+
     _ty(tuple, "tuple")
     _ty(list, "list")
     _ty(dict, "dict")
     _ty(set, "set")
+    _ty(frozenset, "frozenset")
+
+    _op(id, "id")
 
     _op(lambda value: hasattr(value, "__iter__"),
         "iterable?", rename=True)
-
-
-    # === some python builtin functions ===
 
     _ty(map, "map")
     _ty(zip, "zip")
@@ -179,7 +198,6 @@ def __setup__(glbls):
     _op(callable, "callable?")
     _op(next, "next")
     _op(len, "len")
-    _op(format, "format")
     _op(getattr, "getattr")
     _op(setattr, "setattr")
     _op(isinstance, "isinstance")
@@ -196,6 +214,7 @@ def __setup__(glbls):
     _ty(float, "float")
     _ty(complex, "complex")
     _ty(fraction, "fraction")
+    _ty(decimal, "decimal")
     _ty(range, "range")
     _ty(memoryview, "memoryview")
     _ty(slice, "slice")
@@ -203,6 +222,7 @@ def __setup__(glbls):
     _op(sorted, "sorted")
     _ty(reversed, "reversed")
 
+    _op(ascii, "ascii")
     _op(chr, "chr")
     _op(ord, "ord")
     _op(min, "min")
@@ -229,6 +249,9 @@ def __setup__(glbls):
     _op(eval, "py-eval")
 
     _op(sys.exit, "exit")
+
+    _val(sys, "sys")
+    # _val(__debug__, "__debug__")
 
     # done with setup
     # return tuple(_all_)

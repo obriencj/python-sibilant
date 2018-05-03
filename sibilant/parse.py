@@ -23,15 +23,17 @@ license: LGPL v.3
 """
 
 
-from . import symbol, keyword, cons, nil, is_pair, setcdr
-from . import SibilantSyntaxError
+from .lib import symbol, keyword, cons, nil, is_pair, setcdr
+from .lib import SibilantSyntaxError
 
+from codecs import decode
 from contextlib import contextmanager
+from decimal import Decimal as decimal
 from fractions import Fraction as fraction
 from functools import partial
 from io import StringIO
 from os.path import exists
-from re import compile as regex
+from re import compile as regex, UNICODE, VERBOSE
 
 
 __all__ = (
@@ -41,6 +43,8 @@ __all__ = (
 )
 
 
+_symbol_begin = symbol("begin")
+_symbol_decimal = symbol("decimal")
 _symbol_fraction = symbol("fraction")
 _symbol_quasiquote = symbol("quasiquote")
 _symbol_quote = symbol("quote")
@@ -51,9 +55,10 @@ _symbol_unquote_splicing = symbol("unquote-splicing")
 
 IN_PROGRESS = keyword("work-in-progress")
 VALUE = keyword("value")
+ATOM = keyword("atom")
 DOT = keyword("dot")
 SKIP = keyword("skip")
-CLOSE_PAREN = keyword("close-pair")
+CLOSE_PAIR = keyword("close-pair")
 EOF = keyword("eof")
 
 
@@ -61,7 +66,8 @@ _integer_re = regex(r"-?\d+").match
 _bin_re = regex(r"0b[01]+").match
 _oct_re = regex(r"0o[0-7]+").match
 _hex_re = regex(r"0x[\da-f]+").match
-_float_re = regex(r"-?((\d*\.\d+|\d+\.\d*)(e-?\d+)?|(\d+e-?\d+))").match
+_float_re = regex(r"-?((\d*\.\d+|\d+\.\d*)(e-?\d+)?|(\d+e-?\d+))f?").match
+_decimal_re = regex(r"-?((\d*\.\d+)|(\d+\.\d*)|\d+)d").match
 _fraction_re = regex(r"-?\d+/\d+").match
 _complex_re = regex(r"-?\d*\.?\d+\+\d*\.?\d*[ij]").match
 _keyword_re = regex(r"^(:.+|.+:)$").match
@@ -71,7 +77,12 @@ _as_integer = int
 _as_bin = partial(int, base=2)
 _as_oct = partial(int, base=8)
 _as_hex = partial(int, base=16)
-_as_float = float
+
+
+def _as_float(s):
+    if s[-1] == "f":
+        s = s[:-1]
+    return float(s)
 
 
 def _as_fraction(s):
@@ -91,6 +102,16 @@ def _as_fraction(s):
     return cons(_symbol_fraction, s.numerator, s.denominator, nil)
 
 
+def _as_decimal(s):
+
+    # this will raise a type error if s cannoy be parsed into a
+    # decimal. It presumes strongly that there was a d or D suffix on
+    # the value
+    s = s[:-1]
+    decimal(s)
+    return cons(_symbol_decimal, s, nil)
+
+
 def _as_complex(s):
     if s[-1] == "i":
         return complex(s[:-1] + "j")
@@ -98,10 +119,32 @@ def _as_complex(s):
         return complex(s)
 
 
+ESCAPE_SEQUENCE_RE = regex(r'''
+(\\U........
+| \\u....
+| \\x..
+| \\[0-7]{1,3}
+| \\N\{[^}]+\}
+| \\[\\'"abfnrtv]
+)''', UNICODE | VERBOSE)
+
+
+def _decode_sub(match):
+    return decode(match.group(0), 'unicode-escape')
+
+
+def _as_unicode(s, pattern=ESCAPE_SEQUENCE_RE):
+    return pattern.sub(_decode_sub, s)
+
+
 class ReaderSyntaxError(SibilantSyntaxError):
     """
     An error in sibilant syntax during read time
     """
+
+
+class Atom(str):
+    pass
 
 
 class Reader(object):
@@ -136,6 +179,27 @@ class Reader(object):
             raise reader_stream.error("invalid syntax", pos)
 
 
+    def read_atom(self, reader_stream):
+        """
+        Returns a cons cell, or unprocessed-atomic value. Raises
+        ReaderSyntaxError to complain about syntactic difficulties in
+        the stream.
+        """
+
+        event, pos, value = self._read(reader_stream, raw=True)
+
+        if event is VALUE:
+            return value
+        elif event is ATOM:
+            return Atom(value)
+        elif event is EOF:
+            # TODO: could probably raise error?
+            # TODO: soft-eof condition possible?
+            return None
+        else:
+            raise reader_stream.error("invalid syntax", pos)
+
+
     def read_and_position(self, reader_stream):
         """
         Returns a cons cell, symbol, or numeric value. Returns None if no
@@ -154,7 +218,7 @@ class Reader(object):
             raise reader_stream.error("invalid syntax", pos)
 
 
-    def _read(self, stream):
+    def _read(self, stream, raw=False):
         while True:
             stream.skip_whitespace()
 
@@ -163,15 +227,18 @@ class Reader(object):
             if not c:
                 return EOF, position, None
 
-            macro = self.reader_macros.get(c, self._read_atom)
+            macro = self.reader_macros.get(c, self._read_default)
 
             try:
                 event, value = macro(stream, c)
+                if not raw and event is ATOM:
+                    event = VALUE
+                    value = self.process_atom(value)
 
             except ValueError as ve:
                 # this indicates a conversion issue occurred in the
                 # reader macro, most likely in the default reader
-                # macro of _read_atom
+                # macro of _read_default
                 raise stream.error(ve.args[0], position) from None
 
             if is_pair(value):
@@ -195,7 +262,8 @@ class Reader(object):
             if terminating:
                 self.terminating.append(c)
 
-        self._terms = "".join(self.terminating)
+        if terminating:
+            self._terms = "".join(self.terminating)
 
 
     def get_event_macro(self, char):
@@ -264,8 +332,15 @@ class Reader(object):
     def _add_default_macros(self):
         sm = self.set_event_macro
 
-        sm("(", self._read_pair, True)
-        sm(")", self._close_paren, True)
+        sm('(', partial(self._read_pair, ')'), True)
+        sm(')', self._close_pair, True)
+
+        sm('[', partial(self._read_pair, ']'), True)
+        sm(']', self._close_pair, True)
+
+        sm('{', partial(self._read_begin, '}'), True)
+        sm('}', self._close_pair, True)
+
         sm('"', self._read_string, True)
         sm("'", self._read_quote, True)
         sm("`", self._read_quasiquote, True)
@@ -313,9 +388,10 @@ class Reader(object):
         ap(symbol("float"), _float_re, _as_float)
         ap(symbol("complex"), _complex_re, _as_complex)
         ap(symbol("fraction"), _fraction_re, _as_fraction)
+        ap(symbol("decimal"), _decimal_re, _as_decimal)
 
 
-    def _read_atom(self, stream, c):
+    def _read_default(self, stream, c):
         """
         The default character macro handler, for when nothing else has
         matched.
@@ -326,16 +402,18 @@ class Reader(object):
         if atom == ".":
             return DOT, None
 
+        return ATOM, atom
+
+
+    def process_atom(self, atom):
         for name, match, conv in self.atom_patterns:
             if match(atom):
-                break
+                return conv(atom)
         else:
-            conv = symbol
-
-        return VALUE, conv(atom)
+            return symbol(atom)
 
 
-    def _read_pair(self, stream, char):
+    def _read_pair(self, closer, stream, char):
         """
         The character macro handler for pair notation
         """
@@ -346,7 +424,7 @@ class Reader(object):
         while True:
             event, position, value = self._read(stream)
 
-            if event is CLOSE_PAREN:
+            if event is CLOSE_PAIR:
                 break
 
             elif event is DOT:
@@ -355,6 +433,8 @@ class Reader(object):
                     # is therefore invalid.
                     raise stream.error("invalid dotted list",
                                        position)
+
+                dot_position = position
 
                 # improper list, the next item is the tail. Read it
                 # and be done.
@@ -367,10 +447,10 @@ class Reader(object):
 
                 # make sure that the list ends immediately after the
                 # dotted value.
-                close_event, close_pos, value = self._read(stream)
-                if close_event is not CLOSE_PAREN:
+                event, position, value = self._read(stream)
+                if event is not CLOSE_PAIR:
                     raise stream.error("invalid use of dot in list",
-                                       close_pos)
+                                       dot_position)
                 else:
                     break
 
@@ -390,15 +470,30 @@ class Reader(object):
                 setcdr(work, new_work)
                 work = new_work
 
+        if value != closer:
+            raise stream.error("mismatched open and close characters",
+                               position)
+
         return VALUE, result
 
 
-    def _close_paren(self, stream, char):
+    def _read_begin(self, closer, stream, char):
+        event, result = self._read_pair(closer, stream, char)
+
+        if event is VALUE:
+            new_result = cons(_symbol_begin, result)
+            new_result.set_position(result.get_position())
+            result = new_result
+
+        return event, result
+
+
+    def _close_pair(self, stream, char):
         """
         The character macro handler for a closing parenthesis
         """
 
-        return CLOSE_PAREN, None
+        return CLOSE_PAIR, char
 
 
     def _read_string(self, stream, char):
@@ -406,21 +501,63 @@ class Reader(object):
         The character macro handler for string literals
         """
 
-        def combine():
-            is_escp = partial(str.__eq__, "\\")
-            is_char = partial(str.__eq__, char)
-            sr = partial(stream.read, 1)
-            for C in iter(sr, ''):
-                if is_char(C):
-                    break
-                yield C
-                if is_escp(C):
-                    yield sr()
-            else:
-                raise stream.error("Unexpected EOF")
+        result = []
 
-        data = "".join(combine()).encode()
-        return VALUE, data.decode("unicode-escape")
+        is_escp = partial(str.__eq__, "\\")
+        is_char = partial(str.__eq__, char)
+
+        if stream.peek(2) == (char * 2):
+            stream.read(2)
+            return self._read_3string(stream, char)
+
+        sr = partial(stream.read, 1)
+        for C in iter(sr, ''):
+            if is_char(C):
+                break
+            result.append(C)
+            if is_escp(C):
+                result.append(sr())
+        else:
+            raise stream.error("Unexpected EOF")
+
+        return VALUE, _as_unicode("".join(result))
+
+
+    def _read_3string(self, stream, char):
+        seen = 0
+        esc = False
+
+        def seen_3(c):
+            nonlocal seen
+            nonlocal esc
+            if esc:
+                esc = False
+                seen = 0
+            elif c == "\\":
+                esc = True
+            elif c == char:
+                seen += 1
+            else:
+                seen = 0
+            return (seen == 3)
+
+        value = stream.read_until(seen_3)
+        if seen == 3:
+            # using read_until like this means that the read will stop
+            # once it's seen the third instance of the char, so the
+            # first two instances will be at the end of the value and
+            # need to be trimmed off. Also we'll need to snag that
+            # trailing character back off of the stream, since
+            # read_until will have pushed it back when the seen_3
+            # predicate returned False
+            value = value[:-2]
+            stream.read(1)
+
+        else:
+            # we ran out of stream
+            raise stream.error("Unexpected EOF")
+
+        return VALUE, _as_unicode(value)
 
 
     def _read_quote(self, stream, char):

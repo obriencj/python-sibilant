@@ -17,19 +17,15 @@
 (def import-from argparse ArgumentParser)
 (def import-from os.path basename)
 
-(def import siblife.curse)
+(def import-from .curse cli)
 
 
-(defun cli (options)
-  (siblife.curse.main options))
-
-
-(defun create-option-parser (argv)
-  (doc "the siblife CLI argument parser")
+(defun create-option-parser [name]
+  " the siblife CLI argument parser "
 
   (define parser (ArgumentParser
-	       prog: (basename (item argv 0))
-	       description: "This is siblife"))
+		  prog: (basename name)
+		  description: "This is siblife"))
 
   (parser.add_argument "--wrap" action: "store_true" default: False
 		       help: "Game board wraps at edges")
@@ -51,27 +47,27 @@
   parser)
 
 
-(defun main (argv: None)
-  (doc "entry point for the siblife CLI")
+(defun main [argv: None]
+  " entry point for the siblife CLI "
 
   ;; grab sys.argv if we aren't given something else
   (when (None? argv) (setq argv sys.argv))
+  (define-values [name . args] argv)
 
-  (define parser (create-option-parser argv))
-  (define options (parser.parse_args
-		(item-slice argv 1)))
+  (var [parser (create-option-parser name)]
+       [options (parser.parse_args args)])
 
   (try
    (cli options)
 
-   ((KeyboardInterrupt as: ki)
+   [[KeyboardInterrupt as: ki]
     (print file: sys.stderr)
-    130)
+    130]
 
-   (else: 0)))
+   [else: 0]))
 
 
-(when (eq __name__ "__main__")
+(when-main
   (sys.exit (main)))
 
 

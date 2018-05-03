@@ -13,9 +13,6 @@
 # <http://www.gnu.org/licenses/>.
 
 
-import sibilant.importer
-
-
 # gotta trick unittest into actually loading this stuff
 from tests.sibilant.basics import *
 

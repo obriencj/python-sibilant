@@ -23,9 +23,9 @@ Sibilant Example Project
 
 # this is the only part that is really important. You need to have
 # your top-level package or module enable the sibilant importer. The
-# easiest way to do that is to just import sibilant.importer
+# easiest way to do that is to just import sibilant
+import sibilant  # noqa
 
-import sibilant.importer  # noqa
 
 from functools import lru_cache
 

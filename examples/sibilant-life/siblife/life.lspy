@@ -18,9 +18,9 @@
 (def import-from random random seed)
 
 
-(def class LifeBoard (object)
+(def class LifeBoard [object]
 
-     (def function __init__ (self width height wrap: False)
+     (def function __init__ [self width height wrap: False]
 
 	  (setf self.width width)
 	  (setf self.height height)
@@ -31,7 +31,7 @@
 	  (self.clear))
 
 
-     (def function clear (self)
+     (def function clear [self]
 	  " Clears all the data in the current board. Each position is
           set to the default state of dead. "
 
@@ -40,13 +40,11 @@
 	  ;; we set all the tracked values to dead, this will allow
 	  ;; any display to see which coordinates to turn off, and the
 	  ;; next call to tracked will clear the data
-	  (for-each (key (dat.keys))
-		    (setf (item dat key) 0))
-
-	  None)
+	  (for-each [key (dat.keys)]
+		    (setf (item dat key) 0)))
 
 
-     (def function randomize (self threshold: 0.5)
+     (def function randomize [self threshold: 0.5]
 	  " Clears all the data in the current board. Each position on
           the board is then populated if a random value is greater
           than the given threasholy value.  A lower threshold will
@@ -60,14 +58,12 @@
 	    (product (range 0 self.width)
 		     (range 0 self.height)))
 
-	  (for-each ((x y) all-coords)
+	  (for-each [[x y] all-coords]
 		    (when (< threshold (random))
-		      (self.set-cell x y 1)))
-
-	  None)
+			  (self.set-cell x y 1))))
 
 
-     (def function tracked (self cleanup: True)
+     (def function tracked [self cleanup: True]
 	  " Yields pairs of coordinates and cell values, where each
           coordinate is an integer representing the x and y axis.
 
@@ -79,42 +75,41 @@
           deceased cells will be removed from the underlying data set
           afterwards. "
 
-	  (var coord cell (data self.data))
+	  (var coord cell [data self.data])
 
 	  (if cleanup
-	      then: (for-each (item (list (data.items)))
+	      then: (for-each [item (list (data.items))]
 			      (yield item)
 			      (setq-values (coord cell) item)
-			      (unless cell
-				(data.pop coord)))
+			      (unless cell (del-item data coord)))
 	      else: (yield-from (data.items))))
 
 
-     (def function toggle (self x y)
+     (def function toggle [self x y]
 	  " Flip a living cell to dead, or a dead cell to alive. "
 
-	  (define coord (values x y))
-	  (define cell (self.data.get coord None))
+	  (var [coord (#tuple x y)]
+	       [cell (self.data.get coord None)])
 
-	  (setf (item self.data coord) (if cell 0 1))
-	  None)
+	  (setf (item self.data coord) (if cell 0 1)))
 
 
-     (def function coord-key (self x y)
+     (def function coord-key [self x y]
           " Converts a coordinate into a key for internal storage, or
           None if the coordinate is not within the bounds of the board
           and wrapping is not enabled. "
 
-	  (var (w self.width) (h self.height))
+	  (var [w self.width]
+	       [h self.height])
 
 	  (unless self.wrap
-	    (unless (and (within? 0 w x) (within? 0 h y))
-	      (return None)))
+		  (unless (and (within? 0 w x) (within? 0 h y))
+			  (return None)))
 
-	  (values (% x w) (% y h)))
+	  (#tuple (% x w) (% y h)))
 
 
-     (def function get-cell (self x y)
+     (def function get-cell [self x y]
 	  (define key (self.coord-key x y))
 
 	  (if (None? key)
@@ -122,90 +117,85 @@
 	      else: (self.data.get key 0)))
 
 
-     (def function set-cell (self x y value)
+     (def function set-cell [self x y value]
 	  (define key (self.coord-key x y))
 
 	  (unless (None? key)
-	    (setf (item self.data key) value)))
+		  (setf (item self.data key) value)))
 
 
-     (def function group-coord (self x y)
+     (def function group-coord [self x y]
 	  (product (values (- x 1) x (+ x 1))
 		   (values (- y 1) y (+ y 1))))
 
 
-     (def function get-group (self x y)
+     (def function get-group [self x y]
 	  (starmap self.get-cell (self.group-coord x y)))
 
 
-     (def function get-all-groups (self)
+     (def function get-all-groups [self]
 	  (starmap self.get-group (product (range 0 self.width)
 					   (range 0 self.height))))
 
 
-     (def function age (self)
+     (def function age [self]
 	  " Update the state of this board to represent the next
             generation. "
 
-	  (var (dat (dict)) (followup (set)))
-	  (var key x y)
+	  (var [dat (#dict)]
+	       [followup (#set)]
+	       key x y)
 
 	  ;; update all the cells that we already know are alive, and
 	  ;; collect their neighbors for followup processing
-	  (for-each ((key value) (self.tracked cleanup: False))
-		    (setq-values (x y) key)
+	  (for-each [[key value] (self.tracked cleanup: False)]
+		    (setq-values [x y] key)
 		    (setf (item dat key) (life-rule (self.get-group x y)))
-		    (followup.update (set (self.group-coord x y))))
+		    (followup.update (self.group-coord x y)))
 
 	  ;; cut out the cells we've already processed from the
 	  ;; followup coordinates
-	  (followup.difference_update (set (self.data.keys)))
+	  (followup.difference_update (self.data.keys))
 
 	  ;; for each of the followup coordinates, calculate if it's
 	  ;; alive or not.
-	  (for-each ((x y) followup)
+	  (for-each [[x y] followup]
 		    (setq key (self.coord-key x y))
 		    (unless (None? key)
-		      (setf (item dat key) (life-rule (self.get-group x y)))))
+			    (setf (item dat key)
+				  (life-rule (self.get-group x y)))))
 
 	  ;; and that's our new data, done deal.
-	  (setf self.data dat)
-
-	  None)
+	  (setf self.data dat))
 
 
-     (def function child (self)
+     (def function child [self]
 	  " Create a copy of this board and age it to the next
             generation. "
 
 	  (define kid (copy self))
 	  (kid.age)
-	  kid)
-
-     None)
+	  kid) )
 
 
-(def function life-rule (group)
-     (doc "
-     Given a group of nine cells, return the next state of the center
-     cell following the rules for Conway's Game of Life.
-     ")
+(def function life-rule [group]
+     " Given a group of nine cells, return the next state of the
+       center cell following the rules for Conway's Game of Life. "
 
      ;; group starts as a generator, need to actualize it
      (setq group (tuple group))
 
      ;; state of the center of the group
-     (define center (item group 4))
+     (var [center (item group 4)]
+	  [living 0])
 
-     ;; count of living members of the group
-     (define living (reduce (lambda (accu val)
-			   (if val then: (+ 1 accu) else: accu))
-			 group 0))
+     ;; reduce is cool and all, but all those function calls hurt.
+     (for-each [val group] (when val (incr living)))
 
      (if center
-	 then: (if (or (< living 3) (> living 4))
-		   then: 0
-		   else: (min (+ center 1) 9))
+	 then: (if (within? 3 5 living)
+		   then: (min (+ center 1) 9)
+		   else: 0)
 	 else: (if (== living 3)
 		   then: 1
 		   else: 0)))

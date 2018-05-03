@@ -34,7 +34,7 @@ def parse_source(src_str):
     return reader.read(stream)
 
 
-class TestParse(TestCase):
+class Atomics(TestCase):
 
 
     def test_nothing(self):
@@ -89,6 +89,7 @@ class TestParse(TestCase):
         src = ":x:"
         col = parse_source(src)
         self.assertIs(col, keyword("x"))
+
         src = ":x"
         col = parse_source(src)
         self.assertIs(col, keyword("x"))
@@ -154,6 +155,18 @@ class TestParse(TestCase):
         col = parse_source(src)
         self.assertEqual(col, 5e-1)
 
+        src = "1.5f"
+        col = parse_source(src)
+        self.assertEqual(col, 1.5)
+
+        src = "1.f"
+        col = parse_source(src)
+        self.assertEqual(col, 1.0)
+
+        src = ".5f"
+        col = parse_source(src)
+        self.assertEqual(col, 0.5)
+
 
     def test_complex(self):
 
@@ -182,6 +195,26 @@ class TestParse(TestCase):
                                    -1, 2, nil))
 
 
+    def test_decimal(self):
+        src = "1.5d"
+        col = parse_source(src)
+        self.assertEqual(col, cons(symbol("decimal"),
+                                   "1.5", nil))
+
+        src = ".5d"
+        col = parse_source(src)
+        self.assertEqual(col, cons(symbol("decimal"),
+                                   ".5", nil))
+
+        src = "1.d"
+        col = parse_source(src)
+        self.assertEqual(col, cons(symbol("decimal"),
+                                   "1.", nil))
+
+
+class Strings(TestCase):
+
+
     def test_string(self):
         src = '""'
         col = parse_source(src)
@@ -195,9 +228,66 @@ class TestParse(TestCase):
         col = parse_source(src)
         self.assertEqual(col, "hello world")
 
-        src = ' "hello\\n \\tworld" '
+        src = r' "hello\n \tworld" '
         col = parse_source(src)
         self.assertEqual(col, "hello\n \tworld")
+
+        src = ' "hello\n \tworld" '
+        col = parse_source(src)
+        self.assertEqual(col, "hello\n \tworld")
+
+        src = '"¿?"'
+        col = parse_source(src)
+        self.assertEqual(col, "¿?")
+
+        src = '"¿\\n?"'
+        col = parse_source(src)
+        self.assertEqual(col, "¿\n?")
+
+
+    def test_3string(self):
+        src = r'""""""'
+        col = parse_source(src)
+        self.assertEqual(col, "")
+
+        src = r' """ """ '
+        col = parse_source(src)
+        self.assertEqual(col, " ")
+
+        src = r'"""hello world"""'
+        col = parse_source(src)
+        self.assertEqual(col, 'hello world')
+
+        src = r'"""hello "favorite" world"""'
+        col = parse_source(src)
+        self.assertEqual(col, 'hello "favorite" world')
+
+        src = r'"""hello \""" "\"" ""\" world"""'
+        col = parse_source(src)
+        self.assertEqual(col, 'hello """ """ """ world')
+
+        src = r'"""hello "world\""""'
+        col = parse_source(src)
+        self.assertEqual(col, 'hello "world"')
+
+        src = r' """hello\n \tworld""" '
+        col = parse_source(src)
+        self.assertEqual(col, "hello\n \tworld")
+
+        src = ' """hello\n \tworld""" '
+        col = parse_source(src)
+        self.assertEqual(col, "hello\n \tworld")
+
+        src = '"""¿?"""'
+        col = parse_source(src)
+        self.assertEqual(col, "¿?")
+
+        src = r'"""¿\n?"""'
+        col = parse_source(src)
+        self.assertEqual(col, "¿\n?")
+
+
+class Quoted(TestCase):
 
 
     def test_quote_symbol(self):
@@ -280,6 +370,48 @@ class TestParse(TestCase):
 
         self.assertEqual(col, exp)
 
+        src = "[testing a thing]"
+        col = parse_source(src)
+        self.assertEqual(col, exp)
+
+        with self.assertRaises(SyntaxError):
+            src = "(no way]"
+            col = parse_source(src)
+
+        with self.assertRaises(SyntaxError):
+            src = "[no way)"
+            col = parse_source(src)
+
+        with self.assertRaises(SyntaxError):
+            src = "{no way]"
+            col = parse_source(src)
+
+        with self.assertRaises(SyntaxError):
+            src = "[no way}"
+            col = parse_source(src)
+
+        with self.assertRaises(SyntaxError):
+            src = "{no way)"
+            col = parse_source(src)
+
+        with self.assertRaises(SyntaxError):
+            src = "(no way}"
+            col = parse_source(src)
+
+
+class ConsPairs(TestCase):
+
+
+    def test_implicit_begin(self):
+
+        src = "{testing a thing}"
+        col = parse_source(src)
+        self.assertEqual(col, cons(symbol("begin"),
+                                   symbol("testing"),
+                                   symbol("a"),
+                                   symbol("thing"),
+                                   nil))
+
 
     def test_dot(self):
         src = "(testing . 123)"
@@ -336,7 +468,7 @@ class TestParse(TestCase):
         self.assertEqual(c, cons(3, nil))
 
 
-class PositionsTest(TestCase):
+class Positions(TestCase):
 
 
     def test_position_1(self):

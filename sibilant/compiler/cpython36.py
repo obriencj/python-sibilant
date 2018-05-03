@@ -28,6 +28,8 @@ from . import (
     gather_parameters,
 )
 
+from ..lib import symbol
+
 
 class CPython36(ExpressionCodeSpace):
     """
@@ -304,8 +306,14 @@ class CPython36(ExpressionCodeSpace):
             elif op is _Pseudop.BUILD_SET:
                 yield _Opcode.BUILD_SET, args[0]
 
+            elif op is _Pseudop.BUILD_SLICE:
+                yield _Opcode.BUILD_SLICE, args[0]
+
             elif op is _Pseudop.BUILD_STR:
                 yield _Opcode.BUILD_STRING, args[0]
+
+            elif op is _Pseudop.FORMAT:
+                yield _Opcode.FORMAT_VALUE, args[0]
 
             elif op is _Pseudop.SETUP_WITH:
                 yield _Opcode.SETUP_WITH, args[0]
@@ -464,13 +472,15 @@ class CPython36(ExpressionCodeSpace):
             # free/cell vars and provide them.
 
             for f in code.co_freevars:
-                if f in self.cell_vars:
-                    fi = self.cell_vars.index(f)
-                elif f in self.free_vars:
+                fsym = symbol(f)
+
+                if fsym in self.cell_vars:
+                    fi = self.cell_vars.index(fsym)
+                elif fsym in self.free_vars:
                     fi = len(self.cell_vars)
-                    fi += self.free_vars.index(f)
+                    fi += self.free_vars.index(fsym)
                 else:
-                    assert False, "missing local var %r" % f
+                    assert False, "missing local var %r" % fsym
                 yield _Opcode.LOAD_CLOSURE, fi
 
             yield _Opcode.BUILD_TUPLE, len(code.co_freevars)
@@ -614,6 +624,12 @@ class CPython36(ExpressionCodeSpace):
             if args[1]:
                 pop()
             if args[2]:
+                pop()
+            push()
+
+        elif op is _Pseudop.FORMAT:
+            pop()
+            if args[0] & 0x04:
                 pop()
             push()
 

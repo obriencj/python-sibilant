@@ -1,0 +1,95 @@
+#! /usr/bin/env python3 -m sibilant
+
+
+;; This library is free software; you can redistribute it and/or modify
+;; it under the terms of the GNU Lesser General Public License as
+;; published by the Free Software Foundation; either version 3 of the
+;; License, or (at your option) any later version.
+;;
+;; This library is distributed in the hope that it will be useful, but
+;; WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;; Lesser General Public License for more details.
+;;
+;; You should have received a copy of the GNU Lesser General Public
+;; License along with this library; if not, see
+;; <http://www.gnu.org/licenses/>.
+
+
+"
+Sibilant, a LISP for Python
+
+:author: Christopher O'Brien  <obriencj@gmail.com>
+:license: LGPL v.3
+"
+
+
+(def import-from sibilant.site.setuptools setup Extension)
+
+
+(define setup_data
+  (values
+   name: "sibilant"
+   version: "0.9.0"
+
+   packages:
+   (#list
+    "sibilant"
+    "sibilant.compiler"
+    "sibilant.site")
+
+   package_data:
+   (#dict
+    ("sibilant" (#list "*.lspy"))
+    ("sibilant.site" (#list "*.lspy")))
+
+   ext_modules:
+   (#list
+    (Extension name: "sibilant._tco"
+	       sources: (#list "sibilant/_tco.c")
+	       extra_compile_args: (#list "--std=c99"))
+    (Extension name: "sibilant._types"
+	       sources: (#list "sibilant/_types.c")
+	       include_dirs: (#list "include")
+	       extra_compile_args: (#list "--std=c99")))
+
+   headers:
+   (#list
+    "include/py3-sibilant.h")
+
+   test_suite: "tests"
+
+   entry_points:
+   (dict
+    console_scripts: (#list "sibilant=sibilant.cli:main"))
+
+   install_requires:
+   (#list "appdirs")
+
+   python_requires: ">=3.5, <3.7"
+
+   description: "LISP dialect for Python"
+
+   author: "Christopher O'Brien"
+   author_email: "obriencj@gmail.com"
+   url: "https://github.com/obriencj/python-sibilant"
+   license: "GNU Lesser General Public License"
+
+   zip_safe: False
+
+   classifiers:
+   (#list
+    "Intended Audience :: Developers"
+    "Programming Language :: Python :: 3 :: Only"
+    "Programming Language :: Python :: 3.5"
+    "Programming Language :: Python :: 3.6"
+    "Programming Language :: Python :: Implementation :: CPython"
+    "Topic :: Software Development")))
+
+
+(when-main
+ (setup_data setup))
+
+
+;;
+;; The end.
