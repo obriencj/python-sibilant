@@ -813,15 +813,15 @@ class CodeSpace(metaclass=ABCMeta):
         self._pop_block()
 
 
-    @contextmanager
-    def block_begin(self):
-        block = self._push_block(Block.BEGIN, 0, 1)
-        self.pseudop_debug(" == enter begin ==")
-        self.pseudop_label(block.top_label)
-        yield block
-        self.pseudop_label(block.pop_label)
-        self.pseudop_debug(" == exit begin ==")
-        self._pop_block()
+    # @contextmanager
+    # def block_begin(self):
+    #     block = self._push_block(Block.BEGIN, 0, 1)
+    #     self.pseudop_debug(" == enter begin ==")
+    #     self.pseudop_label(block.top_label)
+    #     yield block
+    #     self.pseudop_label(block.pop_label)
+    #     self.pseudop_debug(" == exit begin ==")
+    #     self._pop_block()
 
 
     @contextmanager
