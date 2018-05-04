@@ -1460,7 +1460,9 @@ class CodeSpace(metaclass=ABCMeta):
             push()
 
         elif op in (_Pseudop.DEL_VAR,
-                    _Pseudop.DEL_GLOBAL):
+                    _Pseudop.DEL_GLOBAL,
+                    _Pseudop.ROT_TWO,
+                    _Pseudop.ROT_THREE):
             pass
 
         elif op in (_Pseudop.GET_ATTR,
@@ -1472,6 +1474,25 @@ class CodeSpace(metaclass=ABCMeta):
                     _Pseudop.GET_YIELD_FROM_ITER,
                     _Pseudop.YIELD_VAL):
             pop()
+            push()
+
+        elif op in (_Pseudop.COMPARE_OP,
+                    _Pseudop.GET_ITEM,
+                    _Pseudop.BINARY_ADD,
+                    _Pseudop.BINARY_SUBTRACT,
+                    _Pseudop.BINARY_MULTIPLY,
+                    _Pseudop.BINARY_MATRIX_MULTIPLY,
+                    _Pseudop.BINARY_TRUE_DIVIDE,
+                    _Pseudop.BINARY_FLOOR_DIVIDE,
+                    _Pseudop.BINARY_POWER,
+                    _Pseudop.BINARY_MODULO,
+                    _Pseudop.BINARY_LSHIFT,
+                    _Pseudop.BINARY_RSHIFT,
+                    _Pseudop.BINARY_AND,
+                    _Pseudop.BINARY_XOR,
+                    _Pseudop.BINARY_OR,
+                    _Pseudop.IMPORT_NAME):
+            pop(2)
             push()
 
         elif op in (_Pseudop.SET_ATTR,
@@ -1517,9 +1538,11 @@ class CodeSpace(metaclass=ABCMeta):
                     _Pseudop.BUILD_STR,
                     _Pseudop.BUILD_TUPLE,
                     _Pseudop.BUILD_TUPLE_UNPACK,
-                    _Pseudop.BUILD_MAP_UNPACK):
+                    _Pseudop.BUILD_MAP_UNPACK
+                    _Pseudop.BUILD_SLICE,
+                    _Pseudop.RAISE):
             pop(args[0])
-            push()
+            push()  # we pretend RAISE has a value
 
         elif op is _Pseudop.SETUP_EXCEPT:
             push(_Opcode.SETUP_EXCEPT.stack_effect(1))
@@ -1548,36 +1571,8 @@ class CodeSpace(metaclass=ABCMeta):
         elif op is _Pseudop.END_FINALLY:
             push(_Opcode.END_FINALLY.stack_effect())
 
-        elif op in (_Pseudop.COMPARE_OP,
-                    _Pseudop.GET_ITEM,
-                    _Pseudop.BINARY_ADD,
-                    _Pseudop.BINARY_SUBTRACT,
-                    _Pseudop.BINARY_MULTIPLY,
-                    _Pseudop.BINARY_MATRIX_MULTIPLY,
-                    _Pseudop.BINARY_TRUE_DIVIDE,
-                    _Pseudop.BINARY_FLOOR_DIVIDE,
-                    _Pseudop.BINARY_POWER,
-                    _Pseudop.BINARY_MODULO,
-                    _Pseudop.BINARY_LSHIFT,
-                    _Pseudop.BINARY_RSHIFT,
-                    _Pseudop.BINARY_AND,
-                    _Pseudop.BINARY_XOR,
-                    _Pseudop.BINARY_OR,
-                    _Pseudop.IMPORT_NAME):
-            pop(2)
-            push()
-
-        elif op in (_Pseudop.RAISE,
-                    _Pseudop.BUILD_SLICE):
-            pop(args[0])
-            push()   # we pretend RAISE evaluates to something
-
         elif op is _Pseudop.FAUX_PUSH:
             push(args[0])
-
-        elif op in (_Pseudop.ROT_THREE,
-                    _Pseudop.ROT_TWO):
-            pass
 
         else:
             assert False, "unknown pseudop %r" % op
