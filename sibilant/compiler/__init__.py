@@ -564,7 +564,7 @@ class CodeBlock():
                 block = args[0]
                 block_i, block_max = block.max_stack(code)
                 push(block_max)
-                push(block_i)
+                # push(block_i)
                 pop(block_max)
 
             # These ops have to be here so they can see the stac
@@ -746,7 +746,7 @@ class CodeSpace(metaclass=ABCMeta):
 
     @contextmanager
     def block_finally(self, cleanup_label):
-        block = self._push_block(Block.FINALLY, 0, 0)
+        block = self._push_block(Block.FINALLY, 0, 6)
         self.pseudop_setup_finally(cleanup_label)
         self.pseudop_debug(" == enter finally ==")
         self.pseudop_label(block.top_label)
@@ -754,7 +754,7 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop_label(block.pop_label)
         self.pseudop_debug(" == exit finally ==")
         self.pseudop_pop_block()
-        self.pseudop_faux_pop(6)
+        # self.pseudop_faux_pop(6)
         self._pop_block()
 
 
@@ -774,7 +774,7 @@ class CodeSpace(metaclass=ABCMeta):
 
     @contextmanager
     def block_try(self, except_label):
-        block = self._push_block(Block.TRY, 0, 0)
+        block = self._push_block(Block.TRY, 0, 6)
         self.pseudop_setup_except(except_label)
         self.pseudop_debug(" == enter try ==")
         self.pseudop_label(block.top_label)
@@ -782,7 +782,7 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop_label(block.pop_label)
         self.pseudop_debug(" == exit try ==")
         self.pseudop_pop_block()
-        self.pseudop_faux_pop(6)
+        # self.pseudop_faux_pop(6)
         self._pop_block()
 
 
@@ -801,7 +801,7 @@ class CodeSpace(metaclass=ABCMeta):
 
     @contextmanager
     def block_except_match(self, except_label):
-        block = self._push_block(Block.EXCEPT_MATCH, 7, 0)
+        block = self._push_block(Block.EXCEPT_MATCH, 7, 4)
         self.pseudop_label(except_label)
         self.pseudop_debug(" == enter except_match ==")
         self.pseudop_label(block.top_label)
@@ -809,7 +809,7 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop_label(block.pop_label)
         self.pseudop_debug(" == exit except_match ==")
         self.pseudop_pop_except()
-        self.pseudop_faux_pop(4)
+        # self.pseudop_faux_pop(4)
         self._pop_block()
 
 
@@ -827,7 +827,7 @@ class CodeSpace(metaclass=ABCMeta):
     @contextmanager
     def block_with(self, expr):
         cleanup_label = self.gen_label()
-        block = self._push_block(Block.WITH, 0, 0)
+        block = self._push_block(Block.WITH, 0, 7)
         self.add_expression(expr)
         self.pseudop_setup_with(cleanup_label)
         self.pseudop_debug(" == enter with ==")
@@ -843,7 +843,7 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop_with_cleanup_finish()
         self.pseudop_end_finally()
         self.pseudop_debug(" == exit with_cleanup ==")
-        self.pseudop_faux_pop(7)
+        # self.pseudop_faux_pop(7)
         self._pop_block()
 
 
@@ -1456,13 +1456,13 @@ class CodeSpace(metaclass=ABCMeta):
                   _Pseudop.BREAK_LOOP,
                   _Pseudop.FOR_ITER,
                   _Pseudop.IMPORT_FROM,
-                  _Pseudop.CONTINUE_LOOP):
+                  _Pseudop.CONTINUE_LOOP, ):
             push()
 
         elif op in (_Pseudop.DEL_VAR,
                     _Pseudop.DEL_GLOBAL,
                     _Pseudop.ROT_TWO,
-                    _Pseudop.ROT_THREE):
+                    _Pseudop.ROT_THREE, ):
             pass
 
         elif op in (_Pseudop.GET_ATTR,
@@ -1472,7 +1472,7 @@ class CodeSpace(metaclass=ABCMeta):
                     _Pseudop.UNARY_INVERT,
                     _Pseudop.ITER,
                     _Pseudop.GET_YIELD_FROM_ITER,
-                    _Pseudop.YIELD_VAL):
+                    _Pseudop.YIELD_VAL, ):
             pop()
             push()
 
@@ -1491,12 +1491,12 @@ class CodeSpace(metaclass=ABCMeta):
                     _Pseudop.BINARY_AND,
                     _Pseudop.BINARY_XOR,
                     _Pseudop.BINARY_OR,
-                    _Pseudop.IMPORT_NAME):
+                    _Pseudop.IMPORT_NAME, ):
             pop(2)
             push()
 
         elif op in (_Pseudop.SET_ATTR,
-                    _Pseudop.DEL_ITEM):
+                    _Pseudop.DEL_ITEM, ):
             pop(2)
 
         elif op is _Pseudop.SET_ITEM:
@@ -1508,7 +1508,7 @@ class CodeSpace(metaclass=ABCMeta):
                     _Pseudop.RET_VAL,
                     _Pseudop.YIELD_FROM,
                     _Pseudop.DEL_ATTR,
-                    _Pseudop.POP):
+                    _Pseudop.POP, ):
             pop()
 
         elif op is _Pseudop.LAMBDA:
@@ -1538,9 +1538,9 @@ class CodeSpace(metaclass=ABCMeta):
                     _Pseudop.BUILD_STR,
                     _Pseudop.BUILD_TUPLE,
                     _Pseudop.BUILD_TUPLE_UNPACK,
-                    _Pseudop.BUILD_MAP_UNPACK
+                    _Pseudop.BUILD_MAP_UNPACK,
                     _Pseudop.BUILD_SLICE,
-                    _Pseudop.RAISE):
+                    _Pseudop.RAISE, ):
             pop(args[0])
             push()  # we pretend RAISE has a value
 
