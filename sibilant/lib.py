@@ -14,6 +14,7 @@
 
 
 from functools import partial
+from itertools import chain, islice, repeat
 
 import operator
 
@@ -40,7 +41,7 @@ __all__ = (
     "build_proper", "unpack",
     "build_unpack_pair",
 
-    "reapply", "repeatedly", "last",
+    "reapply", "repeatedly", "last", "take",
 
     "build_tuple", "build_list", "build_set", "build_dict",
 
@@ -182,8 +183,8 @@ tenth = cadddddddddr
 
 def last(seq, empty=None):
     """
-    returns the last item in an iterable sequence, or undefined if the
-    sequence is empty
+    returns the last item in an iterable sequence, or a default empty
+    value if the sequence has no items
     """
 
     if is_pair(seq):
@@ -193,6 +194,31 @@ def last(seq, empty=None):
     for val in iter(seq):
         pass
     return val
+
+
+class sentinel():
+    def __init__(self, words):
+        self._r = "<{}>".format(words)
+
+    def __repr__(self):
+        return self._r
+
+
+omit_padding = sentinel("omit padding")
+
+
+def take(seq, count, padding=omit_padding):
+    """
+    returns a list of up to count items taken from the given sequence.
+
+    if padding is specified, then any sequence too short will be
+    padded at its end with the given value
+    """
+
+    if padding is omit_padding:
+        return list(islice(seq, count))
+    else:
+        return list(islice(chain(seq, repeat(padding)), count))
 
 
 class lazygensym(object):

@@ -23,7 +23,7 @@
 ;; disable TCO for the following stuff, they don't need to bounce
 (try
  (set-attr __compiler__ tco_enabled False)
- ([NameError] None))
+ [[NameError] None])
 
 
 ;; === defines ===
@@ -147,11 +147,11 @@
   "
   (within? MIN MAX VALUE)
 
-  True if MIN <= VALUE < MAX
+  True if  MIN <= VALUE < MAX
   "
-  ;; TODO: use a gensym and store value_i to prevent it from
-  ;; evaluating twice
-  `(and (<= ,min_i ,value_i) (< ,value_i ,max_i)))
+  (var [tmp (gensym 'value_i)])
+  `{ (define ,tmp ,value_i)
+     (and (<= ,min_i ,tmp) (< ,tmp ,max_i)) })
 
 
 (defmacro when-main body
@@ -687,8 +687,8 @@
   to determine if the given values should be skipped.
   """
 
-  (var [storage (gensym)]
-       [append (gensym)]
+  (var [storage (gensym 'list-each)]
+       [append (gensym 'append)]
        [emit `(,append ,emit)])
 
   (when unless (setq emit `(unless ,unless ,emit)))
@@ -716,8 +716,8 @@
   to determine if the given values should be skipped.
   """
 
-  (var [storage (gensym)]
-       [append (gensym)]
+  (var [storage (gensym 'set-each)]
+       [append (gensym 'append)]
        [emit `(,append ,emit)])
 
   (when unless (setq emit `(unless ,unless ,emit)))
@@ -880,6 +880,26 @@
 	(def function __init__ [self ,@fields]
 	     ,@(iter-each [field (unpack fields)]
 		   `(set-attr self ,field ,field)))))
+
+
+(defmacro compiler-tco-disable []
+  (try
+   { (set-attr (active-compiler) tco_enabled False)
+     'True }
+   [[Exception as: e]
+    `{ (print "a compile-time error prevented tco from being disabled: "
+	      ,e)
+       False }]))
+
+
+(defmacro compiler-tco-enable []
+  (try
+   { (set-attr (active-compiler) tco_enabled True)
+     'True }
+   [[Exception as: e]
+    `{ (print "a compile-time error prevented tco from being enabled: "
+	      ,e)
+       False }]))
 
 
 ;;

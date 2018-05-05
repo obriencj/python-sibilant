@@ -50,7 +50,7 @@ def __setup__(glbls):
     from fractions import Fraction as fraction
     from decimal import Decimal as decimal
     from functools import partial, reduce, wraps
-    from itertools import islice as take
+    from itertools import chain, islice, repeat
     from math import floor, ceil
 
     import sibilant.lib as lib
@@ -135,6 +135,7 @@ def __setup__(glbls):
     _op(lib.repeatedly, "repeatedly")
 
     _op(lib.last, "last")
+    _op(lib.take, "take")
 
     _op(lib.first, "first")
     _op(lib.second, "second", rename=True)
@@ -175,7 +176,10 @@ def __setup__(glbls):
 
     _op(floor, "floor")
     _op(ceil, "ceil")
-    _op(take, "take")
+
+    _ty(chain, "chain")
+    _ty(islice, "islice")
+    _ty(repeat, "repeat")
 
     _ty(tuple, "tuple")
     _ty(list, "list")
