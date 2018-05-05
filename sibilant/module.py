@@ -116,9 +116,9 @@ def init_module(module, source_stream,
 
 
 def get_module_reader(module):
-    try:
-        reader = module.__reader__
-    except AttributeError:
+    reader = getattr(module, "__reader__", None)
+
+    if reader is None:
         reader = default_reader
         module.__reader__ = reader
 
@@ -126,9 +126,9 @@ def get_module_reader(module):
 
 
 def get_module_stream(module):
-    try:
-        stream = module.__stream__
-    except AttributeError:
+    stream = getattr(module, "__stream__", None)
+
+    if stream is None:
         stream = source_str("", "<empty>")
         module.__stream__ = stream
 
@@ -143,10 +143,9 @@ def parse_time(module):
 
 
 def get_module_compiler_factory_params(module):
-    try:
-        params = module.__compiler_factory_params__
+    params = getattr(module, "__compiler_factory_params__", None)
 
-    except AttributeError:
+    if params is None:
         params = {
             "name": getattr(module, "__name__", None),
             "filename": getattr(module, "__file__", None),
@@ -158,10 +157,9 @@ def get_module_compiler_factory_params(module):
 
 
 def get_module_compiler_factory(module):
-    try:
-        factory = module.__compiler_factory__
+    factory = getattr(module, "__compiler_factory__", None)
 
-    except AttributeError:
+    if factory is None:
         factory = code_space_for_version()
         module.__compiler_factory__ = factory
 
@@ -169,10 +167,9 @@ def get_module_compiler_factory(module):
 
 
 def get_module_compiler(module):
-    try:
-        compiler = module.__compiler__
+    compiler = getattr(module, "__compiler__", None)
 
-    except AttributeError:
+    if compiler is None:
         factory = get_module_compiler_factory(module)
         params = get_module_compiler_factory_params(module)
         compiler = factory(**params)
@@ -188,6 +185,7 @@ def compile_time(module, source_expr):
 
     compiler = get_module_compiler(module)
     module_globals = module.__dict__
+
     with compiler.activate(module_globals):
         compiler.add_expression_with_return(source_expr)
         code_obj = compiler.complete()
@@ -212,10 +210,9 @@ def hook_compile_time(hook_fn, compile_time=compile_time):
 
 
 def get_module_evaluator(module):
-    try:
-        evaluator = module.__evaluator__
+    evaluator = getattr(module, "__evaluator__", None)
 
-    except AttributeError:
+    if evaluator is None:
         mod_globals = module.__dict__
         teval = trampoline(eval)
 
