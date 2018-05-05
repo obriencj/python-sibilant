@@ -760,7 +760,7 @@ class CodeSpace(metaclass=ABCMeta):
 
     @contextmanager
     def block_finally_cleanup(self, cleanup_label):
-        block = self._push_block(Block.FINALLY_CLEANUP, 0, 0)
+        block = self._push_block(Block.FINALLY_CLEANUP, 6, 1)
         self.pseudop_const(None)
         self.pseudop_label(cleanup_label)
         self.pseudop_debug(" == enter finally_cleanup ==")
@@ -788,7 +788,7 @@ class CodeSpace(metaclass=ABCMeta):
 
     @contextmanager
     def block_except(self, except_label):
-        block = self._push_block(Block.EXCEPT, 1, 0)
+        block = self._push_block(Block.EXCEPT, 6, 0)
         self.pseudop_label(except_label)
         self.pseudop_debug(" == enter except ==")
         self.pseudop_label(block.top_label)
@@ -801,7 +801,7 @@ class CodeSpace(metaclass=ABCMeta):
 
     @contextmanager
     def block_except_match(self, except_label):
-        block = self._push_block(Block.EXCEPT_MATCH, 7, 4)
+        block = self._push_block(Block.EXCEPT_MATCH, 6, 0)
         self.pseudop_label(except_label)
         self.pseudop_debug(" == enter except_match ==")
         self.pseudop_label(block.top_label)
@@ -827,7 +827,7 @@ class CodeSpace(metaclass=ABCMeta):
     @contextmanager
     def block_with(self, expr):
         cleanup_label = self.gen_label()
-        block = self._push_block(Block.WITH, 0, 7)
+        block = self._push_block(Block.WITH, 0, 1)
         self.add_expression(expr)
         self.pseudop_setup_with(cleanup_label)
         self.pseudop_debug(" == enter with ==")
@@ -1545,13 +1545,16 @@ class CodeSpace(metaclass=ABCMeta):
             push()  # we pretend RAISE has a value
 
         elif op is _Pseudop.SETUP_EXCEPT:
-            push(_Opcode.SETUP_EXCEPT.stack_effect(1))
+            # push(_Opcode.SETUP_EXCEPT.stack_effect(1))
+            push(6)
 
         elif op is _Pseudop.SETUP_WITH:
-            push(_Opcode.SETUP_WITH.stack_effect(1))
+            # push(_Opcode.SETUP_WITH.stack_effect(1))
+            push(6)
 
         elif op is _Pseudop.SETUP_FINALLY:
-            push(_Opcode.SETUP_FINALLY.stack_effect(1))
+            # push(_Opcode.SETUP_FINALLY.stack_effect(1))
+            push(6)
 
         elif op is _Pseudop.SETUP_LOOP:
             push(_Opcode.SETUP_LOOP.stack_effect(1))
@@ -1560,16 +1563,24 @@ class CodeSpace(metaclass=ABCMeta):
             push(_Opcode.POP_BLOCK.stack_effect())
 
         elif op is _Pseudop.POP_EXCEPT:
-            push(_Opcode.POP_EXCEPT.stack_effect())
+            # in 3.5 and 3.6 this claims to be 0, but it's actually -3
+            # in 3.7 it starts to accurately represent itself as -3
+            # so... screw it, let's make it a hard pop 3
+
+            # push(_Opcode.POP_EXCEPT.stack_effect())
+            pop(3)
 
         elif op is _Pseudop.WITH_CLEANUP_START:
-            push(_Opcode.WITH_CLEANUP_START.stack_effect())
+            # push(_Opcode.WITH_CLEANUP_START.stack_effect())
+            push(7)
 
         elif op is _Pseudop.WITH_CLEANUP_FINISH:
-            push(_Opcode.WITH_CLEANUP_FINISH.stack_effect())
+            # push(_Opcode.WITH_CLEANUP_FINISH.stack_effect())
+            pop(7)
 
         elif op is _Pseudop.END_FINALLY:
-            push(_Opcode.END_FINALLY.stack_effect())
+            # push(_Opcode.END_FINALLY.stack_effect())
+            pop(6)
 
         elif op is _Pseudop.FAUX_PUSH:
             push(args[0])

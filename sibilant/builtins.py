@@ -48,22 +48,16 @@ def __setup__(glbls):
     import sibilant.bootstrap as bootstrap
 
     # 2. grab the basics definitions
-    try:
-        # it might have been pre-compiled
-        import sibilant.basics as basics
+    src = get_data(__name__, "basics.lspy").decode("utf8")
+    filename = join(dirname(__file__), "basics.lspy")
+    source_stream = source_str(src, filename=filename)
 
-    except (ImportError, AttributeError):
-        # if not that's fine, we can do it manually
-        src = get_data(__name__, "basics.lspy").decode("utf8")
-        filename = join(dirname(__file__), "basics.lspy")
-        source_stream = source_str(src, filename=filename)
+    basics = new_module("sibilant.basics")
+    init_module(basics, source_stream, builtins=bootstrap)
+    load_module(basics)
 
-        basics = new_module("sibilant.basics")
-        init_module(basics, source_stream, builtins=bootstrap)
-        load_module(basics)
-
-        sys.modules["sibilant"].basics = basics
-        sys.modules["sibilant.basics"] = basics
+    sys.modules["sibilant"].basics = basics
+    sys.modules["sibilant.basics"] = basics
 
     # 3. merge bootstrap and basics together into this module
     _all = set()

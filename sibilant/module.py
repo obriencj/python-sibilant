@@ -185,6 +185,7 @@ def compile_time(module, source_expr):
 
     compiler = get_module_compiler(module)
     module_globals = module.__dict__
+
     with compiler.activate(module_globals):
         compiler.add_expression_with_return(source_expr)
         code_obj = compiler.complete()
