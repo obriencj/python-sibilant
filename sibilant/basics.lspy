@@ -181,6 +181,10 @@
   `(raise (,exc_type ,@exc_args)))
 
 
+(defmacro import1-from [package member]
+  `(item (import-from ,package ,member) 0))
+
+
 ;; === optimized assert
 
 (defmacro assert [expr message: None]
@@ -411,7 +415,7 @@
  (def function sd [src]
       (define-values [binding modsrc] (__import-binding src))
       (when (None? binding) (setq binding modsrc))
-      (scopefn binding `(item (import-from ,module ,modsrc) 0)))
+      (scopefn binding `(import1-from ,module ,modsrc)))
 
  `{,@(map sd source)})
 
@@ -651,9 +655,9 @@
 
 (defmacro iter-each [bindings emit *: () when: None unless: None]
   """
-  (iter-each (BINDINGS SEQUENCE) EXPRESSION)
-  (iter-each (BINDINGS SEQUENCE) EXPRESSION when: WHENTEST)
-  (iter-each (BINDINGS SEQUENCE) EXPRESSION unless: UNLESSTEST)
+  (iter-each [BINDINGS SEQUENCE] EXPRESSION)
+  (iter-each [BINDINGS SEQUENCE] EXPRESSION when: WHENTEST)
+  (iter-each [BINDINGS SEQUENCE] EXPRESSION unless: UNLESSTEST)
 
   Produces an iterator which will yield the result of EXPRESSION,
   which is evaluated with the BINDINGS unpacked from each value from
@@ -667,10 +671,65 @@
   (when when (setq emit `(when ,when ,emit)))
   `(let [] (for-each ,bindings ,emit)))
 
+(define #gen iter-each)
 
-(defmacro list-each params
-  "Like iter-each, but accumulates the result into a Python list"
-  `(list (iter-each ,@params)))
+
+(defmacro list-each [bindings emit *: () when: None unless: None]
+  """
+  (list-each [BINDINGS SEQUENCE] EXPRESSION)
+  (list-each [BINDINGS SEQUENCE] EXPRESSION when: WHENTEST)
+  (list-each [BINDINGS SEQUENCE] EXPRESSION unless: UNLESSTEST)
+
+  Produces a Python list whose elements are the result of EXPRESSION,
+  which is evaluated with the BINDINGS unpacked from each value from
+  iterating over SEQUENCE. The optional when and unless forms may be
+  specified as predicate expressions to be evaluated on each iteration
+  to determine if the given values should be skipped.
+  """
+
+  (var [storage (gensym)]
+       [append (gensym)]
+       [emit `(,append ,emit)])
+
+  (when unless (setq emit `(unless ,unless ,emit)))
+  (when when (setq emit `(when ,when ,emit)))
+
+  `(let []
+     (var [,storage (#list)]
+	  [,append (attr ,storage append)])
+     (for-each ,bindings ,emit)
+     ,storage))
+
+(define #lc list-each)
+
+
+(defmacro set-each [bindings emit *: () when: None unless: None]
+  """
+  (set-each [BINDINGS SEQUENCE] EXPRESSION)
+  (set-each [BINDINGS SEQUENCE] EXPRESSION when: WHENTEST)
+  (set-each [BINDINGS SEQUENCE] EXPRESSION unless: UNLESSTEST)
+
+  Produces a Python set whose elements are the result of EXPRESSION,
+  which is evaluated with the BINDINGS unpacked from each value from
+  iterating over SEQUENCE. The optional when and unless forms may be
+  specified as predicate expressions to be evaluated on each iteration
+  to determine if the given values should be skipped.
+  """
+
+  (var [storage (gensym)]
+       [append (gensym)]
+       [emit `(,append ,emit)])
+
+  (when unless (setq emit `(unless ,unless ,emit)))
+  (when when (setq emit `(when ,when ,emit)))
+
+  `(let []
+     (var [,storage (#set)]
+	  [,append (attr ,storage add)])
+     (for-each ,bindings ,emit)
+     ,storage))
+
+(define #sc set-each)
 
 
 ;; === some simple converters ===
@@ -731,26 +790,6 @@
   (if (pair? value)
       then: (value.length)
       else: (len value)))
-
-
-(defun apply [fun arglist: (#tuple) kwargs: (#dict)]
-  """
-  (apply FUN)
-  (apply FUN arglist: POSITIONALS)
-  (apply FUN kwargs: KEYWORDS)
-  (apply FUN arglist: POSITIONALS kwargs: KEYWORDS)
-
-  Invokes FUN as a function, with optional iterable POSITIONALS as
-  positional arguments, and optional mapping KEYWORDS as keyword
-  arguments.
-
-  If POSITIONALS is a a cons pair, it will be unpacked instead of
-  iterated.
-  """
-
-  (when (pair? arglist)
-    (setq arglist (arglist.unpack)))
-  (fun *: arglist **: kwargs))
 
 
 ;; === Have some MATH ===
@@ -834,11 +873,6 @@
     (if rest
 	then: `(#str ,@result (#fmt ,@rest))
 	else: `(#str ,@result))))
-
-
-(let []
-  (def import-from random random)
-  (defun Maybe [] (bool (floor (* 2 (random))))))
 
 
 (defmacro defrecord [name fields]
