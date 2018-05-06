@@ -222,6 +222,7 @@ def __setup__(glbls):
     _ty(range, "range")
     _ty(memoryview, "memoryview")
     _ty(slice, "slice")
+    _ty(super, "super")
 
     _op(sorted, "sorted")
     _ty(reversed, "reversed")
