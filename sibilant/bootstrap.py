@@ -242,7 +242,6 @@ def __setup__(glbls):
 
     _op(hash, "hash")
     _ty(type, "type")
-    _op(super, "super")
 
     _op(repr, "repr")
     _op(help, "help")
@@ -255,6 +254,7 @@ def __setup__(glbls):
     _op(locals, "locals")
     _op(compile, "py-compile")
     _op(eval, "py-eval")
+    _ty(super, "py-super")
 
     _op(sys.exit, "exit")
 

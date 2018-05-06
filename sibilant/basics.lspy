@@ -127,6 +127,11 @@
     ,@args))
 
 
+(defmacro super args
+  (! request_cell (active-compiler) '__class__)
+  `(py-super ,@args))
+
+
 (defmacro super! [method . args]
   `(! ,method (super) ,@args))
 
@@ -533,7 +538,10 @@
   `(flet [[create-class [name fields *: bases metaclass: type]
 			(metaclass name bases fields)]
 	  [create-members [__module__]
-			  { ,@body } (locals)]]
+			  (define __class__)
+			  (define __classcell__ (refq __class__))
+			  { ,@body }
+			  (locals)]]
 
      (create-class ,(str name)
 		   (create-members __name__)
