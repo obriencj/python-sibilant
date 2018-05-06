@@ -1466,5 +1466,39 @@ class Refq(TestCase):
         self.assertEqual(getderef(cell), 456)
 
 
+    def test_deref(self):
+        src = """
+        (let []
+          (define X 123)
+          (values
+             (refq X)
+             (lambda [] X)
+             (lambda [Y] (setq X Y))))
+        """
+        stmt, env = compile_expr(src)
+        cell, getter, setter = stmt()
+
+        src = """
+        (deref cell)
+        """
+        stmt, env = compile_expr(src, cell=cell)
+        self.assertEqual(stmt(), 123)
+
+        src = """
+        (set-deref cell 456)
+        """
+        stmt, env = compile_expr(src, cell=cell)
+        self.assertEqual(stmt(), None)
+        self.assertEqual(getter(), 456)
+
+        src = """
+        (del-deref cell)
+        """
+        stmt, env = compile_expr(src, cell=cell)
+        self.assertEqual(stmt(), None)
+        self.assertRaises(NameError, getter)
+        self.assertRaises(ValueError, getderef, cell)
+
+
 #
 # The end.

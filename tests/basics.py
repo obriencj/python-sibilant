@@ -28,7 +28,10 @@ from unittest import TestCase
 
 import sibilant.builtins
 
-from sibilant import car, cdr, cons, nil, symbol
+from sibilant import (
+    car, cdr, cons, nil, symbol,
+    getderef, setderef, clearderef,
+)
 
 from sibilant.compiler import (
     is_macro, Macro, is_alias, Alias,
@@ -206,7 +209,7 @@ class BuiltinsSetf(TestCase):
         self.assertEqual(res.foo.bar.z, 9)
 
 
-    def test_setbang_global(self):
+    def test_setf_global(self):
 
         src = """
         (let ((tacos 999))
@@ -227,7 +230,7 @@ class BuiltinsSetf(TestCase):
         self.assertEqual(env["tacos"], 9)
 
 
-    def test_setbang_item_slice(self):
+    def test_setf_item_slice(self):
 
         seq = [1, 2, 3, 4, 5, 6, 7, 8, 9]
 
@@ -246,6 +249,93 @@ class BuiltinsSetf(TestCase):
         stmt, env = compile_expr(src, seq=seq)
         self.assertEqual(stmt(), None)
         self.assertEqual(seq, [123, 2, 3, 456, 5, 6, 789, 8, 9])
+
+
+    def test_setf_deref(self):
+        src = """
+        (let []
+          (define X 123)
+          (values
+             (refq X)
+             (lambda [] X)
+             (lambda [Y] (setq X Y))))
+        """
+        stmt, env = compile_expr(src)
+        cell, getter, setter = stmt()
+
+        src = """
+        (deref cell)
+        """
+        stmt, env = compile_expr(src, cell=cell)
+        self.assertEqual(stmt(), 123)
+
+        src = """
+        (setf (deref cell) 456)
+        """
+        stmt, env = compile_expr(src, cell=cell)
+        self.assertEqual(stmt(), None)
+        self.assertEqual(getter(), 456)
+
+        src = """
+        (delf (deref cell))
+        """
+        stmt, env = compile_expr(src, cell=cell)
+        self.assertEqual(stmt(), None)
+        self.assertRaises(NameError, getter)
+        self.assertRaises(ValueError, getderef, cell)
+
+
+class BuiltinsDelf(TestCase):
+
+
+    def test_delf_item_slice(self):
+
+        seq = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+        src = """
+        (delf (item-slice seq 0 3))
+        """
+        stmt, env = compile_expr(src, seq=seq)
+        self.assertEqual(stmt(), None)
+        self.assertEqual(seq, [4, 5, 6, 7, 8, 9])
+
+        seq = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+        src = """
+        (delf (item-slice seq step: 3))
+        """
+        stmt, env = compile_expr(src, seq=seq)
+        self.assertEqual(stmt(), None)
+        self.assertEqual(seq, [2, 3, 5, 6, 8, 9])
+
+
+    def test_delf_deref(self):
+        src = """
+        (let []
+          (define X 123)
+          (values
+             (refq X)
+             (lambda [] X)
+             (lambda [Y] (setq X Y))))
+        """
+        stmt, env = compile_expr(src)
+        cell, getter, setter = stmt()
+
+        src = """
+        (deref cell)
+        """
+        stmt, env = compile_expr(src, cell=cell)
+        self.assertEqual(stmt(), 123)
+        self.assertEqual(getter(), 123)
+        self.assertEqual(getderef(cell), 123)
+
+        src = """
+        (delf (deref cell))
+        """
+        stmt, env = compile_expr(src, cell=cell)
+        self.assertEqual(stmt(), None)
+        self.assertRaises(NameError, getter)
+        self.assertRaises(ValueError, getderef, cell)
 
 
 class BuiltinsMacroExpansion(TestCase):
