@@ -23,7 +23,7 @@ license: LGPL v.3
 
 from functools import partial
 from io import StringIO
-from types import CodeType
+from types import CodeType, GeneratorType
 from unittest import TestCase
 
 import sibilant.builtins
@@ -482,6 +482,142 @@ class Compile(TestCase):
         self.assertIs(type(res), CodeType)
         self.assertEqual(eval(res, {"tacos": 5}), 5)
 
+
+class IterEach(TestCase):
+
+    def test_iter_each(self):
+        src = """
+        (iter-each [X (range 0 10)]
+            (// X 2))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertEqual(type(res), GeneratorType)
+        self.assertEqual(list(res), [0, 0, 1, 1, 2, 2, 3, 3, 4, 4])
+
+        src = """
+        (iter-each [X (range 0 10)]
+            (// X 2)
+            unless: (& X 3))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertEqual(type(res), GeneratorType)
+        self.assertEqual(list(res), [0, 2, 4])
+
+        src = """
+        (iter-each [X (range 0 10)]
+            (// X 2)
+            when: (& X 3))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertEqual(type(res), GeneratorType)
+        self.assertEqual(list(res), [0, 1, 1, 2, 3, 3, 4])
+
+        src = """
+        (iter-each [X (range 0 10)]
+            (// X 2)
+            when: (& X 3) unless: (& X 3))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertEqual(type(res), GeneratorType)
+        self.assertEqual(list(res), [])
+
+
+    def test_list_each(self):
+        src = """
+        (list-each [X (range 0 10)]
+            (// X 2))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertEqual(type(res), list)
+        self.assertEqual(res, [0, 0, 1, 1, 2, 2, 3, 3, 4, 4])
+
+        src = """
+        (list-each [X (range 0 10)]
+            (// X 2)
+            unless: (& X 3))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertEqual(type(res), list)
+        self.assertEqual(res, [0, 2, 4])
+
+        src = """
+        (list-each [X (range 0 10)]
+            (// X 2)
+            when: (& X 3))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertEqual(type(res), list)
+        self.assertEqual(res, [0, 1, 1, 2, 3, 3, 4])
+
+        src = """
+        (list-each [X (range 0 10)]
+            (// X 2)
+            when: (& X 3) unless: (& X 3))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertEqual(type(res), list)
+        self.assertEqual(res, [])
+
+
+    def test_set_each(self):
+        src = """
+        (set-each [X (range 0 10)]
+            (// X 2))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertEqual(type(res), set)
+        self.assertEqual(res, {0, 1, 2, 3, 4})
+
+        src = """
+        (set-each [X (range 0 10)]
+            (// X 2)
+            unless: (& X 3))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertEqual(type(res), set)
+        self.assertEqual(res, {0, 2, 4})
+
+        src = """
+        (set-each [X (range 0 10)]
+            (// X 2)
+            when: (& X 3))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertEqual(type(res), set)
+        self.assertEqual(res, {0, 1, 2, 3, 4})
+
+        src = """
+        (set-each [X (range 0 10)]
+            (// X 2)
+            when: (& X 3) unless: (& X 3))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertEqual(type(res), set)
+        self.assertEqual(res, set())
 
 
 #
