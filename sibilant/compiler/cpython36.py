@@ -132,6 +132,17 @@ class CPython36(ExpressionCodeSpace):
                 i = _const_index(self.consts, args[0])
                 yield _Opcode.LOAD_CONST, i
 
+            elif op is _Pseudop.LOAD_CELL:
+                n = args[0]
+                if n in self.cell_vars:
+                    i = self.cell_vars.index(n)
+                    yield _Opcode.LOAD_CLOSURE, i
+                elif n in self.free_vars:
+                    i = self.free_vars.index(n) + len(self.cell_vars)
+                    yield _Opcode.LOAD_CLOSURE, i
+                else:
+                    assert False, "missing cell name %r" % n
+
             elif op is _Pseudop.SET_LOCAL:
                 n = args[0]
                 if n in self.cell_vars:

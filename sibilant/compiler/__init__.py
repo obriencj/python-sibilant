@@ -361,6 +361,7 @@ class Pseudop(Enum):
     JUMP_FORWARD = _auto()
     LABEL = _auto()
     LAMBDA = _auto()
+    LOAD_CELL = _auto()
     POP = _auto()
     POP_BLOCK = _auto()
     POP_EXCEPT = _auto()
@@ -1228,6 +1229,10 @@ class CodeSpace(metaclass=ABCMeta):
         self.pseudop(Pseudop.DEL_VAR, namesym)
 
 
+    def pseudop_load_cell(self, namesym: Symbol):
+        self.pseudop(Pseudop.LOAD_CELL, namesym)
+
+
     def pseudop_lambda(self, code, *params):
         """
         Pushes a pseudo op to load a lambda from code
@@ -1456,7 +1461,8 @@ class CodeSpace(metaclass=ABCMeta):
                   _Pseudop.BREAK_LOOP,
                   _Pseudop.FOR_ITER,
                   _Pseudop.IMPORT_FROM,
-                  _Pseudop.CONTINUE_LOOP, ):
+                  _Pseudop.CONTINUE_LOOP,
+                  _Pseudop.LOAD_CELL, ):
             push()
 
         elif op in (_Pseudop.DEL_VAR,
