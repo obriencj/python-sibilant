@@ -128,7 +128,7 @@
 
 
 (defmacro super args
-  (! request_cell (active-compiler) '__class__)
+  (unless args (! request_cell (active-compiler) '__class__))
   `(py-super ,@args))
 
 
