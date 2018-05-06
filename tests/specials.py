@@ -24,10 +24,14 @@ license: LGPL v.3
 import dis
 
 from functools import partial
-from types import GeneratorType as generator
+from types import GeneratorType
 from unittest import TestCase
 
-from sibilant import symbol, keyword, cons, nil, is_nil
+from sibilant import (
+    symbol, keyword, cons, nil, is_nil,
+    getderef, setderef, clearderef,
+)
+
 from sibilant.compiler import (
     Special, is_special,
     Macro, is_macro,
@@ -1212,7 +1216,7 @@ class SpecialYield(TestCase):
         stmt, env = compile_expr(src)
         res = stmt()
 
-        self.assertEqual(type(res), generator)
+        self.assertEqual(type(res), GeneratorType)
         self.assertEqual(next(res), (5, 0))
         self.assertEqual(list(res), [(4, 1), (3, 2),
                                      (2, 3), (1, 4)])
@@ -1235,7 +1239,7 @@ class SpecielYieldFrom(TestCase):
         stmt, env = compile_expr(src)
         res = stmt()
 
-        self.assertEqual(type(res), generator)
+        self.assertEqual(type(res), GeneratorType)
         self.assertEqual(next(res), (None, None))
 
         self.assertEqual(list(res), [(5, 0), (4, 1), (3, 2),
@@ -1425,6 +1429,41 @@ class GlobalAccessors(TestCase):
         stmt, env = compile_expr(src, tacos=5)
         self.assertEqual(stmt(), 100)
         self.assertTrue("tacos" not in env)
+
+
+class Refq(TestCase):
+
+
+    def test_refq(self):
+        src = """
+        (let []       ;; refq requires non-global scope, let provides such
+          (define X)  ;; X is declared, but unassigned a value
+          (values
+             (refq X)                   ;; cell X
+             (lambda [] X)              ;; getter closure
+             (lambda [Y] (setq X Y))))  ;; setter closure
+        """
+        stmt, env = compile_expr(src)
+        cell, getter, setter = stmt()
+
+        # annoyingly, there's no CellType exposure
+        self.assertEqual(type(cell).__name__, "cell")
+
+        self.assertRaises(NameError, getter)
+        self.assertRaises(ValueError, getderef, cell)
+
+        self.assertEqual(setderef(cell, 123), None)
+        self.assertEqual(getter(), 123)
+        self.assertEqual(getderef(cell), 123)
+
+        self.assertEqual(clearderef(cell), None)
+
+        self.assertRaises(NameError, getter)
+        self.assertRaises(ValueError, getderef, cell)
+
+        self.assertEqual(setderef(cell, 456), None)
+        self.assertEqual(getter(), 456)
+        self.assertEqual(getderef(cell), 456)
 
 
 #
