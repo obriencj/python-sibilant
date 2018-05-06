@@ -2188,7 +2188,7 @@ static PyObject *m_setcdr(PyObject *mod, PyObject *args) {
 static PyObject *m_getderef(PyObject *mod, PyObject *cell) {
   PyObject *result = NULL;
 
-  if (! PyCell_CheckExact(cell)) {
+  if (! PyCell_Check(cell)) {
     PyErr_SetString(PyExc_TypeError, "getderef argument 1 must be a cell");
 
   } else {
@@ -2218,7 +2218,7 @@ static PyObject *m_setderef(PyObject *mod, PyObject *args) {
 
 static PyObject *m_clearderef(PyObject *mod, PyObject *cell) {
 
-  if (! PyCell_CheckExact(cell)) {
+  if (! PyCell_Check(cell)) {
     PyErr_SetString(PyExc_TypeError, "clearderef argument 1 must be a cell");
     return NULL;
   } else if (PyCell_Set(cell, NULL)) {
