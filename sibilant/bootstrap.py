@@ -121,6 +121,10 @@ def __setup__(glbls):
     _val(lib.nil, "nil")
     _op(lib.is_nil, "nil?")
 
+    _op(lib.getderef, "deref")
+    _op(lib.setderef, "set-deref")
+    _op(lib.clearderef, "del-deref")
+
     _ty(lib.symbol, "symbol")
     _ty(lib.keyword, "keyword")
     _op(lib.gensym, "gensym")

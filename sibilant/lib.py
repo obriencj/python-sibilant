@@ -24,6 +24,7 @@ from ._types import build_unpack_pair
 from ._types import reapply
 from ._types import build_tuple, build_list, build_set, build_dict
 from ._types import values
+from ._types import getderef, setderef, clearderef
 
 
 __all__ = (
@@ -46,6 +47,8 @@ __all__ = (
     "build_tuple", "build_list", "build_set", "build_dict",
 
     "values",
+
+    "getderef", "setderef", "clearderef",
 )
 
 
@@ -246,4 +249,4 @@ is_lazygensym = TypePredicate("lazygensym?", lazygensym)
 
 
 #
-# Th end.
+# The end.

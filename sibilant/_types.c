@@ -2185,6 +2185,50 @@ static PyObject *m_setcdr(PyObject *mod, PyObject *args) {
 }
 
 
+static PyObject *m_getderef(PyObject *mod, PyObject *cell) {
+  PyObject *result = NULL;
+
+  if (! PyCell_CheckExact(cell)) {
+    PyErr_SetString(PyExc_TypeError, "getderef argument 1 must be a cell");
+
+  } else {
+    result = PyCell_Get(cell);
+    if (! result) {
+      PyErr_SetString(PyExc_ValueError, "cell is empty");
+    }
+  }
+
+  return result;
+}
+
+
+static PyObject *m_setderef(PyObject *mod, PyObject *args) {
+  PyObject *cell = NULL, *value = NULL;
+
+  if (! PyArg_ParseTuple(args, "O!O:setderef", &PyCell_Type, &cell, &value))
+    return NULL;
+
+  if (PyCell_Set(cell, value)) {
+    return NULL;
+  } else {
+    Py_RETURN_NONE;
+  }
+}
+
+
+static PyObject *m_clearderef(PyObject *mod, PyObject *cell) {
+
+  if (! PyCell_CheckExact(cell)) {
+    PyErr_SetString(PyExc_TypeError, "clearderef argument 1 must be a cell");
+    return NULL;
+  } else if (PyCell_Set(cell, NULL)) {
+    return NULL;
+  } else {
+    Py_RETURN_NONE;
+  }
+}
+
+
 static PyObject *m_reapply(PyObject *mod, PyObject *args, PyObject *kwds) {
   PyObject *fun, *data, *result;
   long count = 0;
@@ -2402,6 +2446,19 @@ static PyMethodDef methods[] = {
 
   { "build_dict",  (PyCFunction) m_build_dict, METH_VARARGS,
     "build_dict(*items) -> dict(items)" },
+
+  { "getderef", (PyCFunction) m_getderef, METH_O,
+    "getderef(cell) -> object\n"
+    "Returns the object contained in a cell, or raises a ValueError if the\n"
+    "cell is empty." },
+
+  { "setderef", (PyCFunction) m_setderef, METH_VARARGS,
+    "setderef(cell, value) -> None\n"
+    "Assigns value to a cell." },
+
+  { "clearderef", (PyCFunction) m_clearderef, METH_O,
+    "clearderef(cell) -> None\n"
+    "Clears a cell." },
 
   { NULL, NULL, 0, NULL },
 };
