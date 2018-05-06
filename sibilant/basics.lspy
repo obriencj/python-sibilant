@@ -127,6 +127,10 @@
     ,@args))
 
 
+(defmacro super! [method . args]
+  `(! ,method (super) ,@args))
+
+
 ;; === math shortcuts ===
 
 (defmacro incr [dest by: 1]
@@ -285,11 +289,13 @@
 (gv-define-simple-setter cdr set-cdr)
 (gv-define-simple-setter item set-item)
 (gv-define-simple-setter global setq-global)
+(gv-define-simple-setter deref set-deref)
 (gv-define-setter caar [val x] `(set-car (car ,x) ,val))
 
 (gv-define-simple-del attr del-attr)
 (gv-define-simple-del item del-item)
 (gv-define-simple-del global delq-global)
+(gv-define-simple-del deref del-deref)
 
 
 ;; === def general targets ===
@@ -527,7 +533,7 @@
   `(flet [[create-class [name fields *: bases metaclass: type]
 			(metaclass name bases fields)]
 	  [create-members [__module__]
-			  {,@body} (locals)]]
+			  { ,@body } (locals)]]
 
      (create-class ,(str name)
 		   (create-members __name__)
