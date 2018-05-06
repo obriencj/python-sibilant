@@ -44,7 +44,7 @@ class Object(object):
     pass
 
 
-class BuiltinDefun(TestCase):
+class Defun(TestCase):
 
 
     def test_defun(self):
@@ -70,7 +70,7 @@ class BuiltinDefun(TestCase):
         self.assertEqual(add_8(2), 10)
 
 
-class BuiltinDefmacro(TestCase):
+class Defmacro(TestCase):
 
 
     def test_defmacro(self):
@@ -99,7 +99,7 @@ class BuiltinDefmacro(TestCase):
         self.assertEqual(stmt(), cons(symbol("hello"), symbol("world")))
 
 
-class BuiltinsSetf(TestCase):
+class Setf(TestCase):
 
     def test_setf_var(self):
         src = """
@@ -285,7 +285,7 @@ class BuiltinsSetf(TestCase):
         self.assertRaises(ValueError, getderef, cell)
 
 
-class BuiltinsDelf(TestCase):
+class Delf(TestCase):
 
 
     def test_delf_item_slice(self):
@@ -338,7 +338,7 @@ class BuiltinsDelf(TestCase):
         self.assertRaises(ValueError, getderef, cell)
 
 
-class BuiltinsMacroExpansion(TestCase):
+class MacroExpansion(TestCase):
 
     def test_macro(self):
         src = """
@@ -389,7 +389,7 @@ class BuiltinsMacroExpansion(TestCase):
         self.assertEqual(res, (0, 1, 2))
 
 
-class BuiltinsEval(TestCase):
+class Eval(TestCase):
 
     def test_eval_str(self):
         src = """
@@ -432,7 +432,7 @@ class BuiltinsEval(TestCase):
         self.assertEqual(stmt(), 5)
 
 
-class BuiltinsCompile(TestCase):
+class Compile(TestCase):
 
     def test_compile_str(self):
         src = """
