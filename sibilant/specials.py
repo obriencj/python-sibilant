@@ -61,6 +61,7 @@ _symbol_let = symbol("let")
 _symbol_nil = symbol("nil")
 _symbol_quasiquote = symbol("quasiquote")
 _symbol_quote = symbol("quote")
+_symbol_refq = symbol("refq")
 _symbol_return = symbol("return")
 _symbol_set_attr = symbol("set-attr")
 _symbol_setq = symbol("setq")
@@ -1630,6 +1631,31 @@ def special_delq(code, source, tc=False):
     code.pseudop_const(None)
 
     # no additional transform needed
+    return None
+
+
+@special(_symbol_refq)
+def special_refq(code, source, tc=False):
+    """
+    (refq SYM)
+
+    forces a closure cell for the given SYM, returns the cell.
+    """
+
+    try:
+        called_by, (binding, rest) = source
+    except ValueError:
+        raise code.error("not enough arguments to refq", source)
+    if rest:
+        raise code.error("too many arguments to refq", source)
+    if not is_symbol(binding):
+        raise code.error("refq must be by symbolic name", source)
+
+    if not code.request_cell(binding):
+        raise code.error("refq could not find a binding", source)
+
+    code.pseudop_load_cell(binding)
+
     return None
 
 
