@@ -158,7 +158,7 @@
 
   True if  MIN <= VALUE < MAX
   "
-  (and (<= min_i value_i) (< tmp value_i)))
+  (and (<= min_i value_i) (< value_i max_i)))
 
 
 (defmacro when-main body
