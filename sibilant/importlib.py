@@ -26,7 +26,6 @@ license: LGPL v.3
 
 import sys
 
-from contextlib import contextmanager
 from importlib.abc import FileLoader
 from importlib.machinery import FileFinder, PathFinder
 
@@ -45,7 +44,7 @@ path_hooks = []
 
 
 __all__ = (
-    "install", "is_installed", "import_module",
+    "install", "is_installed",
 )
 
 
