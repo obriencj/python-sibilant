@@ -152,15 +152,13 @@
   `(is None ,value))
 
 
-(defmacro within? [min_i max_i value_i]
+(defun within? [min_i max_i value_i]
   "
   (within? MIN MAX VALUE)
 
   True if  MIN <= VALUE < MAX
   "
-  (var [tmp (gensym 'value_i)])
-  `{ (define ,tmp ,value_i)
-     (and (<= ,min_i ,tmp) (< ,tmp ,max_i)) })
+  (and (<= min_i value_i) (< tmp value_i)))
 
 
 (defmacro when-main body
