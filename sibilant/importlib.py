@@ -37,11 +37,11 @@ from .parse import source_str
 
 
 # once installed, changing this does nothing.
-_SOURCE_SUFFIXES = (".lspy", ".sibilant")
+SOURCE_SUFFIXES = (".lspy", ".sibilant")
 
 
-_path_importer_cache = {}
-_path_hooks = []
+path_importer_cache = {}
+path_hooks = []
 
 
 __all__ = (
@@ -59,14 +59,14 @@ class SibilantPathFinder(PathFinder):
 
     @classmethod
     def invalidate_caches(cls):
-        for finder in _path_importer_cache.values():
+        for finder in path_importer_cache.values():
             if hasattr(finder, 'invalidate_caches'):
                 finder.invalidate_caches()
 
 
     @classmethod
     def _path_hooks(cls, path):
-        for hook in _path_hooks:
+        for hook in path_hooks:
             try:
                 return hook(path)
             except ImportError:
@@ -85,10 +85,10 @@ class SibilantPathFinder(PathFinder):
                 # a valid directory later on.
                 return None
         try:
-            finder = _path_importer_cache[path]
+            finder = path_importer_cache[path]
         except KeyError:
             finder = cls._path_hooks(path)
-            _path_importer_cache[path] = finder
+            path_importer_cache[path] = finder
         return finder
 
 
@@ -118,19 +118,44 @@ class SibilantSourceFileLoader(FileLoader):
         load_module(module)
 
 
+class SibilantFileFinder(FileFinder):
+
+    def find_spec(self, fullname, target=None):
+        # this won't find an __init__.py it would only find an
+        # __init__.lspy which means __init__.py packages would have
+        # the appearance of being a namespace package. We don't want
+        # that behavior, so we will refuse to return a spec for
+        # anything that looks like a namespace. That allows it to
+        # fall-through to the default pythonic importer. Then if ther
+        # is an __init__.py it will be found, and if not we'll still
+        # get that namespace.
+
+        result = super().find_spec(fullname, target)
+        return result if (result and result.loader) else None
+
+
 # go ahead and setup the _path_hooks in advance. Even if we don't run
 # install, this lets us run import_module
-_path_hooks.append(FileFinder.path_hook((SibilantSourceFileLoader,
-                                         _SOURCE_SUFFIXES)))
+path_hooks.append(SibilantFileFinder.path_hook((SibilantSourceFileLoader,
+                                                SOURCE_SUFFIXES)))
 
 
 def _install():
     done = False
 
     def install():
+        # note that we give SibilantPathFinder precedence over the
+        # default pythonic ones. We have to do this due to the
+        # handling of namespace packages in the default one. Python
+        # will ignore an __init__.lspy in a directory and instead
+        # declare the directory a namespace, and not give us a chance
+        # to contradict. So we will search first, and we will be
+        # better behaved - skipping anything that isn't a sibilant
+        # package or module and letting python have it.
+
         nonlocal done
         if not done:
-            sys.meta_path.append(SibilantPathFinder)
+            sys.meta_path.insert(0, SibilantPathFinder)
             done = True
 
     def is_installed():
@@ -140,21 +165,6 @@ def _install():
 
 
 install, is_installed = _install()
-
-
-@contextmanager
-def temporary_install():
-    if is_installed():
-        yield None
-    else:
-        sys.meta_path.append(SibilantPathFinder)
-        yield None
-        sys.meta_path.remove(SibilantPathFinder)
-
-
-def import_module(name, globals_=None, locals_=None, fromlist=0, level=0):
-    with temporary_install():
-        return __import__(name, globals_, locals_, fromlist, level)
 
 
 #
