@@ -1,0 +1,45 @@
+
+(defun try_catch (x)
+  (try
+   (x)
+   (Exception
+    1)))
+
+
+(defun try_else (x)
+  (try
+   (x)
+   (Exception
+    "returning except")
+   (else
+    "returning else")))
+
+
+(defun try_finally (x)
+  (try
+   (x)
+   (Exception
+    "returning except")
+   (finally
+    "returning finally")))
+
+
+(defun try_else_finally (x)
+  (try
+   (x)
+   (Exception
+    "returning except")
+   (else
+    "returning else")
+   (finally
+    "returning finally")))
+
+
+(defun try_nocatch_finally (x)
+  (try
+   (x)
+   (finally
+    "returning finally")))
+
+
+;; The end.
