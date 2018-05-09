@@ -666,6 +666,11 @@ class CodeSpace(metaclass=ABCMeta):
         else:
             self.gen_label = _label_generator()
 
+        # default this feature to True -- instances of the operations
+        # CONST and POP immediately in sequence are removed as this is
+        # effectively a noisy noop.
+        self.compress_const_pop = True
+
 
     def __del__(self):
         del self.env
@@ -1246,9 +1251,24 @@ class CodeSpace(metaclass=ABCMeta):
     def pseudop_pop(self, count=1):
         assert count > 0, ("pseudop_pop with weird count %r" % count)
 
-        while count > 0:
-            self.pseudop(Pseudop.POP)
-            count -= 1
+        if self.compress_const_pop:
+            check = Pseudop.CONST
+            psops = self.blocks[-1].pseudops
+
+            while count > 0:
+                if psops and (psops[-1][0] is check):
+                    # this is a POP following a CONST, so let's just
+                    # do neither and call it even.
+                    psops.pop()
+                else:
+                    # this POP is meaningful, let's keep it
+                    self.pseudop(Pseudop.POP)
+                count -= 1
+
+        else:
+            while count > 0:
+                self.pseudop(Pseudop.POP)
+                count -= 1
 
 
     def pseudop_unpack_sequence(self, argc):
