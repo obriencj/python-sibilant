@@ -36,6 +36,7 @@ from functools import reduce
 import operator as pyop
 from operator import (
     __add__, __sub__, __mul__, __truediv__, __floordiv__,
+    __and__, __or__, __xor__,
 )
 
 
@@ -286,6 +287,33 @@ def operator_subtract(code, source, tc=False):
     return None
 
 
+def _helper_reducing(code, source, opfun, defval=None):
+
+    called_by, rest = source
+    if rest is nil:
+        raise code.error("too few arguments to %s" % called_by, source)
+
+    code.pseudop_position_of(source)
+
+    val, rest = rest
+    if rest is nil:
+        if defval is None:
+            raise code.error("too few arguments to %s" % called_by, source)
+
+        code.pseudop_const(defval)
+        code.add_expression(val)
+        opfun()
+
+    else:
+        code.add_expression(val)
+        while rest:
+            val, rest = rest
+            code.add_expression(val)
+            opfun()
+
+    return None
+
+
 def runtime_multiply(val, *vals):
     return reduce(__mul__, vals, val) if vals else (1 * val)
 
@@ -300,26 +328,7 @@ def operator_multiply(code, source, tc=False):
     multiplies values together, from left to right.
     """
 
-    called_by, rest = source
-    if rest is nil:
-        raise code.error("too few arguments to %s" % called_by, source)
-
-    code.pseudop_position_of(source)
-
-    val, rest = rest
-    if rest is nil:
-        code.pseudop_const(1)
-        code.add_expression(val)
-        code.pseudop_binary_multiply()
-
-    else:
-        code.add_expression(val)
-        while rest:
-            val, rest = rest
-            code.add_expression(val)
-            code.pseudop_binary_multiply()
-
-    return None
+    _helper_reducing(code, source, code.pseudop_binary_multiply, 1)
 
 
 def runtime_divide(val, *vals):
@@ -337,26 +346,7 @@ def operator_divide(code, source, tc=False):
     result by the next value
     """
 
-    called_by, rest = source
-    if rest is nil:
-        raise code.error("too few arguments to %s" % called_by, source)
-
-    code.pseudop_position_of(source)
-
-    val, rest = rest
-    if rest is nil:
-        code.pseudop_const(1)
-        code.add_expression(val)
-        code.pseudop_binary_divide()
-
-    else:
-        code.add_expression(val)
-        while rest:
-            val, rest = rest
-            code.add_expression(val)
-            code.pseudop_binary_divide()
-
-    return None
+    _helper_reducing(code, source, code.pseudop_binary_divide, 1)
 
 
 def runtime_floor_divide(val, *vals):
@@ -374,26 +364,61 @@ def operator_floor_divide(code, source, tc=False):
     result by the next value
     """
 
-    called_by, rest = source
-    if rest is nil:
-        raise code.error("too few arguments to %s" % called_by, source)
+    _helper_reducing(code, source, code.pseudop_binary_floor_divide, 1)
 
-    code.pseudop_position_of(source)
 
-    val, rest = rest
-    if rest is nil:
-        code.pseudop_const(1)
-        code.add_expression(val)
-        code.pseudop_binary_floor_divide()
+def runtime_bitwise_and(val1, val2, *vals):
+    val = (val1 & val2)
+    return reduce(__and__, vals, val) if vals else val
 
-    else:
-        code.add_expression(val)
-        while rest:
-            val, rest = rest
-            code.add_expression(val)
-            code.pseudop_binary_floor_divide()
 
-    return None
+@operator(_symbol_bit_and, runtime_bitwise_and, _symbol_bit_and_)
+def operator_bit_and(code, source, tc=False):
+    """
+    (& VALUE MASK)
+    Applies bitwise-and MASK to VALUE
+
+    (bitwise-and VALUE MASK)
+    same as above
+    """
+
+    _helper_reducing(code, source, code.pseudop_binary_and)
+
+
+def runtime_bitwise_or(val1, val2, *vals):
+    val = (val1 | val2)
+    return reduce(__or__, vals, val) if vals else val
+
+
+@operator(_symbol_bit_or, runtime_bitwise_or, _symbol_bit_or_)
+def operator_bit_or(code, source, tc=False):
+    """
+    (| VALUE SETMASK)
+    Applies bitwise-or SETMASK to VALUE
+
+    (bitwise-or VALUE SETMASK)
+    same as above
+    """
+
+    _helper_reducing(code, source, code.pseudop_binary_or)
+
+
+def runtime_bitwise_xor(val1, val2, *vals):
+    val = (val1 ^ val2)
+    return reduce(__xor__, vals, val) if vals else val
+
+
+@operator(_symbol_bit_xor, runtime_bitwise_xor, _symbol_bit_xor_)
+def operator_bit_xor(code, source, tc=False):
+    """
+    (^ VALUE FLIPMASK)
+    Applies bitwise-xor FLIPMASK to VALUE
+
+    (bitwise-xor VALUE FLIPMASK)
+    same as above
+    """
+
+    _helper_reducing(code, source, code.pseudop_binary_xor)
 
 
 # --- ternary operators ---
@@ -533,45 +558,6 @@ def operator_rshift(code, source, tc=False):
     """
 
     _helper_binary(code, source, code.pseudop_binary_rshift)
-
-
-@operator(_symbol_bit_and, pyop.and_, _symbol_bit_and_)
-def operator_bit_and(code, source, tc=False):
-    """
-    (& VALUE MASK)
-    Applies bitwise-and MASK to VALUE
-
-    (bitwise-and VALUE MASK)
-    same as above
-    """
-
-    _helper_binary(code, source, code.pseudop_binary_and)
-
-
-@operator(_symbol_bit_or, pyop.or_, _symbol_bit_or_)
-def operator_bit_or(code, source, tc=False):
-    """
-    (| VALUE SETMASK)
-    Applies bitwise-or SETMASK to VALUE
-
-    (bitwise-or VALUE SETMASK)
-    same as above
-    """
-
-    _helper_binary(code, source, code.pseudop_binary_or)
-
-
-@operator(_symbol_bit_xor, pyop.xor, _symbol_bit_xor_)
-def operator_bit_xor(code, source, tc=False):
-    """
-    (^ VALUE FLIPMASK)
-    Applies bitwise-xor FLIPMASK to VALUE
-
-    (bitwise-xor VALUE FLIPMASK)
-    same as above
-    """
-
-    _helper_binary(code, source, code.pseudop_binary_xor)
 
 
 @operator(_symbol_gt, pyop.gt, _symbol_gt_)
