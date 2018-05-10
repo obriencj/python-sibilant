@@ -935,14 +935,20 @@ class BinaryOperators(TestCase):
         self.assertEqual(stmt(), True)
 
         src = """
+        (&)
+        """
+        self.assertRaises(SyntaxError, compile_expr, src)
+
+        src = """
         (& 1)
         """
         self.assertRaises(SyntaxError, compile_expr, src)
 
         src = """
-        (& 1 2 3)
+        (& 3 11 23)
         """
-        self.assertRaises(SyntaxError, compile_expr, src)
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 3)
 
         src = """
         (& 5 3)
@@ -964,6 +970,17 @@ class BinaryOperators(TestCase):
 
 
     def test_apply_bitwise_and(self):
+        src = """
+        (apply & '(1))
+        """
+        stmt, env = compile_expr(src)
+        self.assertRaises(TypeError, stmt)
+
+        src = """
+        (apply & '(5 3))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 1)
 
         src = """
         (apply & '(5 3))
@@ -989,6 +1006,22 @@ class BinaryOperators(TestCase):
         src = "(operator? |)"
         stmt, env = compile_expr(src)
         self.assertEqual(stmt(), True)
+
+        src = """
+        (|)
+        """
+        self.assertRaises(SyntaxError, compile_expr, src)
+
+        src = """
+        (| 1)
+        """
+        self.assertRaises(SyntaxError, compile_expr, src)
+
+        src = """
+        (| 5 8 19)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 31)
 
         src = """
         (| 5 3)
@@ -1018,6 +1051,12 @@ class BinaryOperators(TestCase):
         self.assertEqual(stmt(), 7)
 
         src = """
+        (apply | '(5 8 19))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 31)
+
+        src = """
         (apply | '(11 7))
         """
         stmt, env = compile_expr(src)
@@ -1037,10 +1076,26 @@ class BinaryOperators(TestCase):
         self.assertEqual(stmt(), True)
 
         src = """
+        (^)
+        """
+        self.assertRaises(SyntaxError, compile_expr, src)
+
+        src = """
+        (^ 1)
+        """
+        self.assertRaises(SyntaxError, compile_expr, src)
+
+        src = """
         (^ 5 3)
         """
         stmt, env = compile_expr(src)
         self.assertEqual(stmt(), 6)
+
+        src = """
+        (^ 3 5 9)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 15)
 
         src = """
         (^ 11 7)
@@ -1068,6 +1123,12 @@ class BinaryOperators(TestCase):
         """
         stmt, env = compile_expr(src)
         self.assertEqual(stmt(), 6)
+
+        src = """
+        (apply ^ '(3 5 9))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 15)
 
         src = """
         (apply ^ '(11 7))
