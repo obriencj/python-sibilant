@@ -136,6 +136,10 @@
   `(! ,method (super) ,@args))
 
 
+(defmacro has-attr [obj attr]
+  `(hasattr ,obj ,(str attr)))
+
+
 ;; === math shortcuts ===
 
 (defmacro incr [dest by: 1]
