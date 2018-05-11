@@ -208,6 +208,7 @@ def __setup__(glbls):
     _op(len, "len")
     _op(getattr, "getattr")
     _op(setattr, "setattr")
+    _op(hasattr, "hasattr")
     _op(isinstance, "isinstance")
     _op(open, "open")
     _op(input, "input")

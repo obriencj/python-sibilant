@@ -620,5 +620,26 @@ class IterEach(TestCase):
         self.assertEqual(res, set())
 
 
+class Attrs(TestCase):
+
+
+    def test_has_attr(self):
+        src = """
+        (has-attr None __class__)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertEqual(res, True)
+
+        src = """
+        (has-attr None "__class__")
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertEqual(res, True)
+
+
 #
 # The end.
