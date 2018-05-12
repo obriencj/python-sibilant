@@ -39,10 +39,14 @@ from textwrap import dedent
 __all__ = []
 
 
+_symbol__doc__ = symbol("__doc__")
 _symbol_attr = symbol("attr")
 _symbol_begin = symbol("begin")
+_symbol_build_proper = symbol("build-proper")
+_symbol_bup = symbol("build-unpack-pair")
 _symbol_break = symbol("break")
 _symbol_cond = symbol("cond")
+_symbol_cons = symbol("cons")
 _symbol_continue = symbol("continue")
 _symbol_define = symbol("define")
 _symbol_define_global = symbol("define-global")
@@ -56,6 +60,7 @@ _symbol_function = symbol("function")
 _symbol_global = symbol("global")
 _symbol_import = symbol("import")
 _symbol_import_from = symbol("import-from")
+_symbol_keyword = symbol("keyword")
 _symbol_lambda = symbol("lambda")
 _symbol_let = symbol("let")
 _symbol_nil = symbol("nil")
@@ -68,6 +73,8 @@ _symbol_setq = symbol("setq")
 _symbol_setq_global = symbol("setq-global")
 _symbol_setq_values = symbol("setq-values")
 _symbol_splice = symbol("unquote-splicing")
+_symbol_symbol = symbol("symbol")
+_symbol_trampoline = symbol("trampoline")
 _symbol_try = symbol("try")
 _symbol_unquote = symbol("unquote")
 _symbol_while = symbol("while")
@@ -138,7 +145,7 @@ def _helper_keyword(code, kwd):
     Pushes the pseudo ops necessary to put a keyword on the stack
     """
 
-    code.pseudop_get_global(symbol("keyword"))
+    code.pseudop_get_global(_symbol_keyword)
     code.pseudop_const(str(kwd))
     code.pseudop_call(1)
     return None
@@ -149,7 +156,7 @@ def _helper_symbol(code, sym):
     Pushes the pseudo ops necessary to put a symbol on the stack
     """
 
-    code.pseudop_get_global(symbol("symbol"))
+    code.pseudop_get_global(_symbol_symbol)
     code.pseudop_const(str(sym))
     code.pseudop_call(1)
     return None
@@ -163,7 +170,7 @@ def _helper_nil(code):
     # simple, but works. May want to do something other than a var
     # lookup in the future.
 
-    code.pseudop_get_global(symbol("nil"))
+    code.pseudop_get_global(_symbol_nil)
     return None
 
 
@@ -182,9 +189,9 @@ def special_doc(code, source, tc=False):
 
     # set the module's docstring -- this works for module and class
     # definitions.
-    code.declare_var(symbol("__doc__"))
+    code.declare_var(_symbol__doc__)
     code.pseudop_const(docstr)
-    code.pseudop_set_var(symbol("__doc__"))
+    code.pseudop_set_var(_symbol__doc__)
 
     # force it as the code's docstring as well -- this works for
     # function definitions.
@@ -325,9 +332,9 @@ def _helper_quote(code, body, tc=False):
 
     elif is_pair(body):
         if is_proper(body):
-            code.pseudop_get_var(symbol("build-proper"))
+            code.pseudop_get_var(_symbol_build_proper)
         else:
-            code.pseudop_get_var(symbol("cons"))
+            code.pseudop_get_var(_symbol_cons)
 
         index = 0
         for index, expr in enumerate(body.unpack(), 1):
@@ -389,7 +396,7 @@ def _helper_quasiquote(code, marked, level=0):
                 if level == 0:
                     return tailcall(code.add_expression)(tail)
                 else:
-                    code.pseudop_get_var(symbol("build-proper"))
+                    code.pseudop_get_var(_symbol_build_proper)
                     _helper_symbol(code, head)
                     _helper_quasiquote(code, tail, level - 1)
                     code.pseudop_call(2)
@@ -398,12 +405,12 @@ def _helper_quasiquote(code, marked, level=0):
             elif head is _symbol_splice:
                 tail, _rest = tail
                 if level == 0:
-                    code.pseudop_get_var(symbol("build-unpack-pair"))
+                    code.pseudop_get_var(_symbol_bup)
                     code.add_expression(tail)
                     code.pseudop_call(1)
                     return None
                 else:
-                    code.pseudop_get_var(symbol("build-proper"))
+                    code.pseudop_get_var(_symbol_build_proper)
                     _helper_symbol(code, head)
                     _helper_quasiquote(code, tail, level - 1)
                     code.pseudop_call(2)
@@ -411,7 +418,7 @@ def _helper_quasiquote(code, marked, level=0):
 
             elif head is _symbol_quasiquote:
                 tail, _rest = tail
-                code.pseudop_get_var(symbol("build-proper"))
+                code.pseudop_get_var(_symbol_build_proper)
                 _helper_symbol(code, head)
                 _helper_quasiquote(code, tail, level + 1)
                 code.pseudop_call(2)
@@ -459,7 +466,7 @@ def _helper_quasiquote_p(code, marked, level):
         done_curr()
         coll_tup += 1
 
-    code.pseudop_get_var(symbol("build-unpack-pair"))
+    code.pseudop_get_var(_symbol_bup)
 
     for p_expr in marked.follow():
         if p_expr is nil:
@@ -489,7 +496,7 @@ def _helper_quasiquote_p(code, marked, level):
                     break
                 else:
                     push_curr()
-                    code.pseudop_get_var(symbol("build-proper"))
+                    code.pseudop_get_var(_symbol_build_proper)
                     _helper_symbol(code, expr)
                     _helper_quasiquote(code, u_expr, level - 1)
                     code.pseudop_call(2)
@@ -499,7 +506,7 @@ def _helper_quasiquote_p(code, marked, level):
                 u_expr, tail = p_expr
 
                 push_curr()
-                code.pseudop_get_var(symbol("build-proper"))
+                code.pseudop_get_var(_symbol_build_proper)
                 _helper_symbol(code, expr)
                 _helper_quasiquote(code, u_expr, level + 1)
                 code.pseudop_call(2)
@@ -514,7 +521,7 @@ def _helper_quasiquote_p(code, marked, level):
                     break
                 else:
                     push_curr()
-                    code.pseudop_get_var(symbol("build-proper"))
+                    code.pseudop_get_var(_symbol_build_proper)
                     _helper_symbol(code, expr)
                     _helper_quasiquote(code, u_expr, level - 1)
                     code.pseudop_call(2)
@@ -543,7 +550,7 @@ def _helper_quasiquote_p(code, marked, level):
                         continue
                     else:
                         push_curr()
-                        code.pseudop_get_var(symbol("build-proper"))
+                        code.pseudop_get_var(_symbol_build_proper)
                         _helper_symbol(code, head)
                         _helper_quasiquote(code, u_expr, level - 1)
                         code.pseudop_call(2)
@@ -553,7 +560,7 @@ def _helper_quasiquote_p(code, marked, level):
                     u_expr, tail = tail
 
                     push_curr()
-                    code.pseudop_get_var(symbol("build-proper"))
+                    code.pseudop_get_var(_symbol_build_proper)
                     _helper_symbol(code, head)
                     _helper_quasiquote(code, u_expr, level + 1)
                     code.pseudop_call(2)
@@ -570,7 +577,7 @@ def _helper_quasiquote_p(code, marked, level):
                         continue
                     else:
                         push_curr()
-                        code.pseudop_get_var(symbol("build-proper"))
+                        code.pseudop_get_var(_symbol_build_proper)
                         _helper_symbol(code, head)
                         _helper_quasiquote(code, u_expr, level - 1)
                         code.pseudop_call(2)
@@ -716,15 +723,19 @@ def special_function(code, source, tc=False):
 
     kid = code.child_context(declared_at=declared_at)
     with kid as subc:
-        subc.declare_var(symbol(""))
+        self_ref = subc.gensym(namesym)
+        subc.declare_var(self_ref)
         subc.declare_var(namesym)
+
         _helper_function(subc, name, args, body,
-                         self_ref=symbol(""),
+                         self_ref=self_ref,
                          declared_at=declared_at)
+
         subc.pseudop_dup()
-        subc.pseudop_set_var(symbol(""))
+        subc.pseudop_set_var(self_ref)
         subc.pseudop_dup()
         subc.pseudop_set_var(namesym)
+
         subc.pseudop_return()
         kid_code = subc.complete()
 
@@ -784,16 +795,17 @@ def special_let(code, source, tc=False):
         # it a binding to itself by its name as a freevar
         kid = code.child_context(declared_at=declared_at)
         with kid as subc:
-            subc.declare_var(symbol(""))
+            self_ref = subc.gensym(named)
+            subc.declare_var(self_ref)
             subc.declare_var(named)
 
-            fnamed = "<let %r>" % named
+            fnamed = "<let %s>" % named
             _helper_function(subc, fnamed, args, body,
-                             self_ref=symbol(""),
+                             self_ref=self_ref,
                              declared_at=declared_at)
 
             subc.pseudop_dup()
-            subc.pseudop_set_var(symbol(""))
+            subc.pseudop_set_var(self_ref)
             subc.pseudop_dup()
             subc.pseudop_set_var(named)
             subc.pseudop_return()
@@ -873,7 +885,7 @@ def _helper_function(code, name, args, body,
 
         tco = subc.tco_enabled and not subc.generator and subc.tailcalls
         if tco:
-            code.pseudop_get_var(symbol("trampoline"))
+            code.pseudop_get_var(_symbol_trampoline)
             code.pseudop_rot_two()
             code.pseudop_call(1)
 
