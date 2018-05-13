@@ -35,10 +35,11 @@ license: LGPL v.3
 
 
 (def function repl [mod stdin: None stdout: None stderr: None]
-     (define env mod.__dict__)
-     (setq stdin (or stdin sys.stdin))
-     (setq stdout (or stdout sys.stdout))
-     (setq stderr (or stderr sys.stderr))
+
+     (var [env mod.__dict__]
+	  [stdin (or stdin sys.stdin)]
+	  [stdout (or stdout sys.stdout)]
+	  [stderr (or stderr sys.stderr)])
 
      (try
       (import readline)
