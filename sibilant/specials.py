@@ -26,6 +26,7 @@ license: LGPL v.3
 
 from .lib import (
     symbol, is_symbol, keyword, is_keyword,
+    is_lazygensym,
     nil, is_nil, cons, is_pair, is_proper,
     get_position, fill_position,
 )
@@ -81,6 +82,10 @@ _keyword_finally = keyword("finally")
 _keyword_star = keyword("*")
 
 
+def is_symbolish(thing):
+    return is_symbol(thing) or is_lazygensym(thing)
+
+
 def special(namesym, *aliases, glbls=globals()):
     name = str(namesym)
 
@@ -115,12 +120,12 @@ def _helper_binding(code, source, required=True):
     sc = source.length()
     if sc == 3:
         expr, (_as, (sym, _rest)) = source
-        if not (_as is _keyword_as and is_symbol(sym)):
+        if not (_as is _keyword_as and is_symbolish(sym)):
             raise code.error(msg, source)
 
     elif sc == 2:
         sym, (expr, _rest) = source
-        if not is_symbol(sym):
+        if not is_symbolish(sym):
             raise code.error(msg, source)
 
     elif sc == 1 and not required:
@@ -213,7 +218,7 @@ def special_get_attr(code, source, tc=False):
     if not is_nil(rest):
         raise code.error("too many arguments to attr", source)
 
-    if not is_symbol(member):
+    if not is_symbolish(member):
         raise code.error("attr member must be a symbol", source)
 
     code.pseudop_position_of(source)
@@ -271,7 +276,7 @@ def special_del_attr(code, source, tc=False):
     if rest:
         raise code.error("too many arguments to del-attr", source)
 
-    if not is_symbol(member):
+    if not is_symbolish(member):
         raise code.error("del-attr member must be a symbol", source)
 
     code.pseudop_position_of(source)
@@ -320,7 +325,7 @@ def _helper_quote(code, body, tc=False):
     elif is_keyword(body):
         return _helper_keyword(code, body)
 
-    elif is_symbol(body):
+    elif is_symbolish(body):
         return _helper_symbol(code, body)
 
     elif is_pair(body):
@@ -373,7 +378,7 @@ def _helper_quasiquote(code, marked, level=0):
     elif is_keyword(marked):
         return tailcall(_helper_keyword)(code, marked)
 
-    elif is_symbol(marked):
+    elif is_symbolish(marked):
         return tailcall(_helper_symbol)(code, marked)
 
     elif is_pair(marked):
@@ -479,7 +484,7 @@ def _helper_quasiquote_p(code, marked, level):
             _helper_nil(code)
             continue
 
-        elif is_symbol(expr):
+        elif is_symbolish(expr):
             if expr is _symbol_unquote:
                 u_expr, tail = p_tail
 
@@ -757,7 +762,7 @@ def special_let(code, source, tc=False):
     called_by, rest = source
 
     bindings, body = rest
-    if is_symbol(bindings):
+    if is_symbolish(bindings):
         named = bindings
         bindings, body = body
     else:
@@ -1072,7 +1077,7 @@ def special_define_values(code, source, tc=False):
     return None
 
 
-def _helper_binding_split(code, bindings):
+def _helper_values_binding(code, bindings):
     left = []
     mid = None
     right = []
@@ -1080,7 +1085,7 @@ def _helper_binding_split(code, bindings):
     biter = iter(bindings.unpack())
 
     for b in biter:
-        if is_symbol(b) or is_pair(b):
+        if is_symbolish(b) or is_pair(b):
             left.append(b)
 
         elif b is _keyword_star:
@@ -1095,7 +1100,7 @@ def _helper_binding_split(code, bindings):
             raise code.error(msg, bindings)
 
     for b in biter:
-        if is_symbol(b) or is_pair(b):
+        if is_symbolish(b) or is_pair(b):
             right.append(b)
 
         else:
@@ -1106,7 +1111,7 @@ def _helper_binding_split(code, bindings):
 
 
 def _helper_setq_values(code, bindings, declare):
-    if is_symbol(bindings):
+    if is_symbolish(bindings):
         if declare:
             code.declare_var(bindings)
         code.pseudop_set_var(bindings)
@@ -1118,12 +1123,12 @@ def _helper_setq_values(code, bindings, declare):
         code.pseudop_pop()
 
     elif is_proper(bindings):
-        left, mid, right = _helper_binding_split(code, bindings)
+        left, mid, right = _helper_values_binding(code, bindings)
         if mid:
             code.pseudop_unpack_ex(len(left), len(right))
 
             for b in left:
-                if is_symbol(b):
+                if is_symbolish(b):
                     if declare:
                         code.declare_var(b)
                     code.pseudop_set_var(b)
@@ -1133,7 +1138,7 @@ def _helper_setq_values(code, bindings, declare):
                     msg = "bindings must be symbols or pairs, not %r" % b
                     raise code.error(msg, bindings)
 
-            if is_symbol(mid):
+            if is_symbolish(mid):
                 if declare:
                     code.declare_var(b)
                 code.pseudop_set_var(mid)
@@ -1142,7 +1147,7 @@ def _helper_setq_values(code, bindings, declare):
                 raise code.error(msg, bindings)
 
             for b in right:
-                if is_symbol(b):
+                if is_symbolish(b):
                     if declare:
                         code.declare_var(b)
                     code.pseudop_set_var(b)
@@ -1155,7 +1160,7 @@ def _helper_setq_values(code, bindings, declare):
         else:
             code.pseudop_unpack_sequence(bcount)
             for b in bindings.unpack():
-                if is_symbol(b):
+                if is_symbolish(b):
                     if declare:
                         code.declare_var(b)
                     code.pseudop_set_var(b)
@@ -1168,7 +1173,7 @@ def _helper_setq_values(code, bindings, declare):
     else:
         code.pseudop_unpack_ex(bcount - 1, 0)
         for b in bindings.unpack():
-            if is_symbol(b):
+            if is_symbolish(b):
                 if declare:
                     code.declare_var(b)
                 code.pseudop_set_var(b)
@@ -1588,7 +1593,7 @@ def special_setq(code, source, tc=False):
 
     called_by, (binding, body) = source
 
-    if not is_symbol(binding):
+    if not is_symbolish(binding):
         raise code.error("assignment must be by symbolic name",
                          source)
 
@@ -1619,7 +1624,7 @@ def special_delq(code, source, tc=False):
 
     called_by, (binding, rest) = source
 
-    if not is_symbol(binding):
+    if not is_symbolish(binding):
         raise code.error("delq must be by symbolic name", source)
 
     if rest:
@@ -1648,7 +1653,7 @@ def special_refq(code, source, tc=False):
         raise code.error("not enough arguments to refq", source)
     if rest:
         raise code.error("too many arguments to refq", source)
-    if not is_symbol(binding):
+    if not is_symbolish(binding):
         raise code.error("refq must be by symbolic name", source)
 
     if not code.request_cell(binding):
@@ -1720,7 +1725,7 @@ def special_define_global(code, source, tc=False):
     except ValueError:
         raise code.error("too few arguments to define-global", source)
 
-    if not is_symbol(binding):
+    if not is_symbolish(binding):
         raise code.error("define-global with non-symbol binding", source)
 
     if body:
@@ -1759,7 +1764,7 @@ def special_define(code, source, tc=False):
     except ValueError:
         raise code.error("too few arguments to define", source)
 
-    if not is_symbol(binding):
+    if not is_symbolish(binding):
         raise code.error("define with non-symbol binding", source)
 
     code.declare_var(binding)
@@ -1906,7 +1911,7 @@ def special_import_from(code, source, tc=False):
             break
 
         member, _tail = mp
-        if not is_symbol(member):
+        if not is_symbolish(member):
             raise code.error("import-from members must be symbols", mp)
 
         # member = str(member)

@@ -40,7 +40,7 @@ from typing import Union
 from ..lib import (
     SibilantException, SibilantSyntaxError,
     symbol, is_symbol,
-    lazygensym,
+    lazygensym, is_lazygensym,
     keyword, is_keyword,
     cons, nil, is_pair, is_proper,
     get_position, fill_position,
@@ -1767,6 +1767,9 @@ class ExpressionCodeSpace(CodeSpace):
                 except TypeError as te:
                     msg = "while compiling pair %r" % expr
                     raise self.error(msg, expr) from te
+
+            elif is_lazygensym(expr):
+                expr = expr()
 
             elif is_symbol(expr):
                 try:
