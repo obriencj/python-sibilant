@@ -128,6 +128,7 @@ def __setup__(glbls):
     _ty(lib.symbol, "symbol")
     _ty(lib.keyword, "keyword")
     _op(lib.gensym, "gensym")
+    _ty(lib.lazygensym, "lazygensym")
 
     _ty(lib.values, "values")
 
