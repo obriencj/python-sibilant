@@ -169,7 +169,24 @@
 
 (def class FormatString [TestCase]
 
-     (def function test_fmt [self]
+     (def function test_simple_fmt [self]
+
+	  (var [count 100]
+	       [food 'tacos])
+
+	  (labels [[stmt [count food]
+			 (#fmt """I want {count} {food}.""")]]
+
+		  (self.assertEqual "I want 1 taco."
+				    (stmt 1 "taco"))
+
+		  (self.assertEqual "I want 15 pizza."
+				    (stmt 15 "pizza")))
+
+     None)
+
+
+     (def function test_complicated_fmt [self]
 
 	  (var [count 100]
 	       [food 'tacos]
