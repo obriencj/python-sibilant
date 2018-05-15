@@ -171,9 +171,6 @@
 
      (def function test_simple_fmt [self]
 
-	  (var [count 100]
-	       [food 'tacos])
-
 	  (labels [[stmt [count food]
 			 (#fmt """I want {count} {food}.""")]]
 
@@ -185,12 +182,21 @@
 
      None)
 
+     (def function test_single_char_fmt [self]
+
+	  (labels [[stmt [c f]
+			 (#fmt """I want {c} {f}.""")]]
+
+		  (self.assertEqual "I want 1 taco."
+				    (stmt 1 "taco"))
+
+		  (self.assertEqual "I want 15 pizza."
+				    (stmt 15 "pizza")))
+
+     None)
+
 
      (def function test_complicated_fmt [self]
-
-	  (var [count 100]
-	       [food 'tacos]
-	       [polite False])
 
 	  (labels [[stmt [count food polite]
 			 (#fmt """I want 0x{count:04x} {food!s}"""
