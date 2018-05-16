@@ -86,26 +86,6 @@ def __setup__(glbls):
         _op(lib.TypePredicate(name + "?", type_), None, True)
 
 
-    # === mass re-export from other modules ==
-
-    sd = specials.__dict__
-    for name in specials.__all__:
-        glbls[name] = sd[name]
-        _all_.append(name)
-
-    sd = operators.__dict__
-    for name in operators.__all__:
-        glbls[name] = sd[name]
-        _all_.append(name)
-
-    # all the exceptions from builtins. We'll pick other values more
-    # selectively later
-    for name, value in __builtins__.items():
-        if isinstance(value, type) and issubclass(value, BaseException):
-            glbls[name] = value
-            _all_.append(name)
-
-
     # == sibilant data types ===
 
     _ty(lib.pair, "pair")
@@ -257,11 +237,32 @@ def __setup__(glbls):
     _op(compile, "py-compile")
     _op(eval, "py-eval")
     _ty(super, "py-super")
+    _op(iter, "py-iter")
 
     _op(sys.exit, "exit")
 
     _val(sys, "sys")
-    # _val(__debug__, "__debug__")
+
+
+    # === mass re-export from other modules ==
+
+    sd = specials.__dict__
+    for name in specials.__all__:
+        glbls[name] = sd[name]
+        _all_.append(name)
+
+    sd = operators.__dict__
+    for name in operators.__all__:
+        glbls[name] = sd[name]
+        _all_.append(name)
+
+    # all the exceptions from builtins. We'll pick other values more
+    # selectively later
+    for name, value in __builtins__.items():
+        if isinstance(value, type) and issubclass(value, BaseException):
+            glbls[name] = value
+            _all_.append(name)
+
 
     # done with setup
     # return tuple(_all_)

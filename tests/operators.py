@@ -1338,9 +1338,12 @@ class UnaryOperators(TestCase):
         self.assertRaises(SyntaxError, compile_expr, src)
 
         src = """
-        (iter 1 2)
+        (iter work None)
         """
-        self.assertRaises(SyntaxError, compile_expr, src)
+        stmt, env = compile_expr(src, work=lambda: None)
+        res = stmt()
+        self.assertEqual(type(res), type(iter((lambda: None), None)))
+        self.assertEqual(list(res), [])
 
         src = """
         (iter X)

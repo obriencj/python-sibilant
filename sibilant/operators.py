@@ -27,7 +27,7 @@ license: LGPL v.3
 from .compiler import Operator
 
 from .lib import (
-    symbol, nil, is_pair,
+    symbol, pair, nil, is_pair,
     build_tuple, build_list, build_set, build_dict
 )
 
@@ -750,8 +750,26 @@ def operator_iter(code, source, tc=False):
     """
     (iter OBJ)
     Produces an iterator over the contents of OBJ
+
+    (iter CALLABLE SENTINEL)
+    Produces an iterator by calling CALLABLE until a SENTINEL value is
+    returned
     """
 
+    try:
+        called_by, params = source
+        work, (sentinel, rest) = params
+    except ValueError:
+        # we'll fall-through later to the operator
+        pass
+    else:
+        if rest:
+            raise code.error("too many arguments to %s" % called_by, source)
+        else:
+            return pair(symbol("py-iter"), params)
+
+    # if there weren't enough arguments to trigger the py-iter
+    # transformation, we'll do the normal opcode transform
     _helper_unary(code, source, code.pseudop_iter)
 
 

@@ -253,6 +253,18 @@ class lazygensym(object):
             return "<lazygensym %s>" % sym
 
 
+    def __eq__(self, other):
+        if self is other:
+            return True
+
+        sym = self._symbol
+        return (sym and (sym is other))
+
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+
 is_lazygensym = TypePredicate("lazygensym?", lazygensym)
 
 
