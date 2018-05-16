@@ -245,6 +245,14 @@ class lazygensym(object):
         return str(self())
 
 
+    def __repr__(self):
+        sym = self._symbol
+        if sym is None:
+            return "<lazygensym %s#...>" % self._name
+        else:
+            return "<lazygensym %s>" % sym
+
+
 is_lazygensym = TypePredicate("lazygensym?", lazygensym)
 
 
