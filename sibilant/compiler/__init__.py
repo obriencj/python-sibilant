@@ -40,7 +40,7 @@ from typing import Union
 from ..lib import (
     SibilantException, SibilantSyntaxError,
     symbol, is_symbol,
-    lazygensym,
+    lazygensym, is_lazygensym,
     keyword, is_keyword,
     cons, nil, is_pair, is_proper,
     get_position, fill_position,
@@ -1768,7 +1768,7 @@ class ExpressionCodeSpace(CodeSpace):
                     msg = "while compiling pair %r" % expr
                     raise self.error(msg, expr) from te
 
-            elif is_symbol(expr):
+            elif is_symbol(expr) or is_lazygensym(expr):
                 try:
                     expr = self.compile_symbol(expr, tc)
                 except TypeError as te:
@@ -1977,7 +1977,7 @@ class ExpressionCodeSpace(CodeSpace):
         pass
 
 
-    def compile_symbol(self, sym: symbol, tc=False):
+    def compile_symbol(self, sym: Symbol, tc=False):
         """
         The various ways that a symbol on its own can evaluate.
         """
@@ -1985,6 +1985,9 @@ class ExpressionCodeSpace(CodeSpace):
         # assert (is_symbol(sym))
 
         self.require_active()
+
+        if is_lazygensym(sym):
+            return self.pseudop_get_var(sym)
 
         comp = self.find_compiled(sym)
         if comp and is_alias(comp):
@@ -2044,10 +2047,13 @@ class ExpressionCodeSpace(CodeSpace):
 
 
     def find_compiled(self, namesym: Symbol):
-        return _find_compiled(self.env, namesym)
+        if is_lazygensym(namesym):
+            return None
+        else:
+            return _find_compiled(self.env, namesym)
 
 
-def _list_unique_append(onto_list, value: symbol):
+def _list_unique_append(onto_list, value: Symbol):
     # we have to manually loop and use the `is` operator, because the
     # list.index method will match False with 0 and True with 1, which
     # incorrectly collapses consts pools when both values are present
@@ -2129,7 +2135,7 @@ def gather_formals(args, declared_at=None, filename=None):
                 raise err("cannot mix improper formal with keywords")
             else:
                 break
-        elif is_symbol(arg):
+        elif is_symbol(arg) or is_lazygensym(arg):
             positional.append(arg)
         else:
             raise err("positional formals must be symbols, nor %r" % arg)
@@ -2173,7 +2179,7 @@ def gather_formals(args, declared_at=None, filename=None):
         elif star is nil:
             # nil means an ignored star arg, this is allowed.
             pass
-        elif not is_symbol(star):
+        elif not (is_symbol(star) or is_lazygensym(star)):
             raise err("* keyword requires symbol binding, not %r" % star)
         arg = next(iargs, undefined)
 
@@ -2211,7 +2217,7 @@ def gather_formals(args, declared_at=None, filename=None):
         starstar = next(iargs, undefined)
         if starstar is undefined:
             raise err("** keyword requires symbol binding")
-        elif not is_symbol(starstar):
+        elif not (is_symbol(starstar) or is_lazygensym(starstar)):
             raise err("** keyword requires symbol binding, not %r" % star)
         arg = next(iargs, undefined)
 
@@ -2254,7 +2260,7 @@ def gather_parameters(args, declared_at=None, filename=None):
         return SibilantSyntaxError(msg, location=declared_at,
                                    filename=filename)
 
-    if is_symbol(args):
+    if is_symbol(args) or is_lazygensym(args):
         return ((), (), (), args, None)
 
     elif isinstance(args, (list, tuple)):
@@ -2372,7 +2378,9 @@ def unpack_formals(args, kwds,
     return args, var, kwds, (kwvar if kwvariadic else None)
 
 
-def _find_compiled(env, namesym: Symbol):
+def _find_compiled(env, namesym: symbol):
+    assert is_symbol(namesym)
+
     # okay, let's look through the environment by name
     name = str(namesym)
 

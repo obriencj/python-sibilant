@@ -55,6 +55,10 @@
   `(define-global ,name (class ,name ,bases ,@body)))
 
 
+(defun symbolish? [thing]
+  (or (symbol? thing) (lazygensym? thing)))
+
+
 (defmacro var [*: variables]
   "
   (var BINDINGS...)
@@ -66,9 +70,13 @@
 
   ;; (setq variables (to-tuple variables))
   `{,@(map (lambda [d]
-	     (cond ((symbol? d) `(define ,d))
+	     (cond ((symbolish? d) `(define ,d))
 		   (else: `(define ,@d))))
 	   variables)})
+
+
+(defmacro letrec [bindings . body]
+  `(let [] (var ,@bindings) ,@body))
 
 
 ;; === reader macros and atom matchers ===
@@ -242,7 +250,7 @@
     (setq target (macroexpandq (globals) target))
 
     (cond
-     [(symbol? target)
+     [(symbolish? target)
       (if (contains (str target) ".")
 	  then: { (define spltrgt (target.rsplit "." 1))
 		  `(set-attr ,(item spltrgt 0) ,(item spltrgt 1) ,value) }
@@ -276,7 +284,7 @@
     (setq target (macroexpandq (globals) target))
 
     (cond
-     [(symbol? target)
+     [(symbolish? target)
       (if (contains (str target) ".")
 	  then: { (define spltrgt (target.rsplit "." 1))
 		  `(del-attr ,(item spltrgt 0) ,(item spltrgt 1)) }
@@ -375,7 +383,7 @@
 
 (defun __import-binding [thing]
   (cond
-   ((symbol? thing)
+   ((symbolish? thing)
     (return (#tuple None thing)))
 
    ((pair? thing)
@@ -577,14 +585,14 @@
      (define stream
        (cond [(isinstance src str) (source_str src fname)]
 	     [(isinstance src IOBase) (source_stream src fname)]
-	     [(or (pair? src) (symbol? src) (keyword? src))
+	     [(or (pair? src) (symbolish? src) (keyword? src))
 	      None]
 	     [else: src]))
 
      (define mod (fake_module_from_env glbls))
      (init_module mod stream filename: fname)
 
-     (unless (or (pair? src) (symbol? src) (keyword? src))
+     (unless (or (pair? src) (symbolish? src) (keyword? src))
        (setq src (parse_time mod)))
 
      (compile_time mod src)))
@@ -623,14 +631,14 @@
        (define stream
 	 (cond [(isinstance src str) (source_str src fname)]
 	       [(isinstance src IOBase) (source_stream src fname)]
-	       [(or (pair? src) (symbol? src) (keyword? src))
+	       [(or (pair? src) (symbolish? src) (keyword? src))
 		None]
 	       [else: src]))
 
        (define mod  (fake_module_from_env glbls))
        (init_module mod stream filename: ,filename)
 
-       (unless (or (pair? src) (symbol? src) (keyword? src))
+       (unless (or (pair? src) (symbolish? src) (keyword? src))
 	 (setq src (parse_time mod)))
 
        (run_time mod (compile_time mod src))])))
@@ -688,6 +696,16 @@
   `(let [] (for-each ,bindings ,emit)))
 
 (define #gen iter-each)
+
+
+(define _gensym gensym)
+
+(def function gensym [name: None]
+  (var [active (active-compiler)])
+
+  (if active
+      then: (! gensym active name)
+      else: (_gensym name)))
 
 
 (defmacro list-each [bindings emit *: () when: None unless: None]
@@ -825,7 +843,8 @@
 
 
 (let []
-  (def import-from re [compile as: regex] UNICODE VERBOSE)
+  (def import-from re
+       [compile as: regex] UNICODE VERBOSE)
 
   (def import-from sibilant.parse
        [default_reader as: reader] source_str)
@@ -916,6 +935,85 @@
     `{ (print "a compile-time error prevented tco from being enabled: "
 	      ,e)
        False }]))
+
+
+; == some gensym magic
+
+(defun swap-symbols [swaptable source]
+
+  (when (nil? source) (return nil))
+
+  (var [result (copy source)])
+
+  (labels
+   [[swapit [v]
+     (cond
+      [(symbolish? v) (swaptable.get v v)]
+      [(nil? v) nil]
+      [(pair? v) (swap-symbols swaptable v)]
+      [else: v])]]
+
+   ; (setf (car result) (swapit (car result)))
+   (for-each [p (result.follow)]
+       (unless (nil? p)
+	 (setf (car p) (swapit (car p))))))
+
+  ; (print (#fmt "swap-symbols
+  ; source {(str source)}
+  ; result {(str result)}"))
+
+  result)
+
+
+(defmacro with-gensyms [symnames . body]
+  """
+  (with-gensyms [SYMBOL...] . BODY)
+
+  Creates gensyms for each SYMBOL, and returns a copy of BODY with
+  each SYMBOL replaced with its gensym counterpart.
+  """
+
+  (var [symtable (dict (#lc [sym (! unpack symnames)]
+			    (cons sym (gensym sym))))])
+
+  `{,@(map (partial swap-symbols symtable) body)})
+
+
+(defmacro let-gensyms [bindings . body]
+  """
+  (let-gensyms [[SYM BINDING]...] . BODY)
+
+  Creates gensyms for each SYM and binds to that instead of the
+  original name
+  """
+
+  `(with-gensyms [,@(map car (! unpack bindings))]
+      (let ,bindings ,@body)))
+
+
+(defmacro letrec-gensyms [bindings . body]
+  """
+  (letrec-gensyms [[SYM BINDING]...] . BODY)
+  """
+
+  `(with-gensyms [,@(map car (! unpack bindings))]
+      (letrec ,bindings ,@body)))
+
+
+;; === for setting up __all__
+
+
+(defmacro export syms
+  """
+  (export SYMBOL...)
+
+  Adds each SYMBOL to the global __all__ list. Ensures __all__ is
+  both sorted and unique.
+  """
+
+  `(let-gensyms [[_all_ (! get (globals) "__all__" (#list))]]
+     (! extend _all_ (#list ,@(map str syms)))
+     (setf (global __all__) (sorted (set _all_)))))
 
 
 ;;

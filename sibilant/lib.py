@@ -245,8 +245,20 @@ class lazygensym(object):
         return str(self())
 
 
+    def __repr__(self):
+        sym = self._symbol
+        if sym is None:
+            return "<lazygensym %s#...>" % self._name
+        else:
+            return "<lazygensym %s>" % sym
+
+
     def __eq__(self, other):
-        return (self is other) or (self._symbol and (self._symbol is other))
+        if self is other:
+            return True
+
+        sym = self._symbol
+        return (sym and (sym is other))
 
 
     def __ne__(self, other):
