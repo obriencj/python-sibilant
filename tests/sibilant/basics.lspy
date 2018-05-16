@@ -169,45 +169,50 @@
 
 (def class FormatString [TestCase]
 
+     """
+     Verifies that the #fmt macro correctly functions
+     """
+
+
      (def function test_simple_fmt [self]
+	  (def function stmt [count food]
+	       (#fmt """I want {count} {food}."""))
 
-	  (labels [[stmt [count food]
-			 (#fmt """I want {count} {food}.""")]]
+	  (self.assertEqual "I want 1 taco."
+			    (stmt 1 "taco"))
 
-		  (self.assertEqual "I want 1 taco."
-				    (stmt 1 "taco"))
+	  (self.assertEqual "I want 15 pizza."
+			    (stmt 15 "pizza"))
 
-		  (self.assertEqual "I want 15 pizza."
-				    (stmt 15 "pizza")))
+	  None)
 
-     None)
 
      (def function test_single_char_fmt [self]
+	  (def function stmt [c f]
+	       (#fmt """I want {c} {f}."""))
 
-	  (labels [[stmt [c f]
-			 (#fmt """I want {c} {f}.""")]]
+	  (self.assertEqual "I want 1 taco."
+			    (stmt 1 "taco"))
 
-		  (self.assertEqual "I want 1 taco."
-				    (stmt 1 "taco"))
+	  (self.assertEqual "I want 15 pizza."
+			    (stmt 15 "pizza"))
 
-		  (self.assertEqual "I want 15 pizza."
-				    (stmt 15 "pizza")))
-
-     None)
+	  None)
 
 
      (def function test_complicated_fmt [self]
+	  (def function stmt [count food polite]
+	       (#fmt """I want 0x{count:04x} {food!s}"""
+		     """{(if polite ", please" "")}."""))
 
-	  (labels [[stmt [count food polite]
-			 (#fmt """I want 0x{count:04x} {food!s}"""
-			       """{(if polite ", please" "")}.""")]]
+	  (self.assertEqual "I want 0x0001 tacos, please."
+			    (stmt 1 'tacos True))
 
-		  (self.assertEqual "I want 0x0001 tacos, please."
-				    (stmt 1 'tacos True))
-		  (self.assertEqual "I want 0x000f pizza."
-				    (stmt 15 'pizza False))))
+	  (self.assertEqual "I want 0x000f pizza."
+			    (stmt 15 'pizza False))
 
-     None)
+	  None))
+
 
 ;;
 ;; The end.
