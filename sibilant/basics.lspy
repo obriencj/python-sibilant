@@ -645,30 +645,56 @@
 
 
 (let []
+  (def import-from types CodeType)
   (def import-from dis dis [show_code as: show-code])
 
-  (defun disassemble [obj details: False]
+  (defun disassemble [obj details: False depth: -1]
     """
     (disassemble OBJ)
-    (disassemble OBJ details: True)
+    (disassemble OBJ details: False depth: -1)
 
     display bytecode and optional constant and variable details
+
+    A depth of -1 indicates that all constant code object will be
+    recursively disassembled. When depth is 0, only the given object will
+    be disassembled. When depth is greater than 0, constant code objects
+    will be recursively disassembled until the given depth is reached.
     """
+
+    (when (partial? obj) (setq obj obj.func))
+
+    (print "From:" (repr obj))
 
     (when details
           (show-code obj)
           (print "Disassembly:"))
-    (dis obj)))
+    (dis obj)
+
+    (when depth
+	  (when (has-attr obj __func__) (setq obj obj.__func__))
+	  (when (has-attr obj __code__) (setq obj obj.__code__))
+	  (when (has-attr obj gi_code) (setq obj obj.gi_code))
+	  (when (has-attr obj co_consts)
+		(for-each [c obj.co_consts]
+			  (when (isinstance c CodeType)
+				(print)
+				(disassemble c details (- depth 1))))))))
 
 
-(defmacro disassemble-expr [expr]
+(defmacro disassemble-expr [expr details: False depth: -1]
   """
   (disassemble-expr EXPR)
+  (disassemble-expr EXPR details: False depth: -1)
 
   compiles EXPR, then decompiles it and displays the bytecode
-  operations it would have executed
+  operations it would have executed.
+
+  A depth of -1 indicates that all constant code object will be
+  recursively disassembled. When depth is 0, only the given object will
+  be disassembled. When depth is greater than 0, constant code objects
+  will be recursively disassembled until the given depth is reached.
   """
-  `(disassemble (compile ',expr)))
+  `(disassemble (compile ',expr) ,details ,depth))
 
 
 ;; === generator stuff ===
@@ -987,8 +1013,17 @@
   original name
   """
 
-  `(with-gensyms [,@(map car (! unpack bindings))]
-      (let ,bindings ,@body)))
+  (def import-from sibilant.specials _helper_binding)
+  (var [decls (#list)]
+       [swaps (#dict)]
+       [parse-binding (partial _helper_binding (active-compiler))])
+
+  (for-each [[sym val] (map parse-binding (! unpack bindings))]
+	    (var [gsym (gensym sym)])
+	    (! append decls (cons gsym val nil))
+	    (setf (item swaps sym) gsym))
+
+  `(let [,@decls] ,@(map (partial swap-symbols swaps) body)))
 
 
 (defmacro letrec-gensyms [bindings . body]
@@ -996,8 +1031,17 @@
   (letrec-gensyms [[SYM BINDING]...] . BODY)
   """
 
-  `(with-gensyms [,@(map car (! unpack bindings))]
-      (letrec ,bindings ,@body)))
+  (def import-from sibilant.specials _helper_binding)
+  (var [decls (#list)]
+       [swaps (#dict)]
+       [parse-binding (partial _helper_binding (active-compiler))])
+
+  (for-each [[sym val] (map parse-binding (! unpack bindings))]
+	    (var [gsym (gensym sym)])
+	    (! append decls (cons gsym val nil))
+	    (setf (item swaps sym) gsym))
+
+  `(letrec [,@decls] ,@(map (partial swap-symbols swaps) body)))
 
 
 ;; === for setting up __all__
