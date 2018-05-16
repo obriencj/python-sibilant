@@ -75,6 +75,10 @@
 	   variables)})
 
 
+(defmacro letrec [bindings . body]
+  `(let [] (var ,@bindings) ,@body))
+
+
 ;; === reader macros and atom matchers ===
 
 (defmacro _reader_macro [sym attrsym]
@@ -839,7 +843,8 @@
 
 
 (let []
-  (def import-from re [compile as: regex] UNICODE VERBOSE)
+  (def import-from re
+       [compile as: regex] UNICODE VERBOSE)
 
   (def import-from sibilant.parse
        [default_reader as: reader] source_str)
@@ -984,6 +989,15 @@
 
   `(with-gensyms [,@(map car (! unpack bindings))]
       (let ,bindings ,@body)))
+
+
+(defmacro letrec-gensyms [bindings . body]
+  """
+  (letrec-gensyms [[SYM BINDING]...] . BODY)
+  """
+
+  `(with-gensyms [,@(map car (! unpack bindings))]
+      (letrec ,bindings ,@body)))
 
 
 ;; === for setting up __all__
