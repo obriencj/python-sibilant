@@ -486,6 +486,21 @@
      ,@body))
 
 
+(defmacro let* [bindings . body]
+  `(let []
+     ,@(map (lambda [b] `(define ,@b))
+            (bindings.unpack))
+     ,@body))
+
+
+(defmacro letrec [bindings . body]
+  `(let [,@(map (lambda [b] `(,(car b) None))
+                (bindings.unpack))]
+     ,@(map (lambda [b] `(define ,@b))
+            (bindings.unpack))
+     ,@body))
+
+
 ;; === c_r magic ===
 
 ;; (defmacro c__r (atom)

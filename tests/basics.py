@@ -619,6 +619,40 @@ class IterEach(TestCase):
         self.assertEqual(type(res), set)
         self.assertEqual(res, set())
 
+class Lets(TestCase):
+
+
+    def test_let_star(self):
+        src = """
+        (let* [[pre "te"][post (+ pre "st")]] post)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertEqual(res, "test")
+
+        src = """
+        (let* [[post (+ pre "st")][pre "te"]] post)
+        """
+        stmt, env = compile_expr(src)
+
+        self.assertRaises(UnboundLocalError, stmt)
+
+
+    def test_letrec(self):
+        src = """
+        (letrec [[is-even? (lambda (n) (or (== n 0)
+                                       (is-odd? (- n 1))))]
+                 [is-odd? (lambda (n) (and (not (== n 0))
+                                           (is-even? (- n 1))))]]
+                (is-odd? 11))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertEqual(res, True)
+
+
 
 class Attrs(TestCase):
 
