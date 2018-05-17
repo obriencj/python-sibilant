@@ -55,6 +55,11 @@
   `(define-global ,name (class ,name ,bases ,@body)))
 
 
+(define parse-binding
+  (let [[specials (attr (import sibilant.specials) specials)]]
+    (partial specials._helper_binding (active-compiler))))
+
+
 (defun symbolish? [thing]
   (or (symbol? thing) (lazygensym? thing)))
 
@@ -70,13 +75,15 @@
 
   ;; (setq variables (to-tuple variables))
   `{,@(map (lambda [d]
-	     (cond ((symbolish? d) `(define ,d))
-		   (else: `(define ,@d))))
+	     (define sym d)
+	     (define expr None)
+
+	     (cond [(symbolish? d) None]
+		   [else: (setq-values [sym expr] (parse-binding d))])
+	     (cond [(is None expr) `(define ,sym)]
+		   [else: `(define ,sym ,expr)]))
+
 	   variables)})
-
-
-(defmacro letrec [bindings . body]
-  `(let [] (var ,@bindings) ,@body))
 
 
 ;; === reader macros and atom matchers ===
@@ -487,17 +494,19 @@
 
 
 (defmacro let* [bindings . body]
-  `(let []
-     ,@(map (lambda [b] `(define ,@b))
-            (bindings.unpack))
-     ,@body))
+  (if bindings
+      then: `(let [,(car bindings)]
+	       ,(if (cdr bindings)
+		    then: `(let* ,(cdr bindings) ,@body)
+		    else: `{,@body}))
+      else: `(let [] ,@body)))
 
 
 (defmacro letrec [bindings . body]
-  `(let [,@(map (lambda [b] `(,(car b) None))
-                (bindings.unpack))]
-     ,@(map (lambda [b] `(define ,@b))
-            (bindings.unpack))
+  `(let []
+     (var ,@(map (lambda [b] (item (parse-binding b) 0))
+		 (bindings.unpack)))
+     (var ,@bindings)
      ,@body))
 
 
@@ -1028,10 +1037,8 @@
   original name
   """
 
-  (def import-from sibilant.specials _helper_binding)
   (var [decls (#list)]
-       [swaps (#dict)]
-       [parse-binding (partial _helper_binding (active-compiler))])
+       [swaps (#dict)])
 
   (for-each [[sym val] (map parse-binding (! unpack bindings))]
 	    (var [gsym (gensym sym)])
@@ -1046,10 +1053,8 @@
   (letrec-gensyms [[SYM BINDING]...] . BODY)
   """
 
-  (def import-from sibilant.specials _helper_binding)
   (var [decls (#list)]
-       [swaps (#dict)]
-       [parse-binding (partial _helper_binding (active-compiler))])
+       [swaps (#dict)])
 
   (for-each [[sym val] (map parse-binding (! unpack bindings))]
 	    (var [gsym (gensym sym)])

@@ -619,6 +619,7 @@ class IterEach(TestCase):
         self.assertEqual(type(res), set)
         self.assertEqual(res, set())
 
+
 class Lets(TestCase):
 
 
@@ -636,7 +637,7 @@ class Lets(TestCase):
         """
         stmt, env = compile_expr(src)
 
-        self.assertRaises(UnboundLocalError, stmt)
+        self.assertRaises(NameError, stmt)
 
 
     def test_letrec(self):
@@ -651,7 +652,6 @@ class Lets(TestCase):
         res = stmt()
 
         self.assertEqual(res, True)
-
 
 
 class Attrs(TestCase):
