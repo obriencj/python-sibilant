@@ -186,7 +186,7 @@ def compile_time(module, source_expr):
     compiler = get_module_compiler(module)
     module_globals = module.__dict__
 
-    with compiler.activate(module_globals):
+    with compiler.active_context(module_globals):
         compiler.add_expression_with_return(source_expr)
         code_obj = compiler.complete()
 
@@ -310,7 +310,7 @@ def marshal_wrapper(code_objs, filename=None, mtime=0, source_size=0,
     # .lspyc files -- but I'd prefer to be able to just reuse the
     # existing python loader for .pyc
 
-    with codespace.activate({}):
+    with codespace.active_context({}):
 
         # import and obtain sibilant.module.exec_marshal_module
         codespace.pseudop_const(0)

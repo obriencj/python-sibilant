@@ -632,10 +632,16 @@ def _const_index(of_list, value):
     # will consider False and 0, and True and 1 to be equivalent,
     # breaking any constant pools containing those values.
 
-    for index, found in enumerate(of_list):
-        if found is value:
-            return index
-    else:
+    if value in [0, 1]:
+        for index, found in enumerate(of_list):
+            if found is value:
+                return index
+        else:
+            assert False, "missing constant pool index for value %r" % value
+
+    try:
+        return of_list.index(value)
+    except ValueError:
         assert False, "missing constant pool index for value %r" % value
 
 
