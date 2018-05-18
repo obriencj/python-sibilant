@@ -640,6 +640,27 @@ class Lets(TestCase):
         self.assertRaises(NameError, stmt)
 
 
+    def test_let_star_values(self):
+        src = """
+        (let*-values [[(a (b c)) (#tuple 1 (#tuple 2 3))]
+                      [(d e) `(,(+ a b) ,(+ a c))]]
+                     `(,d . ,e))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertEqual(res, cons(3, 4, nil))
+
+        src = """
+        (let*-values [[(d e) `(,(+ a b) ,(+ a c))]
+                      [(a (b c)) (#tuple 1 (#tuple 2 3))]]
+                     `(,d . ,e))
+        """
+        stmt, env = compile_expr(src)
+
+        self.assertRaises(NameError, stmt)
+
+
     def test_letrec(self):
         src = """
         (letrec [[is-even? (lambda (n) (or (== n 0)
