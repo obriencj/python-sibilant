@@ -502,6 +502,20 @@
       else: `(let [] ,@body)))
 
 
+(defmacro let*-values [bindings . body]
+  """
+  (let*-values [[BINDINGS VALS]…] . BODY)
+
+  where BINDINGS is a nested pair of symbols in the same structure as
+  values from VALS, but like let* instead of let.
+  """
+
+  `(let []
+     ,@(map (lambda [b] `(define-values ,@b))
+            (bindings.unpack))
+     ,@body))
+
+
 (defmacro letrec [bindings . body]
   `(let []
      (var ,@(map (lambda [b] (item (parse-binding b) 0))
