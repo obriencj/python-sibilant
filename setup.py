@@ -48,6 +48,7 @@ setup(
     packages = [
         "sibilant",
         "sibilant.compiler",
+        "sibilant.pseudops",
         "sibilant.site",
     ],
 

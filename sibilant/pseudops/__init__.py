@@ -242,7 +242,7 @@ _symbol_ellipsis = symbol("...")
 _symbol_attr = symbol("attr")
 
 
-def _label_generator(formatstr="label_%04i"):
+def _label_generator(formatstr="label_%04x"):
     counter = 0
 
     def gen_label():
@@ -251,6 +251,32 @@ def _label_generator(formatstr="label_%04i"):
         return formatstr % counter
 
     return gen_label
+
+
+def code_space_for_version(ver=version_info,
+                           impl=python_implementation()):
+    """
+    Returns the relevant ExpressionCodeSpace subclass to emit bytecode
+    for the relevant version of Python
+    """
+
+    if impl == 'CPython':
+        # TODO : user some sort of introspection instead of having to
+        # write an import for every case...
+
+        if (3, 7) <= ver <= (3, 8):
+            from .cpython37 import CPython37
+            return CPython37
+
+        elif (3, 6) <= ver <= (3, 7):
+            from .cpython36 import CPython36
+            return CPython36
+
+        elif (3, 5) <= ver <= (3, 6):
+            from .cpython35 import CPython35
+            return CPython35
+
+    raise UnsupportedVersion(ver, impl)
 
 
 class CodeBlock(object):

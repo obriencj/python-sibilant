@@ -50,7 +50,7 @@ __all__ = (
     "UnsupportedVersion",
     "CompilerSyntaxError",
     "CodeSpace", "CodeFlag", "Block", "Mode", "Opcode", "Pseudop",
-    "ExpressionCodeSpace",
+    "SibilantCompiler",
     "code_space_for_version",
     "Compiled", "is_compiled",
     "Special", "is_special",
@@ -142,10 +142,15 @@ class Special(Compiled):
         nom = str(name or compilefn.__name__)
         mbs = {
             "__doc__": compilefn.__doc__,
-            "compile": staticmethod(compilefn),
+            "__compile__": staticmethod(compilefn),
         }
         cls = type(nom, (cls, ), mbs)
         return object.__new__(cls)
+
+
+    @trampoline
+    def compile(self, source, tc=False):
+        return tailcall(self.__compile__)(source, tc)
 
 
 def is_special(obj):
@@ -184,6 +189,7 @@ class Macro(Compiled):
         return object.__new__(cls)
 
 
+    @trampoline
     def compile(self, compiler, source_obj, tc=False):
         called_by, source = source_obj
 
@@ -193,18 +199,10 @@ class Macro(Compiled):
             expr = self.expand(*args, **kwargs)
 
         else:
-            data = list(source.unpack())
-            expr = self.expand(*data)
+            expr = self.expand(*source.unpack())
 
         fill_position(expr, source_obj.get_position())
-
-        # a Macro should always evaluate to some kind of non-None. If
-        # all the work of the macro was performed in the environment
-        # for some reason, it's still expected to provide an expanded
-        # result, or stack underruns are almost guaranteed. Therefore
-        # if the wrapped macro function returns None we will pretend
-        # it expanded to the None symbol instead.
-        return _symbol_None if expr is None else expr
+        return tailcall(compiler.compile)(expr, tc)
 
 
 def is_macro(obj):
@@ -219,19 +217,13 @@ class Alias(Macro):
         expanded = self.expand()
         expanded = _symbol_None if expanded is None else expanded
 
-        if is_symbol(source_obj):
-            return expanded
-
-        elif is_pair(source_obj):
+        if is_pair(source_obj):
             called_by, source = source_obj
             res = cons(expanded, source)
             fill_position(res, source_obj.get_position())
-            return res
+            expanded = res
 
-        else:
-            msg = "Error expanding alias %s from %r" % \
-                  (self.__name__, source_obj)
-            compiler.error(msg, source_obj)
+        return tailcall(compiler.compile)(expanded, tc)
 
 
 def is_alias(obj):
@@ -262,10 +254,15 @@ class Operator(Compiled):
         mbs = {
             "__doc__": compilefn.__doc__,
             "__call__": staticmethod(runtimefn),
-            "compile": staticmethod(compilefn),
+            "__compile__": staticmethod(compilefn),
         }
         cls = type(nom, (cls, ), mbs)
         return object.__new__(cls)
+
+
+    @trampoline
+    def compile(self, source, tc=False):
+        return tailcall(self.__compile__)(source, tc)
 
 
 def is_operator(obj):
@@ -296,7 +293,7 @@ _symbol_ellipsis = symbol("...")
 _symbol_attr = symbol("attr")
 
 
-def _label_generator(formatstr="label_%04i"):
+def _label_generator(formatstr="label_%04x"):
     counter = 0
 
     def gen_label():
@@ -307,11 +304,13 @@ def _label_generator(formatstr="label_%04i"):
     return gen_label
 
 
-def code_space_for_version(ver=version_info,
-                           impl=python_implementation()):
+def compiler_version(ver=version_info,
+                     impl=python_implementation()):
     """
-    Returns the relevant ExpressionCodeSpace subclass to emit bytecode
-    for the relevant version of Python
+    Returns the relevant SibilantCompiler subclass to emit bytecode
+    for the relevant version and implementation of Python. Raises
+    UnsupportedVersion if the version and/or implementation aren't
+    supported.
     """
 
     if impl == 'CPython':
@@ -319,18 +318,129 @@ def code_space_for_version(ver=version_info,
         # write an import for every case...
 
         if (3, 7) <= ver <= (3, 8):
-            from .cpython37 import CPython37
-            return CPython37
+            from .cpython37 import SibilantCPython37
+            return SibilantCPython37
 
         elif (3, 6) <= ver <= (3, 7):
-            from .cpython36 import CPython36
-            return CPython36
+            from .cpython36 import SibilantCPython36
+            return SibilantCPython36
 
         elif (3, 5) <= ver <= (3, 6):
-            from .cpython35 import CPython35
-            return CPython35
+            from .cpython35 import SibilantCPython35
+            return SibilantCPython35
 
     raise UnsupportedVersion(ver, impl)
+
+
+class SibilantCompiler(PseudopCompiler, metaclass=ABCMeta):
+
+
+    def __init__(self, options):
+        pass
+
+
+    @abstractmethod
+    def activate(self, environment):
+        pass
+
+
+    def complete(self):
+        pass
+
+
+    @trampoline
+    def compile(self, source_obj, tc=False):
+        if is_pair(source_obj):
+            dispatch = self.compile_pair
+        elif is_atom(source_obj):
+            dispatch = self.compile_atom
+        elif is_symbol(source_obj):
+            dispatch = self.compile_symbol
+        elif is_keyword(source_obj):
+            dispatch = self.compile_keyword
+        elif isinstance(source_obj, _CONST_TYPES):
+            dispatch = self.compile_constant
+        else:
+            msg = "Unsupported source object {:r}".format(source_obj)
+            raise self._err(msg, source_obj)
+
+        return tailcall(dispatch)(source_obj, tc)
+
+
+    @trampoline
+    def compile_pair(self, source_obj: pair, tc=False):
+        if not is_proper(source_obj):
+            msg = "cannot evaluate improper lists as expressions"
+            raise self._err(msg, source_obj)
+
+        self.psedop_position_of(source_obj)
+        position = source_obj.get_position()
+        head, tail = source_obj
+
+        if is_symbol(head) or is_lazygensym(head):
+            comp = self.find_compiled(head)
+            if comp:
+                return tailcall(comp.compile)(self, expr, tc)
+
+        return tailcall(self.compile_apply)(self, expr, tc)
+
+
+    @trampiline
+    def compile_apply(self, source_obj: pair, tc=False):
+        pass
+
+
+    @trampoline
+    def compile_atom(self, source_obj, tc=False):
+        pattern = self.find_atom_pattern(source_obj)
+        if pattern is None:
+            pattern = symbol
+
+        self.pseudop_position_of(source_obj)
+        source = pattern(source_obj)
+
+        return tailcall(self.compile)(source, tc)
+
+
+    @trampoline
+    def compile_symbol(self, sym: Symbol, tc=False):
+        comp = self.find_compiled(head)
+        if comp:
+            return tailcall(comp.compile)(self, sym, tc)
+
+        elif is_lazygensym(sym):
+            return self.pseudop_get_var(sym)
+
+        elif sym is _symbol_None:
+            return self.pseudop_const(None)
+
+        elif sym is _symbol_True:
+            return self.pseudop_const(True)
+
+        elif sym is _symbol_False:
+            return self.pseudop_const(False)
+
+        elif sym is _symbol_ellipsis:
+            return self.pseudop_const(...)
+
+        else:
+            ex = sym.rsplit(".", 1)
+            if len(ex) == 1:
+                return self.pseudop_get_var(sym)
+            else:
+                source = cons(_symbol_attr, *ex, nil)
+                return tailcall(self.compile)(source, tc)
+
+
+    @trampoline
+    def compile_keyword(self, kwd: keyword, tc=False):
+        source = cons(_symbol_keyword, str(kwd), nil)
+        return tailcall(self.compile)(source, False)
+
+
+    @trampoline
+    def compile_constant(self, value: Constant, tc=False):
+        return self.pseudop_const(value)
 
 
 class ExpressionCodeSpace(CodeSpace):
