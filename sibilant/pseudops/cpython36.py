@@ -23,11 +23,11 @@ license: LGPL v.3
 """
 
 
-from . import PseudopsCompiler, Pseudop, Opcode,
+from . import PseudopsCompiler, Pseudop, Opcode
 from sibilant.lib import symbol
 
 
-class CPython36(PseudopsCompiler):
+class PseudopsCPython36(PseudopsCompiler):
     """
     SpecialCodeSpace emitting bytecode compatible with CPython version
     3.6

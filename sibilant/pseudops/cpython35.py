@@ -23,11 +23,11 @@ license: LGPL v.3
 """
 
 
-from . import PseudopCompiler, Pseudop, Opcode
+from . import PseudopsCompiler, Pseudop, Opcode
 from sibilant.lib import symbol
 
 
-class PseudopCPython35(PseudopsCompiler):
+class PseudopsCPython35(PseudopsCompiler):
     """
     Pseudo-Ops compiler emitting bytecode compatible with CPython
     version 3.5
@@ -503,47 +503,6 @@ class PseudopCPython35(PseudopsCompiler):
             yield _Opcode.LOAD_CONST, ci, 0
             yield _Opcode.LOAD_CONST, ni, 0
             yield _Opcode.MAKE_FUNCTION, default_count, kwonly_count
-
-
-    def helper_compile_call(self, args, declared_at):
-        params = gather_parameters(args)
-
-        pos, keywords, values, vargs, vkwds = params
-
-        assert (len(keywords) == len(values)), "mismatched keyword, values"
-
-        for expr in pos:
-            self.add_expression(expr)
-
-        if vargs:
-            self.add_expression(vargs)
-
-        for key, val in zip(keywords, values):
-            self.pseudop_const(str(key))
-            self.add_expression(val)
-
-        if vkwds:
-            self.add_expression(vkwds)
-
-        if vargs:
-            if vkwds:
-                # CALL_FUNCTION_VAR_KW
-                pseu = self.pseudop_call_var_kw
-            else:
-                # CALL_FUNCTION_VAR
-                pseu = self.pseudop_call_var
-        else:
-            if vkwds:
-                # CALL_FUNCTION_KW
-                pseu = self.pseudop_call_kw
-            else:
-                # CALL_FUNCTION
-                pseu = self.pseudop_call
-
-        if declared_at:
-            self.pseudop_position(*declared_at)
-
-        pseu(len(pos), len(keywords))
 
 
     def lnt_compile(self, lnt, firstline=None):

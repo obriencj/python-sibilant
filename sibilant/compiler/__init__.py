@@ -25,33 +25,38 @@ license: LGPL v.3
 
 import threading
 
-from abc import abstractmethod
+from abc import ABCMeta, abstractmethod
 from contextlib import contextmanager
 from functools import partial
+from itertools import count
 from os.path import exists
 from platform import python_implementation
 from sys import version_info
-from types import CodeType
 from typing import Union
 
-from ..lib import (
+from sibilant.lib import (
     SibilantException, SibilantSyntaxError,
     symbol, is_symbol,
     lazygensym, is_lazygensym,
     keyword, is_keyword,
-    cons, nil, is_pair, is_proper,
+    pair, nil, cons, is_pair, is_proper,
     get_position, fill_position,
 )
 
-from ..pseudops import CodeFlag, CodeSpace, Mode, Opcode, Pseudop, Block
+from sibilant.pseudops import (
+    PseudopsCompiler, Mode,
+    CONST_TYPES, Constant,
+)
+
+from sibilant.tco import trampoline, tailcall
 
 
 __all__ = (
     "UnsupportedVersion",
     "CompilerSyntaxError",
-    "CodeSpace", "CodeFlag", "Block", "Mode", "Opcode", "Pseudop",
+    "Mode",
     "SibilantCompiler",
-    "code_space_for_version",
+    "compiler_for_version",
     "Compiled", "is_compiled",
     "Special", "is_special",
     "Macro", "is_macro",
@@ -61,12 +66,19 @@ __all__ = (
 )
 
 
-Symbol = Union[lazygensym, symbol]
-
-
 _keyword_star = keyword("*")
 _keyword_starstar = keyword("**")
 
+_symbol_attr = symbol("attr")
+_symbol_nil = symbol("nil")
+_symbol_None = symbol("None")
+_symbol_True = symbol("True")
+_symbol_False = symbol("False")
+_symbol_ellipsis = symbol("...")
+_symbol_keyword = symbol("keyword")
+
+
+Symbol = Union[lazygensym, symbol]
 
 COMPILER_DEBUG = False
 
@@ -100,8 +112,7 @@ class UnsupportedVersion(SibilantException):
     pass
 
 
-class Compiled():
-    __slots__ = ("__name__", )
+class Compiled(metaclass=ABCMeta):
     __objname__ = "sibilant compiled"
 
 
@@ -118,7 +129,8 @@ class Compiled():
         return "<%s %r>" % (self.__objname__, self.__name__)
 
 
-    def compile(self, compiler, source_obj):
+    @abstractmethod
+    def compile(self, compiler, source_obj, tc, cont):
         pass
 
 
@@ -142,15 +154,10 @@ class Special(Compiled):
         nom = str(name or compilefn.__name__)
         mbs = {
             "__doc__": compilefn.__doc__,
-            "__compile__": staticmethod(compilefn),
+            "compile": staticmethod(compilefn),
         }
         cls = type(nom, (cls, ), mbs)
         return object.__new__(cls)
-
-
-    @trampoline
-    def compile(self, source, tc=False):
-        return tailcall(self.__compile__)(source, tc)
 
 
 def is_special(obj):
@@ -190,7 +197,7 @@ class Macro(Compiled):
 
 
     @trampoline
-    def compile(self, compiler, source_obj, tc=False):
+    def compile(self, compiler, source_obj, tc, cont):
         called_by, source = source_obj
 
         if self._proper:
@@ -202,7 +209,7 @@ class Macro(Compiled):
             expr = self.expand(*source.unpack())
 
         fill_position(expr, source_obj.get_position())
-        return tailcall(compiler.compile)(expr, tc)
+        return tailcall(cont)(expr, tc)
 
 
 def is_macro(obj):
@@ -213,7 +220,7 @@ class Alias(Macro):
     __objname__ = "alias"
 
 
-    def compile(self, compiler, source_obj, tc=False):
+    def compile(self, compiler, source_obj, tc, cont):
         expanded = self.expand()
         expanded = _symbol_None if expanded is None else expanded
 
@@ -223,7 +230,7 @@ class Alias(Macro):
             fill_position(res, source_obj.get_position())
             expanded = res
 
-        return tailcall(compiler.compile)(expanded, tc)
+        return tailcall(cont)(expanded, tc)
 
 
 def is_alias(obj):
@@ -254,58 +261,22 @@ class Operator(Compiled):
         mbs = {
             "__doc__": compilefn.__doc__,
             "__call__": staticmethod(runtimefn),
-            "__compile__": staticmethod(compilefn),
+            "compile": staticmethod(compilefn),
         }
         cls = type(nom, (cls, ), mbs)
         return object.__new__(cls)
-
-
-    @trampoline
-    def compile(self, source, tc=False):
-        return tailcall(self.__compile__)(source, tc)
 
 
 def is_operator(obj):
     return isinstance(obj, Operator)
 
 
-# these types alone are valid constant value types when marshalling a
-# code object. Outside of marshalling, Python doesn't seem to care
-# what you put in the consts tuple of a code object.
-_CONST_TYPES = (
-    CodeType,
-    str, bytes,
-    tuple, list, dict, set,
-    bool, int, float, complex,
-    type(None), type(...),
-)
+def _label_generator(formatstr="label_{:04x}"):
+    return partial(next, map(formatstr.format, count()))
 
 
-# a bunch of commonly used symbols, so we don't have to try and
-# recreate over and over.
-
-_symbol_nil = symbol("nil")
-_symbol_None = symbol("None")
-_symbol_True = symbol("True")
-_symbol_False = symbol("False")
-_symbol_ellipsis = symbol("...")
-
-_symbol_attr = symbol("attr")
-
-
-def _label_generator(formatstr="label_%04x"):
-    counter = 0
-
-    def gen_label():
-        nonlocal counter
-        counter += 1
-        return formatstr % counter
-
-    return gen_label
-
-
-def compiler_version(ver=version_info,
-                     impl=python_implementation()):
+def compiler_for_version(ver=version_info,
+                         impl=python_implementation()):
     """
     Returns the relevant SibilantCompiler subclass to emit bytecode
     for the relevant version and implementation of Python. Raises
@@ -332,122 +303,142 @@ def compiler_version(ver=version_info,
     raise UnsupportedVersion(ver, impl)
 
 
-class SibilantCompiler(PseudopCompiler, metaclass=ABCMeta):
+class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
 
 
-    def __init__(self, options):
-        pass
+    def __init__(self, **kwopts):
+        super().__init__(**kwopts)
 
 
-    @abstractmethod
     def activate(self, environment):
-        pass
-
-
-    def complete(self):
-        pass
+        self.env = environment
 
 
     @trampoline
-    def compile(self, source_obj, tc=False):
+    def compile(self, source_obj, tc, cont=None):
         if is_pair(source_obj):
             dispatch = self.compile_pair
-        elif is_atom(source_obj):
-            dispatch = self.compile_atom
         elif is_symbol(source_obj):
             dispatch = self.compile_symbol
         elif is_keyword(source_obj):
             dispatch = self.compile_keyword
-        elif isinstance(source_obj, _CONST_TYPES):
+        elif isinstance(source_obj, CONST_TYPES):
             dispatch = self.compile_constant
         else:
-            msg = "Unsupported source object {:r}".format(source_obj)
-            raise self._err(msg, source_obj)
+            msg = "Unsupported source object %r" % source_obj
+            raise self.error(msg, source_obj)
 
-        return tailcall(dispatch)(source_obj, tc)
+        return tailcall(dispatch)(source_obj, tc, cont or self._compile_cont)
 
 
     @trampoline
-    def compile_pair(self, source_obj: pair, tc=False):
+    def _compile_cont(self, source_obj, tc):
+        if source_obj is None:
+            # None explicitly means that the compilation resulted in
+            # no new forms, so we're done.
+            return None
+        else:
+            # anything else is a transformation, and needs to be
+            # compiled.
+            return tailcall(self.compile, source_obj, tc, None)
+
+
+    @trampoline
+    def compile_pair(self, source_obj: pair, tc, cont):
         if not is_proper(source_obj):
             msg = "cannot evaluate improper lists as expressions"
             raise self._err(msg, source_obj)
 
-        self.psedop_position_of(source_obj)
-        position = source_obj.get_position()
+        self.pseudop_position_of(source_obj)
+
         head, tail = source_obj
 
         if is_symbol(head) or is_lazygensym(head):
             comp = self.find_compiled(head)
             if comp:
-                return tailcall(comp.compile)(self, expr, tc)
+                return tailcall(comp.compile)(self, source_obj, tc, cont)
 
-        return tailcall(self.compile_apply)(self, expr, tc)
+        elif is_pair(head):
 
+            @trampoline
+            def ccp(new_head, tc):
+                if new_head is None:
+                    return tailcall(self.compile_apply_tos)(tail, tc, cont)
+                else:
+                    expr = cons(head, tail)
+                    expr.set_position(expr, head.get_position())
+                    return tailcall(self.compile_pair)(expr, tc, cont)
 
-    @trampiline
-    def compile_apply(self, source_obj: pair, tc=False):
-        pass
+            return tailcall(self.compile_pair)(head, False, ccp)
 
-
-    @trampoline
-    def compile_atom(self, source_obj, tc=False):
-        pattern = self.find_atom_pattern(source_obj)
-        if pattern is None:
-            pattern = symbol
-
-        self.pseudop_position_of(source_obj)
-        source = pattern(source_obj)
-
-        return tailcall(self.compile)(source, tc)
+        return tailcall(self.compile_apply)(source_obj, tc, cont)
 
 
     @trampoline
-    def compile_symbol(self, sym: Symbol, tc=False):
-        comp = self.find_compiled(head)
+    def compile_apply(self, source_obj: pair, tc, cont):
+        fun, args = source_obj
+
+        if tc:
+            self.pseudop_get_global(_symbol_tailcall)
+            self.pseudop_add_expression(fun)
+            self.pseudop_call(1)
+        else:
+            self.pseudop_add_expression(fun)
+
+        # we've already wrapped this in a tailcall if needed, so let's
+        # defer to apply_tos and tell it it's not a tailcall
+        return tailcall(self.compile_apply_tos)(args, False, cont)
+
+
+    @trampoline
+    def compile_apply_tos(self, source_obj: pair, tc, cont):
+        if tc:
+            self.pseudop_get_global(_symbol_tailcall)
+            self.pseudop_rot_two()
+            self.pseudop_call(1)
+
+        raise Exception("yay we got this far %r" % source_obj)
+
+
+    @trampoline
+    def compile_symbol(self, sym: Symbol, tc, cont):
+        comp = self.find_compiled(sym)
         if comp:
-            return tailcall(comp.compile)(self, sym, tc)
+            return tailcall(comp.compile)(self, sym, tc, cont)
 
         elif is_lazygensym(sym):
-            return self.pseudop_get_var(sym)
+            return tailcall(cont)(self.pseudop_get_var(sym))
 
         elif sym is _symbol_None:
-            return self.pseudop_const(None)
+            return tailcall(cont)(self.pseudop_const(None))
 
         elif sym is _symbol_True:
-            return self.pseudop_const(True)
+            return tailcall(cont)(self.pseudop_const(True))
 
         elif sym is _symbol_False:
-            return self.pseudop_const(False)
+            return tailcall(cont)(self.pseudop_const(False))
 
         elif sym is _symbol_ellipsis:
-            return self.pseudop_const(...)
+            return tailcall(cont)(self.pseudop_const(...))
 
         else:
             ex = sym.rsplit(".", 1)
             if len(ex) == 1:
-                return self.pseudop_get_var(sym)
+                return tailcall(cont)(self.pseudop_get_var(sym))
             else:
                 source = cons(_symbol_attr, *ex, nil)
-                return tailcall(self.compile)(source, tc)
+                return tailcall(self.compile)(source, tc, cont)
 
 
     @trampoline
-    def compile_keyword(self, kwd: keyword, tc=False):
+    def compile_keyword(self, kwd: keyword, tc, cont):
         source = cons(_symbol_keyword, str(kwd), nil)
-        return tailcall(self.compile)(source, False)
+        return tailcall(self.compile)(source, False, cont)
 
 
     @trampoline
-    def compile_constant(self, value: Constant, tc=False):
-        return self.pseudop_const(value)
-
-
-class ExpressionCodeSpace(CodeSpace):
-    """
-    Adds support for expressions, operators, macros, and special forms
-    to the basic functionality of CodeSpace
-    """
+    def compile_constant(self, value: Constant, tc, cont):
+        return tailcall(cont)(self.pseudop_const(value))
 
 
     @contextmanager
@@ -509,60 +500,10 @@ class ExpressionCodeSpace(CodeSpace):
             self.pseudop_position(*position)
 
 
-    def add_expression(self, expr, tc=False):
-        """
-        Insert an expression into the code space. expr should be a cons
-        cell representing the expression. If the expression appears to
-        be a special form (either a macro defined in the CodeSpace's
-        env, or a pre-defined built-in special), it will be expanded
-        and compiled to pseudo ops.
-        """
-
-        tc = tc and self.tco_enabled
-
-        self.require_active()
-
-        if expr is None:
-            self.pseudop_const(None)
-            return
-
-        self.pseudop_position_of(expr)
-
-        while expr is not None:
-            if expr is nil:
-                # convert nil expressions to a literal nil
-                self.pseudop_get_var(symbol("nil"))
-                expr = None
-
-            elif is_pair(expr):
-                try:
-                    expr = self.compile_pair(expr, tc)
-                except TypeError as te:
-                    msg = "while compiling pair %r" % expr
-                    raise self.error(msg, expr) from te
-
-            elif is_symbol(expr) or is_lazygensym(expr):
-                try:
-                    expr = self.compile_symbol(expr, tc)
-                except TypeError as te:
-                    msg = "while compiling symbol %r" % expr
-                    raise self.error(msg, expr) from te
-
-            elif is_keyword(expr):
-                expr = self.compile_keyword(expr)
-
-            else:
-                # TODO there are some literal types that can't be used
-                # as constants, will need to fill those in here. For
-                # now we're just presuming it's going to be a
-                # constant, the end.
-                expr = self.pseudop_const(expr)
-
-            if is_compiled(expr):
-                msg = "leftover higher-order macro %r" % expr
-                raise CompilerException(msg)
-
-        return None
+    def add_expression(self, expr, tc=None):
+        expr = self.compile(expr, tc)
+        if expr is not None:
+            expr = self.compile(expr, tc)
 
 
     def add_expression_with_return(self, expr):
@@ -570,94 +511,8 @@ class ExpressionCodeSpace(CodeSpace):
         Insert an expression, then an op to return its result from the
         current call
         """
-        self.add_expression(expr)
+        self.add_expression(expr, True)
         self.pseudop_return()
-
-
-    def compile_pair(self, expr, tc=False):
-        self.require_active()
-
-        if not is_proper(expr):
-            print("compile_pair improper:", str(expr))
-            raise self.error("cannot evaluate improper lists as expressions",
-                             expr)
-
-        self.pseudop_position_of(expr)
-        position = expr.get_position()
-        head, tail = expr
-
-        if is_symbol(head):
-            # see if this is a a compiled call
-            comp = self.find_compiled(head)
-            if comp:
-                # yup. We'll just report that we've expanded to that
-                return comp.compile(self, expr, tc)
-
-            head = self.compile_symbol(head)
-            if head is None:
-                # fall out of this nonsense
-                pass
-            elif is_compiled(head):
-                # head evaluated at compile-time to a higher-order macro
-                namesym = symbol(head.__name__)
-                return head.compile(self, cons(namesym, tail), tc)
-            else:
-                return cons(head, tail)
-
-        elif is_proper(head):
-            head = self.compile_pair(head)
-            if head is None:
-                # fall out of this nonsense
-                pass
-            elif is_compiled(head):
-                # head evaluated at compile-time to a higher-order macro
-                namesym = symbol(head.__name__)
-                return head.compile(self, cons(namesym, tail), tc)
-            else:
-                return cons(head, tail)
-
-        else:
-            # head was neither a proper nor a symbol... wtf was it?
-            # probably an error, so let's try and actually add it as
-            # an expression and let it blow up.
-            self.add_expression(head, tc)
-
-        # if we made it this far, head has already been compiled and
-        # returned None (meaning it was just a plain-ol expression),
-        # so we can proceed with normal apply semantics
-        self.compile_call_tos(tail, position, tc)
-
-        return None
-
-
-    def compile_call_tos(self, args, position=None, tc=False):
-        if tc:
-            self.helper_tailcall_tos(args, position)
-        self.helper_compile_call(args, position)
-
-
-    def helper_tailcall_tos(self, args, position):
-        """
-        Should be invoked upon TOS functions objects that could
-        potentially recur. tc indicates whether the TOS is in a valid
-        tailcall position.
-        """
-
-        if not self.tco_enabled or \
-           self.generator or \
-           self.mode is Mode.MODULE:
-            return False
-
-        self.helper_tailrecur_tos(args, position)
-
-        # either this isn't a self-referential function, or it is and
-        # the tailcall isn't recursive, so we'll use the trampoline
-        # instead.
-        self.pseudop_get_var(symbol("tailcall"))
-        self.pseudop_rot_two()
-        self.pseudop_call(1)
-
-        self.declare_tailcall()
 
 
     def helper_tailrecur_tos(self, args, position):
@@ -738,69 +593,6 @@ class ExpressionCodeSpace(CodeSpace):
         self.pseudop_label(tclabel)
 
 
-    @abstractmethod
-    def helper_compile_call(self, tail, position):
-        """
-        The function to be called is presumed to already be on the stack
-        before this is helper is invoked. The helper should assemble the
-        arguments as necessary on the stack, and then push the pseudops
-        to evaluate them and finally to call the function.
-        """
-
-        pass
-
-
-    def compile_symbol(self, sym: Symbol, tc=False):
-        """
-        The various ways that a symbol on its own can evaluate.
-        """
-
-        # assert (is_symbol(sym))
-
-        self.require_active()
-
-        if is_lazygensym(sym):
-            return self.pseudop_get_var(sym)
-
-        comp = self.find_compiled(sym)
-        if comp and is_alias(comp):
-            return comp.compile(self, sym, tc)
-
-        elif sym is _symbol_None:
-            return self.pseudop_const(None)
-
-        elif sym is _symbol_True:
-            return self.pseudop_const(True)
-
-        elif sym is _symbol_False:
-            return self.pseudop_const(False)
-
-        elif sym is _symbol_ellipsis:
-            return self.pseudop_const(...)
-
-        else:
-            ex = sym.rsplit(".", 1)
-            if len(ex) == 1:
-                return self.pseudop_get_var(sym)
-            else:
-                return cons(_symbol_attr, *ex, nil)
-
-
-    def compile_keyword(self, kwd: keyword):
-        # it should be fairly rare that a keyword is actually
-        # passed anywhere at runtime -- it's mostly meant for use
-        # as a marker in source expressions for specials.
-
-        # assert is_keyword(kwd)
-
-        self.require_active()
-
-        self.pseudop_get_var(symbol("keyword"))
-        self.pseudop_const(str(kwd))
-        self.pseudop_call(1)
-        return None
-
-
     def error(self, message, source):
 
         text = None
@@ -817,7 +609,8 @@ class ExpressionCodeSpace(CodeSpace):
 
         if not text:
             text = str(source)
-            pos = (pos[0], 0)
+            if pos:
+                pos = (pos[0], 0)
 
         return CompilerSyntaxError(message, pos, text=text,
                                    filename=self.filename)
@@ -840,7 +633,7 @@ def compile_expression(source_obj, env, filename="<anon>",
     or a self-evaluating type.
     """
 
-    factory = code_space_for_version()
+    factory = compiler_for_version()
     codespace = factory(filename=filename, **codespace_args)
 
     with codespace.active_context(env):
@@ -870,9 +663,9 @@ def gather_formals(args, declared_at=None, filename=None):
 
     undefined = object()
 
-    def err(msg):
-        return SibilantSyntaxError(msg, location=declared_at,
-                                   filename=filename)
+    err = partial(SibilantSyntaxError,
+                  location=declared_at,
+                  filename=filename)
 
     if is_symbol(args):
         return ((), (), (), args, None)

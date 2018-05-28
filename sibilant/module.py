@@ -40,7 +40,7 @@ from functools import partial
 from os.path import split, getmtime, getsize
 from types import ModuleType
 
-from sibilant.compiler import Mode, code_space_for_version
+from sibilant.compiler import Mode, compiler_for_version
 from sibilant.lib import symbol
 from sibilant.tco import trampoline, tailcall, tailcall_enable
 from sibilant.parse import default_reader, source_open, source_str
@@ -160,7 +160,7 @@ def get_module_compiler_factory(module):
     factory = getattr(module, "__compiler_factory__", None)
 
     if factory is None:
-        factory = code_space_for_version()
+        factory = compiler_for_version()
         module.__compiler_factory__ = factory
 
     return factory
@@ -292,7 +292,7 @@ def marshal_wrapper(code_objs, filename=None, mtime=0, source_size=0,
 
     from importlib._bootstrap_external import _code_to_bytecode
 
-    factory = code_space_for_version()
+    factory = compiler_for_version()
     codespace = factory(filename=filename, mode=Mode.MODULE)
 
     # we can't just have the code object in the file, because we

@@ -22,7 +22,6 @@ license: LGPL v.3
 
 
 from . import SibilantCompiler, gather_parameters
-from sibilant.lib import symbol
 from sibilant.pseudops.cpython36 import PseudopsCPython36
 
 

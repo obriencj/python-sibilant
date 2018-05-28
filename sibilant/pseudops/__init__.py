@@ -30,8 +30,6 @@ from abc import ABCMeta, abstractmethod
 from contextlib import contextmanager
 from enum import Enum
 from functools import partial, partialmethod
-# from platform import python_implementation
-# from sys import version_info
 from types import CodeType
 from typing import Union
 
@@ -48,20 +46,24 @@ from ..lib import SibilantException, symbol, lazygensym
 
 
 __all__ = (
-    "CodeSpaceException", "UnsupportedVersion",
+    "PseudopsCompiler",
     "Opcode", "Pseudop", "Block",
-    "CodeSpace", "ExpressionCodeSpace",
-    "code_space_for_version",
-    "Compiled", "is_compiled",
-    "Special", "is_special",
-    "Macro", "is_macro",
-    "Alias", "is_alias",
-    "Operator", "is_operator",
-    "gather_formals", "gather_parameters",
+    "CONST_TYPES",
+)
+
+
+# what you put in the consts tuple of a code object.
+CONST_TYPES = (
+    CodeType,
+    str, bytes,
+    tuple, list, dict, set,
+    bool, int, float, complex,
+    type(None), type(...),
 )
 
 
 Symbol = Union[lazygensym, symbol]
+Constant = Union[CONST_TYPES]
 
 
 COMPILER_DEBUG = False
@@ -70,11 +72,7 @@ COMPILER_DEBUG = False
 STACK_SAFETY = 2
 
 
-class CodeSpaceException(SibilantException):
-    pass
-
-
-class UnsupportedVersion(SibilantException):
+class PseudopsException(SibilantException):
     pass
 
 
@@ -253,32 +251,6 @@ def _label_generator(formatstr="label_%04x"):
     return gen_label
 
 
-def code_space_for_version(ver=version_info,
-                           impl=python_implementation()):
-    """
-    Returns the relevant ExpressionCodeSpace subclass to emit bytecode
-    for the relevant version of Python
-    """
-
-    if impl == 'CPython':
-        # TODO : user some sort of introspection instead of having to
-        # write an import for every case...
-
-        if (3, 7) <= ver <= (3, 8):
-            from .cpython37 import CPython37
-            return CPython37
-
-        elif (3, 6) <= ver <= (3, 7):
-            from .cpython36 import CPython36
-            return CPython36
-
-        elif (3, 5) <= ver <= (3, 6):
-            from .cpython35 import CPython35
-            return CPython35
-
-    raise UnsupportedVersion(ver, impl)
-
-
 class CodeBlock(object):
 
     def __init__(self, block_type, init_stack=0, leftovers=0):
@@ -425,7 +397,7 @@ class Mode(Enum):
     MODULE = "module"
 
 
-class CodeSpace(metaclass=ABCMeta):
+class PseudopsCompiler(metaclass=ABCMeta):
     """
     Represents a lexical scope, expressions occurring within that
     scope, and nested sub-scopes.
@@ -725,7 +697,7 @@ class CodeSpace(metaclass=ABCMeta):
 
     def require_active(self):
         if self.env is None:
-            raise CodeSpaceException("compiler code space is not active")
+            raise PseudopsException("compiler code space is not active")
 
 
     def child(self, name=None, declared_at=None, **addtl):
