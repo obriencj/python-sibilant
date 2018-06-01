@@ -101,6 +101,8 @@ class PseudopsCPython36(PseudopsCompiler):
         _Opcode = Opcode
 
         for op, *args in self.gen_pseudops():
+            # print("  op", op, args)
+
             if op is _Pseudop.POSITION:
                 declare_position(*args)
 
@@ -577,10 +579,22 @@ def _const_index(of_list, value):
     # will consider False and 0, and True and 1 to be equivalent,
     # breaking any constant pools containing those values.
 
-    for index, found in enumerate(of_list):
-        if found is value:
-            return index
+    index = -1
+
+    if value in [0, 1]:
+        for index, found in enumerate(of_list):
+            if found is value:
+                return index
     else:
+        try:
+            index = of_list.index(value)
+        except ValueError:
+            pass
+        else:
+            return index
+
+    if index == -1:
+        print("missing const pool", list(map(repr, of_list)))
         assert False, "missing constant pool index for value %r" % value
 
 

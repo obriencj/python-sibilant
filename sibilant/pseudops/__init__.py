@@ -716,7 +716,6 @@ class PseudopsCompiler(metaclass=ABCMeta):
         addtl["declared_at"] = declared_at
 
         addtl.setdefault("filename", self.filename)
-        addtl.setdefault("tco_enabled", self.tco_enabled)
 
         return type(self)(parent=self, **addtl)
 
@@ -907,6 +906,7 @@ class PseudopsCompiler(metaclass=ABCMeta):
         """
         Pushes a pseudo op to load a constant value
         """
+
         self.declare_const(val)
         self.pseudop(Pseudop.CONST, val)
 
@@ -1422,16 +1422,21 @@ def _list_unique_append(onto_list, value):
 
         for index, found in enumerate(onto_list):
             if found is value:
+                # print("found! %r at %i" % (value, index))
                 return index
         else:
             onto_list.append(value)
-            return len(onto_list) - 1
+            inted = len(onto_list) - 1
+            # print("appended! %r at %i" % (value, index))
+            return index
 
     try:
         index = onto_list.index(value)
+        # print("found %r at %i" % (value, index))
     except ValueError:
         onto_list.append(value)
         index = len(onto_list) - 1
+        # print("appended %r at %i" % (value, index))
 
     return index
 

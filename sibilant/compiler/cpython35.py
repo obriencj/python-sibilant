@@ -23,6 +23,11 @@ license: LGPL v.3
 
 from . import SibilantCompiler, gather_parameters
 from sibilant.pseudops.cpython35 import PseudopsCPython35
+from sibilant.lib import symbol
+from sibilant.tco import tailcall, trampoline
+
+
+_symbol_tailcall = symbol("tailcall")
 
 
 class SibilantCPython35(SibilantCompiler, PseudopsCPython35):
@@ -31,16 +36,20 @@ class SibilantCPython35(SibilantCompiler, PseudopsCPython35):
     """
 
 
-    def compile_apply(self, source, tc=False):
-        pass
+    @trampoline
+    def complete_apply(self, args, declared_at, tc, cont):
 
-
-    def helper_compile_call(self, args, declared_at):
         params = gather_parameters(args)
 
         pos, keywords, values, vargs, vkwds = params
 
         assert (len(keywords) == len(values)), "mismatched keyword, values"
+
+        if tc:
+            self.declare_tailcall()
+            self.pseudop_get_global(_symbol_tailcall)
+            self.pseudop_rot_two()
+            self.pseudop_call(1)
 
         for expr in pos:
             self.add_expression(expr)
@@ -74,6 +83,7 @@ class SibilantCPython35(SibilantCompiler, PseudopsCPython35):
             self.pseudop_position(*declared_at)
 
         pseu(len(pos), len(keywords))
+        return tailcall(cont)(None, False)
 
 
 #

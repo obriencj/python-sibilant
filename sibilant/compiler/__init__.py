@@ -39,7 +39,7 @@ from sibilant.lib import (
     symbol, is_symbol,
     lazygensym, is_lazygensym,
     keyword, is_keyword,
-    pair, nil, cons, is_pair, is_proper,
+    pair, cons, is_pair, is_proper, nil,is_nil,
     get_position, fill_position,
 )
 
@@ -76,6 +76,7 @@ _symbol_True = symbol("True")
 _symbol_False = symbol("False")
 _symbol_ellipsis = symbol("...")
 _symbol_keyword = symbol("keyword")
+_symbol_tailcall = symbol("tailcall")
 
 
 Symbol = Union[lazygensym, symbol]
@@ -154,10 +155,20 @@ class Special(Compiled):
         nom = str(name or compilefn.__name__)
         mbs = {
             "__doc__": compilefn.__doc__,
-            "compile": staticmethod(compilefn),
+            "__compile__": staticmethod(compilefn),
         }
         cls = type(nom, (cls, ), mbs)
         return object.__new__(cls)
+
+
+    @trampoline
+    def compile(self, compiler, source_obj, tc, cont):
+        try:
+            result = self.__compile__(compiler, source_obj, tc)
+        except Exception as e:
+            print("error in special.compile", self, source_obj, e)
+            raise
+        return tailcall(cont)(result, tc)
 
 
 def is_special(obj):
@@ -261,10 +272,16 @@ class Operator(Compiled):
         mbs = {
             "__doc__": compilefn.__doc__,
             "__call__": staticmethod(runtimefn),
-            "compile": staticmethod(compilefn),
+            "__compile__": staticmethod(compilefn),
         }
         cls = type(nom, (cls, ), mbs)
         return object.__new__(cls)
+
+
+    @trampoline
+    def compile(self, compiler, source_obj, tc, cont):
+        result = self.__compile__(compiler, source_obj, tc)
+        return tailcall(cont)(result, tc)
 
 
 def is_operator(obj):
@@ -306,8 +323,15 @@ def compiler_for_version(ver=version_info,
 class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
 
 
-    def __init__(self, **kwopts):
+    def __init__(self, tco_enabled=True, **kwopts):
+
         super().__init__(**kwopts)
+        self.tco_enabled = tco_enabled
+
+
+    def child(self, **addtl):
+        addtl.setdefault("tco_enabled", self.tco_enabled)
+        return super().child(**addtl)
 
 
     def activate(self, environment):
@@ -316,9 +340,11 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
 
     @trampoline
     def compile(self, source_obj, tc, cont=None):
-        if is_pair(source_obj):
+        if is_nil(source_obj):
+            dispatch = self.compile_nil
+        elif is_pair(source_obj):
             dispatch = self.compile_pair
-        elif is_symbol(source_obj):
+        elif is_symbol(source_obj) or is_lazygensym(source_obj):
             dispatch = self.compile_symbol
         elif is_keyword(source_obj):
             dispatch = self.compile_keyword
@@ -333,6 +359,12 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
 
     @trampoline
     def _compile_cont(self, source_obj, tc):
+        """
+        The default continuation for compile. If the result was a new
+        source object (anything other than None), will restart the
+        compile.
+        """
+
         if source_obj is None:
             # None explicitly means that the compilation resulted in
             # no new forms, so we're done.
@@ -340,7 +372,7 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
         else:
             # anything else is a transformation, and needs to be
             # compiled.
-            return tailcall(self.compile, source_obj, tc, None)
+            return tailcall(self.compile)(source_obj, tc, None)
 
 
     @trampoline
@@ -349,82 +381,105 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
             msg = "cannot evaluate improper lists as expressions"
             raise self._err(msg, source_obj)
 
-        self.pseudop_position_of(source_obj)
+        pos = source_obj.get_position()
+        if pos:
+            self.pseudop_position(*pos)
 
         head, tail = source_obj
 
         if is_symbol(head) or is_lazygensym(head):
             comp = self.find_compiled(head)
             if comp:
+                # the head of the pair is a symbolic reference which
+                # resolved to a compile-time object. Invoke that.
                 return tailcall(comp.compile)(self, source_obj, tc, cont)
 
+            else:
+                return tailcall(self.compile_apply)(source_obj, tc, cont)
+
         elif is_pair(head):
+            return tailcall(self.compile_apply)(source_obj, tc, cont)
 
-            @trampoline
-            def ccp(new_head, tc):
-                if new_head is None:
-                    return tailcall(self.compile_apply_tos)(tail, tc, cont)
-                else:
-                    expr = cons(head, tail)
-                    expr.set_position(expr, head.get_position())
-                    return tailcall(self.compile_pair)(expr, tc, cont)
-
-            return tailcall(self.compile_pair)(head, False, ccp)
-
-        return tailcall(self.compile_apply)(source_obj, tc, cont)
+        else:
+            # TODO: should this be a compile-time error? If we have
+            # something that isn't a symbolic reference or isn't a
+            # pair, then WTF else would it be? Let's just let it break
+            # at runtime, for now.
+            return tailcall(self.compile_apply)(source_obj, tc, cont)
 
 
     @trampoline
     def compile_apply(self, source_obj: pair, tc, cont):
-        fun, args = source_obj
+        head, tail = source_obj
 
-        if tc:
+        pos = source_obj.get_position()
+
+        if is_pair(head):
+            @trampoline
+            def ccp(new_head, tc):
+                # Continue Compiling Pair
+
+                if new_head is None:
+                    # the original head pair compiled down to a None,
+                    # which means it pushed bytecode and left a value
+                    # on the stack. Complete the apply based on that.
+                    return tailcall(self.complete_apply)(tail, pos, tc, cont)
+                else:
+                    expr = pair(new_head, tail)
+                    expr.set_position(expr, pos)
+                    return tailcall(self.compile_pair)(expr, tc, cont)
+
+            # we need to compile the head first, to figure out if it
+            # expands into a symbolic reference or something. We'll
+            # use ccp as a temporary continuation. Note that the
+            # evaluation of the head of the pair is never a tailcall
+            # itself, even if it would be a tailcall to apply it as a
+            # function afterwards.
+            return tailcall(self.compile_pair)(head, False, ccp)
+
+        elif tc:
+            self.declare_tailcall()
             self.pseudop_get_global(_symbol_tailcall)
-            self.pseudop_add_expression(fun)
+            self.add_expression(head)
             self.pseudop_call(1)
+            return tailcall(self.complete_apply)(tail, pos, False, cont)
+
         else:
-            self.pseudop_add_expression(fun)
-
-        # we've already wrapped this in a tailcall if needed, so let's
-        # defer to apply_tos and tell it it's not a tailcall
-        return tailcall(self.compile_apply_tos)(args, False, cont)
+            self.add_expression(head)
+            pos = source_obj.get_position()
+            return tailcall(self.complete_apply)(tail, pos, tc, cont)
 
 
-    @trampoline
-    def compile_apply_tos(self, source_obj: pair, tc, cont):
-        if tc:
-            self.pseudop_get_global(_symbol_tailcall)
-            self.pseudop_rot_two()
-            self.pseudop_call(1)
-
-        raise Exception("yay we got this far %r" % source_obj)
+    @abstractmethod
+    def complete_apply(self, arg_source: pair, position, tc, cont):
+        pass
 
 
     @trampoline
     def compile_symbol(self, sym: Symbol, tc, cont):
         comp = self.find_compiled(sym)
-        if comp:
+        if comp and is_alias(comp):
             return tailcall(comp.compile)(self, sym, tc, cont)
 
-        elif is_lazygensym(sym):
-            return tailcall(cont)(self.pseudop_get_var(sym))
-
         elif sym is _symbol_None:
-            return tailcall(cont)(self.pseudop_const(None))
+            return tailcall(self.compile_constant)(None, tc, cont)
 
         elif sym is _symbol_True:
-            return tailcall(cont)(self.pseudop_const(True))
+            return tailcall(self.compile_constant)(True, tc, cont)
 
         elif sym is _symbol_False:
-            return tailcall(cont)(self.pseudop_const(False))
+            return tailcall(self.compile_constant)(False, tc, cont)
 
         elif sym is _symbol_ellipsis:
-            return tailcall(cont)(self.pseudop_const(...))
+            return tailcall(self.compile_constant)(..., tc, cont)
+
+        elif is_lazygensym(sym):
+            return tailcall(cont)(self.pseudop_get_var(sym), tc)
 
         else:
             ex = sym.rsplit(".", 1)
             if len(ex) == 1:
-                return tailcall(cont)(self.pseudop_get_var(sym))
+                return tailcall(cont)(self.pseudop_get_var(sym), None)
             else:
                 source = cons(_symbol_attr, *ex, nil)
                 return tailcall(self.compile)(source, tc, cont)
@@ -438,7 +493,12 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
 
     @trampoline
     def compile_constant(self, value: Constant, tc, cont):
-        return tailcall(cont)(self.pseudop_const(value))
+        return tailcall(cont)(self.pseudop_const(value), tc)
+
+
+    @trampoline
+    def compile_nil(self, nilv: nil, tc, cont):
+        return tailcall(cont)(self.pseudop_get_global(_symbol_nil), tc)
 
 
     @contextmanager
@@ -501,6 +561,8 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
 
 
     def add_expression(self, expr, tc=None):
+        tc = self.tco_enabled and tc
+
         expr = self.compile(expr, tc)
         if expr is not None:
             expr = self.compile(expr, tc)
@@ -618,6 +680,8 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
 
     def find_compiled(self, namesym: Symbol):
         if is_lazygensym(namesym):
+            # I might make this work some day, with macrolet, but for
+            # now ... no.
             return None
         else:
             return _find_compiled(self.env, namesym)

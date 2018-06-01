@@ -33,8 +33,9 @@ from sibilant.compiler import (
     is_alias, Alias,
     is_macro, Macro,
     is_special, Special,
-    CodeFlag,
 )
+
+from sibilant.pseudops import CodeFlag
 
 from . import (
     Object, compile_expr_bootstrap, compile_expr_no_tco,

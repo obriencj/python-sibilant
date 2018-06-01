@@ -23,6 +23,11 @@ license: LGPL v.3
 
 from . import SibilantCompiler, gather_parameters
 from sibilant.pseudops.cpython36 import PseudopsCPython36
+from sibilant.lib import symbol
+from sibilant.tco import tailcall, trampoline
+
+
+_symbol_tailcall = symbol("tailcall")
 
 
 class SibilantCPython36(SibilantCompiler, PseudopsCPython36):
@@ -32,12 +37,19 @@ class SibilantCPython36(SibilantCompiler, PseudopsCPython36):
     """
 
 
-    def helper_compile_call(self, args, declared_at):
+    @trampoline
+    def complete_apply(self, args, declared_at, tc, cont):
         params = gather_parameters(args)
 
         pos, keywords, values, vargs, vkwds = params
 
         assert (len(keywords) == len(values)), "mismatched keyword, values"
+
+        if tc:
+            self.declare_tailcall()
+            self.pseudop_get_global(_symbol_tailcall)
+            self.pseudop_rot_two()
+            self.pseudop_call(1)
 
         arg_tuple = 0
 
@@ -102,6 +114,8 @@ class SibilantCPython36(SibilantCompiler, PseudopsCPython36):
         # even if we had no positionals, we've created an empty
         # positionals tuple, and now we can CALL_FUNCTION_EX 0x01
         self.pseudop_call_var_kw(0)
+
+        return tailcall(cont)(None, False)
 
 
 #

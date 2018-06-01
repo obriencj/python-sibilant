@@ -827,7 +827,7 @@ def special_let(code, source, tc=False):
     # bound as a callable at TOS
 
     pvals = cons(*vals, nil) if vals else nil
-    code.compile_call_tos(pvals, declared_at, tc)
+    code.complete_apply(pvals, declared_at, tc, lambda e, t: None)
 
     # no additional transform needed
     return None
@@ -1199,7 +1199,7 @@ def _helper_setq_values(code, bindings, declare):
 @special(_symbol_continue)
 def special_continue(code, source, tc=False):
 
-    from .compiler import Block
+    from sibilant.pseudops import Block
 
     called_by, rest = source
 
@@ -1234,7 +1234,7 @@ def special_continue(code, source, tc=False):
 @special(_symbol_break)
 def special_break(code, source, tc=False):
 
-    from .compiler import Block
+    from sibilant.pseudops import Block
 
     called_by, rest = source
 
