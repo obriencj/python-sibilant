@@ -441,7 +441,7 @@ class PseudopsCPython35(PseudopsCompiler):
         # self.pseudop_const("")
         # self.pseudop_get_attr(symbol("join"))
 
-        self.pseugop_get_global(_symbol_build_string)
+        self.pseudop_get_global(_symbol_build_string)
 
         self.pseudop_rot_two()
         self.pseudop_call(1)
