@@ -413,7 +413,9 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
         if is_pair(head):
             @trampoline
             def ccp(new_head, tc):
-                # Continue Compiling Pair
+                # Continue Compiling Pair. This is how we finish
+                # compiling a function invocation after first
+                # compiling the head
 
                 if new_head is None:
                     # the original head pair compiled down to a None,
@@ -421,6 +423,9 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
                     # on the stack. Complete the apply based on that.
                     return tailcall(self.complete_apply)(tail, pos, tc, cont)
                 else:
+                    # the original head pair was transformed, so now
+                    # we need to start over in a new compile_pair call
+                    # using a newly assembled expression.
                     expr = pair(new_head, tail)
                     expr.set_position(expr, pos)
                     return tailcall(self.compile_pair)(expr, tc, cont)

@@ -60,7 +60,7 @@ class SibilantCPython36(SibilantCompiler, PseudopsCPython36):
         if not (vargs or keywords or vkwds):
             # easy mode, nothing fancy, just a plain 'ol call
             self.pseudop_call(len(pos))
-            return
+            return tailcall(cont)(None, False)
 
         elif pos:
             # it's going to get complicated. collect the positionals
@@ -82,7 +82,7 @@ class SibilantCPython36(SibilantCompiler, PseudopsCPython36):
         if not (keywords or vkwds):
             # just positionals, so invoke CALL_FUNCTION_EX 0x00
             self.pseudop_call_var(0)
-            return
+            return tailcall(cont)(None, False)
 
         elif not arg_tuple:
             # in order to support CALL_FUNCTION_EX later on, we're

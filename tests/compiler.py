@@ -267,6 +267,31 @@ class TestCompiler(TestCase):
         self.assertEqual(o.foo.bar.baz, 888)
 
 
+    def test_nested_apply(self):
+
+        # test with a special first, lambda in this case
+        src = """
+        (((lambda (X)
+            (lambda (Y) (#tuple "X" X "Y" Y)))
+          123)
+         456)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+        self.assertEqual(res, ("X", 123, "Y", 456))
+
+        def makefoo(X):
+            return lambda Y: ("X", X, "Y", Y)
+
+        # test with a runtime function second, makefoo in this case
+        src = """
+        ((makefoo 123) 456)
+        """
+        stmt, env = compile_expr(src, makefoo=makefoo)
+        res = stmt()
+        self.assertEqual(res, ("X", 123, "Y", 456))
+
+
 class KeywordArgs(TestCase):
 
     def _test_gather_formals(self):
