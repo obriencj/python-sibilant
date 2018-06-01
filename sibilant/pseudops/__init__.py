@@ -1426,7 +1426,7 @@ def _list_unique_append(onto_list, value):
                 return index
         else:
             onto_list.append(value)
-            inted = len(onto_list) - 1
+            index = len(onto_list) - 1
             # print("appended! %r at %i" % (value, index))
             return index
 

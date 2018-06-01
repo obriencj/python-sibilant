@@ -39,7 +39,7 @@ from sibilant.lib import (
     symbol, is_symbol,
     lazygensym, is_lazygensym,
     keyword, is_keyword,
-    pair, cons, is_pair, is_proper, nil,is_nil,
+    pair, cons, is_pair, is_proper, nil, is_nil,
     get_position, fill_position,
 )
 
@@ -163,11 +163,7 @@ class Special(Compiled):
 
     @trampoline
     def compile(self, compiler, source_obj, tc, cont):
-        try:
-            result = self.__compile__(compiler, source_obj, tc)
-        except Exception as e:
-            print("error in special.compile", self, source_obj, e)
-            raise
+        result = self.__compile__(compiler, source_obj, tc)
         return tailcall(cont)(result, tc)
 
 
