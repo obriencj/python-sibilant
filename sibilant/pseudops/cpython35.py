@@ -27,6 +27,10 @@ from . import PseudopsCompiler, Pseudop, Opcode
 from sibilant.lib import symbol
 
 
+_symbol_format_value = symbol("__format_value__")
+_symbol_build_string = symbol("__build_string__")
+
+
 class PseudopsCPython35(PseudopsCompiler):
     """
     Pseudo-Ops compiler emitting bytecode compatible with CPython
@@ -434,8 +438,11 @@ class PseudopsCPython35(PseudopsCompiler):
 
         self.pseudop_build_tuple(count)
 
-        self.pseudop_const("")
-        self.pseudop_get_attr(symbol("join"))
+        # self.pseudop_const("")
+        # self.pseudop_get_attr(symbol("join"))
+
+        self.pseugop_get_global(_symbol_build_string)
+
         self.pseudop_rot_two()
         self.pseudop_call(1)
 
@@ -446,7 +453,8 @@ class PseudopsCPython35(PseudopsCompiler):
         # TOS format str if flags & 0x01
         # TOS2 value
 
-        self.pseudop_get_global(symbol("format"))
+        # self.pseudop_get_global(symbol("format"))
+        self.pseudop_get_global(_symbol_format_value)
 
         if flags & 0x04:
             self.pseudop_rot_three()

@@ -59,17 +59,21 @@ def __setup__(glbls):
     sys.modules["sibilant"].basics = basics
     sys.modules["sibilant.basics"] = basics
 
+    # these names get copied into builtins, even though they have
+    # secretive-looking names.
+    SPECIAL_NAMES = (
+        "__import__",
+        "__format_value__",
+        "__build_string__",
+    )
+
     # 3. merge bootstrap and basics together into this module
     _all = set()
     for module in (bootstrap, basics):
         for key, val in module.__dict__.items():
-            if not key.startswith("__"):
+            if (not key.startswith("__")) or key in SPECIAL_NAMES:
                 glbls[key] = val
                 _all.add(key)
-
-    # special cases, since we're ignoring all the other __ entries
-    glbls["__import__"] = __import__
-    # glbls["__debug__"] = __debug__
 
     # return tuple(_all)
     return None

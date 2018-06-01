@@ -155,7 +155,7 @@ class Special(Compiled):
         nom = str(name or compilefn.__name__)
         mbs = {
             "__doc__": compilefn.__doc__,
-            "__compile__": staticmethod(compilefn),
+            "compile_impl": staticmethod(compilefn),
         }
         cls = type(nom, (cls, ), mbs)
         return object.__new__(cls)
@@ -163,7 +163,7 @@ class Special(Compiled):
 
     @trampoline
     def compile(self, compiler, source_obj, tc, cont):
-        result = self.__compile__(compiler, source_obj, tc)
+        result = self.compile_impl(compiler, source_obj, tc)
         return tailcall(cont)(result, tc)
 
 
@@ -268,7 +268,7 @@ class Operator(Compiled):
         mbs = {
             "__doc__": compilefn.__doc__,
             "__call__": staticmethod(runtimefn),
-            "__compile__": staticmethod(compilefn),
+            "compile_impl": staticmethod(compilefn),
         }
         cls = type(nom, (cls, ), mbs)
         return object.__new__(cls)
@@ -276,7 +276,7 @@ class Operator(Compiled):
 
     @trampoline
     def compile(self, compiler, source_obj, tc, cont):
-        result = self.__compile__(compiler, source_obj, tc)
+        result = self.compile_impl(compiler, source_obj, tc)
         return tailcall(cont)(result, tc)
 
 
