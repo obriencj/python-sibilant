@@ -86,6 +86,15 @@
 	   variables)})
 
 
+(defmacro var-values [*: variables]
+  "
+  (var-values VALUES-BINDINGS ...)
+  "
+
+  `{,@(map (lambda [b] `(define-values ,@b))
+	   variables)})
+
+
 ;; === reader macros and atom matchers ===
 
 (defmacro _reader_macro [sym attrsym]
@@ -494,12 +503,22 @@
 
 
 (defmacro let* [bindings . body]
-  (if bindings
-      then: `(let [,(car bindings)]
-	       ,(if (cdr bindings)
-		    then: `(let* ,(cdr bindings) ,@body)
-		    else: `{,@body}))
-      else: `(let [] ,@body)))
+  `(let []
+     (var ,@bindings)
+     ,@body))
+
+
+(defmacro let*-values [bindings . body]
+  """
+  (let*-values [[BINDINGS VALS]…] . BODY)
+
+  where BINDINGS is a nested pair of symbols in the same structure as
+  values from VALS, but like let* instead of let.
+  """
+
+  `(let []
+     (var-values ,@bindings)
+     ,@body))
 
 
 (defmacro letrec [bindings . body]
