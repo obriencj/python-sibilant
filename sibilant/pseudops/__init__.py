@@ -472,13 +472,7 @@ class PseudopsCompiler(metaclass=ABCMeta):
         del self.consts
 
 
-    def activate(self, env):
-        self.env = env
-
-
     def reset(self):
-        self.env = None
-
         if self.blocks:
             self.blocks[0].clear()
         self.blocks = [CodeBlock(Block.BASE, 0, 0)]
