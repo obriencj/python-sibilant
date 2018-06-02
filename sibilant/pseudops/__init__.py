@@ -408,14 +408,10 @@ class PseudopsCompiler(metaclass=ABCMeta):
                  filename=None, declared_at=None,
                  tco_enabled=True, mode=Mode.EXPRESSION):
 
-        self.env = None
         self.parent = parent
         self.name = name
 
         self.mode = mode
-
-        self.tco_enabled = tco_enabled
-        self.tailcalls = 0
 
         self.generator = False
 
@@ -469,7 +465,6 @@ class PseudopsCompiler(metaclass=ABCMeta):
 
 
     def __del__(self):
-        del self.env
         del self.parent
         del self.blocks
         del self.gen_label
@@ -489,7 +484,6 @@ class PseudopsCompiler(metaclass=ABCMeta):
         self.blocks = [CodeBlock(Block.BASE, 0, 0)]
         self.consts = [None]
 
-        self.tailcalls = 0
         self.generator = False
 
         self.fast_vars.clear()
@@ -507,7 +501,7 @@ class PseudopsCompiler(metaclass=ABCMeta):
 
 
     def _push_block(self, block_type, init_stack=0, leftovers=0):
-        self.require_active()
+        # self.require_active()
         assert self.blocks, "no code blocks in stack"
 
         old = self.blocks[-1]
@@ -693,11 +687,6 @@ class PseudopsCompiler(metaclass=ABCMeta):
                 self.consts.insert(0, docstr)
             elif isinstance(consts[0], str):
                 self.consts[0] = docstr
-
-
-    def require_active(self):
-        if self.env is None:
-            raise PseudopsException("compiler code space is not active")
 
 
     def child(self, name=None, declared_at=None, **addtl):

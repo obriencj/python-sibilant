@@ -319,10 +319,26 @@ def compiler_for_version(ver=version_info,
 class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
 
 
-    def __init__(self, tco_enabled=True, **kwopts):
+    def __init__(self, tco_enabled=True, self_ref=None, **kwopts):
+
+        # TODO: using **kwops is crap, maybe we need a copiler options
+        # object to document the options and what they mean.
 
         super().__init__(**kwopts)
+
+        self.env = None
+
         self.tco_enabled = tco_enabled
+        self.tailcalls = 0
+
+        self.self_ref = self_ref
+        if self_ref:
+            self.request_var(self_ref)
+
+
+    def __del__(self):
+        super().__del__()
+        del self.env
 
 
     def child(self, **addtl):
@@ -332,6 +348,17 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
 
     def activate(self, environment):
         self.env = environment
+
+
+    def require_active(self):
+        if self.env is None:
+            raise CompilerException("compiler code space is not active")
+
+
+    def reset(self):
+        super().reset()
+        self.tailcalls = 0
+        self.self_ref = None
 
 
     @trampoline
@@ -439,11 +466,8 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
             return tailcall(self.compile_pair)(head, False, ccp)
 
         elif tc:
-            self.declare_tailcall()
-            self.pseudop_get_global(_symbol_tailcall)
             self.add_expression(head)
-            self.pseudop_call(1)
-            return tailcall(self.complete_apply)(tail, pos, False, cont)
+            return tailcall(self.complete_apply)(tail, pos, tc, cont)
 
         else:
             self.add_expression(head)
@@ -500,6 +524,94 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
     @trampoline
     def compile_nil(self, nilv: nil, tc, cont):
         return tailcall(cont)(self.pseudop_get_global(_symbol_nil), tc)
+
+
+    def helper_tailcall_tos(self, args, position):
+        self.declare_tailcall()
+
+        self.helper_tailrecur_tos(args, position)
+
+        self.pseudop_get_global(_symbol_tailcall)
+        self.pseudop_rot_two()
+        self.pseudop_call(1)
+
+
+    def helper_tailrecur_tos(self, args, position):
+        # test for possible recursion optimization.
+
+        # first check, make sure we've got a self-ref available. If we
+        # don't then we cannot ensure it's actually a recursive call
+        # at runtime, so a jump0 is unsafe.
+        if self.self_ref is None:
+            return
+
+        # next, let's see if the parameters being passed line up with
+        # the formals we're set up with
+
+        parameters = gather_parameters(args, position)
+        pos, kwds, vals, star, starstar = parameters
+
+        if self.varargs or self.varkeywords or star or starstar:
+            # no support for variadics, it's too tricky to inline. A
+            # trampoline bounce isn't any slower than us calling to
+            # other functions to figure out how to reform variadics
+            # prior to a jump0, so just let the trampoline do its
+            # bounce.
+            return
+
+        self_args = self.args
+
+        # first, skim off the argument name bindings for the
+        # positional arguments
+        bindings = self_args[:len(pos)]
+
+        # now we need to go through the keyword arguments in order and
+        # record their binding
+        for arg in kwds:
+            if arg in bindings:
+                # keyword parameter dups positional parameter name,
+                # fall back on trampoline
+                return
+            elif arg not in self_args:
+                # unknown keyword parameter, fall back on trampoline
+                return
+            else:
+                bindings.append(arg)
+
+        if len(self_args) != len(bindings):
+            # if the bindings and argument count doesn't line up, then
+            # again it's easier to just let the trampoline bounce and
+            # have python figure out the args (and potentially raise a
+            # TypeError). Default values take too much effort for now.
+            return
+
+        # if we made it this far, then we have a mapping of the
+        # arguments we were given to the argument names, and thus can
+        # evaluate in order and assign to the correct local variable,
+        # then jump to 0, provided a quick runtime sanity check
+        # passes, verifying that we are indeed calling the same
+        # function that we're already executing.
+
+        tclabel = self.gen_label()
+
+        self.pseudop_dup()
+        self.pseudop_get_var(self.self_ref)
+        self.pseudop_compare_is()
+        self.pseudop_pop_jump_if_false(tclabel)
+        self.pseudop_pop()
+
+        # evaluate all of the arguments in order
+        for arg in pos:
+            self.add_expression(arg, False)
+        for arg in vals:
+            self.add_expression(arg, False)
+
+        # now bind them to the vars that we discovered
+        for var in reversed(bindings):
+            self.pseudop_set_var(var)
+
+        self.pseudop_jump(0)
+        self.pseudop_label(tclabel)
 
 
     @contextmanager
@@ -576,84 +688,6 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
         """
         self.add_expression(expr, True)
         self.pseudop_return()
-
-
-    def helper_tailrecur_tos(self, args, position):
-        # test for possible recursion optimization.
-
-        # first check, make sure we've got a self-ref available. If we
-        # don't then we cannot ensure it's actually a recursive call
-        # at runtime, so a jump0 is unsafe.
-        if not (self.free_vars and self.free_vars[0] is symbol("")):
-            return
-
-        # next, let's see if the parameters being passed line up with
-        # the formals we're set up with
-
-        parameters = gather_parameters(args, position)
-        pos, kwds, vals, star, starstar = parameters
-
-        if self.varargs or self.varkeywords or star or starstar:
-            # no support for variadics, it's too tricky to inline. A
-            # trampoline bounce isn't any slower than us calling to
-            # other functions to figure out how to reform variadics
-            # prior to a jump0, so just let the trampoline do its
-            # bounce.
-            return
-
-        self_args = self.args
-
-        # first, skim off the argument name bindings for the
-        # positional arguments
-        bindings = self_args[:len(pos)]
-
-        # now we need to go through the keyword arguments in order and
-        # record their binding
-        for arg in map(str, kwds):
-            if arg in bindings:
-                # keyword parameter dups positional parameter name,
-                # fall back on trampoline
-                return
-            elif arg not in self_args:
-                # unknown keyword parameter, fall back on trampoline
-                return
-            else:
-                bindings.append(arg)
-
-        if len(self_args) != len(bindings):
-            # if the bindings and argument count doesn't line up, then
-            # again it's easier to just let the trampoline bounce and
-            # have python figure out the args (and potentially raise a
-            # TypeError). Default values take too much effort for now.
-            return
-
-        # if we made it this far, then we have a mapping of the
-        # arguments we were given to the argument names, and thus can
-        # evaluate in order and assign to the correct local variable,
-        # then jump to 0, provided a quick runtime sanity check
-        # passes, verifying that we are indeed calling the same
-        # function that we're already executing.
-
-        tclabel = self.gen_label()
-
-        self.pseudop_dup()
-        self.pseudop_get_var(symbol(""))
-        self.pseudop_compare_is()
-        self.pseudop_pop_jump_if_false(tclabel)
-        self.pseudop_pop()
-
-        # evaluate all of the arguments in order
-        for arg in pos:
-            self.add_expression(arg, False)
-        for arg in vals:
-            self.add_expression(arg, False)
-
-        # now bind them to the vars that we discovered
-        for var in reversed(bindings):
-            self.pseudop_set_var(var)
-
-        self.pseudop_jump(0)
-        self.pseudop_label(tclabel)
 
 
     def error(self, message, source):

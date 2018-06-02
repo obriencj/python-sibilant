@@ -870,6 +870,7 @@ def _helper_function(code, name, args, body,
         declared_at = body.get_position()
 
     kid = code.child_context(name=name,
+                             self_ref=self_ref,
                              args=argnames,
                              kwonly=len(kwonly),
                              varargs=varargs,
@@ -880,9 +881,6 @@ def _helper_function(code, name, args, body,
     with kid as subc:
         body, doc = _helper_strip_doc(body)
         subc.set_doc(doc)
-
-        if self_ref is not None:
-            subc.request_var(self_ref)
 
         _helper_begin(subc, body, tco)
         subc.pseudop_return()
