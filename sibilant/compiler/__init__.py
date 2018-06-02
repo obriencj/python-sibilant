@@ -26,6 +26,7 @@ license: LGPL v.3
 import threading
 
 from abc import ABCMeta, abstractmethod
+from collections import Mapping
 from contextlib import contextmanager
 from functools import partial
 from itertools import count
@@ -342,12 +343,15 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
         del self.env
 
 
-    def child(self, **addtl):
-        addtl.setdefault("tco_enabled", self.tco_enabled)
-        return super().child(**addtl)
-
-
     def activate(self, environment):
+        """
+        Associates the compiler with an environment. The environment
+        will provide references to special forms and macros that are
+        available to the compiler.
+        """
+
+        if not isinstance(environment, Mapping):
+            environment = vars(environment)
         self.env = environment
 
 
@@ -360,6 +364,41 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
         super().reset()
         self.tailcalls = 0
         self.self_ref = None
+        self.env = None
+
+
+    @contextmanager
+    def active_context(self, env):
+        """
+        Binds to an environment, clears self at end of context
+        """
+
+        self.activate(env)
+
+        old_compiler = current()
+        set_current(self)
+
+        try:
+            yield self
+
+        finally:
+            set_current(old_compiler)
+            self.reset()
+
+
+    def child(self, **addtl):
+        addtl.setdefault("tco_enabled", self.tco_enabled)
+        return super().child(**addtl)
+
+
+    def child_context(self, **kwargs):
+        """
+        Returns an active context for a child codespace
+        """
+
+        self.require_active()
+        cs = self.child(**kwargs)
+        return cs.active_context(self.env)
 
 
     @trampoline
@@ -615,35 +654,6 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
         self.pseudop_label(tclabel)
 
 
-    @contextmanager
-    def active_context(self, env):
-        """
-        Binds to an environment, clears self at end of context
-        """
-
-        self.activate(env)
-
-        old_compiler = current()
-        set_current(self)
-
-        try:
-            yield self
-
-        finally:
-            set_current(old_compiler)
-            self.reset()
-
-
-    def child_context(self, **kwargs):
-        """
-        Returns an active context for a child codespace
-        """
-
-        self.require_active()
-        cs = self.child(**kwargs)
-        return cs.active_context(self.env)
-
-
     def declare_tailcall(self):
         assert self.tco_enabled, "declare_tailcall without tco_enabled"
         assert not self.generator, "declare_tailcall with a generator"
@@ -674,12 +684,14 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
             self.pseudop_position(*position)
 
 
-    def add_expression(self, expr, tc=None):
-        tc = self.tco_enabled and tc
 
-        expr = self.compile(expr, tc)
-        if expr is not None:
-            expr = self.compile(expr, tc)
+    def add_expression(self, expr, tc=None):
+        """
+        Short form for compiling an expression.
+        """
+
+        tc = self.tco_enabled and tc
+        self.compile(expr, tc, None)
 
 
     def add_expression_with_return(self, expr):
@@ -687,7 +699,13 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
         Insert an expression, then an op to return its result from the
         current call
         """
-        self.add_expression(expr, True)
+
+        # a return is, by its very nature, always in the tailcall
+        # position. Therefore we'll compile this as tailcall if we
+        # have such enabled.
+        self.compile(expr, self.tco_enabled, None)
+
+        # and insert the return op
         self.pseudop_return()
 
 
