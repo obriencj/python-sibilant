@@ -23,7 +23,7 @@ license: LGPL v.3
 """
 
 
-from . import PseudopsCompiler, Pseudop, Opcode
+from sibilant.pseudops import PseudopsCompiler, Pseudop, Opcode
 from sibilant.lib import symbol
 
 

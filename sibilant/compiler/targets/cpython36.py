@@ -21,8 +21,8 @@ license: LGPL v.3
 """
 
 
-from . import SibilantCompiler, gather_parameters
-from sibilant.pseudops.cpython36 import PseudopsCPython36
+from sibilant.compiler import SibilantCompiler, gather_parameters
+from sibilant.pseudops.targets.cpython36 import PseudopsCPython36
 from sibilant.tco import tailcall, trampoline
 
 

@@ -302,15 +302,15 @@ def compiler_for_version(ver=version_info,
         # write an import for every case...
 
         if (3, 7) <= ver <= (3, 8):
-            from .cpython37 import SibilantCPython37
+            from .targets.cpython37 import SibilantCPython37
             return SibilantCPython37
 
         elif (3, 6) <= ver <= (3, 7):
-            from .cpython36 import SibilantCPython36
+            from .targets.cpython36 import SibilantCPython36
             return SibilantCPython36
 
         elif (3, 5) <= ver <= (3, 6):
-            from .cpython35 import SibilantCPython35
+            from .targets.cpython35 import SibilantCPython35
             return SibilantCPython35
 
     raise UnsupportedVersion(ver, impl)
