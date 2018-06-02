@@ -63,6 +63,7 @@ __all__ = (
     "Alias", "is_alias",
     "Operator", "is_operator",
     "gather_formals", "gather_parameters",
+    "env_find_compiled", "env_get_expander",
 )
 
 
@@ -714,12 +715,19 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
 
 
     def find_compiled(self, namesym: Symbol):
+        self.require_active()
+
         if is_lazygensym(namesym):
             # I might make this work some day, with macrolet, but for
             # now ... no.
             return None
-        else:
-            return _find_compiled(self.env, namesym)
+
+        # TODO: compiler should keep a local stack of macros defined
+        # via macrolet, and keyd by symbol or gensym (rather than by
+        # str name). If that falls through, then try the module-level
+        # function which only peeks in env and builtins.
+
+        return env_find_compiled(self.env, namesym)
 
 
 def compile_expression(source_obj, env, filename="<anon>",
@@ -1034,37 +1042,28 @@ def unpack_formals(args, kwds,
     return args, var, kwds, (kwvar if kwvariadic else None)
 
 
-def _find_compiled(env, namesym: symbol):
+def env_find_compiled(env, namesym: symbol):
     assert is_symbol(namesym)
 
     # okay, let's look through the environment by name
     name = str(namesym)
 
-    try:
-        # is it in globals?
+    # is it in globals?
+    if name in env:
         found = env[name]
-    except KeyError:
-        try:
-            # nope, how about in builtins?
-            env = env["__builtins__"].__dict__
-            found = env[name]
+        return found if is_compiled(found) else None
 
-        except KeyError:
-            # nope
-            found = None
+    # maybe in builtins?
+    env = env["__builtins__"].__dict__
+    if name in env:
+        found = env[name]
+        return found if is_compiled(found) else None
 
-    if found and is_compiled(found):
-        # we found a Macro instance, return the relevant
-        # method
-        return found
-
-    else:
-        # we either found nothing, or what we found doesn't
-        # qualify
-        return None
+    # nope
+    return None
 
 
-def _get_expander(env, source_obj):
+def env_get_expander(env, source_obj):
     expander = None
 
     if source_obj is nil:
@@ -1072,7 +1071,7 @@ def _get_expander(env, source_obj):
 
     elif is_symbol(source_obj):
         namesym = source_obj
-        found = _find_compiled(env, namesym)
+        found = env_find_compiled(env, namesym)
         if is_alias(found):
             expander = found.expand
 
@@ -1080,7 +1079,7 @@ def _get_expander(env, source_obj):
         namesym, params = source_obj
 
         if is_symbol(namesym):
-            found = _find_compiled(env, namesym)
+            found = env_find_compiled(env, namesym)
             if is_alias(found):
                 def expander():
                     expanded = cons(found.expand(), params)
@@ -1113,17 +1112,21 @@ def iter_macroexpand(env, source_obj, position=None):
     if position is None and is_pair(source_obj):
         position = source_obj.get_position()
 
-    expander = _get_expander(env, source_obj)
+    expander = env_get_expander(env, source_obj)
     while expander:
         expanded = expander()
         yield expanded
 
-        expander = _get_expander(env, expanded)
+        expander = env_get_expander(env, expanded)
         if is_pair(expanded):
             fill_position(expanded, position)
 
 
 def macroexpand(env, source_obj, position=None):
+    """
+
+    """
+
     for source_obj in iter_macroexpand(env, source_obj, position):
         pass
     return source_obj

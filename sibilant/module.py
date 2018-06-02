@@ -136,6 +136,11 @@ def get_module_stream(module):
 
 
 def parse_time(module):
+    """
+    Enter Parse-Time on the module, producing a single top-level
+    source expression using the modules's reader and source stream.
+    """
+
     reader = get_module_reader(module)
     stream = get_module_stream(module)
 
@@ -143,6 +148,12 @@ def parse_time(module):
 
 
 def get_module_compiler_factory_params(module):
+    """
+    Get the compiler factory params from the module. If the global
+    variable __compiler_factory_params__ is not set, assign and return
+    the default parameters dict.
+    """
+
     params = getattr(module, "__compiler_factory_params__", None)
 
     if params is None:
@@ -157,6 +168,12 @@ def get_module_compiler_factory_params(module):
 
 
 def get_module_compiler_factory(module):
+    """
+    Get the compiler factory for the given module. This is the
+    function which will be invoked with the compiler factory params to
+    produce the default module compiler instance.
+    """
+
     factory = getattr(module, "__compiler_factory__", None)
 
     if factory is None:
@@ -167,6 +184,12 @@ def get_module_compiler_factory(module):
 
 
 def get_module_compiler(module):
+    """
+    Get the compiler instance for the given module. If it has not been
+    assigned to the __compiler__ global variable, produce a new
+    compiler instance, assign it, and return it.
+    """
+
     compiler = getattr(module, "__compiler__", None)
 
     if compiler is None:
@@ -180,7 +203,8 @@ def get_module_compiler(module):
 
 def compile_time(module, source_expr):
     """
-    Performs compile-time operations on source_expr in a module
+    Performs Compile-Time on a source expression, using the module's
+    compiler. Produces the compiled result.
     """
 
     compiler = get_module_compiler(module)
@@ -210,6 +234,13 @@ def hook_compile_time(hook_fn, compile_time=compile_time):
 
 
 def get_module_evaluator(module):
+    """
+    Given a module, find its evaluator function. If one hasn't been
+    assigned to the global __evaluator__ variable, then use a
+    trampoline-wrapped eval as a default, and assign it as
+    __evaluator__ for use next time.
+    """
+
     evaluator = getattr(module, "__evaluator__", None)
 
     if evaluator is None:
@@ -227,12 +258,23 @@ def get_module_evaluator(module):
 
 @trampoline
 def run_time(module, code_obj):
+    """
+    The Run-Time phase for a module. Evaluates the recently compiled
+    code_obj in the module's environment using the module's evaluator,
+    and produces the expression's resulting value.
+    """
+
     evaluator = get_module_evaluator(module)
     return tailcall(evaluator)(code_obj)
 
 
 @tailcall_enable
 def partial_run_time(module, code_obj):
+    """
+    Produces a callable which when called will execute the Run-Time
+    phase for the given module for the the given compiled code_obj.
+    """
+
     evaluator = get_module_evaluator(module)
     return partial(evaluator, code_obj)
 

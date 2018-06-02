@@ -153,9 +153,20 @@ license: LGPL v.3
         using only bootstrap builtins"])
 
      (arguments
-      parser
+      (parser.add_mutually_exclusive_group)
 
-      [filename nargs: "?" default: None]
+      ;; [-m
+      ;;  dest: "module" action: "store" default: None
+      ;;  help:
+      ;;  "Load module and run as a script"]
+
+      [filename
+       nargs: "?" default: None
+       help:
+       "Run filename as a script"])
+
+     (arguments
+      parser
       [args nargs: REMAINDER default: (#list)])
 
      parser)
