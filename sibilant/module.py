@@ -125,6 +125,10 @@ def get_module_reader(module):
     return reader
 
 
+def set_module_reader(module, reader):
+    module.__reader__ = reader
+
+
 def get_module_stream(module):
     stream = getattr(module, "__stream__", None)
 
@@ -133,6 +137,10 @@ def get_module_stream(module):
         module.__stream__ = stream
 
     return stream
+
+
+def set_module_stream(module, stream):
+    module.__stream__ = stream
 
 
 def parse_time(module):
@@ -183,6 +191,10 @@ def get_module_compiler_factory(module):
     return factory
 
 
+def set_module_compiler_factory(module, factory):
+    module.__compiler_factory__ = factory
+
+
 def get_module_compiler(module):
     """
     Get the compiler instance for the given module. If it has not been
@@ -201,6 +213,10 @@ def get_module_compiler(module):
     return compiler
 
 
+def set_module_compiler(module, compiler):
+    module.__compiler__ = compiler
+
+
 def compile_time(module, source_expr):
     """
     Performs Compile-Time on a source expression, using the module's
@@ -208,9 +224,8 @@ def compile_time(module, source_expr):
     """
 
     compiler = get_module_compiler(module)
-    module_globals = module.__dict__
 
-    with compiler.active_context(module_globals):
+    with compiler.active_context(module):
         compiler.add_expression_with_return(source_expr)
         code_obj = compiler.complete()
 
@@ -256,6 +271,10 @@ def get_module_evaluator(module):
     return evaluator
 
 
+def set_module_evaluator(module, evaluator):
+    module.__evaluator__ = evaluator
+
+
 @trampoline
 def run_time(module, code_obj):
     """
@@ -282,33 +301,52 @@ def partial_run_time(module, code_obj):
 def load_module(module, parse_time=parse_time,
                 compile_time=compile_time, run_time=run_time):
 
-    try:
-        while True:
-            load_module_1(module, parse_time, compile_time, run_time)
+    """
+    Parse, compile, and evaluate all of the expressions in a module.
+    """
 
-    except StopIteration:
-        pass
+    while True:
+        source_expr = parse_time(module)
+        if source_expr is None:
+            break
+
+        code_obj = compile_time(module, source_expr)
+        run_time(module, code_obj)
 
 
 def iter_load_module(module, parse_time=parse_time,
                      compile_time=compile_time, run_time=run_time):
 
+    """
+    Iterator which reads a single expression from a module's source
+    stream, compile it, evaluate it, yields the result, then repeats
+    until the source stream is empty.
+    """
+
     while True:
-        yield load_module_1(module, parse_time, compile_time, run_time)
+        source_expr = parse_time(module)
+        if source_expr is None:
+            break
+
+        code_obj = compile_time(module, source_expr)
+        yield run_time(module, code_obj)
 
 
 @trampoline
 def load_module_1(module, parse_time=parse_time,
                   compile_time=compile_time, run_time=run_time):
 
+    """
+    Parse a single expression from a module's source stream, compile
+    it, evaluate it, and return the result.
+    """
+
     source_expr = parse_time(module)
-
     if source_expr is None:
-        raise StopIteration
+        return None
 
-    else:
-        code_obj = compile_time(module, source_expr)
-        return tailcall(run_time)(module, code_obj)
+    code_obj = compile_time(module, source_expr)
+    return tailcall(run_time)(module, code_obj)
 
 
 def exec_marshal_module(glbls, code_objs, builtins=None):
@@ -331,6 +369,11 @@ def exec_marshal_module(glbls, code_objs, builtins=None):
 
 def marshal_wrapper(code_objs, filename=None, mtime=0, source_size=0,
                     builtins_name=None):
+
+    """
+    Produce a collection of bytes representing the compiled form of a
+    series of statements (as compiled code objects).
+    """
 
     from importlib._bootstrap_external import _code_to_bytecode
 
@@ -389,6 +432,11 @@ def marshal_wrapper(code_objs, filename=None, mtime=0, source_size=0,
 
 def compile_to_file(name, pkgname, source_file, dest_file,
                     builtins_name=None):
+
+    """
+    Produce a python compiled bytecode file from a sibilant source
+    code file.
+    """
 
     mtime = getmtime(source_file)
     source_size = getsize(source_file)
