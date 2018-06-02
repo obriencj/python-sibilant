@@ -217,6 +217,8 @@ class Macro(Compiled):
         else:
             expr = self.expand(*source.unpack())
 
+        expr = _symbol_None if expr is None else expr
+
         fill_position(expr, source_obj.get_position())
         return tailcall(cont)(expr, tc)
 
@@ -682,7 +684,6 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
         if position:
             assert (type(position) is tuple), "non-tuple position"
             self.pseudop_position(*position)
-
 
 
     def add_expression(self, expr, tc=None):
