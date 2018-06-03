@@ -462,9 +462,7 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
             msg = "cannot evaluate improper lists as expressions"
             raise self._err(msg, source_obj)
 
-        pos = source_obj.get_position()
-        if pos:
-            self.pseudop_position(*pos)
+        self.pseudop_position_of(source_obj)
 
         head, tail = source_obj
 
@@ -516,7 +514,7 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
                     # we need to start over in a new compile_pair call
                     # using a newly assembled expression.
                     expr = pair(new_head, tail)
-                    expr.set_position(expr, pos)
+                    expr.set_position(pos)
                     return tailcall(self.compile_pair)(expr, tc, cont)
 
             # we need to compile the head first, to figure out if it
