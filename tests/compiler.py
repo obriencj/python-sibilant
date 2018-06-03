@@ -306,16 +306,52 @@ class KeywordArgs(TestCase):
 
     def test_macro_formals(self):
         src = """
-        (define test
-          (macro "test"
-            (function test (work for: '_ in: () when: True unless: True)
-               `(values work for in when unless))))
-
-        (test (+ a 5) a in seq)
+        (macro "test"
+          (function test (work for: '_ in: () when: True unless: False)
+            `(values ,work ,for ,in ,when ,unless)))
         """
         stmt, env = compile_expr(src, seq=(1, 2, 3))
+        test = stmt()
+
+        src = """
+        (test (+ a 5) a in: seq)
+        """
+        stmt, env = compile_expr(src, seq=(1, 2, 3), test=test, a=100)
         res = stmt()
-        # TODO
+
+        self.assertEqual(res, (105, 100, (1, 2, 3), True, False))
+
+
+    def test_empty_macro(self):
+        src = """
+        (macro "ignore"
+          (function ignore args None))
+        """
+        stmt, env = compile_expr(src)
+        ignore = stmt()
+
+        src = """
+        (macro "ignore2"
+          (function ignore2 () 'ignore))
+        """
+        stmt, env = compile_expr(src)
+        ignore2 = stmt()
+
+        src = """
+        (ignore (foo bar))
+        """
+        stmt, env = compile_expr(src, ignore=ignore)
+        res = stmt()
+
+        self.assertIs(res, None)
+
+        src = """
+        ((ignore2) (foo bar))
+        """
+        stmt, env = compile_expr(src, ignore=ignore, ignore2=ignore2)
+        res = stmt()
+
+        self.assertIs(res, None)
 
 
     def test_formals(self):
