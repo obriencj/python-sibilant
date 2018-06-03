@@ -36,6 +36,7 @@ license: LGPL v.3
 """
 
 
+from collections import MutableMapping
 from functools import partial
 from os.path import split, getmtime, getsize
 from types import ModuleType
@@ -62,14 +63,38 @@ def new_module(name, package_name=None):
     return mod
 
 
-class FakeModule():
-    pass
+class FakeModule(object):
+    """
+    A simple object wrapper for the given dictionary environment.
+    """
+
+    # note that this cannot inherit from ModuleType, as that does not
+    # allow instances to replace the __dict__ attribute. We don't want
+    # to make a copy, or back-fill the existing __dict__ either, since
+    # we really just want to be a wrapper.
+
+    def __init__(self, env=None):
+        if env is None:
+            # whatever, we've already had an instance allocated with its own
+            # dict, just use that.
+            return
+        elif isinstance(env, MutableMapping):
+            # cool, use this environment instead of the one we were
+            # allocated with.
+            self.__dict__ = env
+        else:
+            # this might fail in instances where we cannot snag an
+            # object's underlying vars, but we'll give it a try at
+            # least.
+            self.__dict__ = vars(env)
 
 
 def fake_module_from_env(env):
-    module = FakeModule()
-    module.__dict__ = env
-    return module
+    """
+    Produce an object wrapper for the given environment
+    """
+
+    return FakeModule(env)
 
 
 def init_module(module, source_stream,
@@ -77,6 +102,22 @@ def init_module(module, source_stream,
                 reader=None, compiler=None, compiler_factory=None,
                 compiler_factory_params=None,
                 evaluator=None):
+
+    """
+    Initializes a module object for use with sibilant.
+
+    The module can either be an object, or a MutableMapping instance
+    such as a dict. If it is a mapping, then a new FakeModule will be
+    creating to act as an object wrapper for the mapping.
+
+    Returns the module object or the FakeModule that was created.
+    """
+
+    # while FakeModule can wrap another object as needed, we want to
+    # preserve the object we're passed in this case, and so only wrap
+    # MutableMappings.
+    if isinstance(module, MutableMapping):
+        module = fake_module_from_env(module)
 
     if defaults:
         module.__dict__.update(defaults)
@@ -354,8 +395,8 @@ def exec_marshal_module(glbls, code_objs, builtins=None):
     Invoked during loading of modules expored via marshal_wrapper
     """
 
-    mod = fake_module_from_env(glbls)
-    init_module(mod, None, builtins=builtins)
+    # mod = fake_module_from_env(glbls)
+    mod = init_module(glbls, None, builtins=builtins)
 
     # skips the read time and compile time stages of import, just
     # performs run time for every compiled expression to set up the
@@ -448,7 +489,7 @@ def compile_to_file(name, pkgname, source_file, dest_file,
 
     with source_open(source_file) as source_stream:
         mod = new_module(name, package_name=pkgname)
-        init_module(mod, source_stream)
+        mod = init_module(mod, source_stream)
         load_module(mod, compile_time=hook_compile_time(accumulate))
 
     bytecode = marshal_wrapper(code_objs, filename=source_file,
