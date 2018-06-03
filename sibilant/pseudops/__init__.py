@@ -866,6 +866,9 @@ class PseudopsCompiler(metaclass=ABCMeta):
 
 
     def pseudop_position(self, line, column):
+        assert isinstance(line, int), "line must be int, not %r" % line
+        assert isinstance(column, int), "column must be int, not %r" % column
+
         self.pseudop(Pseudop.POSITION, line, column)
 
 
