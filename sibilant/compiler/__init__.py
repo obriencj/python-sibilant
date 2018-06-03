@@ -412,6 +412,8 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
         valid source obj types.
         """
 
+        tc = self.tco_enabled and tc
+
         if is_pair(source_obj):
             dispatch = self.compile_pair
         elif is_symbol(source_obj) or is_lazygensym(source_obj):
@@ -745,8 +747,13 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
         return lazygensym(name, self._gensym_predicate)
 
 
-    def pseudop_position_of(self, cl):
-        position = get_position(cl, None)
+    def pseudop_position_of(self, source_obj):
+        """
+        Inserts a position declaration based on the position data of the
+        given source_obj (if possible)
+        """
+
+        position = get_position(source_obj, None)
         if position:
             assert (type(position) is tuple), "non-tuple position"
             self.pseudop_position(*position)
@@ -757,7 +764,6 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
         The short form for compiling an expression.
         """
 
-        tc = self.tco_enabled and tc
         self.compile(expr, tc, None)
 
 
@@ -770,13 +776,18 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
         # a return is, by its very nature, always in the tailcall
         # position. Therefore we'll compile this as tailcall if we
         # have such enabled.
-        self.compile(expr, self.tco_enabled, None)
+        self.compile(expr, True, None)
 
         # and insert the return op
         self.pseudop_return()
 
 
     def error(self, message, source):
+        """
+        Create a CompilerSyntaxError based on the message and source
+        object. Will attempt to find position and line text based
+        on the compiler's state.
+        """
 
         text = None
 
@@ -800,6 +811,12 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
 
 
     def find_compiled(self, namesym: Symbol):
+        """
+        Search for and return a Compiled instance within the activated
+        environment for this compiler. Returns None if nothing was
+        found.
+        """
+
         self.require_active()
 
         if is_lazygensym(namesym):
@@ -1127,8 +1144,16 @@ def unpack_formals(args, kwds,
     return args, var, kwds, (kwvar if kwvariadic else None)
 
 
-def env_find_compiled(env, namesym: symbol):
-    assert is_symbol(namesym)
+def env_find_compiled(env, namesym):
+    """
+    Search for a Compiled instance in the given environment and its
+    __builtins__ if any exist. Returns None if nothing was found.
+    """
+
+    # assert is_symbol(namesym)
+
+    if not isinstance(env, Mapping):
+        env = vars(env)
 
     # okay, let's look through the environment by name
     name = str(namesym)
@@ -1139,16 +1164,25 @@ def env_find_compiled(env, namesym: symbol):
         return found if is_compiled(found) else None
 
     # maybe in builtins?
-    env = env["__builtins__"].__dict__
-    if name in env:
-        found = env[name]
-        return found if is_compiled(found) else None
+    if "__builtins__" in env:
+        env = env["__builtins__"].__dict__
+        if name in env:
+            found = env[name]
+            return found if is_compiled(found) else None
 
     # nope
     return None
 
 
 def env_get_expander(env, source_obj):
+    """
+    Find an expander function for the given source obj in the
+    specified environment.
+    """
+
+    if not isinstance(env, Mapping):
+        env = vars(env)
+
     expander = None
 
     if source_obj is nil:
