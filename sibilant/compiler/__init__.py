@@ -404,10 +404,15 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
 
 
     @trampoline
-    def compile(self, source_obj, tc, cont=None):
-        if is_nil(source_obj):
-            dispatch = self.compile_nil
-        elif is_pair(source_obj):
+    def compile(self, source_obj, tc, cont):
+        """
+        Compile a supported source object into an expression.
+
+        pair, symbol, keyword, and the pythonic constant types are
+        valid source obj types.
+        """
+
+        if is_pair(source_obj):
             dispatch = self.compile_pair
         elif is_symbol(source_obj) or is_lazygensym(source_obj):
             dispatch = self.compile_symbol
@@ -442,6 +447,15 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
 
     @trampoline
     def compile_pair(self, source_obj: pair, tc, cont):
+        """
+        Compile a pair expression. This will become either a literal nil,
+        a macro expansion, a special invocation, or a runtime function
+        application.
+        """
+
+        if is_nil(source_obj):
+            return tailcall(self.compile_nil)(source_obj, tc, cont)
+
         if not is_proper(source_obj):
             msg = "cannot evaluate improper lists as expressions"
             raise self._err(msg, source_obj)
@@ -475,6 +489,10 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
 
     @trampoline
     def compile_apply(self, source_obj: pair, tc, cont):
+        """
+        Compile a runtime function apply expression.
+        """
+
         head, tail = source_obj
 
         pos = source_obj.get_position()
@@ -507,23 +525,42 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
             # function afterwards.
             return tailcall(self.compile_pair)(head, False, ccp)
 
-        elif tc:
-            self.add_expression(head)
-            return tailcall(self.complete_apply)(tail, pos, tc, cont)
-
         else:
             self.add_expression(head)
-            pos = source_obj.get_position()
             return tailcall(self.complete_apply)(tail, pos, tc, cont)
 
 
     @abstractmethod
     def complete_apply(self, arg_source: pair, position, tc, cont):
+        """
+        This abstract method must be implemented in the version-specific
+        python target. It is presumed that the function to apply is
+        already evaluated and at TOS. The arg_source will be the
+        remainder of the apply form (a cons list of the positional and
+        keyword arguments, if any). It is up to the target to compile
+        the argument expressions and collect them into the appropriate
+        version-specific call opcodes. It is also up to the target to
+        determine whether or not to invoke the helper_tailcall_tos in
+        order to convert the TOS value into a tailcall.
+        """
+
         pass
 
 
     @trampoline
     def compile_symbol(self, sym: Symbol, tc, cont):
+        """
+        Compile a symbol expression. This can result in a constant for
+        certain specialty Python values (None, True, False, and ...)
+
+        Dotted symbols will be compiled into attr calls. Non-dotted
+        symbols will be compiled into variable references.
+
+        If a symbol correlates to an Alias in the module namespace,
+        then that alias will be expanded and compilation will continue
+        from the expanded form.
+        """
+
         comp = self.find_compiled(sym)
         if comp and is_alias(comp):
             return tailcall(comp.compile)(self, sym, tc, cont)
@@ -554,21 +591,39 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
 
     @trampoline
     def compile_keyword(self, kwd: keyword, tc, cont):
+        """
+        Compile a keyword expression
+        """
+
         source = cons(_symbol_keyword, str(kwd), nil)
         return tailcall(self.compile)(source, False, cont)
 
 
     @trampoline
     def compile_constant(self, value: Constant, tc, cont):
+        """
+        Compile a constant value expression
+        """
+
         return tailcall(cont)(self.pseudop_const(value), tc)
 
 
     @trampoline
     def compile_nil(self, nilv: nil, tc, cont):
+        """
+        Compile a literal nil expression
+        """
+
         return tailcall(cont)(self.pseudop_get_global(_symbol_nil), tc)
 
 
     def helper_tailcall_tos(self, args, position):
+        """
+        Wraps a function invocation into a tailcall. This should only be
+        invoked if it has already been determined that a tail-call
+        function apply is happening, and the function object is at TOS.
+        """
+
         self.declare_tailcall()
 
         self.helper_tailrecur_tos(args, position)
@@ -579,6 +634,17 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
 
 
     def helper_tailrecur_tos(self, args, position):
+        """
+        Checks for a tail recursion invocation. This should only be
+        invoked if it has already been determined that a tail-call
+        function apply is happening, and the function object is at
+        TOS. This will see if it's possible to convert the apply into
+        calls to assign to the local fast vars and perform a JUMP
+        0. If it seems feasible, then bytecode ops will be
+        injected. Otherwise, this method returns without modifying the
+        code object.
+        """
+
         # test for possible recursion optimization.
 
         # first check, make sure we've got a self-ref available. If we
@@ -686,9 +752,9 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
             self.pseudop_position(*position)
 
 
-    def add_expression(self, expr, tc=None):
+    def add_expression(self, expr, tc=False):
         """
-        Short form for compiling an expression.
+        The short form for compiling an expression.
         """
 
         tc = self.tco_enabled and tc
