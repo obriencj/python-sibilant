@@ -50,7 +50,7 @@ license: LGPL v.3
 	{(var [line (input "sibilant > ")]
 	      [source (source_str line filename: "<stdin>")])
 
-	 (init_module mod source)
+	 (setq mod (init_module mod source))
 
 	 (define result (load_module_1 mod))
 	 (setf (item env "_") result)

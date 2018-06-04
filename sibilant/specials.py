@@ -827,7 +827,7 @@ def special_let(code, source, tc=False):
     # bound as a callable at TOS
 
     pvals = cons(*vals, nil) if vals else nil
-    code.compile_call_tos(pvals, declared_at, tc)
+    code.complete_apply(pvals, declared_at, tc, lambda e, t: None)
 
     # no additional transform needed
     return None
@@ -870,6 +870,7 @@ def _helper_function(code, name, args, body,
         declared_at = body.get_position()
 
     kid = code.child_context(name=name,
+                             self_ref=self_ref,
                              args=argnames,
                              kwonly=len(kwonly),
                              varargs=varargs,
@@ -880,9 +881,6 @@ def _helper_function(code, name, args, body,
     with kid as subc:
         body, doc = _helper_strip_doc(body)
         subc.set_doc(doc)
-
-        if self_ref is not None:
-            subc.request_var(self_ref)
 
         _helper_begin(subc, body, tco)
         subc.pseudop_return()
@@ -1199,7 +1197,7 @@ def _helper_setq_values(code, bindings, declare):
 @special(_symbol_continue)
 def special_continue(code, source, tc=False):
 
-    from .compiler import Block
+    from sibilant.pseudops import Block
 
     called_by, rest = source
 
@@ -1234,7 +1232,7 @@ def special_continue(code, source, tc=False):
 @special(_symbol_break)
 def special_break(code, source, tc=False):
 
-    from .compiler import Block
+    from sibilant.pseudops import Block
 
     called_by, rest = source
 

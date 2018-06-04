@@ -14,27 +14,27 @@
 
 
 """
-sibilant.compiler.cpython36
+sibilant.pseudops.cpython35
 
-Compiler target for CPython 3.6 bytecode
+Compiler target for CPython 3.5 bytecode
 
 author: Christopher O'Brien <obriencj@gmail.com>
 license: LGPL v.3
 """
 
 
-from . import (
-    ExpressionCodeSpace, Pseudop, Opcode,
-    gather_parameters,
-)
-
-from ..lib import symbol
+from sibilant.pseudops import PseudopsCompiler, Pseudop, Opcode
+from sibilant.lib import symbol
 
 
-class CPython36(ExpressionCodeSpace):
+_symbol_format_value = symbol("__format_value__")
+_symbol_build_string = symbol("__build_string__")
+
+
+class PseudopsCPython35(PseudopsCompiler):
     """
-    SpecialCodeSpace emitting bytecode compatible with CPython version
-    3.6
+    Pseudo-Ops compiler emitting bytecode compatible with CPython
+    version 3.5
     """
 
     def code_bytes(self, lnt):
@@ -60,37 +60,34 @@ class CPython36(ExpressionCodeSpace):
             lnt.append((offset, line, col))
 
         for opa in self.gen_opcode(add_label, set_position):
-            op, arg = opa
+            op, *args = opa
 
             if op.hasjabs():
-                # deal with jumps, so we can set their argument
-                # to an appropriate label offset later
+                # deal with jumps, so we can set their argument to
+                # an appropriate label offset later
 
-                mark_jabs(arg)
-                # we are being lazy here, and padding out our
-                # jumps with an EXTENDED_ARG, in case we need more
-                # than 8 bits of address once labels are applied.
-                coll.append([Opcode.EXTENDED_ARG, 0])
-                coll.append([op, 0])
-                offset += 4
+                assert args, "hasjabs without target label"
+                mark_jabs(args[0])
+                coll.append([op, 0, 0])
+                offset += 3
 
             elif op.hasjrel():
                 # relative jump!
 
-                mark_jrel(arg)
-                coll.append([Opcode.EXTENDED_ARG, 0])
-                coll.append([op, 0])
-                offset += 4
+                assert args, "hasjrel without target label"
+                mark_jrel(args[0])
+                coll.append([op, 0, 0])
+                offset += 3
 
             else:
-                coll.append(opa)
-                offset += 2
+                coll.append((op, *args))
+                offset += (1 + len(args))
 
         if jabs or jrel or labels:
             # Given our labels, modify jmp calls to point to the label
             apply_jump_labels(coll, jabs, jrel, labels)
 
-        coll = ((c.value, a) for c, a in coll)
+        coll = ((c.value, *a) for c, *a in coll)
         return b''.join(bytes(c) for c in coll)
 
 
@@ -109,37 +106,35 @@ class CPython36(ExpressionCodeSpace):
                 declare_position(*args)
 
             elif op is _Pseudop.CALL:
-                yield _Opcode.CALL_FUNCTION, args[0]
+                yield _Opcode.CALL_FUNCTION, args[0], args[1]
 
             elif op is _Pseudop.CALL_KW:
-                yield _Opcode.CALL_FUNCTION_KW, args[0]
+                yield _Opcode.CALL_FUNCTION_KW, args[0], args[1]
 
             elif op is _Pseudop.CALL_VAR:
-                yield _Opcode.CALL_FUNCTION_EX, 0x00
+                yield _Opcode.CALL_FUNCTION_VAR, args[0], args[1]
 
             elif op is _Pseudop.CALL_VAR_KW:
-                yield _Opcode.CALL_FUNCTION_EX, 0x01
+                yield _Opcode.CALL_FUNCTION_VAR_KW, args[0], args[1]
 
             elif op is _Pseudop.UNPACK_SEQUENCE:
-                yield _Opcode.UNPACK_SEQUENCE, args[0]
+                yield _Opcode.UNPACK_SEQUENCE, args[0], 0
 
             elif op is _Pseudop.UNPACK_EX:
-                if args[1]:
-                    yield _Opcode.EXTENDED_ARG, args[1]
-                yield _Opcode.UNPACK_EX, args[0]
+                yield _Opcode.UNPACK_EX, args[0], args[1]
 
             elif op is _Pseudop.CONST:
                 i = _const_index(self.consts, args[0])
-                yield _Opcode.LOAD_CONST, i
+                yield _Opcode.LOAD_CONST, i, 0
 
             elif op is _Pseudop.LOAD_CELL:
                 n = args[0]
                 if n in self.cell_vars:
                     i = self.cell_vars.index(n)
-                    yield _Opcode.LOAD_CLOSURE, i
+                    yield _Opcode.LOAD_CLOSURE, i, 0
                 elif n in self.free_vars:
                     i = self.free_vars.index(n) + len(self.cell_vars)
-                    yield _Opcode.LOAD_CLOSURE, i
+                    yield _Opcode.LOAD_CLOSURE, i, 0
                 else:
                     assert False, "missing cell name %r" % n
 
@@ -147,13 +142,13 @@ class CPython36(ExpressionCodeSpace):
                 n = args[0]
                 if n in self.cell_vars:
                     i = self.cell_vars.index(n)
-                    yield _Opcode.STORE_DEREF, i
+                    yield _Opcode.STORE_DEREF, i, 0
                 elif n in self.free_vars:
                     i = self.free_vars.index(n) + len(self.cell_vars)
-                    yield _Opcode.STORE_DEREF, i
+                    yield _Opcode.STORE_DEREF, i, 0
                 elif n in self.fast_vars:
                     i = self.fast_vars.index(n)
-                    yield _Opcode.STORE_FAST, i
+                    yield _Opcode.STORE_FAST, i, 0
                 else:
                     assert False, "missing local name %r" % n
 
@@ -161,16 +156,16 @@ class CPython36(ExpressionCodeSpace):
                 n = args[0]
                 if n in self.cell_vars:
                     i = self.cell_vars.index(n)
-                    yield _Opcode.LOAD_DEREF, i
+                    yield _Opcode.LOAD_DEREF, i, 0
                 elif n in self.free_vars:
                     i = self.free_vars.index(n) + len(self.cell_vars)
-                    yield _Opcode.LOAD_DEREF, i
+                    yield _Opcode.LOAD_DEREF, i, 0
                 elif n in self.fast_vars:
                     i = self.fast_vars.index(n)
-                    yield _Opcode.LOAD_FAST, i
+                    yield _Opcode.LOAD_FAST, i, 0
                 elif n in self.global_vars:
                     i = self.names.index(n)
-                    yield _Opcode.LOAD_GLOBAL, i
+                    yield _Opcode.LOAD_GLOBAL, i, 0
                 else:
                     assert False, "missing var %r" % n
 
@@ -178,16 +173,16 @@ class CPython36(ExpressionCodeSpace):
                 n = args[0]
                 if n in self.cell_vars:
                     i = self.cell_vars.index(n)
-                    yield _Opcode.STORE_DEREF, i
+                    yield _Opcode.STORE_DEREF, i, 0
                 elif n in self.free_vars:
                     i = self.free_vars.index(n) + len(self.cell_vars)
-                    yield _Opcode.STORE_DEREF, i
+                    yield _Opcode.STORE_DEREF, i, 0
                 elif n in self.fast_vars:
                     i = self.fast_vars.index(n)
-                    yield _Opcode.STORE_FAST, i
+                    yield _Opcode.STORE_FAST, i, 0
                 elif n in self.global_vars:
                     i = self.names.index(n)
-                    yield _Opcode.STORE_GLOBAL, i
+                    yield _Opcode.STORE_GLOBAL, i, 0
                 else:
                     assert False, "missing var %r" % n
 
@@ -195,16 +190,16 @@ class CPython36(ExpressionCodeSpace):
                 n = args[0]
                 if n in self.cell_vars:
                     i = self.cell_vars.index(n)
-                    yield _Opcode.DELETE_DEREF, i
+                    yield _Opcode.DELETE_DEREF, i, 0
                 elif n in self.free_vars:
                     i = self.free_vars.index(n) + len(self.cell_vars)
-                    yield _Opcode.DELETE_DEREF, i
+                    yield _Opcode.DELETE_DEREF, i, 0
                 elif n in self.fast_vars:
                     i = self.fast_vars.index(n)
-                    yield _Opcode.DELETE_FAST, i
+                    yield _Opcode.DELETE_FAST, i, 0
                 elif n in self.global_vars:
                     i = self.names.index(n)
-                    yield _Opcode.DELETE_GLOBAL, i
+                    yield _Opcode.DELETE_GLOBAL, i, 0
                 else:
                     assert False, "missing var %r" % n
 
@@ -212,7 +207,7 @@ class CPython36(ExpressionCodeSpace):
                 n = args[0]
                 if n in self.global_vars:
                     i = self.names.index(n)
-                    yield _Opcode.LOAD_GLOBAL, i
+                    yield _Opcode.LOAD_GLOBAL, i, 0
                 else:
                     assert False, "missing global name %r" % n
 
@@ -220,7 +215,7 @@ class CPython36(ExpressionCodeSpace):
                 n = args[0]
                 if n in self.global_vars:
                     i = self.names.index(n)
-                    yield _Opcode.STORE_GLOBAL, i
+                    yield _Opcode.STORE_GLOBAL, i, 0
                 else:
                     assert False, "missing global name %r" % n
 
@@ -228,57 +223,57 @@ class CPython36(ExpressionCodeSpace):
                 n = args[0]
                 if n in self.global_vars:
                     i = self.names.index(n)
-                    yield _Opcode.DELETE_GLOBAL, i
+                    yield _Opcode.DELETE_GLOBAL, i, 0
                 else:
                     assert False, "missing global name %r" % n
 
             elif op is _Pseudop.GET_ATTR:
                 n = args[0]
                 i = self.names.index(n)
-                yield _Opcode.LOAD_ATTR, i
+                yield _Opcode.LOAD_ATTR, i, 0
 
             elif op is _Pseudop.SET_ATTR:
                 n = args[0]
                 i = self.names.index(n)
-                yield _Opcode.STORE_ATTR, i
+                yield _Opcode.STORE_ATTR, i, 0
 
             elif op is _Pseudop.DEL_ATTR:
                 n = args[0]
                 i = self.names.index(n)
-                yield _Opcode.DELETE_ATTR, i
+                yield _Opcode.DELETE_ATTR, i, 0
 
             elif op is _Pseudop.POP:
-                yield _Opcode.POP_TOP, 0
+                yield _Opcode.POP_TOP,
 
             # elif op is _Pseudop.MAGIC_POP_ALL:
             #     n = args[0]
             #     for _ in range(0, n):
-            #         yield _Opcode.POP_TOP, 0
+            #         yield _Opcode.POP_TOP,
 
             elif op is _Pseudop.IMPORT_NAME:
                 n = args[0]
                 i = self.names.index(n)
-                yield _Opcode.IMPORT_NAME, i
+                yield _Opcode.IMPORT_NAME, i, 0
 
             elif op is _Pseudop.IMPORT_FROM:
                 n = args[0]
                 i = self.names.index(n)
-                yield _Opcode.IMPORT_FROM, i
+                yield _Opcode.IMPORT_FROM, i, 0
 
             elif op is _Pseudop.LAMBDA:
                 yield from self.helper_gen_lambda(*args)
 
             elif op is _Pseudop.RET_VAL:
-                yield _Opcode.RETURN_VALUE, 0
+                yield _Opcode.RETURN_VALUE,
 
             elif op is _Pseudop.YIELD_VAL:
-                yield _Opcode.YIELD_VALUE, 0
+                yield _Opcode.YIELD_VALUE,
 
             elif op is _Pseudop.YIELD_FROM:
-                yield _Opcode.YIELD_FROM, 0
+                yield _Opcode.YIELD_FROM,
 
             elif op is _Pseudop.DUP:
-                yield _Opcode.DUP_TOP, 0
+                yield _Opcode.DUP_TOP,
 
             elif op is _Pseudop.LABEL:
                 declare_label(args[0])
@@ -288,10 +283,10 @@ class CPython36(ExpressionCodeSpace):
                 pass
 
             elif op is _Pseudop.JUMP:
-                yield _Opcode.JUMP_ABSOLUTE, args[0]
+                yield _Opcode.JUMP_ABSOLUTE, args[0], 0
 
             elif op is _Pseudop.JUMP_FORWARD:
-                yield _Opcode.JUMP_FORWARD, args[0]
+                yield _Opcode.JUMP_FORWARD, args[0], 0
 
             elif op is _Pseudop.POP_JUMP_IF_TRUE:
                 yield _Opcode.POP_JUMP_IF_TRUE, args[0]
@@ -300,162 +295,182 @@ class CPython36(ExpressionCodeSpace):
                 yield _Opcode.POP_JUMP_IF_FALSE, args[0]
 
             elif op is _Pseudop.BUILD_TUPLE:
-                yield _Opcode.BUILD_TUPLE, args[0]
+                yield _Opcode.BUILD_TUPLE, args[0], 0
 
             elif op is _Pseudop.BUILD_TUPLE_UNPACK:
-                yield _Opcode.BUILD_TUPLE_UNPACK, args[0]
+                yield _Opcode.BUILD_TUPLE_UNPACK, args[0], 0
 
             elif op is _Pseudop.BUILD_MAP:
-                yield _Opcode.BUILD_MAP, args[0]
+                yield _Opcode.BUILD_MAP, args[0], 0
 
             elif op is _Pseudop.BUILD_MAP_UNPACK:
-                yield _Opcode.BUILD_MAP_UNPACK, args[0]
+                yield _Opcode.BUILD_MAP_UNPACK, args[0], 0
 
             elif op is _Pseudop.BUILD_LIST:
-                yield _Opcode.BUILD_LIST, args[0]
+                yield _Opcode.BUILD_LIST, args[0], 0
 
             elif op is _Pseudop.BUILD_SET:
-                yield _Opcode.BUILD_SET, args[0]
+                yield _Opcode.BUILD_SET, args[0], 0
 
             elif op is _Pseudop.BUILD_SLICE:
-                yield _Opcode.BUILD_SLICE, args[0]
-
-            elif op is _Pseudop.BUILD_STR:
-                yield _Opcode.BUILD_STRING, args[0]
-
-            elif op is _Pseudop.FORMAT:
-                yield _Opcode.FORMAT_VALUE, args[0]
+                yield _Opcode.BUILD_SLICE, args[0], 0
 
             elif op is _Pseudop.SETUP_WITH:
-                yield _Opcode.SETUP_WITH, args[0]
+                yield _Opcode.SETUP_WITH, args[0], 0
 
             elif op is _Pseudop.WITH_CLEANUP_START:
-                yield _Opcode.WITH_CLEANUP_START, 0
+                yield _Opcode.WITH_CLEANUP_START,
 
             elif op is _Pseudop.WITH_CLEANUP_FINISH:
-                yield _Opcode.WITH_CLEANUP_FINISH, 0
+                yield _Opcode.WITH_CLEANUP_FINISH,
 
             elif op is _Pseudop.SETUP_EXCEPT:
-                yield _Opcode.SETUP_EXCEPT, args[0]
+                yield _Opcode.SETUP_EXCEPT, args[0], 0
 
             elif op is _Pseudop.SETUP_FINALLY:
-                yield _Opcode.SETUP_FINALLY, args[0]
+                yield _Opcode.SETUP_FINALLY, args[0], 0
 
             elif op is _Pseudop.SETUP_LOOP:
-                yield _Opcode.SETUP_LOOP, args[0]
+                yield _Opcode.SETUP_LOOP, args[0], 0
 
             elif op is _Pseudop.POP_BLOCK:
-                yield _Opcode.POP_BLOCK, 0
+                yield _Opcode.POP_BLOCK,
 
             elif op is _Pseudop.POP_EXCEPT:
-                yield _Opcode.POP_EXCEPT, 0
+                yield _Opcode.POP_EXCEPT,
 
             elif op is _Pseudop.END_FINALLY:
-                yield _Opcode.END_FINALLY, 0
+                yield _Opcode.END_FINALLY,
 
             elif op is _Pseudop.UNARY_POSITIVE:
-                yield _Opcode.UNARY_POSITIVE, 0
+                yield _Opcode.UNARY_POSITIVE,
 
             elif op is _Pseudop.UNARY_NEGATIVE:
-                yield _Opcode.UNARY_NEGATIVE, 0
+                yield _Opcode.UNARY_NEGATIVE,
 
             elif op is _Pseudop.UNARY_NOT:
-                yield _Opcode.UNARY_NOT, 0
+                yield _Opcode.UNARY_NOT,
 
             elif op is _Pseudop.UNARY_INVERT:
-                yield _Opcode.UNARY_INVERT, 0
+                yield _Opcode.UNARY_INVERT,
 
             elif op is _Pseudop.ITER:
-                yield _Opcode.GET_ITER, 0
+                yield _Opcode.GET_ITER,
 
             elif op is _Pseudop.FOR_ITER:
                 yield _Opcode.FOR_ITER, args[0]
 
             elif op is _Pseudop.GET_YIELD_FROM_ITER:
-                yield _Opcode.GET_YIELD_FROM_ITER, 0
+                yield _Opcode.GET_YIELD_FROM_ITER,
 
             elif op is _Pseudop.COMPARE_OP:
-                yield _Opcode.COMPARE_OP, args[0]
+                yield _Opcode.COMPARE_OP, args[0], 0
 
             elif op is _Pseudop.GET_ITEM:
-                yield _Opcode.BINARY_SUBSCR, 0
+                yield _Opcode.BINARY_SUBSCR,
 
             elif op is _Pseudop.SET_ITEM:
-                yield _Opcode.STORE_SUBSCR, 0
+                yield _Opcode.STORE_SUBSCR,
 
             elif op is _Pseudop.DEL_ITEM:
-                yield _Opcode.DELETE_SUBSCR, 0
+                yield _Opcode.DELETE_SUBSCR,
 
             elif op is _Pseudop.BINARY_ADD:
-                yield _Opcode.BINARY_ADD, 0
+                yield _Opcode.BINARY_ADD,
 
             elif op is _Pseudop.BINARY_SUBTRACT:
-                yield _Opcode.BINARY_SUBTRACT, 0
+                yield _Opcode.BINARY_SUBTRACT,
 
             elif op is _Pseudop.BINARY_MULTIPLY:
-                yield _Opcode.BINARY_MULTIPLY, 0
+                yield _Opcode.BINARY_MULTIPLY,
 
             elif op is _Pseudop.BINARY_MATRIX_MULTIPLY:
-                yield _Opcode.BINARY_MATRIX_MULTIPLY, 0
+                yield _Opcode.BINARY_MATRIX_MULTIPLY,
 
             elif op is _Pseudop.BINARY_TRUE_DIVIDE:
-                yield _Opcode.BINARY_TRUE_DIVIDE, 0
+                yield _Opcode.BINARY_TRUE_DIVIDE,
 
             elif op is _Pseudop.BINARY_FLOOR_DIVIDE:
-                yield _Opcode.BINARY_FLOOR_DIVIDE, 0
+                yield _Opcode.BINARY_FLOOR_DIVIDE,
 
             elif op is _Pseudop.BINARY_POWER:
-                yield _Opcode.BINARY_POWER, 0
+                yield _Opcode.BINARY_POWER,
 
             elif op is _Pseudop.BINARY_MODULO:
-                yield _Opcode.BINARY_MODULO, 0
+                yield _Opcode.BINARY_MODULO,
 
             elif op is _Pseudop.BINARY_LSHIFT:
-                yield _Opcode.BINARY_LSHIFT, 0
+                yield _Opcode.BINARY_LSHIFT,
 
             elif op is _Pseudop.BINARY_RSHIFT:
-                yield _Opcode.BINARY_RSHIFT, 0
+                yield _Opcode.BINARY_RSHIFT,
 
             elif op is _Pseudop.BINARY_AND:
-                yield _Opcode.BINARY_AND, 0
+                yield _Opcode.BINARY_AND,
 
             elif op is _Pseudop.BINARY_XOR:
-                yield _Opcode.BINARY_XOR, 0
+                yield _Opcode.BINARY_XOR,
 
             elif op is _Pseudop.BINARY_OR:
-                yield _Opcode.BINARY_OR, 0
+                yield _Opcode.BINARY_OR,
 
             elif op is _Pseudop.RAISE:
-                yield _Opcode.RAISE_VARARGS, args[0]
+                yield _Opcode.RAISE_VARARGS, args[0], 0
 
             elif op is _Pseudop.ROT_TWO:
-                yield _Opcode.ROT_TWO, 0
+                yield _Opcode.ROT_TWO,
 
             elif op is _Pseudop.ROT_THREE:
-                yield _Opcode.ROT_THREE, 0
+                yield _Opcode.ROT_THREE,
 
             elif op is _Pseudop.CONTINUE_LOOP:
                 yield _Opcode.CONTINUE_LOOP, args[0]
 
             elif op is _Pseudop.BREAK_LOOP:
-                yield _Opcode.BREAK_LOOP, 0
+                yield _Opcode.BREAK_LOOP,
 
             else:
                 assert False, "Unknown Pseudop %r" % op
 
 
+    def pseudop_build_str(self, count):
+        # emulate the BUILD_STRING opcode using string joining
+
+        self.pseudop_build_tuple(count)
+
+        # self.pseudop_const("")
+        # self.pseudop_get_attr(symbol("join"))
+
+        self.pseudop_get_global(_symbol_build_string)
+
+        self.pseudop_rot_two()
+        self.pseudop_call(1)
+
+
+    def pseudop_format(self, flags):
+        # emulate the FORMAT_VALUE opcode using the format function
+
+        # TOS format str if flags & 0x01
+        # TOS2 value
+
+        # self.pseudop_get_global(symbol("format"))
+        self.pseudop_get_global(_symbol_format_value)
+
+        if flags & 0x04:
+            self.pseudop_rot_three()
+            self.pseudop_call(2)
+        else:
+            self.pseudop_rot_two()
+            self.pseudop_call(1)
+
+
     def pseudop_lambda(self, code, defaults=(), kwonly=()):
+        for arg, expr in defaults:
+            self.add_expression(expr)
 
-        if defaults:
-            for arg, expr in defaults:
-                self.add_expression(expr)
-            self.pseudop_build_tuple(len(defaults))
-
-        if kwonly:
-            for arg, expr in kwonly:
-                self.pseudop_const(str(arg))
-                self.add_expression(expr)
-            self.pseudop_build_map(len(kwonly))
+        for arg, expr in kwonly:
+            self.pseudop_const(str(arg))
+            self.add_expression(expr)
 
         super().pseudop_lambda(code, len(defaults), len(kwonly))
 
@@ -470,21 +485,12 @@ class CPython36(ExpressionCodeSpace):
 
         _Opcode = Opcode
 
-        flags = 0x00
-
-        if default_count:
-            flags |= 0x01
-
-        if kwonly_count:
-            flags |= 0x02
-
         if code.co_freevars:
             # code is a closure, so we'll need to find the matching
             # free/cell vars and provide them.
 
             for f in code.co_freevars:
                 fsym = symbol(f)
-
                 if fsym in self.cell_vars:
                     fi = self.cell_vars.index(fsym)
                 elif fsym in self.free_vars:
@@ -492,87 +498,19 @@ class CPython36(ExpressionCodeSpace):
                     fi += self.free_vars.index(fsym)
                 else:
                     assert False, "missing local var %r" % fsym
-                yield _Opcode.LOAD_CLOSURE, fi
 
-            yield _Opcode.BUILD_TUPLE, len(code.co_freevars)
-            flags |= 0x08
+                yield _Opcode.LOAD_CLOSURE, fi, 0
 
-        # not a closure, so just a pain ol' function
-        yield _Opcode.LOAD_CONST, ci
-        yield _Opcode.LOAD_CONST, ni
-        yield _Opcode.MAKE_FUNCTION, flags
+            yield _Opcode.BUILD_TUPLE, len(code.co_freevars), 0
+            yield _Opcode.LOAD_CONST, ci, 0
+            yield _Opcode.LOAD_CONST, ni, 0
+            yield _Opcode.MAKE_CLOSURE, default_count, kwonly_count
 
-
-    def helper_compile_call(self, args, declared_at):
-        params = gather_parameters(args)
-
-        pos, keywords, values, vargs, vkwds = params
-
-        assert (len(keywords) == len(values)), "mismatched keyword, values"
-
-        arg_tuple = 0
-
-        # step one, evaluate the positionals that we have
-        for expr in pos:
-            self.add_expression(expr)
-
-        if not (vargs or keywords or vkwds):
-            # easy mode, nothing fancy, just a plain 'ol call
-            self.pseudop_call(len(pos))
-            return
-
-        elif pos:
-            # it's going to get complicated. collect the positionals
-            # we've got into a tuple for later.
-            self.pseudop_build_tuple(len(pos))
-            arg_tuple += 1
-
-        if vargs:
-            # another tuple of positional arguments onto the pile
-            self.add_expression(vargs)
-            arg_tuple += 1
-
-        if arg_tuple > 1:
-            # if we have more than one positional tuple, join them
-            # together into a single tuple (or if we have none, create
-            # an empty tuple)
-            self.pseudop_build_tuple_unpack(arg_tuple)
-
-        if not (keywords or vkwds):
-            # just positionals, so invoke CALL_FUNCTION_EX 0x00
-            self.pseudop_call_var(0)
-            return
-
-        elif not arg_tuple:
-            # in order to support CALL_FUNCTION_EX later on, we're
-            # going to push an empty tuple on, to represent our lack
-            # of positionals
-            self.pseudop_build_tuple(0)
-
-        kwd_tuple = 0
-        if keywords:
-            # build a map out of all the keyword:value entries
-            for key, val in zip(keywords, values):
-                self.pseudop_const(str(key))
-                self.add_expression(val)
-            self.pseudop_build_map(len(keywords))
-            kwd_tuple += 1
-
-        if vkwds:
-            # if we also have a variadic kwd, grab that.
-            self.add_expression(vkwds)
-            kwd_tuple += 1
-
-        if kwd_tuple > 1:
-            # if we have both keywords and variadic kwds, join' em together
-            self.pseudop_build_map_unpack(kwd_tuple)
-
-        if declared_at:
-            self.pseudop_position(*declared_at)
-
-        # even if we had no positionals, we've created an empty
-        # positionals tuple, and now we can CALL_FUNCTION_EX 0x01
-        self.pseudop_call_var_kw(0)
+        else:
+            # not a closure, so just a pain ol' function
+            yield _Opcode.LOAD_CONST, ci, 0
+            yield _Opcode.LOAD_CONST, ni, 0
+            yield _Opcode.MAKE_FUNCTION, default_count, kwonly_count
 
 
     def lnt_compile(self, lnt, firstline=None):
@@ -595,11 +533,11 @@ class CPython36(ExpressionCodeSpace):
             d_offset &= 0xff
 
             if d_line < 0:
-                # in version 3.6 and beyond, negative line numbers
-                # work fine, so a CALL_FUNCTION can correctly state
-                # that it happens at line it started on, rather than
-                # on the line it closes at
-                pass
+                # before version 3.6, negative relative line numbers
+                # weren't possible. Thus the line of a CALL_FUNCTION
+                # is the line it closes on, rather than the line it
+                # begins on. So we'll skip this lnt entry.
+                continue
 
             if d_line < -128 or d_line > 127:
                 dd_line = (d_line >> 8) & 0xff
@@ -620,28 +558,32 @@ class CPython36(ExpressionCodeSpace):
         _Pseudop = Pseudop
 
         if op is _Pseudop.CALL:
-            pop(args[0] + 1)  # positionals, function
-            push()  # result
+            pop(args[0])      # positionals
+            pop(args[1] * 2)  # kw:val pairs
+            pop()             # function
+            push()            # result
+
+        elif op is _Pseudop.CALL_KW:
+            pop(args[0])      # positionals
+            pop(args[1] * 2)  # kw:val pairs
+            pop(2)            # kwds, function
+            push()            # result
 
         elif op is _Pseudop.CALL_VAR:
-            pop(2)  # args, function
-            push()  # result
+            pop(args[0])      # positionals
+            pop(args[1] * 2)  # kw:val pairs
+            pop(2)            # args, function
+            push()            # result
 
         elif op is _Pseudop.CALL_VAR_KW:
-            pop(3)  # kwargs, args, function
-            push()  # result
+            pop(args[0])      # positionals
+            pop(args[1] * 2)  # kw:val pairs
+            pop(3)            # args, kwds, function
+            push()            # result
 
         elif op is _Pseudop.LAMBDA:
-            if args[1]:
-                pop()
-            if args[2]:
-                pop()
-            push()
-
-        elif op is _Pseudop.FORMAT:
-            pop()
-            if args[0] & 0x04:
-                pop()
+            pop(args[1])
+            pop(args[2] * 2)
             push()
 
         else:
@@ -653,10 +595,16 @@ def _const_index(of_list, value):
     # will consider False and 0, and True and 1 to be equivalent,
     # breaking any constant pools containing those values.
 
-    for index, found in enumerate(of_list):
-        if found is value:
-            return index
-    else:
+    if value in [0, 1]:
+        for index, found in enumerate(of_list):
+            if found is value:
+                return index
+        else:
+            assert False, "missing constant pool index for value %r" % value
+
+    try:
+        return of_list.index(value)
+    except ValueError:
         assert False, "missing constant pool index for value %r" % value
 
 
@@ -664,21 +612,19 @@ def apply_jump_labels(coll, jabs, jrel, labels):
     for coll_offset, name in jabs:
         target = labels[name]
 
-        coll_ext = coll[coll_offset]
-        coll_jmp = coll[coll_offset + 1]
+        coll_jmp = coll[coll_offset]
 
-        coll_ext[1] = (target >> 8) & 0xff
         coll_jmp[1] = target & 0xff
+        coll_jmp[2] = (target >> 8) & 0xff
 
     for coll_offset, name, off in jrel:
         target = labels[name]
-        target -= (off + 4)
+        target -= (off + 3)
 
-        coll_ext = coll[coll_offset]
-        coll_jmp = coll[coll_offset + 1]
+        coll_jmp = coll[coll_offset]
 
-        coll_ext[1] = (target >> 8) & 0xff
         coll_jmp[1] = target & 0xff
+        coll_jmp[2] = (target >> 8) & 0xff
 
 
 #

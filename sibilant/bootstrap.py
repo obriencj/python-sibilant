@@ -244,6 +244,10 @@ def __setup__(glbls):
     _val(sys, "sys")
 
 
+    _op(format, "__format_value__")
+    _op("".join, "__build_string__")
+
+
     # === mass re-export from other modules ==
 
     sd = specials.__dict__

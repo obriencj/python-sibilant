@@ -13,14 +13,10 @@
 # <http://www.gnu.org/licenses/>.
 
 
-from .cpython36 import CPython36
+from .cpython36 import SibilantCPython36
 
 
-class CPython37(CPython36):
-    """
-    SpecialCodeSpace emitting bytecode compatible with CPython version
-    3.7
-    """
+class SibilantCPython37(SibilantCPython36):
 
     # As of first pass, it looks like there shouldn't be bytecode
     # issues between 3.6 and 3.7 so we'll just import and rename the

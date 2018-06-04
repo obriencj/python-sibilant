@@ -622,18 +622,14 @@
   `(let [[src ,source] [glbls ,env] [fname ,filename]]
      (def import-from io IOBase)
      (def import-from sibilant.parse source_stream source_str)
-     (def import-from sibilant.module
-       fake_module_from_env init_module parse_time compile_time)
+     (def import-from sibilant.module init_module parse_time compile_time)
 
-     (define stream
-       (cond [(isinstance src str) (source_str src fname)]
-	     [(isinstance src IOBase) (source_stream src fname)]
-	     [(or (pair? src) (symbolish? src) (keyword? src))
-	      None]
-	     [else: src]))
-
-     (define mod (fake_module_from_env glbls))
-     (init_module mod stream filename: fname)
+     (var [stream
+	   (cond [(isinstance src str) (source_str src fname)]
+		 [(isinstance src IOBase) (source_stream src fname)]
+		 [(or (pair? src) (symbolish? src) (keyword? src)) None]
+		 [else: src])]
+	  [mod (init_module glbls stream filename: fname)])
 
      (unless (or (pair? src) (symbolish? src) (keyword? src))
        (setq src (parse_time mod)))
@@ -665,21 +661,18 @@
      (def import-from types CodeType)
      (def import-from sibilant.parse source_stream source_str)
      (def import-from sibilant.module
-       fake_module_from_env init_module parse_time compile_time run_time)
+	  init_module parse_time compile_time run_time)
 
      (cond
       [(isinstance src CodeType) (py-eval src glbls fname)]
 
       [else:
-       (define stream
-	 (cond [(isinstance src str) (source_str src fname)]
-	       [(isinstance src IOBase) (source_stream src fname)]
-	       [(or (pair? src) (symbolish? src) (keyword? src))
-		None]
-	       [else: src]))
-
-       (define mod  (fake_module_from_env glbls))
-       (init_module mod stream filename: ,filename)
+       (var [stream
+	     (cond [(isinstance src str) (source_str src fname)]
+		   [(isinstance src IOBase) (source_stream src fname)]
+		   [(or (pair? src) (symbolish? src) (keyword? src)) None]
+		   [else: src])]
+	    [mod (init_module glbls stream filename: ,filename)])
 
        (unless (or (pair? src) (symbolish? src) (keyword? src))
 	 (setq src (parse_time mod)))
