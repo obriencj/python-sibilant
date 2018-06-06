@@ -100,7 +100,8 @@
 
 (def class MacroLetTest (TestCase)
 
-     (def function test_simple_macro_let [self]
+
+     (def function test_simple [self]
 
 	  (self.assertEqual
 
@@ -117,7 +118,8 @@
 
 	  None)
 
-     (def function test_shadowing_macro_let [self]
+
+     (def function test_shadowed [self]
 	  (macro-let
 	   [[m1 [a b] `(+ ,a ,b)]]
 
