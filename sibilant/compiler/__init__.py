@@ -331,6 +331,7 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
         super().__init__(**kwopts)
 
         self.env = None
+        self.env_tmp_compiled = []
 
         self.tco_enabled = tco_enabled
         self.tailcalls = 0
@@ -343,6 +344,7 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
     def __del__(self):
         super().__del__()
         del self.env
+        del self.env_tmp_compiled
 
 
     def activate(self, environment):
@@ -808,6 +810,15 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
                                    filename=self.filename)
 
 
+    @contextmanager
+    def tmp_compiled(self, tmp_env: Mapping):
+        assert isinstance(tmp_env, Mapping)
+
+        self.env_tmp_compiled.append(tmp_env)
+        yield
+        self.env_tmp_compiled.pop()
+
+
     def find_compiled(self, namesym: Symbol):
         """
         Search for and return a Compiled instance within the activated
@@ -822,12 +833,11 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
             # now ... no.
             return None
 
-        # TODO: compiler should keep a local stack of macros defined
-        # via macrolet, and keyd by symbol or gensym (rather than by
-        # str name). If that falls through, then try the module-level
-        # function which only peeks in env and builtins.
-
-        return env_find_compiled(self.env, namesym)
+        for tmp_env in reversed(self.env_tmp_compiled):
+            if namesym in tmp_env:
+                return tmp_env[namesym]
+        else:
+            return env_find_compiled(self.env, namesym)
 
 
 def compile_expression(source_obj, env, filename="<anon>",

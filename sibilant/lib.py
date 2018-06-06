@@ -258,7 +258,7 @@ class lazygensym(object):
             return True
 
         sym = self._symbol
-        return (sym and (sym is other))
+        return bool(sym and (sym is other))
 
 
     def __ne__(self, other):
