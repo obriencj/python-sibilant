@@ -39,6 +39,13 @@
 	 (macro ,(str name) (function ,name ,formals ,@body)))))))
 
 
+(defmacro defspecial [name formals . body]
+     "Defines a Special instance in the current module"
+
+     `(define-global ,name
+	(special ,(str name) (function ,name ,formals ,@body))))
+
+
 (defmacro defalias [name . body]
   "Defines an Alias Macro in the current module"
   `(define-global ,name
@@ -1090,6 +1097,33 @@
   `(let-gensyms [[_all_ (! get (globals) "__all__" (#list))]]
      (! extend _all_ (#list ,@(map str syms)))
      (setf (global __all__) (sorted (set _all_)))))
+
+
+;; === macro-let ====
+
+;; macro-let needs to be a special, because it compiles all the way
+;; down and doesn't result in an expanded form. If it were a macro, it
+;; wouldn't be able to do this, as a macro always expands into
+;; something.
+(defspecial macro-let [comp source tc]
+  (define-values [called-by [declarations body]] source)
+
+  (define tmp-macros
+    (eval
+     `(#dict
+       ,@(#gen [[macro-name [macro-formals macro-body]]
+		(unpack declarations)]
+
+	    `(',macro-name
+	      ((lambda [M]
+		 (set-attr M _proper ,(proper? macro-formals))
+		 M)
+	       (macro ,(str macro-name)
+		 (function ,macro-name ,macro-formals
+			   ,@macro-body))))))))
+
+  (with [_ (! tmp_compiled comp tmp-macros)]
+	(! compile comp `{,@body} tc None)))
 
 
 ;;
