@@ -811,20 +811,12 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
 
 
     @contextmanager
-    def tmp_compiled(self, tmp_env):
-        self.push_tmp_compiled(tmp_env)
-        yield
-        self.pop_tmp_compiled()
+    def tmp_compiled(self, tmp_env: Mapping):
+        assert isinstance(tmp_env, Mapping)
 
-
-    def push_tmp_compiled(self, tmp_env: Mapping):
-        print("push_tmp_compiled", tmp_env)
         self.env_tmp_compiled.append(tmp_env)
-
-
-    def pop_tmp_compiled(self):
-        off = self.env_tmp_compiled.pop()
-        print("pop_tmp_compiled", off)
+        yield
+        self.env_tmp_compiled.pop()
 
 
     def find_compiled(self, namesym: Symbol):
