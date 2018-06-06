@@ -35,10 +35,11 @@ license: LGPL v.3
 
 
 (def function repl [mod stdin: None stdout: None stderr: None]
-     (define env mod.__dict__)
-     (setq stdin (or stdin sys.stdin))
-     (setq stdout (or stdout sys.stdout))
-     (setq stderr (or stderr sys.stderr))
+
+     (var [env mod.__dict__]
+	  [stdin (or stdin sys.stdin)]
+	  [stdout (or stdout sys.stdout)]
+	  [stderr (or stderr sys.stderr)])
 
      (try
       (import readline)
@@ -49,7 +50,7 @@ license: LGPL v.3
 	{(var [line (input "sibilant > ")]
 	      [source (source_str line filename: "<stdin>")])
 
-	 (init_module mod source)
+	 (setq mod (init_module mod source))
 
 	 (define result (load_module_1 mod))
 	 (setf (item env "_") result)

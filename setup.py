@@ -48,6 +48,9 @@ setup(
     packages = [
         "sibilant",
         "sibilant.compiler",
+        "sibilant.compiler.targets",
+        "sibilant.pseudops",
+        "sibilant.pseudops.targets",
         "sibilant.site",
     ],
 
@@ -74,10 +77,10 @@ setup(
     },
 
     # todo: make this optional and just for cli
-    install_requires = ["appdirs", ],
+    # install_requires = ["appdirs", ],
 
-    # targets only support Python 3.5 through 3.6
-    python_requires = ">=3.5, <3.7",
+    # targets only support Python 3.5 through 3.7
+    python_requires = ">=3.5, <3.8",
 
     description = "LISP dialect for Python",
 

@@ -36,11 +36,13 @@ license: LGPL v.3
 """
 
 
+from collections import MutableMapping
 from functools import partial
 from os.path import split, getmtime, getsize
 from types import ModuleType
 
-from sibilant.compiler import Mode, code_space_for_version
+from sibilant.compiler import Mode, compiler_for_version
+from sibilant.lib import symbol
 from sibilant.tco import trampoline, tailcall, tailcall_enable
 from sibilant.parse import default_reader, source_open, source_str
 
@@ -61,14 +63,38 @@ def new_module(name, package_name=None):
     return mod
 
 
-class FakeModule():
-    pass
+class FakeModule(object):
+    """
+    A simple object wrapper for the given dictionary environment.
+    """
+
+    # note that this cannot inherit from ModuleType, as that does not
+    # allow instances to replace the __dict__ attribute. We don't want
+    # to make a copy, or back-fill the existing __dict__ either, since
+    # we really just want to be a wrapper.
+
+    def __init__(self, env=None):
+        if env is None:
+            # whatever, we've already had an instance allocated with its own
+            # dict, just use that.
+            return
+        elif isinstance(env, MutableMapping):
+            # cool, use this environment instead of the one we were
+            # allocated with.
+            self.__dict__ = env
+        else:
+            # this might fail in instances where we cannot snag an
+            # object's underlying vars, but we'll give it a try at
+            # least.
+            self.__dict__ = vars(env)
 
 
 def fake_module_from_env(env):
-    module = FakeModule()
-    module.__dict__ = env
-    return module
+    """
+    Produce an object wrapper for the given environment
+    """
+
+    return FakeModule(env)
 
 
 def init_module(module, source_stream,
@@ -76,6 +102,22 @@ def init_module(module, source_stream,
                 reader=None, compiler=None, compiler_factory=None,
                 compiler_factory_params=None,
                 evaluator=None):
+
+    """
+    Initializes a module object for use with sibilant.
+
+    The module can either be an object, or a MutableMapping instance
+    such as a dict. If it is a mapping, then a new FakeModule will be
+    creating to act as an object wrapper for the mapping.
+
+    Returns the module object or the FakeModule that was created.
+    """
+
+    # while FakeModule can wrap another object as needed, we want to
+    # preserve the object we're passed in this case, and so only wrap
+    # MutableMappings.
+    if isinstance(module, MutableMapping):
+        module = fake_module_from_env(module)
 
     if defaults:
         module.__dict__.update(defaults)
@@ -93,7 +135,7 @@ def init_module(module, source_stream,
     module.__stream__ = source_stream
 
     if builtins is None:
-        builtins = __import__("sibilant.builtins").builtins
+        import sibilant.builtins as builtins
     module.__builtins__ = builtins
 
     if reader:
@@ -115,26 +157,39 @@ def init_module(module, source_stream,
 
 
 def get_module_reader(module):
-    try:
-        reader = module.__reader__
-    except AttributeError:
+    reader = getattr(module, "__reader__", None)
+
+    if reader is None:
         reader = default_reader
         module.__reader__ = reader
 
     return reader
 
 
+def set_module_reader(module, reader):
+    module.__reader__ = reader
+
+
 def get_module_stream(module):
-    try:
-        stream = module.__stream__
-    except AttributeError:
+    stream = getattr(module, "__stream__", None)
+
+    if stream is None:
         stream = source_str("", "<empty>")
         module.__stream__ = stream
 
     return stream
 
 
+def set_module_stream(module, stream):
+    module.__stream__ = stream
+
+
 def parse_time(module):
+    """
+    Enter Parse-Time on the module, producing a single top-level
+    source expression using the modules's reader and source stream.
+    """
+
     reader = get_module_reader(module)
     stream = get_module_stream(module)
 
@@ -142,10 +197,15 @@ def parse_time(module):
 
 
 def get_module_compiler_factory_params(module):
-    try:
-        params = module.__compiler_factory_params__
+    """
+    Get the compiler factory params from the module. If the global
+    variable __compiler_factory_params__ is not set, assign and return
+    the default parameters dict.
+    """
 
-    except AttributeError:
+    params = getattr(module, "__compiler_factory_params__", None)
+
+    if params is None:
         params = {
             "name": getattr(module, "__name__", None),
             "filename": getattr(module, "__file__", None),
@@ -157,21 +217,35 @@ def get_module_compiler_factory_params(module):
 
 
 def get_module_compiler_factory(module):
-    try:
-        factory = module.__compiler_factory__
+    """
+    Get the compiler factory for the given module. This is the
+    function which will be invoked with the compiler factory params to
+    produce the default module compiler instance.
+    """
 
-    except AttributeError:
-        factory = code_space_for_version()
+    factory = getattr(module, "__compiler_factory__", None)
+
+    if factory is None:
+        factory = compiler_for_version()
         module.__compiler_factory__ = factory
 
     return factory
 
 
-def get_module_compiler(module):
-    try:
-        compiler = module.__compiler__
+def set_module_compiler_factory(module, factory):
+    module.__compiler_factory__ = factory
 
-    except AttributeError:
+
+def get_module_compiler(module):
+    """
+    Get the compiler instance for the given module. If it has not been
+    assigned to the __compiler__ global variable, produce a new
+    compiler instance, assign it, and return it.
+    """
+
+    compiler = getattr(module, "__compiler__", None)
+
+    if compiler is None:
         factory = get_module_compiler_factory(module)
         params = get_module_compiler_factory_params(module)
         compiler = factory(**params)
@@ -180,14 +254,19 @@ def get_module_compiler(module):
     return compiler
 
 
+def set_module_compiler(module, compiler):
+    module.__compiler__ = compiler
+
+
 def compile_time(module, source_expr):
     """
-    Performs compile-time operations on source_expr in a module
+    Performs Compile-Time on a source expression, using the module's
+    compiler. Produces the compiled result.
     """
 
     compiler = get_module_compiler(module)
-    module_globals = module.__dict__
-    with compiler.activate(module_globals):
+
+    with compiler.active_context(module):
         compiler.add_expression_with_return(source_expr)
         code_obj = compiler.complete()
 
@@ -211,10 +290,16 @@ def hook_compile_time(hook_fn, compile_time=compile_time):
 
 
 def get_module_evaluator(module):
-    try:
-        evaluator = module.__evaluator__
+    """
+    Given a module, find its evaluator function. If one hasn't been
+    assigned to the global __evaluator__ variable, then use a
+    trampoline-wrapped eval as a default, and assign it as
+    __evaluator__ for use next time.
+    """
 
-    except AttributeError:
+    evaluator = getattr(module, "__evaluator__", None)
+
+    if evaluator is None:
         mod_globals = module.__dict__
         teval = trampoline(eval)
 
@@ -227,14 +312,29 @@ def get_module_evaluator(module):
     return evaluator
 
 
+def set_module_evaluator(module, evaluator):
+    module.__evaluator__ = evaluator
+
+
 @trampoline
 def run_time(module, code_obj):
+    """
+    The Run-Time phase for a module. Evaluates the recently compiled
+    code_obj in the module's environment using the module's evaluator,
+    and produces the expression's resulting value.
+    """
+
     evaluator = get_module_evaluator(module)
     return tailcall(evaluator)(code_obj)
 
 
 @tailcall_enable
 def partial_run_time(module, code_obj):
+    """
+    Produces a callable which when called will execute the Run-Time
+    phase for the given module for the the given compiled code_obj.
+    """
+
     evaluator = get_module_evaluator(module)
     return partial(evaluator, code_obj)
 
@@ -242,33 +342,52 @@ def partial_run_time(module, code_obj):
 def load_module(module, parse_time=parse_time,
                 compile_time=compile_time, run_time=run_time):
 
-    try:
-        while True:
-            load_module_1(module, parse_time, compile_time, run_time)
+    """
+    Parse, compile, and evaluate all of the expressions in a module.
+    """
 
-    except StopIteration:
-        pass
+    while True:
+        source_expr = parse_time(module)
+        if source_expr is None:
+            break
+
+        code_obj = compile_time(module, source_expr)
+        run_time(module, code_obj)
 
 
 def iter_load_module(module, parse_time=parse_time,
                      compile_time=compile_time, run_time=run_time):
 
+    """
+    Iterator which reads a single expression from a module's source
+    stream, compile it, evaluate it, yields the result, then repeats
+    until the source stream is empty.
+    """
+
     while True:
-        yield load_module_1(module, parse_time, compile_time, run_time)
+        source_expr = parse_time(module)
+        if source_expr is None:
+            break
+
+        code_obj = compile_time(module, source_expr)
+        yield run_time(module, code_obj)
 
 
 @trampoline
 def load_module_1(module, parse_time=parse_time,
                   compile_time=compile_time, run_time=run_time):
 
+    """
+    Parse a single expression from a module's source stream, compile
+    it, evaluate it, and return the result.
+    """
+
     source_expr = parse_time(module)
-
     if source_expr is None:
-        raise StopIteration
+        return None
 
-    else:
-        code_obj = compile_time(module, source_expr)
-        return tailcall(run_time)(module, code_obj)
+    code_obj = compile_time(module, source_expr)
+    return tailcall(run_time)(module, code_obj)
 
 
 def exec_marshal_module(glbls, code_objs, builtins=None):
@@ -276,8 +395,8 @@ def exec_marshal_module(glbls, code_objs, builtins=None):
     Invoked during loading of modules expored via marshal_wrapper
     """
 
-    mod = fake_module_from_env(glbls)
-    init_module(mod, None, builtins=builtins)
+    # mod = fake_module_from_env(glbls)
+    mod = init_module(glbls, None, builtins=builtins)
 
     # skips the read time and compile time stages of import, just
     # performs run time for every compiled expression to set up the
@@ -292,9 +411,14 @@ def exec_marshal_module(glbls, code_objs, builtins=None):
 def marshal_wrapper(code_objs, filename=None, mtime=0, source_size=0,
                     builtins_name=None):
 
+    """
+    Produce a collection of bytes representing the compiled form of a
+    series of statements (as compiled code objects).
+    """
+
     from importlib._bootstrap_external import _code_to_bytecode
 
-    factory = code_space_for_version()
+    factory = compiler_for_version()
     codespace = factory(filename=filename, mode=Mode.MODULE)
 
     # we can't just have the code object in the file, because we
@@ -312,19 +436,19 @@ def marshal_wrapper(code_objs, filename=None, mtime=0, source_size=0,
     # .lspyc files -- but I'd prefer to be able to just reuse the
     # existing python loader for .pyc
 
-    with codespace.activate({}):
+    with codespace.active_context({}):
 
         # import and obtain sibilant.module.exec_marshal_module
         codespace.pseudop_const(0)
         codespace.pseudop_const("exec_marshal_module")
         codespace.pseudop_build_tuple(1)
-        codespace.pseudop_import_name("sibilant.module")
-        codespace.pseudop_import_from("exec_marshal_module")
+        codespace.pseudop_import_name(symbol("sibilant.module"))
+        codespace.pseudop_import_from(symbol("exec_marshal_module"))
         codespace.pseudop_rot_two()
         codespace.pseudop_pop()
 
         # argument 1. globals()
-        codespace.pseudop_get_var("globals")
+        codespace.pseudop_get_var(symbol("globals"))
         codespace.pseudop_call(0)
 
         # argument 2. tuple(code_objs)
@@ -350,6 +474,11 @@ def marshal_wrapper(code_objs, filename=None, mtime=0, source_size=0,
 def compile_to_file(name, pkgname, source_file, dest_file,
                     builtins_name=None):
 
+    """
+    Produce a python compiled bytecode file from a sibilant source
+    code file.
+    """
+
     mtime = getmtime(source_file)
     source_size = getsize(source_file)
 
@@ -360,7 +489,7 @@ def compile_to_file(name, pkgname, source_file, dest_file,
 
     with source_open(source_file) as source_stream:
         mod = new_module(name, package_name=pkgname)
-        init_module(mod, source_stream)
+        mod = init_module(mod, source_stream)
         load_module(mod, compile_time=hook_compile_time(accumulate))
 
     bytecode = marshal_wrapper(code_objs, filename=source_file,

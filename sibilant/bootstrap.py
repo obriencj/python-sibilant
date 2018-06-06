@@ -45,15 +45,21 @@ def __setup__(glbls):
 
     import sys
 
+    from collections import namedtuple
     from copy import copy, deepcopy
     from fractions import Fraction as fraction
+    from decimal import Decimal as decimal
     from functools import partial, reduce, wraps
+    from itertools import chain, islice, repeat
+    from math import floor, ceil
 
     import sibilant.lib as lib
     import sibilant.compiler as compiler
     import sibilant.tco as tco
     import sibilant.specials as specials
     import sibilant.operators as operators
+
+    from sibilant.parse import Atom as atom
 
 
     _all_ = []
@@ -80,6 +86,169 @@ def __setup__(glbls):
         _op(lib.TypePredicate(name + "?", type_), None, True)
 
 
+    # == sibilant data types ===
+
+    _ty(lib.pair, "pair")
+    _op(lib.cons, "cons")
+    _op(lib.car, "car")
+    _op(lib.setcar, "set-car")
+    _op(lib.cdr, "cdr")
+    _op(lib.setcdr, "set-cdr")
+    _op(lib.is_proper, "proper?")
+    _op(lib.is_recursive, "recursive?")
+    _op(lib.build_proper, "build-proper")
+    _op(lib.unpack, "unpack")
+    _val(lib.nil, "nil")
+    _op(lib.is_nil, "nil?")
+
+    _op(lib.getderef, "deref")
+    _op(lib.setderef, "set-deref")
+    _op(lib.clearderef, "del-deref")
+
+    _ty(lib.symbol, "symbol")
+    _ty(lib.keyword, "keyword")
+    _op(lib.gensym, "gensym")
+    _ty(lib.lazygensym, "lazygensym")
+
+    _ty(lib.values, "values")
+
+    _op(lib.build_unpack_pair, "build-unpack-pair")
+
+    _op(lib.apply, "apply")
+    _op(lib.reapply, "reapply")
+
+    _op(lib.repeatedly, "repeatedly")
+
+    _op(lib.last, "last")
+    _op(lib.take, "take")
+
+    _op(lib.first, "first")
+    _op(lib.second, "second", rename=True)
+    _op(lib.third, "third", rename=True)
+    _op(lib.fourth, "fourth", rename=True)
+    _op(lib.fifth, "fifth", rename=True)
+    _op(lib.sixth, "sixth", rename=True)
+    _op(lib.seventh, "seventh", rename=True)
+    _op(lib.eighth, "eighth", rename=True)
+    _op(lib.ninth, "ninth", rename=True)
+    _op(lib.tenth, "tenth", rename=True)
+
+
+    # === sibilant compiler builtins ===
+
+    _ty(compiler.Special, "special")
+    _ty(compiler.Syntax, "syntax")
+    _ty(compiler.Macro, "macro")
+    _ty(compiler.Alias, "alias")
+    _ty(compiler.Operator, "operator")
+
+    _op(tco.trampoline, "trampoline")
+    _op(tco.tailcall, "tailcall")
+    _op(tco.tailcall_disable, "tailcall-disable")
+    _op(tco.tailcall_enable, "tailcall-enable")
+
+    _op(compiler.current, "active-compiler")
+
+    _ty(atom, "atom")
+
+
+    # === some python builtin stuff ===
+
+    _op(namedtuple, "namedtuple")
+    _ty(partial, "partial")
+    _op(wraps, "wraps")
+    _op(copy, "copy")
+    _op(deepcopy, "deep-copy")
+
+    _op(floor, "floor")
+    _op(ceil, "ceil")
+
+    _ty(chain, "chain")
+    _ty(islice, "islice")
+    _ty(repeat, "repeat")
+
+    _ty(tuple, "tuple")
+    _ty(list, "list")
+    _ty(dict, "dict")
+    _ty(set, "set")
+    _ty(frozenset, "frozenset")
+
+    _op(id, "id")
+
+    _op(lambda value: hasattr(value, "__iter__"),
+        "iterable?", rename=True)
+
+    _ty(map, "map")
+    _ty(zip, "zip")
+    _ty(filter, "filter")
+    _ty(enumerate, "enumerate")
+
+    _op(reduce, "reduce")
+
+    _op(callable, "callable?")
+    _op(next, "next")
+    _op(len, "len")
+    _op(getattr, "getattr")
+    _op(setattr, "setattr")
+    _op(hasattr, "hasattr")
+    _op(isinstance, "isinstance")
+    _op(open, "open")
+    _op(input, "input")
+    _op(print, "print")
+
+    _ty(object, "object")
+    _ty(str, "bytes")
+    _ty(str, "str")
+    _ty(bool, "bool")
+    _ty(int, "int")
+    _ty(float, "float")
+    _ty(complex, "complex")
+    _ty(fraction, "fraction")
+    _ty(decimal, "decimal")
+    _ty(range, "range")
+    _ty(memoryview, "memoryview")
+    _ty(slice, "slice")
+
+    _op(sorted, "sorted")
+    _ty(reversed, "reversed")
+
+    _op(ascii, "ascii")
+    _op(chr, "chr")
+    _op(ord, "ord")
+    _op(min, "min")
+    _op(max, "max")
+    _op(abs, "abs")
+    _op(oct, "oct")
+    _op(hex, "hex")
+    _op(all, "all")
+    _op(any, "any")
+
+    _op(hash, "hash")
+    _ty(type, "type")
+
+    _op(repr, "repr")
+    _op(help, "help")
+    _op(dir, "dir")
+    _op(vars, "vars")
+
+    _op(__import__, "py-import")
+    _op(__import__, "__import__")
+    _op(globals, "globals")
+    _op(locals, "locals")
+    _op(compile, "py-compile")
+    _op(eval, "py-eval")
+    _ty(super, "py-super")
+    _op(iter, "py-iter")
+
+    _op(sys.exit, "exit")
+
+    _val(sys, "sys")
+
+
+    _op(format, "__format_value__")
+    _op("".join, "__build_string__")
+
+
     # === mass re-export from other modules ==
 
     sd = specials.__dict__
@@ -99,138 +268,6 @@ def __setup__(glbls):
             glbls[name] = value
             _all_.append(name)
 
-
-    # == sibilant data types ===
-
-    _ty(lib.pair, "pair")
-    _op(lib.cons, "cons")
-    _op(lib.car, "car")
-    _op(lib.setcar, "set-car")
-    _op(lib.cdr, "cdr")
-    _op(lib.setcdr, "set-cdr")
-    _op(lib.is_proper, "proper?")
-    _op(lib.build_proper, "build-proper")
-    _val(lib.nil, "nil")
-    _op(lib.is_nil, "nil?")
-
-    _ty(lib.symbol, "symbol")
-    _ty(lib.keyword, "keyword")
-
-    _op(lib.build_unpack_pair, "build-unpack-pair")
-
-    _op(lib.reapply, "reapply")
-
-    _ty(lib.values, "values")
-
-    _op(lib.first, "first")
-    _op(lib.second, "second", rename=True)
-    _op(lib.third, "third", rename=True)
-    _op(lib.fourth, "fourth", rename=True)
-    _op(lib.fifth, "fifth", rename=True)
-    _op(lib.sixth, "sixth", rename=True)
-    _op(lib.seventh, "seventh", rename=True)
-    _op(lib.eighth, "eighth", rename=True)
-    _op(lib.ninth, "ninth", rename=True)
-    _op(lib.tenth, "tenth", rename=True)
-
-    _op(lib.last, "last")
-
-
-    # === sibilant compiler builtins ===
-
-    _ty(compiler.Special, "special")
-    _ty(compiler.Syntax, "syntax")
-    _ty(compiler.Macro, "macro")
-    _ty(compiler.Alias, "alias")
-    _ty(compiler.Operator, "operator")
-
-    _op(tco.trampoline, "trampoline")
-    _op(tco.tailcall, "tailcall")
-    _op(tco.tailcall_disable, "tailcall-disable")
-    _op(tco.tailcall_enable, "tailcall-enable")
-
-    _op(compiler.current, "active-compiler")
-
-
-    # === some python builtin types ===
-
-    _ty(partial, "partial")
-    _op(wraps, "wraps")
-    _op(copy, "copy")
-    _op(deepcopy, "deep-copy")
-
-    _ty(tuple, "tuple")
-    _ty(list, "list")
-    _ty(dict, "dict")
-    _ty(set, "set")
-    _ty(frozenset, "frozenset")
-
-    _op(lambda value: hasattr(value, "__iter__"),
-        "iterable?", rename=True)
-
-
-    # === some python builtin functions ===
-
-    _ty(map, "map")
-    _ty(zip, "zip")
-    _ty(filter, "filter")
-    _ty(enumerate, "enumerate")
-
-    _op(reduce, "reduce")
-
-    _op(callable, "callable?")
-    _op(next, "next")
-    _op(len, "len")
-    _op(format, "format")
-    _op(getattr, "getattr")
-    _op(setattr, "setattr")
-    _op(isinstance, "isinstance")
-    _op(open, "open")
-    _op(input, "input")
-    _op(print, "print")
-
-    _ty(object, "object")
-    _ty(str, "bytes")
-    _ty(str, "str")
-    _ty(type, "type")
-    _ty(bool, "bool")
-    _ty(int, "int")
-    _ty(float, "float")
-    _ty(complex, "complex")
-    _ty(fraction, "fraction")
-    _ty(range, "range")
-    _ty(memoryview, "memoryview")
-    _ty(slice, "slice")
-
-    _op(sorted, "sorted")
-    _ty(reversed, "reversed")
-
-    _op(chr, "chr")
-    _op(ord, "ord")
-    _op(min, "min")
-    _op(max, "max")
-    _op(abs, "abs")
-    _op(oct, "oct")
-    _op(hex, "hex")
-    _op(all, "all")
-    _op(any, "any")
-
-    _op(hash, "hash")
-    _op(super, "super")
-
-    _op(repr, "repr")
-    _op(help, "help")
-    _op(dir, "dir")
-    _op(vars, "vars")
-
-    _op(__import__, "py-import")
-    _op(__import__, "__import__")
-    _op(globals, "globals")
-    _op(locals, "locals")
-    _op(compile, "py-compile")
-    _op(eval, "py-eval")
-
-    _op(sys.exit, "exit")
 
     # done with setup
     # return tuple(_all_)

@@ -14,21 +14,26 @@
 
 
 from functools import partial
+from itertools import chain, islice, repeat
 
 import operator
 
-from ._types import symbol, keyword
+from ._types import symbol, keyword, gensym
 from ._types import pair, nil, cons, car, cdr, setcar, setcdr
 from ._types import build_unpack_pair
 from ._types import reapply
 from ._types import build_tuple, build_list, build_set, build_dict
 from ._types import values
+from ._types import getderef, setderef, clearderef
 
 
 __all__ = (
     "SibilantException", "NotYetImplemented",
     "symbol", "is_symbol",
     "keyword", "is_keyword",
+
+    "gensym",
+    "lazygensym", "is_lazygensym",
 
     "pair", "cons", "nil",
     "car", "cdr", "setcar", "setcdr",
@@ -37,11 +42,13 @@ __all__ = (
     "build_proper", "unpack",
     "build_unpack_pair",
 
-    "reapply", "repeatedly", "last",
+    "reapply", "repeatedly", "last", "take",
 
     "build_tuple", "build_list", "build_set", "build_dict",
 
     "values",
+
+    "getderef", "setderef", "clearderef",
 )
 
 
@@ -136,21 +143,34 @@ def fill_position(value, position, follow=True):
         value.fill_position(position, follow)
 
 
-def repeatedly(value):
-    while True:
-        yield value
+def apply(fun, args=(), kwargs={}):
+    # todo: move to _types
+    if is_pair(args):
+        args = args.unpack()
+    return fun(*args, **kwargs)
+
+
+def repeatedly(work, *args, **kwds):
+    # todo: move to _types
+    if args or kwds:
+        invoke = values(*args, **kwds)
+        while True:
+            yield invoke(work)
+    else:
+        while True:
+            yield work()
 
 
 cadr = lambda c: car(cdr(c))  # noqa
 caddr = lambda c: car(reapply(cdr, c, 2))  # noqa
 cadddr = lambda c: car(reapply(cdr, c, 3))  # noqa
-caddddr = lambda c: car(repply(cdr, c, 4))  # noqa
-cadddddr = lambda c: car(repply(cdr, c, 5))  # noqa
-caddddddr = lambda c: car(repply(cdr, c, 6))  # noqa
-cadddddddr = lambda c: car(repply(cdr, c, 7))  # noqa
-caddddddddr = lambda c: car(repply(cdr, c, 8))  # noqa
-cadddddddddr = lambda c: car(repply(cdr, c, 9))  # noqa
-caddddddddddr = lambda c: car(repply(cdr, c, 10))  # noqa
+caddddr = lambda c: car(reapply(cdr, c, 4))  # noqa
+cadddddr = lambda c: car(reapply(cdr, c, 5))  # noqa
+caddddddr = lambda c: car(reapply(cdr, c, 6))  # noqa
+cadddddddr = lambda c: car(reapply(cdr, c, 7))  # noqa
+caddddddddr = lambda c: car(reapply(cdr, c, 8))  # noqa
+cadddddddddr = lambda c: car(reapply(cdr, c, 9))  # noqa
+caddddddddddr = lambda c: car(reapply(cdr, c, 10))  # noqa
 
 first = car
 second = cadr
@@ -166,8 +186,8 @@ tenth = cadddddddddr
 
 def last(seq, empty=None):
     """
-    returns the last item in an iterable sequence, or undefined if the
-    sequence is empty
+    returns the last item in an iterable sequence, or a default empty
+    value if the sequence has no items
     """
 
     if is_pair(seq):
@@ -179,5 +199,74 @@ def last(seq, empty=None):
     return val
 
 
+class sentinel():
+    def __init__(self, words):
+        self._r = "<{}>".format(words)
+
+    def __repr__(self):
+        return self._r
+
+
+omit_padding = sentinel("omit padding")
+
+
+def take(seq, count, padding=omit_padding):
+    """
+    returns a list of up to count items taken from the given sequence.
+
+    if padding is specified, then any sequence too short will be
+    padded at its end with the given value
+    """
+
+    if padding is omit_padding:
+        return list(islice(seq, count))
+    else:
+        return list(islice(chain(seq, repeat(padding)), count))
+
+
+class lazygensym(object):
+
+
+    def __init__(self, name=None, predicate=None):
+        self._name = name
+        self._predicate = predicate
+        self._symbol = None
+
+
+    def __call__(self):
+        sym = self._symbol
+        if sym is None:
+            sym = gensym(self._name, self._predicate)
+            self._symbol = sym
+        return sym
+
+
+    def __str__(self):
+        return str(self())
+
+
+    def __repr__(self):
+        sym = self._symbol
+        if sym is None:
+            return "<lazygensym %s#...>" % self._name
+        else:
+            return "<lazygensym %s>" % sym
+
+
+    def __eq__(self, other):
+        if self is other:
+            return True
+
+        sym = self._symbol
+        return bool(sym and (sym is other))
+
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+
+is_lazygensym = TypePredicate("lazygensym?", lazygensym)
+
+
 #
-# Th end.
+# The end.

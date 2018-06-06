@@ -106,7 +106,7 @@ static PyObject *atom_new(PyObject *name,
 			  PyObject *intern,
 			  PyTypeObject *type) {
 
-  SibInternedAtom *n = NULL;
+  SibInternedAtom *atom = NULL;
 
   if(! name) {
     PyErr_SetString(PyExc_TypeError, "interned atom requires a name");
@@ -119,30 +119,32 @@ static PyObject *atom_new(PyObject *name,
     Py_INCREF(name);
   }
 
-  n = (SibInternedAtom *) PyDict_GetItem(intern, name);
+  atom = (SibInternedAtom *) PyDict_GetItem(intern, name);
 
-  if (! n) {
-    n = PyObject_New(SibInternedAtom, type);
-    n->name = name;
-    n->weakrefs = NULL;
+  if (! atom) {
+    atom = PyObject_New(SibInternedAtom, type);
+    atom->name = name;
 
     // DEBUGMSG("allocating and interning new atom", n);
 
-    PyDict_SetItem(intern, name, (PyObject *) n);
+    PyDict_SetItem(intern, name, (PyObject *) atom);
 
     // make the intern a borrowed ref. This allows refcount to drop to
     // zero, at which point the deallocation of the symbol will clear
     // it from the intern dict.
-    Py_DECREF(n);
+    Py_DECREF(atom);
 
   } else {
     // DEBUGMSG("returning previously interned atom", n);
 
-    Py_INCREF(n);
+    Py_INCREF(atom);
     Py_DECREF(name);
   }
 
-  return (PyObject *) n;
+  // DEBUGMSG("here is an atom", atom);
+  // printf("**  refcount: %zi\n", ((PyObject *) atom)->ob_refcnt);
+
+  return (PyObject *) atom;
 }
 
 
@@ -181,10 +183,11 @@ PyObject *sib_symbol(PyObject *name) {
 static void symbol_dealloc(PyObject *self) {
   SibInternedAtom *s = (SibInternedAtom *) self;
 
-  if (s->weakrefs != NULL)
-    PyObject_ClearWeakRefs(self);
+  // DEBUGMSG("symbol_dealloc", self);
+  // DEBUGMSG(" was named", s->name);
 
-  PyDict_DelItem(intern_syms, s->name);
+  if (intern_syms)
+    PyDict_DelItem(intern_syms, s->name);
 
   Py_DECREF(s->name);
   Py_TYPE(self)->tp_free(self);
@@ -272,11 +275,81 @@ PyTypeObject SibSymbolType = {
   .tp_methods = symbol_methods,
   .tp_new = symbol_new,
   .tp_dealloc = symbol_dealloc,
-  .tp_weaklistoffset = offsetof(SibInternedAtom, weakrefs),
 
   .tp_repr = atom_repr,
   .tp_str = atom_str,
 };
+
+
+/* === gensym === */
+
+
+static Py_uhash_t gen_counter = 97531UL;
+
+
+PyObject *sib_gensym(PyObject *name, PyObject *predicate) {
+  PyObject *maybe_name = NULL;
+  PyObject *maybe_symbol = NULL;
+  PyObject *maybe = NULL;
+
+  while (! maybe_symbol) {
+
+    // generate a name
+    if (name) {
+      maybe_name = PyUnicode_FromFormat("%S#%x", name, gen_counter);
+    } else {
+      maybe_name = PyUnicode_FromFormat("<gensym>#%x", gen_counter);
+    }
+    if (! maybe_name)
+      return NULL;
+
+    // I don't know, some silliness to make the index number bounce
+    // all over the damned place
+    gen_counter = (gen_counter + (unsigned long) maybe_name);
+    if (! gen_counter)
+      gen_counter = 97531UL;
+    gen_counter = gen_counter * _PyHASH_MULTIPLIER;
+
+    // check whether a symbol with that name is already allocated. If
+    // it is, then this is not a unique symbol, try again.
+    if (PyDict_GetItem(intern_syms, maybe_name)) {
+      Py_DECREF(maybe_name);
+      continue;
+
+    } else {
+      // reserves the symbol for this gensym attempt
+      maybe_symbol = sib_symbol(maybe_name);
+      Py_DECREF(maybe_name);
+    }
+
+    if (predicate) {
+      maybe = PyObject_CallFunctionObjArgs(predicate, maybe_symbol, NULL);
+      if (! maybe)
+	return NULL;
+
+      if (PyObject_Not(maybe))
+	Py_CLEAR(maybe_symbol);
+
+      Py_DECREF(maybe);
+    }
+  }
+
+  return maybe_symbol;
+}
+
+
+static PyObject *m_gensym(PyObject *mod, PyObject *args) {
+  PyObject *name = NULL;
+  PyObject *predicate = NULL;
+
+  if (! PyArg_ParseTuple(args, "|OO:gensym", &name, &predicate))
+    return NULL;
+
+  if (predicate == Py_None)
+    predicate = NULL;
+
+  return sib_gensym(name, predicate);
+}
 
 
 /* === keyword === */
@@ -330,10 +403,10 @@ static PyObject *keyword_new(PyTypeObject *type,
 static void keyword_dealloc(PyObject *self) {
   SibInternedAtom *s = (SibInternedAtom *) self;
 
-  if (s->weakrefs != NULL)
-    PyObject_ClearWeakRefs(self);
+  // DEBUGMSG("keyword_dealloc", self);
 
-  PyDict_DelItem(intern_kwds, s->name);
+  if (intern_kwds)
+    PyDict_DelItem(intern_kwds, s->name);
 
   Py_DECREF(s->name);
   Py_TYPE(self)->tp_free(self);
@@ -404,7 +477,6 @@ PyTypeObject SibKeywordType = {
   .tp_methods = keyword_methods,
   .tp_new = keyword_new,
   .tp_dealloc = keyword_dealloc,
-  .tp_weaklistoffset = offsetof(SibInternedAtom, weakrefs),
 
   .tp_repr = atom_repr,
   .tp_str = atom_str,
@@ -437,17 +509,22 @@ static PyObject *piter_iternext(PyObject *self) {
     switch(s->index) {
     case 0:
       result = CAR(pair);
+      Py_INCREF(result);
       s->index = 1;
       break;
+
     case 1:
       result = CDR(pair);
+      Py_INCREF(result);
       s->index = 2;
-    default:
       Py_CLEAR(s->pair);
+      break;
+
+    default:
+      result = NULL;
     }
   }
 
-  Py_XINCREF(result);
   return result;
 }
 
@@ -491,7 +568,6 @@ static PyObject *pfoll_iternext(PyObject *self) {
   PyObject *curr_id;
   PyObject *result = NULL;
 
-  /* borrowed ref */
   current = s->current;
 
   if (! current) {
@@ -519,8 +595,6 @@ static PyObject *pfoll_iternext(PyObject *self) {
 
   /* get ready for the next */
   if (SibPair_CheckExact(current)) {
-    /* note we don't DECREF the old s->current, we'll be giving out
-       that reference as our result this time around */
     s->current = CDR(current);
     Py_INCREF(s->current);
 
@@ -528,12 +602,16 @@ static PyObject *pfoll_iternext(PyObject *self) {
     s->current = NULL;
   }
 
+  /* at this point, we've stolen the old s->current ref as current,
+     and s->current has been modified to point to something else */
+
   if (s->just_items) {
     /* if we're in items mode, then we want the CAR if current is a
        pair, otherwise if current is non-nil we return it. */
     if (SibPair_CheckExact(current)) {
       result = CAR(current);
       Py_INCREF(result);
+      Py_DECREF(current);
     } else if (Sib_Nilp(current)) {
       result = NULL;
       Py_DECREF(current);
@@ -587,9 +665,6 @@ static void pair_dealloc(PyObject *self) {
   SibPair *s = (SibPair *) self;
 
   // DEBUGMSG("pair_dealloc", self);
-
-  if (s->weakrefs != NULL)
-    PyObject_ClearWeakRefs(self);
 
   Py_XDECREF(s->head);
   Py_XDECREF(s->tail);
@@ -1327,7 +1402,6 @@ PyTypeObject SibPairType = {
   .tp_methods = pair_methods,
   .tp_new = pair_new,
   .tp_dealloc = pair_dealloc,
-  .tp_weaklistoffset = offsetof(SibPair, weakrefs),
   .tp_traverse = pair_traverse,
   .tp_clear = pair_clear,
 
@@ -1350,7 +1424,6 @@ PyObject *sib_pair(PyObject *head, PyObject *tail) {
 
   self = PyObject_GC_New(SibPair, &SibPairType);
   self->position = NULL;
-  self->weakrefs = NULL;
 
   Py_INCREF(head);
   self->head = head;
@@ -1446,7 +1519,6 @@ PyTypeObject SibNilType = {
   .tp_base = &SibPairType,
   .tp_new = nil_new,
   .tp_dealloc = nil_dealloc,
-  .tp_weaklistoffset = offsetof(SibPair, weakrefs),
 
   .tp_repr = nil_repr,
   .tp_str = nil_repr,
@@ -1464,7 +1536,6 @@ SibPair _SibNil = {
   .head = NULL,
   .tail = NULL,
   .position = NULL,
-  .weakrefs = NULL,
 };
 
 
@@ -1480,9 +1551,6 @@ static PyObject *values_new(PyTypeObject *type,
 
 static void values_dealloc(PyObject *self) {
   SibValues *s = (SibValues *) self;
-
-  if (s->weakrefs != NULL)
-    PyObject_ClearWeakRefs(self);
 
   Py_XDECREF(s->args);
   Py_XDECREF(s->kwds);
@@ -1947,7 +2015,6 @@ PyTypeObject SibValuesType = {
   .tp_methods = values_methods,
   .tp_new = values_new,
   .tp_dealloc = values_dealloc,
-  .tp_weaklistoffset = offsetof(SibValues, weakrefs),
   .tp_traverse = values_traverse,
   .tp_clear = values_clear,
 
@@ -1978,7 +2045,6 @@ PyObject *sib_values(PyObject *args, PyObject *kwds) {
   Py_INCREF(args);
   self->args = args;
   self->kwds = kwds? PyDict_Copy(kwds): NULL;
-  self->weakrefs = NULL;
   self->hashed = 0;
 
   PyObject_GC_Track((PyObject *) self);
@@ -1991,7 +2057,7 @@ PyObject *sib_values(PyObject *args, PyObject *kwds) {
 
 static PyObject *m_cons(PyObject *mod, PyObject *args, PyObject *kwds) {
   PyObject *result = NULL;
-  PyObject *work = NULL;
+  PyObject *work = NULL, *tmp = NULL;
   int recursive = 0;
   int count = PyTuple_Size(args);
 
@@ -2001,15 +2067,15 @@ static PyObject *m_cons(PyObject *mod, PyObject *args, PyObject *kwds) {
   }
 
   if (kwds) {
-    result = PyDict_GetItem(kwds, _str_recursive);
-    if (result) {
+    tmp = PyDict_GetItem(kwds, _str_recursive);
+    if (tmp) {
       if (PyDict_Size(kwds) > 1) {
 	PyErr_SetString(PyExc_TypeError,
 			"cons accepts one keyword argument: recursive");
 	return NULL;
       }
 
-      recursive = PyObject_IsTrue(result);
+      recursive = PyObject_IsTrue(tmp);
       if (recursive < 0)
 	return NULL;
 
@@ -2025,18 +2091,25 @@ static PyObject *m_cons(PyObject *mod, PyObject *args, PyObject *kwds) {
   result = sib_pair(PyTuple_GET_ITEM(args, 0), Sib_Nil);
 
   if (count == 1) {
-    if (recursive)
+    if (recursive) {
       SETCDR(result, result);
-    return result;
+    }
 
   } else {
     work = recursive? result: PyTuple_GET_ITEM(args, --count);
+    Py_INCREF(work);
+
     while (--count) {
-      work = sib_pair(PyTuple_GET_ITEM(args, count), work);
+      tmp = sib_pair(PyTuple_GET_ITEM(args, count), work);
+      Py_DECREF(work);
+      work = tmp;
     }
+
     SETCDR(result, work);
-    return result;
+    Py_DECREF(work);
   }
+
+  return result;
 }
 
 
@@ -2112,6 +2185,50 @@ static PyObject *m_setcdr(PyObject *mod, PyObject *args) {
 }
 
 
+static PyObject *m_getderef(PyObject *mod, PyObject *cell) {
+  PyObject *result = NULL;
+
+  if (! PyCell_Check(cell)) {
+    PyErr_SetString(PyExc_TypeError, "getderef argument 1 must be a cell");
+
+  } else {
+    result = PyCell_Get(cell);
+    if (! result) {
+      PyErr_SetString(PyExc_ValueError, "cell is empty");
+    }
+  }
+
+  return result;
+}
+
+
+static PyObject *m_setderef(PyObject *mod, PyObject *args) {
+  PyObject *cell = NULL, *value = NULL;
+
+  if (! PyArg_ParseTuple(args, "O!O:setderef", &PyCell_Type, &cell, &value))
+    return NULL;
+
+  if (PyCell_Set(cell, value)) {
+    return NULL;
+  } else {
+    Py_RETURN_NONE;
+  }
+}
+
+
+static PyObject *m_clearderef(PyObject *mod, PyObject *cell) {
+
+  if (! PyCell_Check(cell)) {
+    PyErr_SetString(PyExc_TypeError, "clearderef argument 1 must be a cell");
+    return NULL;
+  } else if (PyCell_Set(cell, NULL)) {
+    return NULL;
+  } else {
+    Py_RETURN_NONE;
+  }
+}
+
+
 static PyObject *m_reapply(PyObject *mod, PyObject *args, PyObject *kwds) {
   PyObject *fun, *data, *result;
   long count = 0;
@@ -2143,7 +2260,7 @@ static PyObject *m_build_unpack_pair(PyObject *mod, PyObject *seqs) {
   Py_ssize_t count = PyTuple_GET_SIZE(seqs);
   Py_ssize_t index = 0;
   PyObject *coll = NULL;
-  PyObject *work = NULL;
+  PyObject *work = NULL, *tmp = NULL;
   PyObject *result = NULL;
 
   if (count == 0) {
@@ -2154,19 +2271,19 @@ static PyObject *m_build_unpack_pair(PyObject *mod, PyObject *seqs) {
   coll = PyList_New(0);
 
   while (index < count) {
-    work = PyTuple_GET_ITEM(seqs, index++);
+    tmp = PyTuple_GET_ITEM(seqs, index++);
 
-    if (Sib_Nilp(work)) {
+    if (Sib_Nilp(tmp)) {
       continue;
 
-    } else if (SibPair_CheckExact(work)) {
-      work = pair_unpack(work, NULL);
+    } else if (SibPair_CheckExact(tmp)) {
+      work = pair_unpack(tmp, NULL);
 
     } else {
       // todo: check for lists and tuples explicitly, and see if
       // they're zero-length. If so, avoid creating an iterator, just
       // continue to the next item.
-      work = PyObject_GetIter(work);
+      work = PyObject_GetIter(tmp);
     }
 
     if (! work) {
@@ -2198,8 +2315,8 @@ static PyObject *m_build_unpack_pair(PyObject *mod, PyObject *seqs) {
   // I wonder if there isn't a better way to do this. We end up
   // traversing the last cons pair twice, which means allocating a set
   // in order to avoid recursion. Is that too expensive?
-  work = PyTuple_GET_ITEM(seqs, count - 1);
-  if (SibPair_is_proper(work)) {
+  tmp = PyTuple_GET_ITEM(seqs, count - 1);
+  if (SibPair_is_proper(tmp)) {
     PyList_Append(coll, Sib_Nil);
   }
 
@@ -2209,10 +2326,16 @@ static PyObject *m_build_unpack_pair(PyObject *mod, PyObject *seqs) {
 
   if (count > 1) {
     work = PyList_GET_ITEM(coll, --count);
+    Py_INCREF(work);
+
     while (--count) {
-      work = sib_pair(PyList_GET_ITEM(coll, count), work);
+      tmp = sib_pair(PyList_GET_ITEM(coll, count), work);
+      Py_DECREF(work);
+      work = tmp;
     }
+
     SETCDR(result, work);
+    Py_DECREF(work);
   }
 
   Py_DECREF(coll);
@@ -2278,6 +2401,9 @@ static PyObject *m_build_dict(PyObject *mod, PyObject *values) {
 
 
 static PyMethodDef methods[] = {
+  { "gensym", (PyCFunction) m_gensym, METH_VARARGS,
+    "gensym(name, predicate=None -> generate a symbol" },
+
   { "cons", (PyCFunction) m_cons, METH_VARARGS|METH_KEYWORDS,
     "cons(head, *tail, recursive=Fasle) -> new pair\n"
     "If no tail is specified, and recursive is False (the default),\n"
@@ -2320,6 +2446,19 @@ static PyMethodDef methods[] = {
 
   { "build_dict",  (PyCFunction) m_build_dict, METH_VARARGS,
     "build_dict(*items) -> dict(items)" },
+
+  { "getderef", (PyCFunction) m_getderef, METH_O,
+    "getderef(cell) -> object\n"
+    "Returns the object contained in a cell, or raises a ValueError if the\n"
+    "cell is empty." },
+
+  { "setderef", (PyCFunction) m_setderef, METH_VARARGS,
+    "setderef(cell, value) -> None\n"
+    "Assigns value to a cell." },
+
+  { "clearderef", (PyCFunction) m_clearderef, METH_O,
+    "clearderef(cell) -> None\n"
+    "Clears a cell." },
 
   { NULL, NULL, 0, NULL },
 };

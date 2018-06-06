@@ -16,15 +16,15 @@
 (def import-from unittest TestCase)
 
 
-(def class DefclassTest (TestCase)
+(def class DefclassTest [TestCase]
 
-     (def function test_def_class (self)
+     (def function test_def_class [self]
 
-	  (def class simple (object)
-	       (def function __init__ (self foo: 100)
+	  (def class simple [object]
+	       (def function __init__ [self foo: 100]
 		    (setf self.foo foo))
 
-	       (def function get-foo (self) self.foo))
+	       (def function get-foo [self] self.foo))
 
 	  (define sinst (simple))
 
@@ -32,32 +32,28 @@
 	  (self.assertIs (type sinst) simple)
 	  (self.assertEqual sinst.foo (sinst.get-foo))
 
-	  None)
-
-     None)
+	  None))
 
 
-(def class LabelsTest (TestCase)
+(def class LabelsTest [TestCase]
 
-     (def function test_even_odd (self)
-
+     (def function test_even_odd [self]
 	  (labels
-	      ((even (x) (if (== x 0) then: True else: (odd (- x 1))))
-	       (odd (x) (if (== x 0) then: False else: (even (- x 1)))))
+	      [[even (x) (if (== x 0) then: True else: (odd (- x 1)))]
+	       [odd (x) (if (== x 0) then: False else: (even (- x 1)))]]
 
 	    (self.assertTrue (even 100))
 	    (self.assertTrue (odd 101))
 	    (self.assertFalse (even 101))
 	    (self.assertFalse (odd 100))
 
-	    None)
-	  None)
+	    None))
 
 
-     (def function test_shadowed (self)
+     (def function test_shadowed [self]
 
 	  ;; create a function which definitely raises
-	  (def function someone () (raise Exception))
+	  (def function someone [] (raise! Exception))
 	  (self.assertRaises Exception someone)
 
 	  ;; now shadow that function in labels, and call the same
@@ -72,25 +68,24 @@
 	    ;; so should this body
 	    (self.assertEqual (someone) "Happy")
 
-	    None)
-	  None)
+	    None))
 
      None)
 
 
 (def class FLetTest (TestCase)
 
-     (def function test_shadowed (self)
+     (def function test_shadowed [self]
 
 	  ;; create a function which definitely raises
-	  (def function someone () (raise Exception))
+	  (def function someone () (raise! Exception))
 	  (self.assertRaises Exception someone)
 
 	  ;; now shadow that function in labels, and call the same
 	  ;; name from another labels function
 	  (flet
-	      ((foo () (someone))
-	       (someone () "Happy"))
+	      [[foo () (someone)]
+	       [someone () "Happy"]]
 
 	    ;; foo sees the original copy of someone
 	    (self.assertRaises Exception foo)
@@ -98,16 +93,53 @@
 	    ;; however, this body sees the shadowed copy
 	    (self.assertEqual (someone) "Happy")
 
-	    None)
+	    None))
+
+     None)
+
+
+(def class MacroLetTest (TestCase)
+
+
+     (def function test_simple [self]
+
+	  (self.assertEqual
+
+	   (macro-let
+	    [[m1 [a b] `(+ ,a ,b)]
+	     [m2 [a b] `(- ,a ,b)]]
+
+	    (self.assertEqual (m1 10 5) 15)
+	    (self.assertEqual (m2 10 5) 5)
+
+	    (* (m1 10 5) (m2 10 5)))
+
+	   (* 15 5))
+
+	  None)
+
+
+     (def function test_shadowed [self]
+	  (macro-let
+	   [[m1 [a b] `(+ ,a ,b)]]
+
+	   (self.assertEqual (m1 10 5) 15)
+
+	   (macro-let
+	    [[m1 [a b] `(- ,a ,b)]]
+
+	    (self.assertEqual (m1 10 5) 5))
+
+	   (self.assertEqual (m1 10 5) 15))
 
 	  None)
 
      None)
 
 
-(def class BuildTest (TestCase)
+(def class BuildTest [TestCase]
 
-     (def function test_build_list (self)
+     (def function test_build_list [self]
 	  (define data
 	    (#list 1 2 "hello" 'foo ':bar))
 
@@ -123,7 +155,7 @@
 	  None)
 
 
-     (def function test_build_tuple (self)
+     (def function test_build_tuple [self]
 	  (define data
 	    (#tuple 1 2 "hello" 'foo ':bar))
 
@@ -139,7 +171,7 @@
 	  None)
 
 
-     (def function test_build_dict (self)
+     (def function test_build_dict [self]
 	  (define data
 	    (#dict ("foo" 100)
 		   ("bar" 200)
@@ -157,21 +189,68 @@
 	  None)
 
 
-     (def function test_build_set (self)
+     (def function test_build_set [self]
 	  (define data
 	    (#set 1 2 3 4 1 2 3 4 5))
 
 	  (self.assertTrue (set? data))
 	  (self.assertEqual (len data) 5)
-	  (self.assertTrue (in data 1))
-	  (self.assertTrue (in data 2))
-	  (self.assertTrue (in data 3))
-	  (self.assertTrue (in data 4))
-	  (self.assertTrue (in data 5))
+	  (self.assertTrue (contains data 1))
+	  (self.assertTrue (contains data 2))
+	  (self.assertTrue (contains data 3))
+	  (self.assertTrue (contains data 4))
+	  (self.assertTrue (contains data 5))
 
 	  None)
 
      None)
+
+
+(def class FormatString [TestCase]
+
+     """
+     Verifies that the #fmt macro correctly functions
+     """
+
+
+     (def function test_simple_fmt [self]
+	  (def function stmt [count food]
+	       (#fmt """I want {count} {food}."""))
+
+	  (self.assertEqual "I want 1 taco."
+			    (stmt 1 "taco"))
+
+	  (self.assertEqual "I want 15 pizza."
+			    (stmt 15 "pizza"))
+
+	  None)
+
+
+     (def function test_single_char_fmt [self]
+	  (def function stmt [c f]
+	       (#fmt """I want {c} {f}."""))
+
+	  (self.assertEqual "I want 1 taco."
+			    (stmt 1 "taco"))
+
+	  (self.assertEqual "I want 15 pizza."
+			    (stmt 15 "pizza"))
+
+	  None)
+
+
+     (def function test_complicated_fmt [self]
+	  (def function stmt [count food polite]
+	       (#fmt """I want 0x{count:04x} {food!s}"""
+		     """{(if polite ", please" "")}."""))
+
+	  (self.assertEqual "I want 0x0001 tacos, please."
+			    (stmt 1 'tacos True))
+
+	  (self.assertEqual "I want 0x000f pizza."
+			    (stmt 15 'pizza False))
+
+	  None))
 
 
 ;;

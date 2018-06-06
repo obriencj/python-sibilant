@@ -23,7 +23,7 @@
 ;; disable TCO for the following stuff, they don't need to bounce
 (try
  (set-attr __compiler__ tco_enabled False)
- ([NameError] None))
+ [[NameError] None])
 
 
 ;; === defines ===
@@ -37,6 +37,13 @@
      `(define-global ,name
 	((lambda [M] (set-attr M _proper ,proper) M)
 	 (macro ,(str name) (function ,name ,formals ,@body)))))))
+
+
+(defmacro defspecial [name formals . body]
+     "Defines a Special instance in the current module"
+
+     `(define-global ,name
+	(special ,(str name) (function ,name ,formals ,@body))))
 
 
 (defmacro defalias [name . body]
@@ -55,6 +62,15 @@
   `(define-global ,name (class ,name ,bases ,@body)))
 
 
+(define parse-binding
+  (let [[specials (attr (import sibilant.specials) specials)]]
+    (partial specials._helper_binding (active-compiler))))
+
+
+(defun symbolish? [thing]
+  (or (symbol? thing) (lazygensym? thing)))
+
+
 (defmacro var [*: variables]
   "
   (var BINDINGS...)
@@ -66,8 +82,23 @@
 
   ;; (setq variables (to-tuple variables))
   `{,@(map (lambda [d]
-	     (cond ((symbol? d) `(define ,d))
-		   (else: `(define ,@d))))
+	     (define sym d)
+	     (define expr None)
+
+	     (cond [(symbolish? d) None]
+		   [else: (setq-values [sym expr] (parse-binding d))])
+	     (cond [(is None expr) `(define ,sym)]
+		   [else: `(define ,sym ,expr)]))
+
+	   variables)})
+
+
+(defmacro var-values [*: variables]
+  "
+  (var-values VALUES-BINDINGS ...)
+  "
+
+  `{,@(map (lambda [b] `(define-values ,@b))
 	   variables)})
 
 
@@ -81,6 +112,8 @@
        ([NameError as: ne] None))))
 
 (_reader_macro read read)
+(_reader_macro read-atom read_atom)
+(_reader_macro process-atom process_atom)
 (_reader_macro set-event-macro set_event_macro)
 (_reader_macro get-event-macro get_event_macro)
 (_reader_macro clear-event-macro clear_event_macro)
@@ -110,6 +143,34 @@
 	 (else: ,@body)))
 
 
+;; === alternative looping ===
+
+(defmacro until [test . body]
+  `(while (not ,test) ,@body))
+
+
+;; === easier attr calling ===
+
+(defmacro ! [member inst_expr . args]
+  `(,(reduce (lambda [a b] `(attr ,a ,b))
+	     (member.rsplit ".")
+	     inst_expr)
+    ,@args))
+
+
+(defmacro super args
+  (unless args (! request_cell (active-compiler) '__class__))
+  `(py-super ,@args))
+
+
+(defmacro super! [method . args]
+  `(! ,method (super) ,@args))
+
+
+(defmacro has-attr [obj attr]
+  `(hasattr ,obj ,(str attr)))
+
+
 ;; === math shortcuts ===
 
 (defmacro incr [dest by: 1]
@@ -122,20 +183,17 @@
 
 ;; === simple checks ===
 
-
 (defmacro None? [value]
   `(is None ,value))
 
 
-(defmacro within? [min_i max_i value_i]
+(defun within? [min_i max_i value_i]
   "
   (within? MIN MAX VALUE)
 
-  True if MIN <= VALUE < MAX
+  True if  MIN <= VALUE < MAX
   "
-  ;; TODO: use a gensym and store value_i to prevent it from
-  ;; evaluating twice
-  `(and (<= ,min_i ,value_i) (< ,value_i ,max_i)))
+  (and (<= min_i value_i) (< value_i max_i)))
 
 
 (defmacro when-main body
@@ -154,7 +212,9 @@
 
   slices a sequence, with optional start, stop, and step parameters
   "
-  `(item ,sequence (slice ,start ,stop ,step)))
+  (if (== step 1)
+      then: `(item ,sequence (#slice ,start ,stop))
+      else: `(item ,sequence (#slice ,start ,stop ,step))))
 
 
 ;; === compose raise and exception initializing
@@ -163,12 +223,37 @@
   `(raise (,exc_type ,@exc_args)))
 
 
+(defmacro import1-from [package member]
+  `(item (import-from ,package ,member) 0))
+
+
+;; === optimized assert
+
+(defmacro assert [expr message: None]
+  """
+  (assert EXPR)
+  (assert EXPR message: VALUE)
+
+  Raises an AssertionError if EXPR is not True. Optionally provides a
+  VALUE expression which will be evaluated only if the assertion EXPR is
+  not True.
+
+  This macro honors the Python optimization flags, and will have no
+  effect if sys.flags.optimize is non-zero
+  """
+  (unless sys.flags.optimize
+	  (if (None? message)
+	      then: `(unless ,expr (raise! AssertionError))
+	      else: `(unless ,expr (raise! AssertionError ,message)))))
+
+
 ;; === setf and general variables ===
 
-(let [[*gv-forms* (#dict)]]
+(let [[*gv-set-forms* (#dict)]
+      [*gv-del-forms* (#dict)]]
 
   (defun gv-define-setter-fn [name fn]
-    (set-item *gv-forms* name fn)
+    (set-item *gv-set-forms* name fn)
     None)
 
   (defmacro gv-define-setter [name formals . body]
@@ -185,20 +270,54 @@
     ;; since sibilant is designed to expand macros lazily, we need to
     ;; jump ahead a bit and make sure that our target gets expanded
     ;; right now so that we can find the right dispatch method.
-    (setq target (macroexpandq None target))
+    (setq target (macroexpandq (globals) target))
 
     (cond
-     [(symbol? target)
-      (if (in (str target) ".")
+     [(symbolish? target)
+      (if (contains (str target) ".")
 	  then: { (define spltrgt (target.rsplit "." 1))
 		  `(set-attr ,(item spltrgt 0) ,(item spltrgt 1) ,value) }
 	  else:	`(setq ,target ,value))]
 
-     [(and (proper? target) (in *gv-forms* (car target)))
-      ((item *gv-forms* (car target)) (cdr target) value)]
+     [(and (proper? target) (contains *gv-set-forms* (car target)))
+      ((item *gv-set-forms* (car target)) (cdr target) value)]
 
      [else:
       (raise! Exception (% "invalid setf target %s" target))]))
+
+
+  (defun gv-define-del-fn [name fn]
+    (set-item *gv-del-forms* name fn)
+    None)
+
+  (defmacro gv-define-del [name formals . body]
+    `(gv-define-del-fn
+      ',name
+      (lambda ,formals ,@body)))
+
+  (defmacro gv-define-simple-del [name del]
+    `(gv-define-del
+      ,name (dest) `(,',del ,@dest)))
+
+  (defmacro delf [target]
+
+    ;; since sibilant is designed to expand macros lazily, we need to
+    ;; jump ahead a bit and make sure that our target gets expanded
+    ;; right now so that we can find the right dispatch method.
+    (setq target (macroexpandq (globals) target))
+
+    (cond
+     [(symbolish? target)
+      (if (contains (str target) ".")
+	  then: { (define spltrgt (target.rsplit "." 1))
+		  `(del-attr ,(item spltrgt 0) ,(item spltrgt 1)) }
+	  else:	`(delq ,target))]
+
+     [(and (proper? target) (contains *gv-del-forms* (car target)))
+      ((item *gv-del-forms* (car target)) (cdr target))]
+
+     [else:
+      (raise! Exception (% "invalid delf target %s" target))]))
 
   None)
 
@@ -207,8 +326,14 @@
 (gv-define-simple-setter car set-car)
 (gv-define-simple-setter cdr set-cdr)
 (gv-define-simple-setter item set-item)
-(gv-define-simple-setter global define-global)
+(gv-define-simple-setter global setq-global)
+(gv-define-simple-setter deref set-deref)
 (gv-define-setter caar [val x] `(set-car (car ,x) ,val))
+
+(gv-define-simple-del attr del-attr)
+(gv-define-simple-del item del-item)
+(gv-define-simple-del global delq-global)
+(gv-define-simple-del deref del-deref)
 
 
 ;; === def general targets ===
@@ -244,24 +369,24 @@
 			       `(,,factory ,@source))))
 
   (defmacro def source
-    (let [[scope ':local]
-	  [target None]
-	  [d-scope None]
-	  [d-target None]]
+    (var [scope ':local]
+	 [target None]
+	 [d-scope None]
+	 [d-target None])
 
-      (if (keyword? (item source 0))
-	  then: (setq-values [scope target . source] source)
-	  else: (setq-values [target . source] source))
+    (if (keyword? (item source 0))
+	then: (setq-values [scope target . source] source)
+	else: (setq-values [target . source] source))
 
-      (setq d-scope (dict.get *gd-scopes* scope None))
-      (when (None? d-scope)
-	(raise! Exception (% "undefined def scope %r" scope)))
+    (setq d-scope (dict.get *gd-scopes* scope None))
+    (when (None? d-scope)
+	  (raise! Exception (% "undefined def scope %r" scope)))
 
-      (setq d-target (dict.get *gd-targets* target None))
-      (when (None? d-target)
-	(raise! Exception (% "undefined def target %r" target)))
+    (setq d-target (dict.get *gd-targets* target None))
+    (when (None? d-target)
+	  (raise! Exception (% "undefined def target %r" target)))
 
-      (d-target d-scope source)))
+    (d-target d-scope source))
 
   None)
 
@@ -281,7 +406,7 @@
 
 (defun __import-binding [thing]
   (cond
-   ((symbol? thing)
+   ((symbolish? thing)
     (return (#tuple None thing)))
 
    ((pair? thing)
@@ -310,17 +435,17 @@
  (def function sd [src]
       (define-values [binding module] (__import-binding src))
       (cond
-       ((None? binding)
+       [(None? binding)
 	(setq binding (item (module.split ".") 0))
-	(scopefn binding `(import ,module)))
+	(scopefn binding `(import ,module))]
 
-       (else:
+       [else:
 	(define ats `(import ,module))
-	(when (in (str module) ".")
+	(when (contains (str module) ".")
 	  (setq ats (reduce (lambda [t h] `(attr ,t ,h))
 			    (item-slice (module.split ".") start: 1)
 			    ats)))
-	(scopefn binding ats))))
+	(scopefn binding ats)]))
 
  `{,@(map sd source)})
 
@@ -328,13 +453,13 @@
 (gd-define-target
  import-from [scopefn source]
 
- (define module (item source 0))
- (define source (item-slice source start: 1))
+ (var [module (item source 0)]
+      [source (item-slice source start: 1)])
 
  (def function sd [src]
       (define-values [binding modsrc] (__import-binding src))
       (when (None? binding) (setq binding modsrc))
-      (scopefn binding `(item (import-from ,module ,modsrc) 0)))
+      (scopefn binding `(import1-from ,module ,modsrc)))
 
  `{,@(map sd source)})
 
@@ -366,21 +491,48 @@
 
 
 (defmacro flet [declarations . body]
-  (setq declarations (tuple (declarations.unpack)))
-  `(let [,@(map (lambda [d] `(,(car d) (lambda ,@(cdr d)))) declarations)]
+  `(let [,@(map (lambda [d] `(,(car d) (lambda ,@(cdr d))))
+		(declarations.unpack))]
      ,@body))
 
 
 (defmacro let-values [bind_vals . body]
-  "
-  (let-values (BINDINGS VALS) . BODY)
+  """
+  (let-values [BINDINGS VALS] . BODY)
 
   where BINDINGS is a nested pair of symbols in the same structure as
   values from VALS.
-  "
+  """
 
   `(let []
      (define-values ,@bind_vals)
+     ,@body))
+
+
+(defmacro let* [bindings . body]
+  `(let []
+     (var ,@bindings)
+     ,@body))
+
+
+(defmacro let*-values [bindings . body]
+  """
+  (let*-values [[BINDINGS VALS]…] . BODY)
+
+  where BINDINGS is a nested pair of symbols in the same structure as
+  values from VALS, but like let* instead of let.
+  """
+
+  `(let []
+     (var-values ,@bindings)
+     ,@body))
+
+
+(defmacro letrec [bindings . body]
+  `(let []
+     (var ,@(map (lambda [b] (item (parse-binding b) 0))
+		 (bindings.unpack)))
+     (var ,@bindings)
      ,@body))
 
 
@@ -431,7 +583,7 @@
 ;; === python object system classes ==
 
 (defmacro class [name bases . body]
-  "
+  """
   (class NAME (parents... ) . BODY)
 
   Create a new python type instance with the given name, and parent
@@ -441,12 +593,15 @@
 
   Use (def class NAME (parents... ) . BODY) to bothe create and bind
   the class in the local namespace.
-  "
+  """
 
   `(flet [[create-class [name fields *: bases metaclass: type]
 			(metaclass name bases fields)]
 	  [create-members [__module__]
-			  {,@body} (locals)]]
+			  (define __class__)
+			  (define __classcell__ (refq __class__))
+			  { ,@body }
+			  (locals)]]
 
      (create-class ,(str name)
 		   (create-members __name__)
@@ -454,7 +609,7 @@
 
 
 (defmacro compile [source env: '(globals) filename: "<anon>"]
-  "
+  """
   (compile SOURCE)
 
   Returns a python code object
@@ -469,33 +624,28 @@
 
   Compiles SOURCE with DICT as the globals, with the source filename
   set to filename.lspy
-  "
+  """
 
   `(let [[src ,source] [glbls ,env] [fname ,filename]]
      (def import-from io IOBase)
-     (def import-from sibilant.parse
-       source_stream source_str)
-     (def import-from sibilant.module
-       fake_module_from_env init_module parse_time compile_time)
+     (def import-from sibilant.parse source_stream source_str)
+     (def import-from sibilant.module init_module parse_time compile_time)
 
-     (define stream
-       (cond [(isinstance src str) (source_str src fname)]
-	     [(isinstance src IOBase) (source_stream src fname)]
-	     [(or (pair? src) (symbol? src) (keyword? src))
-	      None]
-	     [else: src]))
+     (var [stream
+	   (cond [(isinstance src str) (source_str src fname)]
+		 [(isinstance src IOBase) (source_stream src fname)]
+		 [(or (pair? src) (symbolish? src) (keyword? src)) None]
+		 [else: src])]
+	  [mod (init_module glbls stream filename: fname)])
 
-     (define mod (fake_module_from_env glbls))
-     (init_module mod stream filename: fname)
-
-     (unless (or (pair? src) (symbol? src) (keyword? src))
+     (unless (or (pair? src) (symbolish? src) (keyword? src))
        (setq src (parse_time mod)))
 
      (compile_time mod src)))
 
 
 (defmacro eval [source env: '(globals) filename: "<anon>"]
-  "
+  """
   (eval SOURCE)
 
   Evaluates SOURCE with the current globals.
@@ -507,65 +657,87 @@
    * cons pair representing source forms
    * symbol or keyword object
 
-  (eval SOURCE env: DICT filename: \"filename.lspy\")
+  (eval SOURCE env: DICT filename: "filename.lspy")
 
   Evaluates SOURCE with DICT as the globals, with the source filename
   set to filename.lspy
-  "
+  """
 
   `(let [[src ,source] [glbls ,env] [fname ,filename]]
      (def import-from io IOBase)
      (def import-from types CodeType)
-     (def import-from sibilant.parse
-       source_stream source_str)
+     (def import-from sibilant.parse source_stream source_str)
      (def import-from sibilant.module
-       fake_module_from_env init_module parse_time compile_time run_time)
+	  init_module parse_time compile_time run_time)
 
      (cond
       [(isinstance src CodeType) (py-eval src glbls fname)]
 
       [else:
-       (define stream
-	 (cond [(isinstance src str) (source_str src fname)]
-	       [(isinstance src IOBase) (source_stream src fname)]
-	       [(or (pair? src) (symbol? src) (keyword? src))
-		None]
-	       [else: src]))
+       (var [stream
+	     (cond [(isinstance src str) (source_str src fname)]
+		   [(isinstance src IOBase) (source_stream src fname)]
+		   [(or (pair? src) (symbolish? src) (keyword? src)) None]
+		   [else: src])]
+	    [mod (init_module glbls stream filename: ,filename)])
 
-       (define mod  (fake_module_from_env glbls))
-       (init_module mod stream filename: ,filename)
-
-       (unless (or (pair? src) (symbol? src) (keyword? src))
+       (unless (or (pair? src) (symbolish? src) (keyword? src))
 	 (setq src (parse_time mod)))
 
        (run_time mod (compile_time mod src))])))
 
 
 (let []
+  (def import-from types CodeType)
   (def import-from dis dis [show_code as: show-code])
 
-  (defun disassemble [obj details: False]
-    "
+  (defun disassemble [obj details: False depth: -1]
+    """
     (disassemble OBJ)
-    (disassemble OBJ details: True)
+    (disassemble OBJ details: False depth: -1)
 
     display bytecode and optional constant and variable details
-    "
+
+    A depth of -1 indicates that all constant code object will be
+    recursively disassembled. When depth is 0, only the given object will
+    be disassembled. When depth is greater than 0, constant code objects
+    will be recursively disassembled until the given depth is reached.
+    """
+
+    (when (partial? obj) (setq obj obj.func))
+
+    (print "From:" (repr obj))
 
     (when details
           (show-code obj)
           (print "Disassembly:"))
-    (dis obj)))
+    (dis obj)
+
+    (when depth
+	  (when (has-attr obj __func__) (setq obj obj.__func__))
+	  (when (has-attr obj __code__) (setq obj obj.__code__))
+	  (when (has-attr obj gi_code) (setq obj obj.gi_code))
+	  (when (has-attr obj co_consts)
+		(for-each [c obj.co_consts]
+			  (when (isinstance c CodeType)
+				(print)
+				(disassemble c details (- depth 1))))))))
 
 
-(defmacro disassemble-expr [expr]
-  "
+(defmacro disassemble-expr [expr details: False depth: -1]
+  """
   (disassemble-expr EXPR)
+  (disassemble-expr EXPR details: False depth: -1)
 
   compiles EXPR, then decompiles it and displays the bytecode
-  operations it would have executed
-  "
-  `(disassemble (compile ',expr)))
+  operations it would have executed.
+
+  A depth of -1 indicates that all constant code object will be
+  recursively disassembled. When depth is 0, only the given object will
+  be disassembled. When depth is greater than 0, constant code objects
+  will be recursively disassembled until the given depth is reached.
+  """
+  `(disassemble (compile ',expr) ,details ,depth))
 
 
 ;; === generator stuff ===
@@ -575,115 +747,152 @@
 
 
 (defmacro iter-each [bindings emit *: () when: None unless: None]
-  "
-  (iter-each (BINDINGS SEQUENCE) EXPRESSION)
-  (iter-each (BINDINGS SEQUENCE) EXPRESSION when: WHENTEST)
-  (iter-each (BINDINGS SEQUENCE) EXPRESSION unless: UNLESSTEST)
+  """
+  (iter-each [BINDINGS SEQUENCE] EXPRESSION)
+  (iter-each [BINDINGS SEQUENCE] EXPRESSION when: WHENTEST)
+  (iter-each [BINDINGS SEQUENCE] EXPRESSION unless: UNLESSTEST)
 
   Produces an iterator which will yield the result of EXPRESSION,
   which is evaluated with the BINDINGS unpacked from each value from
   iterating over SEQUENCE. The optional when and unless forms may be
   specified as predicate expressions to be evaluated on each iteration
   to determine if the given values should be skipped.
-  "
+  """
 
   (setq emit `(yield ,emit))
   (when unless (setq emit `(unless ,unless ,emit)))
   (when when (setq emit `(when ,when ,emit)))
   `(let [] (for-each ,bindings ,emit)))
 
+(define #gen iter-each)
 
-(defmacro list-each params
-  "Like iter-each, but accumulates the result into a Python list"
-  `(list (iter-each ,@params)))
+
+(define _gensym gensym)
+
+(def function gensym [name: None]
+  (var [active (active-compiler)])
+
+  (if active
+      then: (! gensym active name)
+      else: (_gensym name)))
+
+
+(defmacro list-each [bindings emit *: () when: None unless: None]
+  """
+  (list-each [BINDINGS SEQUENCE] EXPRESSION)
+  (list-each [BINDINGS SEQUENCE] EXPRESSION when: WHENTEST)
+  (list-each [BINDINGS SEQUENCE] EXPRESSION unless: UNLESSTEST)
+
+  Produces a Python list whose elements are the result of EXPRESSION,
+  which is evaluated with the BINDINGS unpacked from each value from
+  iterating over SEQUENCE. The optional when and unless forms may be
+  specified as predicate expressions to be evaluated on each iteration
+  to determine if the given values should be skipped.
+  """
+
+  (var [storage (gensym 'list-each)]
+       [append (gensym 'append)]
+       [emit `(,append ,emit)])
+
+  (when unless (setq emit `(unless ,unless ,emit)))
+  (when when (setq emit `(when ,when ,emit)))
+
+  `(let []
+     (var [,storage (#list)]
+	  [,append (attr ,storage append)])
+     (for-each ,bindings ,emit)
+     ,storage))
+
+(define #lc list-each)
+
+
+(defmacro set-each [bindings emit *: () when: None unless: None]
+  """
+  (set-each [BINDINGS SEQUENCE] EXPRESSION)
+  (set-each [BINDINGS SEQUENCE] EXPRESSION when: WHENTEST)
+  (set-each [BINDINGS SEQUENCE] EXPRESSION unless: UNLESSTEST)
+
+  Produces a Python set whose elements are the result of EXPRESSION,
+  which is evaluated with the BINDINGS unpacked from each value from
+  iterating over SEQUENCE. The optional when and unless forms may be
+  specified as predicate expressions to be evaluated on each iteration
+  to determine if the given values should be skipped.
+  """
+
+  (var [storage (gensym 'set-each)]
+       [append (gensym 'append)]
+       [emit `(,append ,emit)])
+
+  (when unless (setq emit `(unless ,unless ,emit)))
+  (when when (setq emit `(when ,when ,emit)))
+
+  `(let []
+     (var [,storage (#set)]
+	  [,append (attr ,storage add)])
+     (for-each ,bindings ,emit)
+     ,storage))
+
+(define #sc set-each)
 
 
 ;; === some simple converters ===
 
 
-(let [[pair_? pair?]
-      [len_ len]
-      [tuple_ tuple]
-      [list_ list]
-      [set_ set]]
+(defun as-tuple [value]
+  """
+  (as-tuple VALUE)
 
-  (defun as-tuple [value]
-    "
-    (to-tuple VALUE)
+  Converts VALUE to a tuple. If VALUE is a cons pair, will unpack
+  it. Otherwise, VALUE will be iterated over and its contents
+  collected.
+  """
 
-    Converts VALUE to a tuple. If VALUE is a cons pair, will unpack
-    it. Otherwise, VALUE will be iterated over and its contents
-    collected.
-    "
-
-    (tuple_
-     (if (pair_? value)
-	 then: (value.unpack)
-	 else: value)))
+  (tuple
+   (if (pair? value)
+       then: (value.unpack)
+       else: value)))
 
 
-  (defun as-list [value]
-    "
-    (to-list VALUE)
+(defun as-list [value]
+  """
+  (as-list VALUE)
 
-    Converts VALUE to a list. If VALUE is a cons pair, will unpack
-    it. Otherwise, VALUE will be iterated over and its contents
-    collected.
-    "
+  Converts VALUE to a list. If VALUE is a cons pair, will unpack
+  it. Otherwise, VALUE will be iterated over and its contents
+  collected.
+  """
 
-    (list_
-     (if (pair_? value)
-	 then: (value.unpack)
-	 else: value)))
-
-
-  (defun as-set [value]
-    "
-    (to-set VALUE)
-
-    Converts VALUE to a set. If VALUE is a cons pair, will unpack
-    it. Otherwise, VALUE will be iterated over and its contents
-    collected.
-    "
-
-    (set_
-     (if (pair_? value)
-	 then: (value.unpack)
-	 else: value)))
+  (list
+   (if (pair? value)
+       then: (value.unpack)
+       else: value)))
 
 
-  (defun length [value]
-    "
-    (length VALUE)
+(defun as-set [value]
+  """
+  (as-set VALUE)
 
-    The number of items in VALUE. If VALUE is a cons pair, will unpack
-    it. Otherwise, identical to (len VALUE)
-    "
-    (if (pair_? value)
-	then: (value.length)
-	else: (len_ value)))
+  Converts VALUE to a set. If VALUE is a cons pair, will unpack
+  it. Otherwise, VALUE will be iterated over and its contents
+  collected.
+  """
 
-
-  (defun apply [fun arglist: (#tuple) kwargs: (#dict)]
-    "
-    (apply FUN)
-    (apply FUN arglist: POSITIONALS)
-    (apply FUN kwargs: KEYWORDS)
-    (apply FUN arglist: POSITIONALS kwargs: KEYWORDS)
-
-    Invokes FUN as a function, with optional iterable POSITIONALS as
-    positional arguments, and optional mapping KEYWORDS as keyword
-    arguments.
-
-    If POSITIONALS is a a cons pair, it will be unpacked instead of
-    iterated.
-    "
-
-    (when (pair_? arglist) (setq arglist (arglist.unpack)))
-    (fun *: arglist **: kwargs))
+  (set
+   (if (pair? value)
+       then: (value.unpack)
+       else: value)))
 
 
-  None)
+(defun length [value]
+  """
+  (length VALUE)
+
+  The number of items in VALUE. If VALUE is a cons pair, will unpack
+  it. Otherwise, identical to (len VALUE)
+  """
+  (if (pair? value)
+      then: (value.length)
+      else: (len value)))
 
 
 ;; === Have some MATH ===
@@ -697,6 +906,224 @@
 
 (var [-∞ (- ∞)]
      [-inf -∞])
+
+
+;; === #fmt strings ===
+
+
+(let []
+  (def import-from re
+       [compile as: regex] UNICODE VERBOSE)
+
+  (def import-from sibilant.parse
+       [default_reader as: reader] source_str)
+
+  (define fmt-re
+    (regex "(
+    (\\n\\r|\\n)
+    |{{
+    |}}
+    |(?:{([^\\(^\\!\\:}]+
+         |\\(.*\\))(\\!.)?([^}]+)?)}
+    )" (+ UNICODE VERBOSE)))
+
+  (def function parse-source [src-str]
+       (reader.read (source_str src-str "<format string>")))
+
+  (defmacro #fmt [text . rest]
+    (var [result (#list)]
+	 [offset 0])
+
+    (for-each [f (fmt-re.finditer text)]
+        (define-values [start stop] (f.span))
+	(result.append (item-slice text offset start))
+	(setq offset stop)
+
+	(var [g (f.groups)]
+	     [c (item g 0)])
+
+	(if (contains (#tuple "{{" "}}" "\n" "\n\r") c)
+	    then: (result.append (item c 0))
+	    else:
+	    { (var [expr (parse-source (item g 2))]
+		   [conv (item g 3)]
+		   [fmt (item g 4)])
+
+	      (setq expr
+		    (cond
+		     [(not conv) expr]
+		     [(== "!r" conv)
+		      `(repr ,expr)]
+		     [(== "!s" conv)
+		      `(str ,expr)]
+		     [(== "!a" conv)
+		      `(ascii ,expr)]
+		     [else:
+		      (raise! Exception
+			      (% "bad format conversion %r" conv))]))
+
+	      (when fmt
+		(setq fmt (item-slice fmt 1)))
+
+	      (setq expr
+		    (if fmt
+			then: `(format ,expr ,fmt)
+			else: `(format ,expr)))
+
+	      (result.append expr) }))
+
+    (result.append (item-slice text offset))
+
+    (if rest
+	then: `(#str ,@result (#fmt ,@rest))
+	else: `(#str ,@result))))
+
+
+(defmacro defrecord [name fields]
+  `(def class ,name []
+	(def function __init__ [self ,@fields]
+	     ,@(iter-each [field (unpack fields)]
+		   `(set-attr self ,field ,field)))))
+
+
+(defmacro compiler-tco-disable []
+  (try
+   { (set-attr (active-compiler) tco_enabled False)
+     'True }
+   [[Exception as: e]
+    `{ (print "a compile-time error prevented tco from being disabled: "
+	      ,e)
+       False }]))
+
+
+(defmacro compiler-tco-enable []
+  (try
+   { (set-attr (active-compiler) tco_enabled True)
+     'True }
+   [[Exception as: e]
+    `{ (print "a compile-time error prevented tco from being enabled: "
+	      ,e)
+       False }]))
+
+
+; == some gensym magic
+
+(defun swap-symbols [swaptable source]
+
+  (when (nil? source) (return nil))
+
+  (var [result (copy source)])
+
+  (labels
+   [[swapit [v]
+     (cond
+      [(symbolish? v) (swaptable.get v v)]
+      [(nil? v) nil]
+      [(pair? v) (swap-symbols swaptable v)]
+      [else: v])]]
+
+   ; (setf (car result) (swapit (car result)))
+   (for-each [p (result.follow)]
+       (unless (nil? p)
+	 (setf (car p) (swapit (car p))))))
+
+  ; (print (#fmt "swap-symbols
+  ; source {(str source)}
+  ; result {(str result)}"))
+
+  result)
+
+
+(defmacro with-gensyms [symnames . body]
+  """
+  (with-gensyms [SYMBOL...] . BODY)
+
+  Creates gensyms for each SYMBOL, and returns a copy of BODY with
+  each SYMBOL replaced with its gensym counterpart.
+  """
+
+  (var [symtable (dict (#lc [sym (! unpack symnames)]
+			    (cons sym (gensym sym))))])
+
+  `{,@(map (partial swap-symbols symtable) body)})
+
+
+(defmacro let-gensyms [bindings . body]
+  """
+  (let-gensyms [[SYM BINDING]...] . BODY)
+
+  Creates gensyms for each SYM and binds to that instead of the
+  original name
+  """
+
+  (var [decls (#list)]
+       [swaps (#dict)])
+
+  (for-each [[sym val] (map parse-binding (! unpack bindings))]
+	    (var [gsym (gensym sym)])
+	    (! append decls (cons gsym val nil))
+	    (setf (item swaps sym) gsym))
+
+  `(let [,@decls] ,@(map (partial swap-symbols swaps) body)))
+
+
+(defmacro letrec-gensyms [bindings . body]
+  """
+  (letrec-gensyms [[SYM BINDING]...] . BODY)
+  """
+
+  (var [decls (#list)]
+       [swaps (#dict)])
+
+  (for-each [[sym val] (map parse-binding (! unpack bindings))]
+	    (var [gsym (gensym sym)])
+	    (! append decls (cons gsym val nil))
+	    (setf (item swaps sym) gsym))
+
+  `(letrec [,@decls] ,@(map (partial swap-symbols swaps) body)))
+
+
+;; === for setting up __all__
+
+
+(defmacro export syms
+  """
+  (export SYMBOL...)
+
+  Adds each SYMBOL to the global __all__ list. Ensures __all__ is
+  both sorted and unique.
+  """
+
+  `(let-gensyms [[_all_ (! get (globals) "__all__" (#list))]]
+     (! extend _all_ (#list ,@(map str syms)))
+     (setf (global __all__) (sorted (set _all_)))))
+
+
+;; === macro-let ====
+
+;; macro-let needs to be a special, because it compiles all the way
+;; down and doesn't result in an expanded form. If it were a macro, it
+;; wouldn't be able to do this, as a macro always expands into
+;; something.
+(defspecial macro-let [comp source tc]
+  (define-values [called-by [declarations body]] source)
+
+  (define tmp-macros
+    (eval
+     `(#dict
+       ,@(#gen [[macro-name [macro-formals macro-body]]
+		(unpack declarations)]
+
+	    `(',macro-name
+	      ((lambda [M]
+		 (set-attr M _proper ,(proper? macro-formals))
+		 M)
+	       (macro ,(str macro-name)
+		 (function ,macro-name ,macro-formals
+			   ,@macro-body))))))))
+
+  (with [_ (! tmp_compiled comp tmp-macros)]
+	(! compile comp `{,@body} tc None)))
 
 
 ;;

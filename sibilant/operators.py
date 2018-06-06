@@ -16,16 +16,18 @@
 """
 The built-in operators with compile-time optimizations.
 
+Operators are sibilant forms which compile directly to bytedoce, and
+can also be used at runtime to produce an equivalent function.
+
 author: Christopher O'Brien <obriencj@gmail.com>
 license: LGPL v.3
 """
 
 
-
 from .compiler import Operator
 
 from .lib import (
-    symbol, nil, is_pair,
+    symbol, pair, nil, is_pair,
     build_tuple, build_list, build_set, build_dict
 )
 
@@ -34,6 +36,7 @@ from functools import reduce
 import operator as pyop
 from operator import (
     __add__, __sub__, __mul__, __truediv__, __floordiv__,
+    __and__, __or__, __xor__,
 )
 
 
@@ -52,8 +55,10 @@ _symbol_bit_xor_ = symbol("^")
 _symbol_build_dict = symbol("build-dict")
 _symbol_build_list = symbol("build-list")
 _symbol_build_set = symbol("build-set")
+_symbol_build_slice = symbol("build-slice")
 _symbol_build_str = symbol("build-str")
 _symbol_build_tuple = symbol("build-tuple")
+_symbol_contains = symbol("contains")
 _symbol_del_item = symbol("del-item")
 _symbol_div = symbol("divide")
 _symbol_div_ = symbol("/")
@@ -61,6 +66,7 @@ _symbol_eq = symbol("eq")
 _symbol_eq_ = symbol("==")
 _symbol_floordiv = symbol("floor-divide")
 _symbol_floordiv_ = symbol("//")
+_symbol_format = symbol("format")
 _symbol_ge = symbol("ge")
 _symbol_ge_ = symbol(">=")
 _symbol_gt = symbol("gt")
@@ -68,6 +74,7 @@ _symbol_gt_ = symbol(">")
 _symbol_hash_dict = symbol("#dict")
 _symbol_hash_list = symbol("#list")
 _symbol_hash_set = symbol("#set")
+_symbol_hash_slice = symbol("#slice")
 _symbol_hash_str = symbol("#str")
 _symbol_hash_tuple = symbol("#tuple")
 _symbol_in = symbol("in")
@@ -90,6 +97,7 @@ _symbol_mult = symbol("multiply")
 _symbol_mult_ = symbol("*")
 _symbol_nil = symbol("nil")
 _symbol_not = symbol("not")
+_symbol_not_contains = symbol("not-contains")
 _symbol_not_eq = symbol("not-eq")
 _symbol_not_eq_ = symbol("!=")
 _symbol_not_in = symbol("not-in")
@@ -279,6 +287,33 @@ def operator_subtract(code, source, tc=False):
     return None
 
 
+def _helper_reducing(code, source, opfun, defval=None):
+
+    called_by, rest = source
+    if rest is nil:
+        raise code.error("too few arguments to %s" % called_by, source)
+
+    code.pseudop_position_of(source)
+
+    val, rest = rest
+    if rest is nil:
+        if defval is None:
+            raise code.error("too few arguments to %s" % called_by, source)
+
+        code.pseudop_const(defval)
+        code.add_expression(val)
+        opfun()
+
+    else:
+        code.add_expression(val)
+        while rest:
+            val, rest = rest
+            code.add_expression(val)
+            opfun()
+
+    return None
+
+
 def runtime_multiply(val, *vals):
     return reduce(__mul__, vals, val) if vals else (1 * val)
 
@@ -293,26 +328,7 @@ def operator_multiply(code, source, tc=False):
     multiplies values together, from left to right.
     """
 
-    called_by, rest = source
-    if rest is nil:
-        raise code.error("too few arguments to %s" % called_by, source)
-
-    code.pseudop_position_of(source)
-
-    val, rest = rest
-    if rest is nil:
-        code.pseudop_const(1)
-        code.add_expression(val)
-        code.pseudop_binary_multiply()
-
-    else:
-        code.add_expression(val)
-        while rest:
-            val, rest = rest
-            code.add_expression(val)
-            code.pseudop_binary_multiply()
-
-    return None
+    _helper_reducing(code, source, code.pseudop_binary_multiply, 1)
 
 
 def runtime_divide(val, *vals):
@@ -330,26 +346,7 @@ def operator_divide(code, source, tc=False):
     result by the next value
     """
 
-    called_by, rest = source
-    if rest is nil:
-        raise code.error("too few arguments to %s" % called_by, source)
-
-    code.pseudop_position_of(source)
-
-    val, rest = rest
-    if rest is nil:
-        code.pseudop_const(1)
-        code.add_expression(val)
-        code.pseudop_binary_divide()
-
-    else:
-        code.add_expression(val)
-        while rest:
-            val, rest = rest
-            code.add_expression(val)
-            code.pseudop_binary_divide()
-
-    return None
+    _helper_reducing(code, source, code.pseudop_binary_divide, 1)
 
 
 def runtime_floor_divide(val, *vals):
@@ -367,26 +364,61 @@ def operator_floor_divide(code, source, tc=False):
     result by the next value
     """
 
-    called_by, rest = source
-    if rest is nil:
-        raise code.error("too few arguments to %s" % called_by, source)
+    _helper_reducing(code, source, code.pseudop_binary_floor_divide, 1)
 
-    code.pseudop_position_of(source)
 
-    val, rest = rest
-    if rest is nil:
-        code.pseudop_const(1)
-        code.add_expression(val)
-        code.pseudop_binary_floor_divide()
+def runtime_bitwise_and(val1, val2, *vals):
+    val = (val1 & val2)
+    return reduce(__and__, vals, val) if vals else val
 
-    else:
-        code.add_expression(val)
-        while rest:
-            val, rest = rest
-            code.add_expression(val)
-            code.pseudop_binary_floor_divide()
 
-    return None
+@operator(_symbol_bit_and, runtime_bitwise_and, _symbol_bit_and_)
+def operator_bit_and(code, source, tc=False):
+    """
+    (& VALUE MASK)
+    Applies bitwise-and MASK to VALUE
+
+    (bitwise-and VALUE MASK)
+    same as above
+    """
+
+    _helper_reducing(code, source, code.pseudop_binary_and)
+
+
+def runtime_bitwise_or(val1, val2, *vals):
+    val = (val1 | val2)
+    return reduce(__or__, vals, val) if vals else val
+
+
+@operator(_symbol_bit_or, runtime_bitwise_or, _symbol_bit_or_)
+def operator_bit_or(code, source, tc=False):
+    """
+    (| VALUE SETMASK)
+    Applies bitwise-or SETMASK to VALUE
+
+    (bitwise-or VALUE SETMASK)
+    same as above
+    """
+
+    _helper_reducing(code, source, code.pseudop_binary_or)
+
+
+def runtime_bitwise_xor(val1, val2, *vals):
+    val = (val1 ^ val2)
+    return reduce(__xor__, vals, val) if vals else val
+
+
+@operator(_symbol_bit_xor, runtime_bitwise_xor, _symbol_bit_xor_)
+def operator_bit_xor(code, source, tc=False):
+    """
+    (^ VALUE FLIPMASK)
+    Applies bitwise-xor FLIPMASK to VALUE
+
+    (bitwise-xor VALUE FLIPMASK)
+    same as above
+    """
+
+    _helper_reducing(code, source, code.pseudop_binary_xor)
 
 
 # --- ternary operators ---
@@ -401,7 +433,7 @@ def _helper_ternary(code, source, opfun):
     except ValueError:
         raise code.error("too few arguments to %s" % name, source)
 
-    if rest is not nil:
+    if rest:
         raise code.error("too many arguments to %s" % name, source)
 
     code.pseudop_position_of(source)
@@ -439,7 +471,7 @@ def _helper_binary(code, source, opfun, flip=False):
     except ValueError:
         raise code.error("too few arguments to %s" % name, source)
 
-    if rest is not nil:
+    if rest:
         raise code.error("too many arguments to %s" % name, source)
 
     code.pseudop_position_of(source)
@@ -474,6 +506,7 @@ def operator_del_item(code, source, tc=False):
     """
 
     _helper_binary(code, source, code.pseudop_del_item)
+    code.pseudop_const(None)
 
 
 @operator(_symbol_pow, pyop.pow, _symbol_pow_)
@@ -527,45 +560,6 @@ def operator_rshift(code, source, tc=False):
     _helper_binary(code, source, code.pseudop_binary_rshift)
 
 
-@operator(_symbol_bit_and, pyop.and_, _symbol_bit_and_)
-def operator_bit_and(code, source, tc=False):
-    """
-    (& VALUE MASK)
-    Applies bitwise-and MASK to VALUE
-
-    (bitwise-and VALUE MASK)
-    same as above
-    """
-
-    _helper_binary(code, source, code.pseudop_binary_and)
-
-
-@operator(_symbol_bit_or, pyop.or_, _symbol_bit_or_)
-def operator_bit_or(code, source, tc=False):
-    """
-    (| VALUE SETMASK)
-    Applies bitwise-or SETMASK to VALUE
-
-    (bitwise-or VALUE SETMASK)
-    same as above
-    """
-
-    _helper_binary(code, source, code.pseudop_binary_or)
-
-
-@operator(_symbol_bit_xor, pyop.xor, _symbol_bit_xor_)
-def operator_bit_xor(code, source, tc=False):
-    """
-    (^ VALUE FLIPMASK)
-    Applies bitwise-xor FLIPMASK to VALUE
-
-    (bitwise-xor VALUE FLIPMASK)
-    same as above
-    """
-
-    _helper_binary(code, source, code.pseudop_binary_xor)
-
-
 @operator(_symbol_gt, pyop.gt, _symbol_gt_)
 def operator_gt(code, source, tc=False):
     """
@@ -592,24 +586,52 @@ def operator_ge(code, source, tc=False):
     _helper_binary(code, source, code.pseudop_compare_gte)
 
 
-@operator(_symbol_in, pyop.contains)
-def operator_in(code, source, tc=False):
+@operator(_symbol_contains, pyop.contains)
+def operator_contains(code, source, tc=False):
     """
-    (in SEQ VALUE)
-    True if SEQ contains VALUE
+    (contains SEQUENCE VALUE)
+    True if SEQUENCE contains VALUE
+
+    Identical to (in VALUE SEQUENCE)
     """
 
     _helper_binary(code, source, code.pseudop_compare_in, True)
 
 
-@operator(_symbol_not_in, (lambda seq, value: value not in seq))
-def operator_not_in(code, source, tc=False):
+@operator(_symbol_in, (lambda value, seq: value in seq))
+def operator_in(code, source, tc=False):
     """
-    (not-in SEQ VALUE)
-    False if SEQ contains VALUE
+    (in VALUE SEQUENCE)
+    True if SEQUENCE contains VALUE
+
+    Identical to (contains SEQUENCE VALUE)
+    """
+
+    _helper_binary(code, source, code.pseudop_compare_in)
+
+
+@operator(_symbol_not_contains, (lambda seq, value: value not in seq))
+def operator_not_contains(code, source, tc=False):
+    """
+    (not-contains SEQUENCE VALUE)
+    False if SEQUENCE contains VALUE
+
+    Identical to (not-in VALUE SEQUENCE)
     """
 
     _helper_binary(code, source, code.pseudop_compare_not_in, True)
+
+
+@operator(_symbol_not_in, (lambda value, seq: value not in seq))
+def operator_not_in(code, source, tc=False):
+    """
+    (not-in VALUE SEQUENCE)
+    False if SEQUENCE contains VALUE
+
+    Identical to (not-contains SEQUENCE VALUE)
+    """
+
+    _helper_binary(code, source, code.pseudop_compare_not_in)
 
 
 @operator(_symbol_is, pyop.is_)
@@ -692,7 +714,7 @@ def _helper_unary(code, source, opfun):
     except ValueError:
         raise code.error("too few arguments to %s" % name, source)
 
-    if rest is not nil:
+    if rest:
         raise code.error("too many arguments to %s" % name, source)
 
     code.pseudop_position_of(source)
@@ -728,8 +750,26 @@ def operator_iter(code, source, tc=False):
     """
     (iter OBJ)
     Produces an iterator over the contents of OBJ
+
+    (iter CALLABLE SENTINEL)
+    Produces an iterator by calling CALLABLE until a SENTINEL value is
+    returned
     """
 
+    try:
+        called_by, params = source
+        work, (sentinel, rest) = params
+    except ValueError:
+        # we'll fall-through later to the operator
+        pass
+    else:
+        if rest:
+            raise code.error("too many arguments to %s" % called_by, source)
+        else:
+            return pair(symbol("py-iter"), params)
+
+    # if there weren't enough arguments to trigger the py-iter
+    # transformation, we'll do the normal opcode transform
     _helper_unary(code, source, code.pseudop_iter)
 
 
@@ -873,12 +913,14 @@ def collapse_build_str(seq):
 
     for part in seq:
         if type(part) is str:
-            tmp.append(part)
+            if part:
+                tmp.append(part)
         else:
             if tmp:
                 yield "".join(tmp)
-                tmp.clear()
-            yield part
+                tmp = []
+            if part:
+                yield part
 
     if tmp:
         yield "".join(tmp)
@@ -900,22 +942,84 @@ def operator_build_str(code, source, tc=False):
 
     # first collapse neighboring string literals together.
     parts = list(collapse_build_str(items.unpack()))
-
-    # if there's nothing left but one string, then return that as a
-    # single literal value instead.
-    if len(parts) == 1 and type(parts[0]) is str:
-        code.pseudop_const(parts[0])
-        return None
-
     for part in parts:
         code.add_expression(part)
 
-    code.pseudop_build_str(len(parts))
+    lp = len(parts)
+    if lp > 1:
+        code.pseudop_build_str(lp)
+    elif lp == 1:
+        pass
+    else:
+        code.pseudop_const("")
 
     return None
 
 
-__all__ = tuple(__all__)
+@operator(_symbol_build_slice, slice, _symbol_hash_slice)
+def operator_build_slice(code, source, tc=False):
+    """
+    (build-slice START STOP)
+    (build-slice START STOP STEP)
+
+    Create a slice object.
+    """
+
+    try:
+        called_by, (start, (stop, rest)) = source
+    except ValueError:
+        raise code.error("too few arguments to slice", source)
+
+    if rest:
+        step, rest = rest
+    else:
+        step = None
+
+    if rest:
+        raise code.error("too many arguments to slice", source)
+
+    code.add_expression(start)
+    code.add_expression(stop)
+
+    if step is not None:
+        code.add_expression(step)
+        code.pseudop_build_slice(3)
+    else:
+        code.pseudop_build_slice(2)
+
+    return None
+
+
+@operator(_symbol_format, format)
+def operator_format(code, source, tc=False):
+    """
+    (format VALUE)
+    (format VALUE SPEC)
+
+    Formats value using the formatting mini-language
+    """
+
+    try:
+        called_by, (val, rest) = source
+    except ValueError:
+        raise code.error("too few arguments to format", source)
+
+    if rest:
+        spec, rest = rest
+    else:
+        spec = None
+
+    if rest:
+        raise code.error("too many arguments to format", source)
+
+    code.add_expression(val)
+    if spec:
+        code.add_expression(spec)
+        code.pseudop_format(0x04)
+    else:
+        code.pseudop_format(0x00)
+
+    return None
 
 
 #

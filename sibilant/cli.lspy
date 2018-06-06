@@ -88,7 +88,7 @@ license: LGPL v.3
 
      (when filename
 	   (with [(source_open filename) as: source]
-		 (init_module mod source)
+		 (setq mod (init_module mod source))
 		 (load_module mod))
 
 	   (unless options.interactive
@@ -118,6 +118,11 @@ license: LGPL v.3
      (arguments
       parser
 
+      [-O
+       dest: "optimize" action: "store_true" default: False
+       help:
+       "Disable assert expressions"]
+
       [--no-tweak-path
        dest: "tweakpath" action: "store_false" default: True
        help:
@@ -134,7 +139,7 @@ license: LGPL v.3
       [[-i --interactive]
        dest: "interactive" action: "store_true" default: False
        help:
-       "Enter interactive mdoe after executing the given script"]
+       "Enter interactive mode after executing the given script"]
 
       [[-C --compile]
        dest: "compile" action: "store" default: None
@@ -148,9 +153,20 @@ license: LGPL v.3
         using only bootstrap builtins"])
 
      (arguments
-      parser
+      (parser.add_mutually_exclusive_group)
 
-      [filename nargs: "?" default: None]
+      ;; [-m
+      ;;  dest: "module" action: "store" default: None
+      ;;  help:
+      ;;  "Load module and run as a script"]
+
+      [filename
+       nargs: "?" default: None
+       help:
+       "Run filename as a script"])
+
+     (arguments
+      parser
       [args nargs: REMAINDER default: (#list)])
 
      parser)
@@ -166,6 +182,15 @@ license: LGPL v.3
 
      (var [parser (cli-option-parser name)]
 	  [options (parser.parse_args args)])
+
+     (when (and options.optimize (== 0 sys.flags.optimize))
+	   ;; Python won't let us set the optimize flag ourselves, we
+	   ;; have to actively restart the environment with -O in
+	   ;; order to flip that on. So detect if the option is set
+	   ;; but debug mode is not on, and then restart as needed
+	   (def import-from os execl)
+	   ; (argv.remove "-O")
+	   (execl sys.executable sys.executable "-O" *: argv))
 
      (try
       (cli options)

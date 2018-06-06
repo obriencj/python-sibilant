@@ -1,0 +1,27 @@
+version: "2"
+
+services:
+    cpython35.test:
+        build:
+          context: .
+          dockerfile: cpython35.test
+        volumes:
+            - ../:/src
+        command: "bash -c 'cd /src && ./setup.py clean test flake8'"
+        network_mode: none
+    cpython36.test:
+        build:
+          context: .
+          dockerfile: cpython36.test
+        volumes:
+            - ../:/src
+        command: "bash -c 'cd /src && ./setup.py clean test flake8'"
+        network_mode: none
+    cpython37.test:
+        build:
+          context: .
+          dockerfile: cpython37.test
+        volumes:
+            - ../:/src
+        command: "bash -c 'cd /src && ./setup.py clean test flake8'"
+        network_mode: none

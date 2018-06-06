@@ -1,0 +1,13 @@
+
+
+(defun x-times (x fun)
+  (set! x (pos x))
+  (while x
+    (fun x)
+    (set! x (- x 1))))
+
+
+(print "result" (x-times 3 (lambda (x) (print x) x)))
+(print "result" (x-times 0 (lambda (x) (print x) x)))
+
+(print "result" (x-times 1000000 (lambda (x) (print x) x)))

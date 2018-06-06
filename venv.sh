@@ -63,11 +63,14 @@ case "$CMD" in
 	echo -e "Current branch is $BRANCH so working in:\n $VDIR"
 	mkdir -p "$VDIR"
 	$VIRTUALENV "$VDIR" "$@" || exit $?
+	"$VBIN/pip" install --upgrade pip
+	"$VBIN/pip" install flake8 mypy flake8-mypy wheel
 	;;
 
     install)
 	$VIRTUALENV "$VDIR" || exit $?
-	"$VBIN/python" setup.py install || exit $?
+	"$VBIN/python" setup.py clean bdist_wheel || exit $?
+	"$VBIN/pip" install -I dist/*.whl || exit $?
 	;;
 
     setup|setup.py)

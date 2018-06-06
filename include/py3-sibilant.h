@@ -27,7 +27,6 @@ typedef struct SibPair {
   PyObject *head;
   PyObject *tail;
   PyObject *position;
-  PyObject *weakrefs;
 } SibPair;
 
 
@@ -35,7 +34,6 @@ typedef struct SibInternedAtom {
   PyObject_HEAD
 
   PyObject *name;
-  PyObject *weakrefs;
 } SibInternedAtom;
 
 
@@ -44,7 +42,6 @@ typedef struct SibValues {
 
   PyObject *args;
   PyObject *kwds;
-  PyObject *weakrefs;
   Py_uhash_t hashed;
 } SibValues;
 
@@ -95,8 +92,6 @@ PyObject *sib_pair(PyObject *head, PyObject *tail);
 PyObject *sib_values(PyObject *args, PyObject *kwds);
 
 
-#define CONS(h, t) sib_pair((h), (t))
-
 #define CAR(p) (((SibPair *) (p))->head)
 
 #define CDR(p) (((SibPair *) (p))->tail)
@@ -104,13 +99,13 @@ PyObject *sib_values(PyObject *args, PyObject *kwds);
 #define SETCAR(p, v) {				\
     Py_XINCREF(v);				\
     Py_XDECREF(CAR(p));				\
-    CAR(p) = v;					\
+    CAR(p) = (v);				\
   }
 
 #define SETCDR(p, v) {				\
     Py_XINCREF(v);				\
     Py_XDECREF(CDR(p));				\
-    CDR(p) = v;					\
+    CDR(p) = (v);				\
   }
 
 

@@ -23,12 +23,15 @@ license: LGPL v.3
 
 from functools import partial
 from io import StringIO
-from types import CodeType
+from types import CodeType, GeneratorType
 from unittest import TestCase
 
 import sibilant.builtins
 
-from sibilant import car, cdr, cons, nil, symbol
+from sibilant import (
+    car, cdr, cons, nil, symbol,
+    getderef, setderef, clearderef,
+)
 
 from sibilant.compiler import (
     is_macro, Macro, is_alias, Alias,
@@ -41,7 +44,62 @@ class Object(object):
     pass
 
 
-class BuiltinsSetf(TestCase):
+class Defun(TestCase):
+
+
+    def test_defun(self):
+        src = """
+        (defun add_8 (x) (+ x 8))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), None)
+
+        add_8 = env["add_8"]
+        self.assertTrue(callable(add_8))
+        self.assertEqual(add_8.__name__, "add_8")
+        self.assertEqual(add_8(1), 9)
+        self.assertEqual(add_8(2), 10)
+
+        stmt, env = compile_expr(src, add_8=None)
+        self.assertEqual(stmt(), None)
+
+        add_8 = env["add_8"]
+        self.assertTrue(callable(add_8))
+        self.assertEqual(add_8.__name__, "add_8")
+        self.assertEqual(add_8(1), 9)
+        self.assertEqual(add_8(2), 10)
+
+
+class Defmacro(TestCase):
+
+
+    def test_defmacro(self):
+        src = """
+        (defmacro swap_test (a b c)
+          (cons c b a '()))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), None)
+
+        swap_test = env["swap_test"]
+        self.assertTrue(isinstance(swap_test, Macro))
+        self.assertTrue(is_macro(swap_test))
+        self.assertEqual(swap_test.__name__, "swap_test")
+
+        self.assertRaises(TypeError, swap_test, 1, 2, 3)
+
+        self.assertEqual(swap_test.expand(1, 2, 3),
+                         cons(3, 2, 1, nil))
+
+        src = """
+        (swap_test 'world 'hello cons)
+        """
+        # compiles to equivalent of (cons 'hello 'world)
+        stmt, env = compile_expr(src, swap_test=swap_test)
+        self.assertEqual(stmt(), cons(symbol("hello"), symbol("world")))
+
+
+class Setf(TestCase):
 
     def test_setf_var(self):
         src = """
@@ -151,7 +209,7 @@ class BuiltinsSetf(TestCase):
         self.assertEqual(res.foo.bar.z, 9)
 
 
-    def test_setbang_global(self):
+    def test_setf_global(self):
 
         src = """
         (let ((tacos 999))
@@ -172,7 +230,7 @@ class BuiltinsSetf(TestCase):
         self.assertEqual(env["tacos"], 9)
 
 
-    def test_setbang_item_slice(self):
+    def test_setf_item_slice(self):
 
         seq = [1, 2, 3, 4, 5, 6, 7, 8, 9]
 
@@ -193,7 +251,94 @@ class BuiltinsSetf(TestCase):
         self.assertEqual(seq, [123, 2, 3, 456, 5, 6, 789, 8, 9])
 
 
-class BuiltinsMacroExpansion(TestCase):
+    def test_setf_deref(self):
+        src = """
+        (let []
+          (define X 123)
+          (values
+             (refq X)
+             (lambda [] X)
+             (lambda [Y] (setq X Y))))
+        """
+        stmt, env = compile_expr(src)
+        cell, getter, setter = stmt()
+
+        src = """
+        (deref cell)
+        """
+        stmt, env = compile_expr(src, cell=cell)
+        self.assertEqual(stmt(), 123)
+
+        src = """
+        (setf (deref cell) 456)
+        """
+        stmt, env = compile_expr(src, cell=cell)
+        self.assertEqual(stmt(), None)
+        self.assertEqual(getter(), 456)
+
+        src = """
+        (delf (deref cell))
+        """
+        stmt, env = compile_expr(src, cell=cell)
+        self.assertEqual(stmt(), None)
+        self.assertRaises(NameError, getter)
+        self.assertRaises(ValueError, getderef, cell)
+
+
+class Delf(TestCase):
+
+
+    def test_delf_item_slice(self):
+
+        seq = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+        src = """
+        (delf (item-slice seq 0 3))
+        """
+        stmt, env = compile_expr(src, seq=seq)
+        self.assertEqual(stmt(), None)
+        self.assertEqual(seq, [4, 5, 6, 7, 8, 9])
+
+        seq = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+        src = """
+        (delf (item-slice seq step: 3))
+        """
+        stmt, env = compile_expr(src, seq=seq)
+        self.assertEqual(stmt(), None)
+        self.assertEqual(seq, [2, 3, 5, 6, 8, 9])
+
+
+    def test_delf_deref(self):
+        src = """
+        (let []
+          (define X 123)
+          (values
+             (refq X)
+             (lambda [] X)
+             (lambda [Y] (setq X Y))))
+        """
+        stmt, env = compile_expr(src)
+        cell, getter, setter = stmt()
+
+        src = """
+        (deref cell)
+        """
+        stmt, env = compile_expr(src, cell=cell)
+        self.assertEqual(stmt(), 123)
+        self.assertEqual(getter(), 123)
+        self.assertEqual(getderef(cell), 123)
+
+        src = """
+        (delf (deref cell))
+        """
+        stmt, env = compile_expr(src, cell=cell)
+        self.assertEqual(stmt(), None)
+        self.assertRaises(NameError, getter)
+        self.assertRaises(ValueError, getderef, cell)
+
+
+class MacroExpansion(TestCase):
 
     def test_macro(self):
         src = """
@@ -244,7 +389,7 @@ class BuiltinsMacroExpansion(TestCase):
         self.assertEqual(res, (0, 1, 2))
 
 
-class BuiltinsEval(TestCase):
+class Eval(TestCase):
 
     def test_eval_str(self):
         src = """
@@ -287,7 +432,7 @@ class BuiltinsEval(TestCase):
         self.assertEqual(stmt(), 5)
 
 
-class BuiltinsCompile(TestCase):
+class Compile(TestCase):
 
     def test_compile_str(self):
         src = """
@@ -337,6 +482,218 @@ class BuiltinsCompile(TestCase):
         self.assertIs(type(res), CodeType)
         self.assertEqual(eval(res, {"tacos": 5}), 5)
 
+
+class IterEach(TestCase):
+
+    def test_iter_each(self):
+        src = """
+        (iter-each [X (range 0 10)]
+            (// X 2))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertEqual(type(res), GeneratorType)
+        self.assertEqual(list(res), [0, 0, 1, 1, 2, 2, 3, 3, 4, 4])
+
+        src = """
+        (iter-each [X (range 0 10)]
+            (// X 2)
+            unless: (& X 3))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertEqual(type(res), GeneratorType)
+        self.assertEqual(list(res), [0, 2, 4])
+
+        src = """
+        (iter-each [X (range 0 10)]
+            (// X 2)
+            when: (& X 3))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertEqual(type(res), GeneratorType)
+        self.assertEqual(list(res), [0, 1, 1, 2, 3, 3, 4])
+
+        src = """
+        (iter-each [X (range 0 10)]
+            (// X 2)
+            when: (& X 3) unless: (& X 3))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertEqual(type(res), GeneratorType)
+        self.assertEqual(list(res), [])
+
+
+    def test_list_each(self):
+        src = """
+        (list-each [X (range 0 10)]
+            (// X 2))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertEqual(type(res), list)
+        self.assertEqual(res, [0, 0, 1, 1, 2, 2, 3, 3, 4, 4])
+
+        src = """
+        (list-each [X (range 0 10)]
+            (// X 2)
+            unless: (& X 3))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertEqual(type(res), list)
+        self.assertEqual(res, [0, 2, 4])
+
+        src = """
+        (list-each [X (range 0 10)]
+            (// X 2)
+            when: (& X 3))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertEqual(type(res), list)
+        self.assertEqual(res, [0, 1, 1, 2, 3, 3, 4])
+
+        src = """
+        (list-each [X (range 0 10)]
+            (// X 2)
+            when: (& X 3) unless: (& X 3))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertEqual(type(res), list)
+        self.assertEqual(res, [])
+
+
+    def test_set_each(self):
+        src = """
+        (set-each [X (range 0 10)]
+            (// X 2))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertEqual(type(res), set)
+        self.assertEqual(res, {0, 1, 2, 3, 4})
+
+        src = """
+        (set-each [X (range 0 10)]
+            (// X 2)
+            unless: (& X 3))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertEqual(type(res), set)
+        self.assertEqual(res, {0, 2, 4})
+
+        src = """
+        (set-each [X (range 0 10)]
+            (// X 2)
+            when: (& X 3))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertEqual(type(res), set)
+        self.assertEqual(res, {0, 1, 2, 3, 4})
+
+        src = """
+        (set-each [X (range 0 10)]
+            (// X 2)
+            when: (& X 3) unless: (& X 3))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertEqual(type(res), set)
+        self.assertEqual(res, set())
+
+
+class Lets(TestCase):
+
+
+    def test_let_star(self):
+        src = """
+        (let* [[pre "te"][post (+ pre "st")]] post)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertEqual(res, "test")
+
+        src = """
+        (let* [[post (+ pre "st")][pre "te"]] post)
+        """
+        stmt, env = compile_expr(src)
+
+        self.assertRaises(NameError, stmt)
+
+
+    def test_let_star_values(self):
+        src = """
+        (let*-values [[(a (b c)) (#tuple 1 (#tuple 2 3))]
+                      [(d e) `(,(+ a b) ,(+ a c))]]
+                     `(,d . ,e))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertEqual(res, cons(3, 4, nil))
+
+        src = """
+        (let*-values [[(d e) `(,(+ a b) ,(+ a c))]
+                      [(a (b c)) (#tuple 1 (#tuple 2 3))]]
+                     `(,d . ,e))
+        """
+        stmt, env = compile_expr(src)
+
+        self.assertRaises(NameError, stmt)
+
+
+    def test_letrec(self):
+        src = """
+        (letrec [[is-even? (lambda (n) (or (== n 0)
+                                       (is-odd? (- n 1))))]
+                 [is-odd? (lambda (n) (and (not (== n 0))
+                                           (is-even? (- n 1))))]]
+                (is-odd? 11))
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertEqual(res, True)
+
+
+class Attrs(TestCase):
+
+
+    def test_has_attr(self):
+        src = """
+        (has-attr None __class__)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertEqual(res, True)
+
+        src = """
+        (has-attr None "__class__")
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertEqual(res, True)
 
 
 #
