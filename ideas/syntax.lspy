@@ -1,0 +1,151 @@
+
+
+(def function assoc-matches? (literal pattern reality assoc)
+     (when (is pattern reality) (return True))
+     (when (or (nil? pattern) (nil? reality)) (return False))
+
+     (define-values [pbit n_pattern] pattern)
+     (define-values [rbit n_reality] reality)
+
+     (and
+      (cond
+       [(symbol? pbit)
+	(if (contains literal pbit)
+	    then: (is pbit rbit)
+	    else: (if (is (and n_pattern (car n_pattern)) '...)
+		      then: {(assoc pbit reality)
+			     (return True)}
+		      else: {(assoc pbit rbit)
+			     True}))]
+       [(nil? pbit) (nil? rbit)]
+       [(pair? pbit) (and (pair? rbit)
+			  (assoc-matches? literal pbit rbit assoc))]
+       [else: (== pbit rbit)])
+
+      (assoc-matches? literal n_pattern n_reality assoc)))
+
+
+(def function matches? (literal pattern reality)
+     (var [bindings (#dict)]
+	  [assoc bindings.__setitem__])
+
+     (and (assoc-matches? literal pattern reality assoc) bindings))
+
+
+(def class SyntaxRules []
+     (def function __init__ [self literals rules]
+	  (print "init SyntaxRules")
+	  (print "  literals" (repr literals))
+	  (print "  rules" (repr rules))
+
+	  ;; compile each rule into a matcher and a transformation
+	  (setf self.literals literals)
+	  (setf self.rules rules))
+
+     (def function match [self source]
+	  (var [literal self.literals]
+	       [bound None]
+	       [rules self.rules])
+	  (for-each [[pattern transform] rules]
+		    (setq bound (matches? literal pattern source))
+		    (when bound
+		      (break (#tuple bound transform)))))
+
+     (def function __call__ [self source]
+	  (print "trying to match")
+	  (print "  source" (repr source))
+
+	  ;; for each rule in self rules
+	  ;; if rule matches, apply rule, return result
+	  ;; finally raise syntax error
+
+	  (define found (self.match source))
+	  (when found
+	    (define-values [bound transform] found)
+	    (transform **: bound)))
+
+     ; end of class SyntaxRules
+     None)
+
+
+(def function foo [left right: 0]
+  (print "foo" left right)
+  (+ left right))
+
+
+(def function pair-walk (cpair callback)
+     (unless (nil? cpair)
+       (define-values [head tail] cpair)
+       (when (cond
+	      [(nil? head) True]
+	      [(pair? head) (pair-walk head callback)]
+	      [else: (callback head tail)])
+	 (pair-walk tail callback))))
+
+
+(def function iter-pair-walk (cpair)
+     (until (nil? cpair)
+       (define-values [head tail] cpair)
+       (cond
+	[(nil? head) None]
+	[(pair? head) (yield-from (iter-pair-walk head))]
+	[else: (yield head)])
+       (setq cpair tail)))
+
+
+(defmacro syntax-rule [literals pattern transform]
+  (var [hygenic (#dict)]
+       [elli '...]
+       [literals (set (literals.unpack))])
+
+  (labels
+   [[collect [head tail]
+	     (when (and (symbol? head)
+			(is-not elli head)
+			(not-in head literals))
+	       (if (in head hygenic)
+		   then: (syntax-error! "duplicate binding")
+		   else: (setf (item hygenic head) (gensym head))))
+	     True]]
+
+   (define r
+     (pair-walk pattern collect))
+
+   (print "syntax-rule became\n  " r)
+
+   r))
+
+
+(defmacro define-syntax-rules [name literals . sr]
+  (print "define-syntax-rules")
+  (print "  literals" (repr literals))
+  (print "  sr" (str sr))
+
+  (var [rules (map (lambda [r] (r.unpack)) sr)]
+       [csr (iter-each [[pattern transform] rules]
+		       `(syntax-rule ,literals ,pattern ,transform))])
+
+  (setq csr (tuple csr))
+  (print "  csr" (str csr))
+
+  (define r
+    `(define ,name
+       (print ,(str name) (SyntaxRules ',literals
+				       (#tuple ,@csr)))))
+  (print "  becomes" r)
+  r)
+
+
+(define-syntax-rules foo! ()
+  [[foo! a b ...]
+   (reduce foo (#tuple a b ...))]
+  [[foo! a]
+   (foo a)])
+
+
+(foo! 1 2 3)
+(foo! 1)
+(foo!)
+
+
+;; The end.
