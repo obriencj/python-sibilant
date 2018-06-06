@@ -98,6 +98,43 @@
      None)
 
 
+(def class MacroLetTest (TestCase)
+
+     (def function test_simple_macro_let [self]
+
+	  (self.assertEqual
+
+	   (macro-let
+	    [[m1 [a b] `(+ ,a ,b)]
+	     [m2 [a b] `(- ,a ,b)]]
+
+	    (self.assertEqual (m1 10 5) 15)
+	    (self.assertEqual (m2 10 5) 5)
+
+	    (* (m1 10 5) (m2 10 5)))
+
+	   (* 15 5))
+
+	  None)
+
+     (def function test_shadowing_macro_let [self]
+	  (macro-let
+	   [[m1 [a b] `(+ ,a ,b)]]
+
+	   (self.assertEqual (m1 10 5) 15)
+
+	   (macro-let
+	    [[m1 [a b] `(- ,a ,b)]]
+
+	    (self.assertEqual (m1 10 5) 5))
+
+	   (self.assertEqual (m1 10 5) 15))
+
+	  None)
+
+     None)
+
+
 (def class BuildTest [TestCase]
 
      (def function test_build_list [self]
