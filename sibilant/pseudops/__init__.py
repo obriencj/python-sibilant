@@ -899,10 +899,9 @@ class PseudopsCompiler(metaclass=ABCMeta):
 
     def pseudop_set_local(self, namesym: Symbol):
         """
-        Declares var as local, assigns TOS to is
+        Assigns TOS to a local var. Must be declared separately.
         """
         # assert is_symbol(namesym)
-        self.declare_var(namesym)
         self.pseudop(Pseudop.SET_LOCAL, namesym)
 
 

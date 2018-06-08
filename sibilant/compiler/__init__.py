@@ -276,9 +276,18 @@ class Syntax(Compiled):
         return object.__new__(cls)
 
 
-    def compile(self, compiler, source_obj, tc=False):
-        res = self.transform(source_obj)
-        return _symbol_None if res is None else res
+    @tailcall
+    def compile(self, compiler, source_obj, tc, cont):
+        expanded = self.transform(source_obj)
+        expanded = _symbol_None if res is None else res
+
+        if is_pair(source_obj):
+            called_by, source = source_obj
+            res = cons(expanded, source)
+            fill_position(res, source_obj.get_position())
+            expanded = res
+
+        return tailcall(cont)(expanded, tc)
 
 
 def is_syntax(obj):
@@ -360,7 +369,8 @@ def compiler_for_version(ver=version_info,
 class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
 
 
-    def __init__(self, tco_enabled=True, self_ref=None, **kwopts):
+    def __init__(self, tco_enabled=True, self_ref=None,
+                 env_gensyms=None, **kwopts):
 
         # TODO: using **kwops is crap, maybe we need a copiler options
         # object to document the options and what they mean.
@@ -369,6 +379,7 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
 
         self.env = None
         self.env_tmp_compiled = []
+        self.env_tmp_gensyms = env_gensyms
 
         self.tco_enabled = tco_enabled
         self.tailcalls = 0
@@ -382,6 +393,7 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
         super().__del__()
         del self.env
         del self.env_tmp_compiled
+        del self.env_tmp_gensyms
 
 
     def activate(self, environment):
@@ -429,6 +441,8 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
 
     def child(self, **addtl):
         addtl.setdefault("tco_enabled", self.tco_enabled)
+        addtl.setdefault("env_gensyms", self.env_tmp_gensyms)
+
         return super().child(**addtl)
 
 
@@ -875,6 +889,47 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
                 return tmp_env[namesym]
         else:
             return env_find_compiled(self.env, namesym)
+
+
+    @contextmanager
+    def tmp_gensyms(self, mapping=None):
+        if mapping is None:
+            mapping = {}
+
+        self.env_tmp_gensyms = mapping
+        yield
+        self.env_tmp_gensyms = None
+
+
+    def declare_var(self, namesym: Symbol):
+        # this allows us to wrap declarations as hygeinic temporarily,
+        # converting declarations into gensyms, which then can map
+        # backwards
+
+        if self.env_tmp_gensyms is None or is_lazygensym(namesym):
+            return super().declare_var(namesym)
+
+        assert is_symbol(namesym)
+
+        if namesym in self.env_tmp_gensyms:
+            found = self.env_tmp_gensyms[namesym]
+        else:
+            found = self.gensym(namesym)
+            self.env_tmp_gensyms[namesym] = found
+
+        return super().declare_var(found)
+
+
+    def request_var(self, namesym: Symbol):
+        # this is aware of the temporary hygeinic overriding
+
+        if self.env_tmp_gensyms is None or is_lazygensym(namesym):
+            return super().request_var(namesym)
+
+        assert is_symbol(namesym)
+
+        found = self.env_tmp_gensyms.get(namesym, namesym)
+        return super().request_var(found)
 
 
 def compile_expression(source_obj, env, filename="<anon>",
