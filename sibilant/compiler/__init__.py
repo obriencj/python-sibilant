@@ -279,7 +279,7 @@ class Syntax(Compiled):
     @tailcall
     def compile(self, compiler, source_obj, tc, cont):
         expanded = self.transform(source_obj)
-        expanded = _symbol_None if res is None else res
+        expanded = _symbol_None if expanded is None else expanded
 
         if is_pair(source_obj):
             called_by, source = source_obj

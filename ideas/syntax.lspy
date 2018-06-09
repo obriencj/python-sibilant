@@ -73,6 +73,8 @@
   (+ left right))
 
 
+;; these should go into basics ASAP
+
 (def function pair-walk (cpair callback)
      (unless (nil? cpair)
        (define-values [head tail] cpair)
@@ -108,12 +110,10 @@
 		   else: (setf (item hygenic head) (gensym head))))
 	     True]]
 
-   (define r
-     (pair-walk pattern collect))
+   (pair-walk pattern collect))
 
-   (print "syntax-rule became\n  " r)
-
-   r))
+  (print "syntax-rule became\n  " collect)
+  collect)
 
 
 (defmacro define-syntax-rules [name literals . sr]
@@ -130,8 +130,8 @@
 
   (define r
     `(define ,name
-       (print ,(str name) (SyntaxRules ',literals
-				       (#tuple ,@csr)))))
+       (syntax ,(str name) (SyntaxRules ',literals
+					(#tuple ,@csr)))))
   (print "  becomes" r)
   r)
 
