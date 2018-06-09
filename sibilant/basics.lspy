@@ -1010,7 +1010,10 @@
 
 (defun swap-symbols [swaptable source]
 
-  (when (nil? source) (return nil))
+  (when (nil? source) (return source))
+
+  (when (symbolish? source)
+    (return (swaptable.get source source)))
 
   (var [result (copy source)])
 
