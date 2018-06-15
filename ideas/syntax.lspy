@@ -4,8 +4,8 @@
      (when (is pattern reality) (return True))
      (when (or (nil? pattern) (nil? reality)) (return False))
 
-     (define-values [pbit n_pattern] pattern)
-     (define-values [rbit n_reality] reality)
+     (var-values [[pbit n_pattern] pattern]
+		 [[rbit n_reality] reality])
 
      (and
       (cond
@@ -32,6 +32,47 @@
      (and (assoc-matches? literal pattern reality assoc) bindings))
 
 
+(def function syntax-translate (swaptable pattern)
+
+     (when (symbolish? pattern)
+       (return
+	(if (in pattern swaptable)
+	    then: (cons unquote (! get swaptable pattern) nil)
+	    else: pattern)))
+
+     (when (or (nil? pattern) (not (pair? pattern)))
+       (return pattern))
+
+     (define elli '...)
+
+     (labels
+      [[swapfn [v] (! get swaptable v v)]
+
+       [swapit [follower head tail]
+	(cond
+	 [(symbolish? head)
+	  (if (in head swaptable)
+	      then: (if (and tail (is (car tail) elli))
+			then: { (next follower)
+				(cons 'unquote-splicing (swapfn head) nil) }
+			else: (cons 'unquote (swapfn head) nil))
+	      else: head)]
+	 [(and (pair? head) (not (nil? head)))
+	  (translate  head)]
+	 [else: head])]
+
+       [translate [pat]
+	 (var [result (copy pat)]
+	      [follower (! follow result)])
+	 (for-each [p follower]
+	    (unless (nil? p)
+	      (define-values [head tail] p)
+	      (setf (car p) (swapit follower head tail))))
+	 result]]
+
+      (cons 'quasiquote (translate pattern) nil)))
+
+
 (def class SyntaxRules []
      (def function __init__ [self literals rules]
 	  (print "init SyntaxRules")
@@ -47,9 +88,11 @@
 	       [bound None]
 	       [rules self.rules])
 	  (for-each [[pattern transform] rules]
-		    (setq bound (matches? literal pattern source))
-		    (when bound
-		      (break (#tuple bound transform)))))
+	      (print "  checking pattern" (str pattern))
+	      (setq bound (matches? literal (cdr pattern) source))
+	      (when bound
+		(print "  bound" (repr bound))
+		(break (#tuple bound transform)))))
 
      (def function __call__ [self source]
 	  (print "trying to match")
@@ -59,10 +102,12 @@
 	  ;; if rule matches, apply rule, return result
 	  ;; finally raise syntax error
 
-	  (define found (self.match source))
+	  (define found (self.match (cdr source)))
 	  (when found
+	    (print "  found" (repr found))
 	    (define-values [bound transform] found)
-	    (transform **: bound)))
+	    (transform **: (dict (#gen [[k v] (! items bound)]
+				       `(,(str k) . ,v))))))
 
      ; end of class SyntaxRules
      None)
@@ -95,25 +140,43 @@
        (setq cpair tail)))
 
 
+(defmacro syntax-error! [msg]
+  `(raise! SyntaxError ,msg))
+
+
 (defmacro syntax-rule [literals pattern transform]
   (var [hygenic (#dict)]
        [elli '...]
        [literals (set (literals.unpack))])
 
+  (print "syntax-rule")
+  (print "  literals" (repr literals))
+  (print "  pattern" (str pattern))
+  (print "  transform" (str transform))
+
   (labels
    [[collect [head tail]
-	     (when (and (symbol? head)
-			(is-not elli head)
-			(not-in head literals))
-	       (if (in head hygenic)
-		   then: (syntax-error! "duplicate binding")
-		   else: (setf (item hygenic head) (gensym head))))
-	     True]]
+       (print "collect")
+       (print "  head" (str head))
+       (print "  tail" (str tail))
+       (when (and (symbol? head)
+		  (is-not elli head)
+		  (not-in head literals))
+	 (if (in head hygenic)
+	     then: (syntax-error! (#fmt "duplicate binding {head}"))
+	     else: (setf (item hygenic head) (gensym head))))
+       True]]
 
-   (pair-walk pattern collect))
 
-  (print "syntax-rule became\n  " collect)
-  collect)
+   (pair-walk (cdr pattern) collect)
+   (print "  hygenic" (repr hygenic))
+
+   `(function
+     syntax-transform [,@(! keys hygenic)]
+     (print "syntax-transform")
+     (print "   locals" (locals))
+     (print "   transform" ,(str transform))
+     `(,,@(syntax-translate hygenic transform)))))
 
 
 (defmacro define-syntax-rules [name literals . sr]
@@ -121,19 +184,16 @@
   (print "  literals" (repr literals))
   (print "  sr" (str sr))
 
-  (var [rules (map (lambda [r] (r.unpack)) sr)]
-       [csr (iter-each [[pattern transform] rules]
-		       `(syntax-rule ,literals ,pattern ,transform))])
+  (var [rules (map unpack sr)]
+       [csr (#lc [[pattern transform] rules]
+	       `(#tuple
+		 ',pattern
+		 (syntax-rule ,literals ,pattern ,transform)))])
 
-  (setq csr (tuple csr))
-  (print "  csr" (str csr))
-
-  (define r
-    `(define ,name
-       (syntax ,(str name) (SyntaxRules ',literals
-					(#tuple ,@csr)))))
-  (print "  becomes" r)
-  r)
+  (print "  csr" (repr csr))
+  `(define ,name
+     (syntax ,(str name) (SyntaxRules ',literals
+				      (#tuple ,@csr)))))
 
 
 (define-syntax-rules foo! ()

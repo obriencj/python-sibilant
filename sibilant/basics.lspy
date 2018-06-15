@@ -1008,21 +1008,21 @@
 
 ; == some gensym magic
 
-(defun swap-symbols [swaptable source]
+(defun swap-symbols-fn [swapfn source]
 
   (when (nil? source) (return source))
 
   (when (symbolish? source)
-    (return (swaptable.get source source)))
+    (return (swapfn source)))
 
   (var [result (copy source)])
 
   (labels
    [[swapit [v]
      (cond
-      [(symbolish? v) (swaptable.get v v)]
-      [(nil? v) nil]
-      [(pair? v) (swap-symbols swaptable v)]
+      [(symbolish? v) (swapfn v)]
+      [(nil? v) v]
+      [(pair? v) (swap-symbols-fn swapfn v)]
       [else: v])]]
 
    ; (setf (car result) (swapit (car result)))
@@ -1035,6 +1035,10 @@
   ; result {(str result)}"))
 
   result)
+
+
+(defun swap-symbols [swaptable source]
+  (swap-symbols-fn (lambda [s] (! get swaptable s s)) source))
 
 
 (defmacro with-gensyms [symnames . body]
