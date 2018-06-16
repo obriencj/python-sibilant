@@ -1088,7 +1088,6 @@
 
 ;; === for setting up __all__
 
-
 (defmacro export syms
   """
   (export SYMBOL...)
@@ -1127,6 +1126,19 @@
 
   (with [_ (! tmp_compiled comp tmp-macros)]
 	(! compile comp `{,@body} tc None)))
+
+
+;; === function composition ===
+
+(defmacro compose [call . calls]
+  (define decls [#lc [expr calls] `(,(gensym 'compose-fn) ,expr)])
+
+  (with-gensyms [args kwds first-call]
+    `(let [[first-call ,call] ,@decls]
+       (lambda [*: args **: kwds]
+	 (,@(reduce (lambda [v f] (cons f v nil))
+		    (map car decls)
+		    `(first-call *: args **: kwds)))))))
 
 
 ;;

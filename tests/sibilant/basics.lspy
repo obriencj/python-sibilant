@@ -253,5 +253,32 @@
 	  None))
 
 
+(def class Compose [TestCase]
+
+     (def function test_compose [self]
+	  (var [col (#list)]
+	       [foo (compose
+		     (lambda [x]
+		       (! append col x)
+		       (+ x 1))
+		     (lambda [x]
+		       (! append col x)
+		       (* x 2))
+		     (lambda [x]
+		       (! append col x)
+		       x)
+		     float
+		     (lambda [x]
+		       (! append col x)
+		       x)
+		     str)]
+	       [res (foo 101)])
+
+	  (self.assertEqual col (#list 101 102 204 204.0))
+	  (self.assertIs (type (item col -1)) float)
+	  (self.assertIs (type res) str)
+	  (self.assertEqual res "204.0")))
+
+
 ;;
 ;; The end.
