@@ -71,15 +71,15 @@ more is there?
 
 ## Python Version Support
 
-CPython 3.5 and 3.6 are currently supported. Cpython 3.7 appears to 
+CPython 3.5 and 3.6 are currently supported. Cpython 3.7 appears to
 work in testing, but as it has not reached GA yet that could change.
 Sibilant outputs python bytecode directly, and creates code, function,
 nd module instances from there. The Python 3 line has changed its
 bytecode quite a bit between these two minor versions. It's possible
 that earlier versions of Python 3 could also be supported, but there
-are some that the sibilant implementation uses which would need to
-be changed. It's a low priority currently, but I'm definitely open
-to pull requests on that front if someone really needs 3.4 support.
+are some that the sibilant implementation uses which would need to be
+changed. It's a low priority currently, but I'm definitely open to
+pull requests on that front if someone really needs 3.4 support.
 
 [PyPy3] is [being considered], but a very key piece of necessary
 functionality (the ability to specify a custom `builtins` module) is
