@@ -344,14 +344,21 @@ static PyObject *_getattro(PyObject *inst, PyObject *name) {
      found, doesn't set an Err, simply returns NULL */
 
   PyTypeObject *tp = Py_TYPE(inst);
+  PyObject *res = NULL;
 
-  if (tp->tp_getattro)
-    return (*tp->tp_getattro)(inst, name);
+  if (tp->tp_getattro) {
+    res = (*tp->tp_getattro)(inst, name);
 
-  if (tp->tp_getattr)
-    return (*tp->tp_getattr)(inst, (char *) PyUnicode_AsUTF8(name));
+  } else if (tp->tp_getattr) {
+    res = (*tp->tp_getattr)(inst, (char *) PyUnicode_AsUTF8(name));
 
-  return NULL;
+  } else {
+    return NULL;
+  }
+
+  if (! res)
+    PyErr_Clear();
+  return res;
 }
 
 
