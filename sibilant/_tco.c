@@ -339,6 +339,22 @@ static PyTypeObject MethodTrampolineType = {
 };
 
 
+static PyObject *_getattro(PyObject *inst, PyObject *name) {
+  /* Like PyObject_GetAttr except when a matching attribute cannot be
+     found, doesn't set an Err, simply returns NULL */
+
+  PyTypeObject *tp = Py_TYPE(inst);
+
+  if (tp->tp_getattro)
+    return (*tp->tp_getattro)(inst, name);
+
+  if (tp->tp_getattr)
+    return (*tp->tp_getattr)(inst, (char *) PyUnicode_AsUTF8(name));
+
+  return NULL;
+}
+
+
 static PyObject *tailcall(PyObject *self, PyObject *args) {
   PyObject *fun = NULL;
   PyObject *tmp = NULL;
@@ -348,6 +364,7 @@ static PyObject *tailcall(PyObject *self, PyObject *args) {
   }
 
   tmp = (PyObject *) fun->ob_type;
+
   if ((tmp == (PyObject *) &FunctionTrampolineType) ||
       (tmp == (PyObject *) &MethodTrampolineType)) {
 
@@ -358,9 +375,8 @@ static PyObject *tailcall(PyObject *self, PyObject *args) {
   } else {
     Py_INCREF(fun);
 
-    tmp = PyObject_GetAttr(fun, _tco_enable);
+    tmp = _getattro(fun, _tco_enable);
     if (tmp == NULL) {
-      PyErr_Clear();
       return fun;
 
     } else if (PyObject_IsTrue(tmp)) {
@@ -371,11 +387,8 @@ static PyObject *tailcall(PyObject *self, PyObject *args) {
       return fun;
     }
 
-    tmp = PyObject_GetAttr(fun, _tco_original);
-    if (tmp == NULL) {
-      PyErr_Clear();
-
-    } else {
+    tmp = _getattro(fun, _tco_original);
+    if (tmp) {
       Py_DECREF(fun);
       fun = tmp;
     }
@@ -402,11 +415,8 @@ static PyObject *trampoline(PyObject *self, PyObject *args) {
   Py_INCREF(fun);
 
   // tmp = getattr(fun, "_tco_original", fun)
-  tmp = PyObject_GetAttr(fun, _tco_original);
-  if (likely(! tmp)) {
-    PyErr_Clear();
-
-  } else {
+  tmp = _getattro(fun, _tco_original);
+  if (unlikely(tmp)) {
     Py_DECREF(fun);
     fun = tmp;
   }
