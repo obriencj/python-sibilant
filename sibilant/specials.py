@@ -1847,19 +1847,19 @@ def special_cond(code, source, tc=False):
 
 
 def _helper_import_level(wanted: symbol):
-    wanted = str(wanted)
+    """
+    Convert a symbol with preceeding dots into a tuple of a count of
+    dots and a symbol sans preceeding dots.
 
-    wlevel = 0
-    for c in wanted:
-        if c == '.':
-            wlevel += 1
-        else:
-            break
+    eg.  symbol(".foo")  ->  (1, symbol("foo"))
+    """
 
-    if wlevel:
-        wanted = wanted[wlevel:]
+    o_wanted = str(wanted)
 
-    return wlevel, symbol(wanted)
+    r_wanted = o_wanted.lstrip(".")
+    w_level = len(o_wanted) - len(r_wanted)
+
+    return w_level, symbol(r_wanted)
 
 
 @special(_symbol_import)
