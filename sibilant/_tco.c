@@ -81,9 +81,11 @@ static PyObject *tailcall_call(PyObject *self,
 
   TailCall *s = (TailCall *) self;
 
+  Py_XDECREF(s->args);
   Py_INCREF(args);
   s->args = args;
 
+  Py_XDECREF(s->kwds);
   Py_XINCREF(kwds);
   s->kwds = kwds;
 
@@ -278,7 +280,7 @@ static PyObject *descr_get(PyObject *self,
      function trampoline in that it will not re-wrap in this fashion.
    */
 
-  PyObject *tmp = NULL;
+  PyObject *orig = NULL, *tmp = NULL;
   Trampoline *tramp = NULL;
 
   if (unlikely((! inst) || inst == Py_None)) {
@@ -286,18 +288,29 @@ static PyObject *descr_get(PyObject *self,
     return self;
 
   } else {
-    // tmp = self._tco_original.__get__(inst, owner)
-    tmp = ((Trampoline *) self)->tco_original;
-    tmp = PyObject_CallMethodObjArgs(tmp, __get__, inst, owner, NULL);
+
+    // TODO: try to detect the descr interface rather than calling
+    // __get__ directly like this.
+
+    tramp = (Trampoline *) self;
+    orig = tramp->tco_original;
+
+    tmp = PyObject_CallMethodObjArgs(orig, __get__, inst, owner, NULL);
     if (unlikely (! tmp))
       return NULL;
 
-    tramp = PyObject_New(Trampoline, &MethodTrampolineType);
-    if (unlikely(! tramp)) {
-      return NULL;
+    if (tmp == orig) {
+      Py_DECREF(tmp);
+      Py_INCREF(tramp);
+
+    } else {
+      tramp = PyObject_New(Trampoline, &MethodTrampolineType);
+      if (unlikely(! tramp))
+	return NULL;
+
+      tramp->tco_original = tmp;
     }
 
-    tramp->tco_original = tmp;
     return (PyObject *) tramp;
   }
 }
@@ -339,6 +352,28 @@ static PyTypeObject MethodTrampolineType = {
 };
 
 
+static PyObject *_getattro(PyObject *inst, PyObject *name) {
+  /* Like PyObject_GetAttr except without some of the checks */
+
+  PyTypeObject *tp = Py_TYPE(inst);
+  PyObject *res = NULL;
+
+  if (tp->tp_getattro) {
+    res = (*tp->tp_getattro)(inst, name);
+
+  } else if (tp->tp_getattr) {
+    res = (*tp->tp_getattr)(inst, (char *) PyUnicode_AsUTF8(name));
+
+  } else {
+    return NULL;
+  }
+
+  if (! res)
+    PyErr_Clear();
+  return res;
+}
+
+
 static PyObject *tailcall(PyObject *self, PyObject *args) {
   PyObject *fun = NULL;
   PyObject *tmp = NULL;
@@ -348,6 +383,7 @@ static PyObject *tailcall(PyObject *self, PyObject *args) {
   }
 
   tmp = (PyObject *) fun->ob_type;
+
   if ((tmp == (PyObject *) &FunctionTrampolineType) ||
       (tmp == (PyObject *) &MethodTrampolineType)) {
 
@@ -358,9 +394,8 @@ static PyObject *tailcall(PyObject *self, PyObject *args) {
   } else {
     Py_INCREF(fun);
 
-    tmp = PyObject_GetAttr(fun, _tco_enable);
+    tmp = _getattro(fun, _tco_enable);
     if (tmp == NULL) {
-      PyErr_Clear();
       return fun;
 
     } else if (PyObject_IsTrue(tmp)) {
@@ -371,11 +406,8 @@ static PyObject *tailcall(PyObject *self, PyObject *args) {
       return fun;
     }
 
-    tmp = PyObject_GetAttr(fun, _tco_original);
-    if (tmp == NULL) {
-      PyErr_Clear();
-
-    } else {
+    tmp = _getattro(fun, _tco_original);
+    if (tmp) {
       Py_DECREF(fun);
       fun = tmp;
     }
@@ -386,6 +418,8 @@ static PyObject *tailcall(PyObject *self, PyObject *args) {
     return NULL;
 
   ((TailCall *) tmp)->fun = fun;
+  ((TailCall *) tmp)->args = NULL;
+  ((TailCall *) tmp)->kwds = NULL;
   return tmp;
 }
 
@@ -402,17 +436,15 @@ static PyObject *trampoline(PyObject *self, PyObject *args) {
   Py_INCREF(fun);
 
   // tmp = getattr(fun, "_tco_original", fun)
-  tmp = PyObject_GetAttr(fun, _tco_original);
-  if (likely(! tmp)) {
-    PyErr_Clear();
-
-  } else {
+  tmp = _getattro(fun, _tco_original);
+  if (unlikely(tmp)) {
     Py_DECREF(fun);
     fun = tmp;
   }
 
   tramp = PyObject_New(Trampoline, &FunctionTrampolineType);
   if (unlikely(! tramp)) {
+    Py_DECREF(fun);
     return NULL;
   }
 
