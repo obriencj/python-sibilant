@@ -119,7 +119,7 @@ class PseudopsCPython35(PseudopsCompiler):
 
         _P.BINARY_ADD: direct(_O.BINARY_ADD, False),
         _P.BINARY_SUBTRACT: direct(_O.BINARY_SUBTRACT, False),
-        _P.BINARY_MULTIPLY: direct(_O.BINARY_ADD, False),
+        _P.BINARY_MULTIPLY: direct(_O.BINARY_MULTIPLY, False),
         _P.BINARY_MATRIX_MULTIPLY: direct(_O.BINARY_MATRIX_MULTIPLY, False),
         _P.BINARY_TRUE_DIVIDE: direct(_O.BINARY_TRUE_DIVIDE, False),
         _P.BINARY_FLOOR_DIVIDE: direct(_O.BINARY_FLOOR_DIVIDE, False),
