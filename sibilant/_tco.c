@@ -359,10 +359,10 @@ static PyObject *_getattro(PyObject *inst, PyObject *name) {
   PyObject *res = NULL;
 
   if (tp->tp_getattro) {
-    res = (*tp->tp_getattro)(inst, name);
+    res = tp->tp_getattro(inst, name);
 
   } else if (tp->tp_getattr) {
-    res = (*tp->tp_getattr)(inst, (char *) PyUnicode_AsUTF8(name));
+    res = tp->tp_getattr(inst, (char *) PyUnicode_AsUTF8(name));
 
   } else {
     return NULL;
@@ -370,6 +370,7 @@ static PyObject *_getattro(PyObject *inst, PyObject *name) {
 
   if (! res)
     PyErr_Clear();
+
   return res;
 }
 
@@ -387,29 +388,33 @@ static PyObject *tailcall(PyObject *self, PyObject *args) {
   if ((tmp == (PyObject *) &FunctionTrampolineType) ||
       (tmp == (PyObject *) &MethodTrampolineType)) {
 
-    tmp = ((Trampoline *) fun)->tco_original;
-    Py_INCREF(tmp);
-    fun = tmp;
+    // it's a trampoline, so we'll tailcall using the original
+    // function if it allows it.
+    fun = ((Trampoline *) fun)->tco_original;
+    Py_INCREF(fun);
 
   } else {
     Py_INCREF(fun);
 
     tmp = _getattro(fun, _tco_enable);
     if (tmp == NULL) {
+      // _tco_enable was unset, default False, return original fun
       return fun;
 
     } else if (PyObject_IsTrue(tmp)) {
+      // _tco_enable was set True
       Py_DECREF(tmp);
+
+      tmp = _getattro(fun, _tco_original);
+      if (tmp) {
+	Py_DECREF(fun);
+	fun = tmp;
+      }
 
     } else {
+      // _tco_enable was explicitly False, return original fun
       Py_DECREF(tmp);
       return fun;
-    }
-
-    tmp = _getattro(fun, _tco_original);
-    if (tmp) {
-      Py_DECREF(fun);
-      fun = tmp;
     }
   }
 
@@ -437,7 +442,7 @@ static PyObject *trampoline(PyObject *self, PyObject *args) {
 
   // tmp = getattr(fun, "_tco_original", fun)
   tmp = _getattro(fun, _tco_original);
-  if (unlikely(tmp)) {
+  if (tmp) {
     Py_DECREF(fun);
     fun = tmp;
   }
