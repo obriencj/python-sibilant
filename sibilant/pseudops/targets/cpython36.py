@@ -23,8 +23,28 @@ license: LGPL v.3
 """
 
 
-from sibilant.pseudops import PseudopsCompiler, Pseudop, Opcode
+from sibilant.pseudops import PseudopsCompiler, Pseudop, Opcode, translator
 from sibilant.lib import symbol
+
+
+def direct(opcode, hardarg=None):
+    if hardarg is None:
+        def direct_translate(comp, pseudop, args):
+            try:
+                yield opcode, args[0]
+            except IndexError:
+                print(pseudop, opcode, args)
+                raise
+
+    else:
+        def direct_translate(comp, pseudop, args):
+            yield opcode, hardarg
+
+    return direct_translate
+
+
+_P = Pseudop
+_O = Opcode
 
 
 class PseudopsCPython36(PseudopsCompiler):
@@ -32,6 +52,88 @@ class PseudopsCPython36(PseudopsCompiler):
     SpecialCodeSpace emitting bytecode compatible with CPython version
     3.6
     """
+
+    _translations_ = {
+        _P.BREAK_LOOP: direct(_O.BREAK_LOOP, 0),
+        _P.CONTINUE_LOOP: direct(_O.CONTINUE_LOOP),
+        _P.ROT_TWO: direct(_O.ROT_TWO, 0),
+        _P.ROT_THREE: direct(_O.ROT_THREE, 0),
+        _P.RET_VAL: direct(_O.RETURN_VALUE, 0),
+        _P.YIELD_VAL: direct(_O.YIELD_VALUE, 0),
+        _P.YIELD_FROM: direct(_O.YIELD_FROM, 0),
+        _P.DUP: direct(_O.DUP_TOP, 0),
+        _P.POP: direct(_O.POP_TOP, 0),
+
+        _P.COMPARE_OP: direct(_O.COMPARE_OP),
+
+        _P.GET_ITEM: direct(_O.BINARY_SUBSCR, 0),
+        _P.SET_ITEM: direct(_O.STORE_SUBSCR, 0),
+        _P.DEL_ITEM: direct(_O.DELETE_SUBSCR, 0),
+
+        _P.ITER: direct(_O.GET_ITER, 0),
+        _P.FOR_ITER: direct(_O.FOR_ITER),
+        _P.GET_YIELD_FROM_ITER: direct(_O.GET_YIELD_FROM_ITER, 0),
+
+        _P.UNPACK_SEQUENCE: direct(_O.UNPACK_SEQUENCE),
+
+        _P.CALL: direct(_O.CALL_FUNCTION),
+        _P.CALL_METHOD: direct(_O.CALL_FUNCTION),
+        _P.CALL_KW: direct(_O.CALL_FUNCTION_KW),
+        _P.CALL_VAR: direct(_O.CALL_FUNCTION_EX, 0x00),
+        _P.CALL_VAR_KW: direct(_O.CALL_FUNCTION_EX, 0x01),
+
+        _P.BINARY_ADD: direct(_O.BINARY_ADD, 0),
+        _P.BINARY_SUBTRACT: direct(_O.BINARY_SUBTRACT, 0),
+        _P.BINARY_MULTIPLY: direct(_O.BINARY_MULTIPLY, 0),
+        _P.BINARY_MATRIX_MULTIPLY: direct(_O.BINARY_MATRIX_MULTIPLY, 0),
+        _P.BINARY_TRUE_DIVIDE: direct(_O.BINARY_TRUE_DIVIDE, 0),
+        _P.BINARY_FLOOR_DIVIDE: direct(_O.BINARY_FLOOR_DIVIDE, 0),
+        _P.BINARY_POWER: direct(_O.BINARY_POWER, 0),
+        _P.BINARY_MODULO: direct(_O.BINARY_MODULO, 0),
+        _P.BINARY_LSHIFT: direct(_O.BINARY_LSHIFT, 0),
+        _P.BINARY_RSHIFT: direct(_O.BINARY_RSHIFT, 0),
+        _P.BINARY_AND: direct(_O.BINARY_AND, 0),
+        _P.BINARY_OR: direct(_O.BINARY_OR, 0),
+        _P.BINARY_XOR: direct(_O.BINARY_XOR, 0),
+
+        _P.UNARY_POSITIVE: direct(_O.UNARY_POSITIVE, 0),
+        _P.UNARY_NEGATIVE: direct(_O.UNARY_NEGATIVE, 0),
+        _P.UNARY_NOT: direct(_O.UNARY_NOT, 0),
+        _P.UNARY_INVERT: direct(_O.UNARY_INVERT, 0),
+
+        _P.BUILD_TUPLE: direct(_O.BUILD_TUPLE),
+        _P.BUILD_TUPLE_UNPACK: direct(_O.BUILD_TUPLE_UNPACK),
+        _P.BUILD_MAP: direct(_O.BUILD_MAP),
+        _P.BUILD_MAP_UNPACK: direct(_O.BUILD_MAP_UNPACK),
+        _P.BUILD_LIST: direct(_O.BUILD_LIST),
+        _P.BUILD_SET: direct(_O.BUILD_SET),
+        _P.BUILD_SLICE: direct(_O.BUILD_SLICE),
+        _P.BUILD_STR: direct(_O.BUILD_STRING),
+        _P.FORMAT: direct(_O.FORMAT_VALUE),
+        _P.RAISE: direct(_O.RAISE_VARARGS),
+
+        _P.JUMP: direct(_O.JUMP_ABSOLUTE),
+        _P.JUMP_FORWARD: direct(_O.JUMP_FORWARD),
+        _P.POP_JUMP_IF_TRUE: direct(_O.POP_JUMP_IF_TRUE),
+        _P.POP_JUMP_IF_FALSE: direct(_O.POP_JUMP_IF_FALSE),
+        _P.SETUP_WITH: direct(_O.SETUP_WITH),
+        _P.WITH_CLEANUP_START: direct(_O.WITH_CLEANUP_START, 0),
+        _P.WITH_CLEANUP_FINISH: direct(_O.WITH_CLEANUP_FINISH, 0),
+        _P.SETUP_EXCEPT: direct(_O.SETUP_EXCEPT),
+        _P.SETUP_FINALLY: direct(_O.SETUP_FINALLY),
+        _P.SETUP_LOOP: direct(_O.SETUP_LOOP),
+        _P.POP_BLOCK: direct(_O.POP_BLOCK, 0),
+        _P.POP_EXCEPT: direct(_O.POP_EXCEPT, 0),
+        _P.END_FINALLY: direct(_O.END_FINALLY, 0),
+
+    }
+
+
+    def pseudop_call(self, argc):
+        # changed in 3.6, CALL is used for invocations with only
+        # positional arguments.
+        self.pseudop(Pseudop.CALL, argc)
+
 
     def code_bytes(self, lnt):
         offset = 0
@@ -106,20 +208,8 @@ class PseudopsCPython36(PseudopsCompiler):
             if op is _Pseudop.POSITION:
                 declare_position(*args)
 
-            elif op is _Pseudop.CALL:
-                yield _Opcode.CALL_FUNCTION, args[0]
-
-            elif op is _Pseudop.CALL_KW:
-                yield _Opcode.CALL_FUNCTION_KW, args[0]
-
-            elif op is _Pseudop.CALL_VAR:
-                yield _Opcode.CALL_FUNCTION_EX, 0x00
-
-            elif op is _Pseudop.CALL_VAR_KW:
-                yield _Opcode.CALL_FUNCTION_EX, 0x01
-
-            elif op is _Pseudop.UNPACK_SEQUENCE:
-                yield _Opcode.UNPACK_SEQUENCE, args[0]
+            elif op is _Pseudop.LABEL:
+                declare_label(args[0])
 
             elif op is _Pseudop.UNPACK_EX:
                 if args[1]:
@@ -230,6 +320,11 @@ class PseudopsCPython36(PseudopsCompiler):
                 else:
                     assert False, "missing global name %r" % n
 
+            elif op is _Pseudop.GET_METHOD:
+                n = args[0]
+                i = self.names.index(n)
+                yield _Opcode.LOAD_ATTR, i
+
             elif op is _Pseudop.GET_ATTR:
                 n = args[0]
                 i = self.names.index(n)
@@ -244,9 +339,6 @@ class PseudopsCPython36(PseudopsCompiler):
                 n = args[0]
                 i = self.names.index(n)
                 yield _Opcode.DELETE_ATTR, i
-
-            elif op is _Pseudop.POP:
-                yield _Opcode.POP_TOP, 0
 
             # elif op is _Pseudop.MAGIC_POP_ALL:
             #     n = args[0]
@@ -263,183 +355,9 @@ class PseudopsCPython36(PseudopsCompiler):
                 i = self.names.index(n)
                 yield _Opcode.IMPORT_FROM, i
 
-            elif op is _Pseudop.LAMBDA:
-                yield from self.helper_gen_lambda(*args)
-
-            elif op is _Pseudop.RET_VAL:
-                yield _Opcode.RETURN_VALUE, 0
-
-            elif op is _Pseudop.YIELD_VAL:
-                yield _Opcode.YIELD_VALUE, 0
-
-            elif op is _Pseudop.YIELD_FROM:
-                yield _Opcode.YIELD_FROM, 0
-
-            elif op is _Pseudop.DUP:
-                yield _Opcode.DUP_TOP, 0
-
-            elif op is _Pseudop.LABEL:
-                declare_label(args[0])
-
-            elif op in (_Pseudop.FAUX_PUSH,
-                        _Pseudop.DEBUG_STACK):
-                pass
-
-            elif op is _Pseudop.JUMP:
-                yield _Opcode.JUMP_ABSOLUTE, args[0]
-
-            elif op is _Pseudop.JUMP_FORWARD:
-                yield _Opcode.JUMP_FORWARD, args[0]
-
-            elif op is _Pseudop.POP_JUMP_IF_TRUE:
-                yield _Opcode.POP_JUMP_IF_TRUE, args[0]
-
-            elif op is _Pseudop.POP_JUMP_IF_FALSE:
-                yield _Opcode.POP_JUMP_IF_FALSE, args[0]
-
-            elif op is _Pseudop.BUILD_TUPLE:
-                yield _Opcode.BUILD_TUPLE, args[0]
-
-            elif op is _Pseudop.BUILD_TUPLE_UNPACK:
-                yield _Opcode.BUILD_TUPLE_UNPACK, args[0]
-
-            elif op is _Pseudop.BUILD_MAP:
-                yield _Opcode.BUILD_MAP, args[0]
-
-            elif op is _Pseudop.BUILD_MAP_UNPACK:
-                yield _Opcode.BUILD_MAP_UNPACK, args[0]
-
-            elif op is _Pseudop.BUILD_LIST:
-                yield _Opcode.BUILD_LIST, args[0]
-
-            elif op is _Pseudop.BUILD_SET:
-                yield _Opcode.BUILD_SET, args[0]
-
-            elif op is _Pseudop.BUILD_SLICE:
-                yield _Opcode.BUILD_SLICE, args[0]
-
-            elif op is _Pseudop.BUILD_STR:
-                yield _Opcode.BUILD_STRING, args[0]
-
-            elif op is _Pseudop.FORMAT:
-                yield _Opcode.FORMAT_VALUE, args[0]
-
-            elif op is _Pseudop.SETUP_WITH:
-                yield _Opcode.SETUP_WITH, args[0]
-
-            elif op is _Pseudop.WITH_CLEANUP_START:
-                yield _Opcode.WITH_CLEANUP_START, 0
-
-            elif op is _Pseudop.WITH_CLEANUP_FINISH:
-                yield _Opcode.WITH_CLEANUP_FINISH, 0
-
-            elif op is _Pseudop.SETUP_EXCEPT:
-                yield _Opcode.SETUP_EXCEPT, args[0]
-
-            elif op is _Pseudop.SETUP_FINALLY:
-                yield _Opcode.SETUP_FINALLY, args[0]
-
-            elif op is _Pseudop.SETUP_LOOP:
-                yield _Opcode.SETUP_LOOP, args[0]
-
-            elif op is _Pseudop.POP_BLOCK:
-                yield _Opcode.POP_BLOCK, 0
-
-            elif op is _Pseudop.POP_EXCEPT:
-                yield _Opcode.POP_EXCEPT, 0
-
-            elif op is _Pseudop.END_FINALLY:
-                yield _Opcode.END_FINALLY, 0
-
-            elif op is _Pseudop.UNARY_POSITIVE:
-                yield _Opcode.UNARY_POSITIVE, 0
-
-            elif op is _Pseudop.UNARY_NEGATIVE:
-                yield _Opcode.UNARY_NEGATIVE, 0
-
-            elif op is _Pseudop.UNARY_NOT:
-                yield _Opcode.UNARY_NOT, 0
-
-            elif op is _Pseudop.UNARY_INVERT:
-                yield _Opcode.UNARY_INVERT, 0
-
-            elif op is _Pseudop.ITER:
-                yield _Opcode.GET_ITER, 0
-
-            elif op is _Pseudop.FOR_ITER:
-                yield _Opcode.FOR_ITER, args[0]
-
-            elif op is _Pseudop.GET_YIELD_FROM_ITER:
-                yield _Opcode.GET_YIELD_FROM_ITER, 0
-
-            elif op is _Pseudop.COMPARE_OP:
-                yield _Opcode.COMPARE_OP, args[0]
-
-            elif op is _Pseudop.GET_ITEM:
-                yield _Opcode.BINARY_SUBSCR, 0
-
-            elif op is _Pseudop.SET_ITEM:
-                yield _Opcode.STORE_SUBSCR, 0
-
-            elif op is _Pseudop.DEL_ITEM:
-                yield _Opcode.DELETE_SUBSCR, 0
-
-            elif op is _Pseudop.BINARY_ADD:
-                yield _Opcode.BINARY_ADD, 0
-
-            elif op is _Pseudop.BINARY_SUBTRACT:
-                yield _Opcode.BINARY_SUBTRACT, 0
-
-            elif op is _Pseudop.BINARY_MULTIPLY:
-                yield _Opcode.BINARY_MULTIPLY, 0
-
-            elif op is _Pseudop.BINARY_MATRIX_MULTIPLY:
-                yield _Opcode.BINARY_MATRIX_MULTIPLY, 0
-
-            elif op is _Pseudop.BINARY_TRUE_DIVIDE:
-                yield _Opcode.BINARY_TRUE_DIVIDE, 0
-
-            elif op is _Pseudop.BINARY_FLOOR_DIVIDE:
-                yield _Opcode.BINARY_FLOOR_DIVIDE, 0
-
-            elif op is _Pseudop.BINARY_POWER:
-                yield _Opcode.BINARY_POWER, 0
-
-            elif op is _Pseudop.BINARY_MODULO:
-                yield _Opcode.BINARY_MODULO, 0
-
-            elif op is _Pseudop.BINARY_LSHIFT:
-                yield _Opcode.BINARY_LSHIFT, 0
-
-            elif op is _Pseudop.BINARY_RSHIFT:
-                yield _Opcode.BINARY_RSHIFT, 0
-
-            elif op is _Pseudop.BINARY_AND:
-                yield _Opcode.BINARY_AND, 0
-
-            elif op is _Pseudop.BINARY_XOR:
-                yield _Opcode.BINARY_XOR, 0
-
-            elif op is _Pseudop.BINARY_OR:
-                yield _Opcode.BINARY_OR, 0
-
-            elif op is _Pseudop.RAISE:
-                yield _Opcode.RAISE_VARARGS, args[0]
-
-            elif op is _Pseudop.ROT_TWO:
-                yield _Opcode.ROT_TWO, 0
-
-            elif op is _Pseudop.ROT_THREE:
-                yield _Opcode.ROT_THREE, 0
-
-            elif op is _Pseudop.CONTINUE_LOOP:
-                yield _Opcode.CONTINUE_LOOP, args[0]
-
-            elif op is _Pseudop.BREAK_LOOP:
-                yield _Opcode.BREAK_LOOP, 0
-
             else:
-                assert False, "Unknown Pseudop %r" % op
+                # print("deferring on %r, %r" % (op, args))
+                yield from self.translate(op, args)
 
 
     def pseudop_lambda(self, code, defaults=(), kwonly=()):
@@ -455,13 +373,17 @@ class PseudopsCPython36(PseudopsCompiler):
                 self.add_expression(expr)
             self.pseudop_build_map(len(kwonly))
 
-        super().pseudop_lambda(code, len(defaults), len(kwonly))
+        return super().pseudop_lambda(code, len(defaults), len(kwonly))
 
 
-    def helper_gen_lambda(self, code, default_count, kwonly_count):
+    @translator(Pseudop.LAMBDA)
+    def translate_lambda(self, pseudop, args):
         """
         Helper to _gen_code that handles just lambda definitions
         """
+
+        # as per pseudop_lambda, the args will be a triplet
+        code, default_count, kwonly_count = args
 
         ci = self.consts.index(code)
         ni = self.consts.index(code.co_name)

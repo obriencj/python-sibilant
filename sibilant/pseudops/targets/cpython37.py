@@ -13,7 +13,8 @@
 # <http://www.gnu.org/licenses/>.
 
 
-from .cpython36 import PseudopsCPython36
+from . import Opcode, Pseudop, translator
+from .cpython36 import PseudopsCPython36, direct
 
 
 class PseudopsCPython37(PseudopsCPython36):
@@ -22,10 +23,17 @@ class PseudopsCPython37(PseudopsCPython36):
     3.7
     """
 
-    # As of first pass, it looks like there shouldn't be bytecode
-    # issues between 3.6 and 3.7 so we'll just import and rename the
-    # class
-    pass
+
+    _translations_ = {
+        Pseudop.CALL_METHOD: direct(Opcode.CALL_METHOD),
+    }
+
+
+    @translator
+    def translate_load_method(self, pseudop, args):
+        n = args[0]
+        i = self.names.index(n)
+        yield Opcode.LOAD_METHOD, i
 
 
 #

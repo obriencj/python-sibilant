@@ -46,7 +46,7 @@ from ..lib import SibilantException, symbol, lazygensym
 
 
 __all__ = (
-    "PseudopsCompiler",
+    "PseudopsCompiler", "PseudopsException",
     "Opcode", "Pseudop", "Block",
     "CONST_TYPES",
 )
@@ -145,6 +145,7 @@ class Pseudop(Enum):
     BUILD_TUPLE_UNPACK = auto()
     CALL = auto()
     CALL_KW = auto()
+    CALL_METHOD = auto()
     CALL_VAR = auto()
     CALL_VAR_KW = auto()
     COMPARE_OP = auto()
@@ -163,6 +164,7 @@ class Pseudop(Enum):
     GET_ATTR = auto()
     GET_GLOBAL = auto()
     GET_ITEM = auto()
+    GET_METHOD = auto()
     GET_VAR = auto()
     GET_YIELD_FROM_ITER = auto()
     IMPORT_NAME = auto()
@@ -381,6 +383,9 @@ class CodeBlock(object):
                 # depending on Python version
                 code.helper_max_stack(op, args, push, pop)
 
+        # TODO: write a dump_pseudops and use that to output the pseudops and
+        # their stack start/end changes
+
         if stac != leftovers:
             print("leaving max_stack()", self.block_type, "with", stac)
             for o in self.pseudops:
@@ -397,11 +402,49 @@ class Mode(Enum):
     MODULE = "module"
 
 
-class PseudopsCompiler(metaclass=ABCMeta):
+class ABCTranslator(ABCMeta):
+    """
+    Combination of ABCMeta plus a self-registering pseudop translator.
+    This is what makes the translator decorator work with the
+    translate method on subclasses of PseudopsCompiler.
+    """
+
+    def __init__(self, name, bases, members):
+
+        # the __translations__ class member is merged together with
+        # its bases, to provide a sort of inheritance.
+        ntr = {}
+        for base in bases:
+            ntr.update(getattr(base, "_translations_", {}))
+        ntr.update(members.get("_translations_", {}))
+
+        for memb in members.values():
+            if callable(memb):
+                trop = getattr(memb, "_translates_", None)
+                if trop is not None:
+                    ntr[trop] = memb
+
+        members["_translations_"] = ntr
+        self._translations_ = ntr
+        return super().__init__(name, bases, members)
+
+
+def translator(pseudop):
+    def decorator(member):
+        member._translates_ = pseudop
+        return member
+    return decorator
+
+
+class PseudopsCompiler(metaclass=ABCTranslator):
     """
     Represents a lexical scope, expressions occurring within that
     scope, and nested sub-scopes.
     """
+
+
+    _translations_ = {}
+
 
     def __init__(self, parent=None, name=None, args=(), kwonly=0,
                  varargs=False, varkeywords=False,
@@ -447,7 +490,8 @@ class PseudopsCompiler(metaclass=ABCMeta):
         self.names = []
 
         # first const is required -- it'll be None or a doc string and
-        # then None
+        # then None. Additional constants are appended via the
+        # declare_const method
         self.consts = [None]
 
         self.blocks = [CodeBlock(Block.BASE, 0, 0)]
@@ -462,6 +506,12 @@ class PseudopsCompiler(metaclass=ABCMeta):
         # CONST and POP immediately in sequence are removed as this is
         # effectively a noisy noop.
         self.compress_const_pop = True
+
+        # default this feature to True -- instances of extended arg
+        # with a value of zero are removed after opcodes are
+        # generated, and jumps are adjusted to account for the removed
+        # ops
+        self.compress_ext_arg = True
 
 
     def __del__(self):
@@ -491,7 +541,7 @@ class PseudopsCompiler(metaclass=ABCMeta):
         assert self.blocks, "empty block stack"
         base = self.blocks[0]
         assert base.block_type is Block.BASE, "incorrect base block type"
-        yield from base.gen_pseudops()
+        return base.gen_pseudops()
 
 
     def _push_block(self, block_type, init_stack=0, leftovers=0):
@@ -510,6 +560,7 @@ class PseudopsCompiler(metaclass=ABCMeta):
 
 
     def _pop_block(self):
+        assert self.blocks, "empty block stack"
         return self.blocks.pop()
 
 
@@ -684,7 +735,6 @@ class PseudopsCompiler(metaclass=ABCMeta):
 
 
     def child(self, name=None, declared_at=None, **addtl):
-
         """
         Returns a child codespace
         """
@@ -821,22 +871,9 @@ class PseudopsCompiler(metaclass=ABCMeta):
         self.blocks[-1].pseudops.append(op_and_args)
 
 
-    def _op(argname, arg=None, *, _pseudop=pseudop):
-        # this is a temportary helper to shrink the declarations of
-        # the simpler operators. It's deleted after the operators are
-        # all defined
-        if arg is None:
-            return partialmethod(_pseudop, Pseudop[argname])
-        else:
-            return partialmethod(_pseudop, Pseudop[argname], arg)
-
-
-    if COMPILER_DEBUG:
-        def pseudop_debug(self, *op_args):
+    def pseudop_debug(self, *op_args):
+        if COMPILER_DEBUG:
             self.pseudop(Pseudop.DEBUG_STACK, *op_args)
-    else:
-        def pseudop_debug(self, *op_args):
-            pass
 
 
     def pseudop_get_attr(self, namesym: Symbol):
@@ -857,6 +894,12 @@ class PseudopsCompiler(metaclass=ABCMeta):
         self.pseudop(Pseudop.DEL_ATTR, namesym)
 
 
+    def pseudop_get_method(self, namesym: Symbol):
+        # assert is_symbol(namesym)
+        self.request_name(namesym)
+        self.pseudop(Pseudop.GET_METHOD, namesym)
+
+
     def pseudop_faux_push(self, count=1):
         self.pseudop(Pseudop.FAUX_PUSH, count)
 
@@ -874,6 +917,10 @@ class PseudopsCompiler(metaclass=ABCMeta):
 
     def pseudop_call(self, argc, kwdc=0):
         self.pseudop(Pseudop.CALL, argc, kwdc)
+
+
+    def pseudop_call_method(self, argc):
+        self.pseudop(Pseudop.CALL_METHOD, argc)
 
 
     def pseudop_call_var(self, argc, kwdc=0):
@@ -1109,6 +1156,17 @@ class PseudopsCompiler(metaclass=ABCMeta):
         self.pseudop(Pseudop.IMPORT_FROM, namesym)
 
 
+    def _op(argname, arg=None, *, _pseudop=pseudop):
+        # this is a temportary helper to shrink the declarations of
+        # the simpler operators. These operators all either take no
+        # arguments, or take a single constant argument. this helper
+        # is deleted after the operators are all defined.
+
+        if arg is None:
+            return partialmethod(_pseudop, Pseudop[argname])
+        else:
+            return partialmethod(_pseudop, Pseudop[argname], arg)
+
     pseudop_with_cleanup_start = _op("WITH_CLEANUP_START")
     pseudop_with_cleanup_finish = _op("WITH_CLEANUP_FINISH")
     pseudop_break_loop = _op("BREAK_LOOP")
@@ -1163,6 +1221,16 @@ class PseudopsCompiler(metaclass=ABCMeta):
     pseudop_compare_exception = _op("COMPARE_OP", 10)
 
     del _op
+
+
+    @translator(Pseudop.FAUX_PUSH)
+    def translate_faux_push(self, pseudop, args):
+        pass
+
+
+    @translator(Pseudop.DEBUG_STACK)
+    def translate_debug_stack(self, pseudop, args):
+        pass
 
 
     def helper_max_stack(self, op, args, push, pop):
@@ -1311,9 +1379,13 @@ class PseudopsCompiler(metaclass=ABCMeta):
             assert False, "unknown pseudop %r" % op
 
 
-    def max_stack(self):
+    def max_stack(self, strict=True):
         leftovers, maximum = self.blocks[0].max_stack(self)
-        assert leftovers == 0, "code has leftovers on stack"
+
+        if strict and (leftovers != 0):
+            msg = "code has %i leftovers on stack" % leftovers
+            raise PseudopsException(msg, leftovers, maximum)
+
         return maximum
 
 
@@ -1397,6 +1469,18 @@ class PseudopsCompiler(metaclass=ABCMeta):
     @abstractmethod
     def code_bytes(self, line_number_table):
         pass
+
+
+    def translate(self, pseudop, args):
+        handler = self._translations_.get(pseudop, None)
+        assert (handler is not None), ("no handler for %r" % pseudop)
+
+        # it's possible for a translation handler to do nothing, or to
+        # be entirely side-effect driven. In these cases it will
+        # return None rather than yield op,arg tuples. Since we are
+        # expecting to be iterating over these tuples, we'll convert
+        # any None results into an empty iterator.
+        return handler(self, pseudop, args) or ()
 
 
 def _list_unique_append(onto_list, value):
