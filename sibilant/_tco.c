@@ -101,7 +101,7 @@ static PyTypeObject TailCallType = {
     sizeof(TailCall),
     0,
 
-    .tp_new = PyType_GenericNew,
+    // .tp_new = PyType_GenericNew,
     .tp_dealloc = tailcall_dealloc,
     .tp_call = tailcall_call,
     .tp_flags = Py_TPFLAGS_DEFAULT,
@@ -323,7 +323,7 @@ static PyTypeObject FunctionTrampolineType = {
     sizeof(Trampoline),
     0,
 
-    .tp_new = PyType_GenericNew,
+    // .tp_new = PyType_GenericNew,
     .tp_dealloc = trampoline_dealloc,
     .tp_descr_get = descr_get,
     .tp_getset = trampoline_func_getset,
@@ -341,7 +341,7 @@ static PyTypeObject MethodTrampolineType = {
     sizeof(Trampoline),
     0,
 
-    .tp_new = PyType_GenericNew,
+    // .tp_new = PyType_GenericNew,
     .tp_dealloc = trampoline_dealloc,
     .tp_descr_get = NULL,
     .tp_getset = trampoline_meth_getset,
