@@ -438,19 +438,16 @@ static PyObject *trampoline(PyObject *self, PyObject *args) {
     return NULL;
   }
 
-  Py_INCREF(fun);
+  tramp = PyObject_New(Trampoline, &FunctionTrampolineType);
+  if (unlikely(! tramp))
+    return NULL;
 
   // tmp = getattr(fun, "_tco_original", fun)
   tmp = _getattro(fun, _tco_original);
   if (tmp) {
-    Py_DECREF(fun);
     fun = tmp;
-  }
-
-  tramp = PyObject_New(Trampoline, &FunctionTrampolineType);
-  if (unlikely(! tramp)) {
-    Py_DECREF(fun);
-    return NULL;
+  } else {
+    Py_INCREF(fun);
   }
 
   tramp->tco_original = fun;
