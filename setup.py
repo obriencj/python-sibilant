@@ -30,14 +30,14 @@ from setuptools import setup, Extension
 ext_tco = Extension(
     name = "sibilant._tco",
     sources = ["sibilant/_tco.c"],
-    extra_compile_args=["--std=c99"],
+    extra_compile_args=["--std=c99", "-g"],
 )
 
 ext_types = Extension(
     name = "sibilant._types",
     sources = ["sibilant/_types.c"],
     include_dirs = ["include"],
-    extra_compile_args=["--std=c99"],
+    extra_compile_args=["--std=c99", "-g"],
 )
 
 

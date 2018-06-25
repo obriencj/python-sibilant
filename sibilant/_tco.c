@@ -37,6 +37,22 @@
 #define TCO_ORIGINAL "_tco_original"
 
 
+#if 1
+#include <stdio.h>
+#define DEBUGMSG(msg, obj) {					\
+    printf("** " msg " ");					\
+    if (obj) {                                                  \
+      PyObject_Print(((PyObject *) (obj)), stdout, 0);          \
+    } else {                                                    \
+      printf("NULL");                                           \
+    }                                                           \
+    printf("\n");						\
+  }
+#else
+#define DEBUGMSG(msg, obj) {}
+#endif
+
+
 #if (defined(__GNUC__) &&					\
      (__GNUC__ > 2 || (__GNUC__ == 2 && (__GNUC_MINOR__ > 95))))
   #define likely(x)   __builtin_expect(!!(x), 1)
@@ -68,9 +84,10 @@ typedef struct {
 static void tailcall_dealloc(PyObject *self) {
   TailCall *s = (TailCall *) self;
 
-  Py_XDECREF(s->fun);
-  Py_XDECREF(s->args);
+  Py_CLEAR(s->fun);
+  Py_CLEAR(s->args);
   Py_XDECREF(s->kwds);
+  s->kwds = NULL;
 
   Py_TYPE(self)->tp_free(self);
 }
@@ -81,13 +98,19 @@ static PyObject *tailcall_call(PyObject *self,
 
   TailCall *s = (TailCall *) self;
 
+  DEBUGMSG("tailcall invoked for:", s->fun);
+  DEBUGMSG("  args:", args);
+  DEBUGMSG("  kwds:", kwds);
+
   Py_XDECREF(s->args);
-  Py_INCREF(args);
-  s->args = args;
+  // Py_INCREF(args);
+  // s->args = args;
+  s->args = PySequence_Tuple(args);
 
   Py_XDECREF(s->kwds);
-  Py_XINCREF(kwds);
-  s->kwds = kwds;
+  // Py_XINCREF(kwds);
+  // s->kwds = kwds;
+  s->kwds = kwds? PyDict_Copy(kwds): NULL;
 
   Py_INCREF(self);
   return self;
@@ -126,17 +149,30 @@ static PyObject *trampoline_call(PyObject *self,
 				 PyObject *args, PyObject *kwds) {
 
   PyObject *work = ((Trampoline *) self)->tco_original;
-  TailCall *res = NULL;
+  PyObject *res = NULL, *tmp = NULL;
 
-  work = PyObject_Call(work, args, kwds);
+  DEBUGMSG("trampoline entered with:", work);
+  DEBUGMSG("  args:", args);
+  DEBUGMSG("  kwds:", kwds);
 
-  while (likely(work) && work->ob_type == &TailCallType) {
-    res = (TailCall *) work;
-    work = PyObject_Call(res->fun, res->args, res->kwds);
+  res = PyObject_Call(work, args, kwds);
+
+  while (likely(res) && res->ob_type == &TailCallType) {
+    work = ((TailCall *) res)->fun;
+    args = ((TailCall *) res)->args;
+    kwds = ((TailCall *) res)->kwds;
+
+    DEBUGMSG("trampoline bounce with:", work);
+    DEBUGMSG("  args:", args);
+    DEBUGMSG("  kwds:", kwds);
+
+    tmp = PyObject_Call(work, args, kwds);
     Py_DECREF(res);
+    res = tmp;
   }
 
-  return work;
+  DEBUGMSG("trampoline result:", res);
+  return res;
 }
 
 
@@ -150,6 +186,7 @@ static PyObject *trampoline_tco_original(PyObject *self) {
   PyObject *tco_original = ((Trampoline *)self)->tco_original;
 
   if (unlikely(! tco_original)) {
+    PyErr_SetString(PyExc_TypeError, "trampoline without original");
     return NULL;
 
   } else {
@@ -170,6 +207,7 @@ static PyObject *get_original(PyObject *self, char *name) {
   PyObject *tco_original = ((Trampoline *)self)->tco_original;
 
   if (unlikely(! tco_original)) {
+    PyErr_SetString(PyExc_TypeError, "trampoline without original");
     return NULL;
 
   } else {
@@ -288,29 +326,21 @@ static PyObject *descr_get(PyObject *self,
     return self;
 
   } else {
-
     // TODO: try to detect the descr interface rather than calling
     // __get__ directly like this.
 
-    tramp = (Trampoline *) self;
-    orig = tramp->tco_original;
-
+    orig = ((Trampoline *) self)->tco_original;
     tmp = PyObject_CallMethodObjArgs(orig, __get__, inst, owner, NULL);
     if (unlikely (! tmp))
       return NULL;
 
-    if (tmp == orig) {
-      Py_DECREF(tmp);
-      Py_INCREF(tramp);
+    tramp = PyObject_New(Trampoline, &MethodTrampolineType);
+    if (unlikely(! tramp))
+      return NULL;
 
-    } else {
-      tramp = PyObject_New(Trampoline, &MethodTrampolineType);
-      if (unlikely(! tramp))
-	return NULL;
+    tramp->tco_original = tmp;
 
-      tramp->tco_original = tmp;
-    }
-
+    DEBUGMSG("bound a methodtrampoline:", tramp);
     return (PyObject *) tramp;
   }
 }
@@ -359,17 +389,23 @@ static PyObject *_getattro(PyObject *inst, PyObject *name) {
   PyObject *res = NULL;
 
   if (tp->tp_getattro) {
-    res = (*tp->tp_getattro)(inst, name);
+    res = tp->tp_getattro(inst, name);
 
   } else if (tp->tp_getattr) {
-    res = (*tp->tp_getattr)(inst, (char *) PyUnicode_AsUTF8(name));
+    res = tp->tp_getattr(inst, (char *) PyUnicode_AsUTF8(name));
 
   } else {
     return NULL;
   }
 
-  if (! res)
+  if (! res) {
+    DEBUGMSG("_getattro ", inst);
+    DEBUGMSG("     attr", name);
+    DEBUGMSG("     =", NULL);
+
     PyErr_Clear();
+  }
+
   return res;
 }
 
@@ -382,34 +418,36 @@ static PyObject *tailcall(PyObject *self, PyObject *args) {
     return NULL;
   }
 
+  DEBUGMSG("tailcall creation for:", fun);
+
   tmp = (PyObject *) fun->ob_type;
 
   if ((tmp == (PyObject *) &FunctionTrampolineType) ||
       (tmp == (PyObject *) &MethodTrampolineType)) {
 
-    tmp = ((Trampoline *) fun)->tco_original;
-    Py_INCREF(tmp);
-    fun = tmp;
-
-  } else {
+    fun = ((Trampoline *) fun)->tco_original;
     Py_INCREF(fun);
 
+  } else {
     tmp = _getattro(fun, _tco_enable);
     if (tmp == NULL) {
+      Py_INCREF(fun);
       return fun;
 
     } else if (PyObject_IsTrue(tmp)) {
       Py_DECREF(tmp);
 
+      tmp = _getattro(fun, _tco_original);
+      if (tmp) {
+        fun = tmp;
+      } else {
+        Py_INCREF(fun);
+      }
+
     } else {
       Py_DECREF(tmp);
+      Py_INCREF(fun);
       return fun;
-    }
-
-    tmp = _getattro(fun, _tco_original);
-    if (tmp) {
-      Py_DECREF(fun);
-      fun = tmp;
     }
   }
 
@@ -420,6 +458,8 @@ static PyObject *tailcall(PyObject *self, PyObject *args) {
   ((TailCall *) tmp)->fun = fun;
   ((TailCall *) tmp)->args = NULL;
   ((TailCall *) tmp)->kwds = NULL;
+
+  DEBUGMSG("tailcall created:", tmp);
   return tmp;
 }
 
@@ -433,13 +473,12 @@ static PyObject *trampoline(PyObject *self, PyObject *args) {
     return NULL;
   }
 
-  Py_INCREF(fun);
-
   // tmp = getattr(fun, "_tco_original", fun)
   tmp = _getattro(fun, _tco_original);
   if (unlikely(tmp)) {
-    Py_DECREF(fun);
     fun = tmp;
+  } else {
+    Py_INCREF(fun);
   }
 
   tramp = PyObject_New(Trampoline, &FunctionTrampolineType);
