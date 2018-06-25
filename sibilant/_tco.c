@@ -124,7 +124,7 @@ static PyTypeObject TailCallType = {
     sizeof(TailCall),
     0,
 
-    .tp_new = PyType_GenericNew,
+    // .tp_new = PyType_GenericNew,
     .tp_dealloc = tailcall_dealloc,
     .tp_call = tailcall_call,
     .tp_flags = Py_TPFLAGS_DEFAULT,
@@ -353,7 +353,7 @@ static PyTypeObject FunctionTrampolineType = {
     sizeof(Trampoline),
     0,
 
-    .tp_new = PyType_GenericNew,
+    // .tp_new = PyType_GenericNew,
     .tp_dealloc = trampoline_dealloc,
     .tp_descr_get = descr_get,
     .tp_getset = trampoline_func_getset,
@@ -371,7 +371,7 @@ static PyTypeObject MethodTrampolineType = {
     sizeof(Trampoline),
     0,
 
-    .tp_new = PyType_GenericNew,
+    // .tp_new = PyType_GenericNew,
     .tp_dealloc = trampoline_dealloc,
     .tp_descr_get = NULL,
     .tp_getset = trampoline_meth_getset,
@@ -425,6 +425,8 @@ static PyObject *tailcall(PyObject *self, PyObject *args) {
   if ((tmp == (PyObject *) &FunctionTrampolineType) ||
       (tmp == (PyObject *) &MethodTrampolineType)) {
 
+    // it's a trampoline, so we'll tailcall using the original
+    // function if it allows it.
     fun = ((Trampoline *) fun)->tco_original;
     Py_INCREF(fun);
 
@@ -435,6 +437,7 @@ static PyObject *tailcall(PyObject *self, PyObject *args) {
       return fun;
 
     } else if (PyObject_IsTrue(tmp)) {
+      // _tco_enable was set True
       Py_DECREF(tmp);
 
       tmp = _getattro(fun, _tco_original);
@@ -445,6 +448,7 @@ static PyObject *tailcall(PyObject *self, PyObject *args) {
       }
 
     } else {
+      // _tco_enable was explicitly False, return original fun
       Py_DECREF(tmp);
       Py_INCREF(fun);
       return fun;
@@ -473,18 +477,16 @@ static PyObject *trampoline(PyObject *self, PyObject *args) {
     return NULL;
   }
 
+  tramp = PyObject_New(Trampoline, &FunctionTrampolineType);
+  if (unlikely(! tramp))
+    return NULL;
+
   // tmp = getattr(fun, "_tco_original", fun)
   tmp = _getattro(fun, _tco_original);
-  if (unlikely(tmp)) {
+  if (tmp) {
     fun = tmp;
   } else {
     Py_INCREF(fun);
-  }
-
-  tramp = PyObject_New(Trampoline, &FunctionTrampolineType);
-  if (unlikely(! tramp)) {
-    Py_DECREF(fun);
-    return NULL;
   }
 
   tramp->tco_original = fun;

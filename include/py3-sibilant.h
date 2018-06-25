@@ -97,14 +97,14 @@ PyObject *sib_values(PyObject *args, PyObject *kwds);
 #define CDR(p) (((SibPair *) (p))->tail)
 
 #define SETCAR(p, v) {				\
-    Py_XINCREF(v);				\
     Py_XDECREF(CAR(p));				\
+    Py_XINCREF(v);				\
     CAR(p) = (v);				\
   }
 
 #define SETCDR(p, v) {				\
-    Py_XINCREF(v);				\
     Py_XDECREF(CDR(p));				\
+    Py_XINCREF(v);				\
     CDR(p) = (v);				\
   }
 

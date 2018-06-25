@@ -986,34 +986,43 @@ static PyObject *pair_copy(PyObject *self, PyObject *_noargs) {
     return self;
   }
 
+  // records of the IDs of originals to instances of the new copies
   seen = PyDict_New();
 
   for (; SibPair_CheckExact(self); self = CDR(self)) {
 
     self_id = PyLong_FromVoidPtr(self);
+
     tmp = PyDict_GetItem(seen, self_id);
     if (tmp) {
       Py_DECREF(self_id);
       SETCDR(last, tmp);
-      last = NULL; /* prevent re-setting cdr after loop */
+      Py_DECREF(last);
+      last = NULL; // prevent re-setting cdr after loop
+      tmp = NULL; // it was a borrowed ref, no need to decref
       break;
-
-    } else {
-      tmp = sib_pair(CAR(self), Sib_Nil);
-      PyDict_SetItem(seen, self_id, tmp);
-      Py_DECREF(self_id);
     }
 
-    if (! result)
-      result = tmp;
+    // make a new pair, associate it with current ID
+    tmp = sib_pair(CAR(self), Sib_Nil);
+    PyDict_SetItem(seen, self_id, tmp);
+    Py_DECREF(self_id);
 
+    // if this is our first pair copied, it's the result
+    if (! result) {
+      result = tmp;
+      Py_INCREF(result);
+    }
+
+    // if we have a previous, assign this new pair to the prev's CDR
+    // slot. then decref it and make current into the new prev
     if (last) {
       SETCDR(last, tmp);
-      Py_DECREF(tmp);
+      Py_DECREF(last);
     }
-
     last = tmp;
 
+    // copy any position data from current into last
     tmp = ((SibPair *) self)->position;
     if (tmp) {
       Py_INCREF(tmp);
@@ -1021,19 +1030,23 @@ static PyObject *pair_copy(PyObject *self, PyObject *_noargs) {
     }
   }
 
+  // done with loop, don't need the seen dict anymore.
   Py_DECREF(seen);
 
-  /* either nil or a non-pair leftover */
-  if (last)
+  // either nil or a non-pair leftover is in self, otherwise last
+  // would have been cleared
+  if (last) {
     SETCDR(last, self);
+    Py_DECREF(last);
+  }
 
   if (! result) {
     if (Sib_Nilp(self)) {
       Py_INCREF(self);
       result = self;
+
     } else {
       PyErr_SetString(PyExc_TypeError, "expected pair");
-      result = NULL;
     }
   }
 
@@ -1052,7 +1065,7 @@ static PyObject *pair_length(PyObject *self, PyObject *_noargs) {
 
   seen = PySet_New(NULL);
 
-  for(; self->ob_type == &SibPairType; self = CDR(self)) {
+  for(; SibPair_CheckExact(self); self = CDR(self)) {
 
     tmp = PyLong_FromVoidPtr(self);
 
