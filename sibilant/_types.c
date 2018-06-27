@@ -26,7 +26,7 @@
  */
 
 
-#include <py3-sibilant.h>
+#include <sibilant-types.h>
 
 
 #define DOCSTR "Native Sibilant core types and functions"

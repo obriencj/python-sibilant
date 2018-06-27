@@ -27,8 +27,7 @@
 */
 
 
-#include <Python.h>
-#include <object.h>
+#include <sibilant-tco.h>
 
 
 #define DOCSTR "Native TCO Implementation for Sibilant"
@@ -47,30 +46,159 @@
 #endif
 
 
-static PyTypeObject FunctionTrampolineType;
-static PyTypeObject MethodTrampolineType;
-static PyTypeObject TailCallType;
+#define Py_ASSIGN(dest, value) {		\
+    Py_CLEAR(dest);				\
+    Py_XINCREF(value);				\
+    dest = value;				\
+  }
+
 
 static PyObject *__get__ = NULL;
 static PyObject *_tco_enable = NULL;
 static PyObject *_tco_original = NULL;
 
 
-typedef struct {
-  PyObject_HEAD
+static PyObject *_getattro(PyObject *inst, PyObject *name) {
+  /* Like PyObject_GetAttr except without some of the checks */
 
-  PyObject *fun;
-  PyObject *args;
-  PyObject *kwds;
-} TailCall;
+  PyTypeObject *tp = Py_TYPE(inst);
+  PyObject *res = NULL;
+
+  if (tp->tp_getattro) {
+    res = tp->tp_getattro(inst, name);
+
+  } else if (tp->tp_getattr) {
+    // note, per docs AsUTF8 is cached internally, no need to free
+    res = tp->tp_getattr(inst, PyUnicode_AsUTF8(name));
+
+  } else {
+    return NULL;
+  }
+
+  if (! res)
+    PyErr_Clear();
+
+  return res;
+}
+
+
+/* === SibTailCallType === */
+
+
+static PyObject *tailcall_full(PyObject *self,
+			       PyObject *args, PyObject *kwds) {
+
+  // checked
+
+  PyObject *work = NULL;
+  PyObject *tmp = NULL;
+
+  if (PyTuple_GET_SIZE(args) <= 1) {
+    if (unlikely(! PyArg_ParseTuple(args, "O", &work))) {
+      return NULL;
+    }
+    args = PyTuple_New(0);
+
+  } else {
+    work = PyTuple_GET_ITEM(args, 0);
+    args = PyTuple_GetSlice(args, 1, PyTuple_GET_SIZE(args));
+  }
+
+  // work and kwds are borrowed, args is ref'd
+
+  if (SibTrampoline_Check(work)) {
+    // it's a trampoline, so we'll tailcall using the original
+    // function if it allows it.
+    work = ((Trampoline *) work)->tco_original;
+    Py_INCREF(work);
+
+  } else {
+    tmp = _getattro(work, _tco_enable);
+    if (tmp && (PyObject_IsTrue(tmp))) {
+      Py_DECREF(tmp);
+
+      tmp = _getattro(work, _tco_original);
+      if (tmp) {
+	work = tmp;
+      } else {
+	Py_INCREF(work);
+      }
+
+    } else {
+      // not tailcall enabled, so invoke directly. work is still
+      // borrowed at this point, and args are ref'd
+      Py_XDECREF(tmp);
+      tmp = PyObject_Call(work, args, kwds);
+      Py_DECREF(args);
+      return tmp;
+    }
+  }
+
+  // kwds are borrowed, work and args are ref'd
+  tmp = sib_tailcall(work, args, kwds);
+  Py_DECREF(work);
+  Py_DECREF(args);
+  return tmp;
+}
+
+
+static PyObject *tailcall_new(PyTypeObject *type,
+			      PyObject *args, PyObject *kwds) {
+
+  // checked
+
+  PyObject *work = NULL;
+  PyObject *tmp = NULL;
+
+  if (kwds && PyDict_Size(kwds)) {
+    PyErr_SetString(PyExc_TypeError, "tailcall takes no named arguments");
+    return NULL;
+  }
+
+  if (unlikely(! PyArg_ParseTuple(args, "O:callable", &work))) {
+    return NULL;
+  }
+
+  if (SibTrampoline_Check(work)) {
+    // it's a trampoline, so we'll tailcall using the original
+    // function if it allows it.
+    work = ((Trampoline *) work)->tco_original;
+    Py_INCREF(work);
+
+  } else {
+    tmp = _getattro(work, _tco_enable);
+    if (tmp && (PyObject_IsTrue(tmp))) {
+      Py_DECREF(tmp);
+
+      tmp = _getattro(work, _tco_original);
+      if (tmp) {
+	work = tmp;
+      } else {
+	Py_INCREF(work);
+      }
+
+    } else {
+      Py_XDECREF(tmp);
+      Py_INCREF(work);
+      return work;
+    }
+  }
+
+  // work is ref'd
+
+  tmp = sib_tailcall(work, NULL, NULL);
+  Py_DECREF(work);
+  return tmp;
+}
 
 
 static void tailcall_dealloc(PyObject *self) {
-  TailCall *s = (TailCall *) self;
 
-  Py_XDECREF(s->fun);
-  Py_XDECREF(s->args);
-  Py_XDECREF(s->kwds);
+  // checked
+
+  Py_CLEAR(((TailCall *) self)->work);
+  Py_CLEAR(((TailCall *) self)->args);
+  Py_CLEAR(((TailCall *) self)->kwds);
 
   Py_TYPE(self)->tp_free(self);
 }
@@ -79,29 +207,24 @@ static void tailcall_dealloc(PyObject *self) {
 static PyObject *tailcall_call(PyObject *self,
 			       PyObject *args, PyObject *kwds) {
 
-  TailCall *s = (TailCall *) self;
+  // checked
 
-  Py_XDECREF(s->args);
-  Py_INCREF(args);
-  s->args = args;
-
-  Py_XDECREF(s->kwds);
-  Py_XINCREF(kwds);
-  s->kwds = kwds;
+  Py_ASSIGN(((TailCall *) self)->args, args);
+  Py_ASSIGN(((TailCall *) self)->kwds, kwds);
 
   Py_INCREF(self);
   return self;
 }
 
 
-static PyTypeObject TailCallType = {
+PyTypeObject SibTailCallType = {
     PyVarObject_HEAD_INIT(NULL, 0)
 
     "sibilant.TailCall",
     sizeof(TailCall),
     0,
 
-    // .tp_new = PyType_GenericNew,
+    .tp_new = tailcall_new,
     .tp_dealloc = tailcall_dealloc,
     .tp_call = tailcall_call,
     .tp_flags = Py_TPFLAGS_DEFAULT,
@@ -109,15 +232,37 @@ static PyTypeObject TailCallType = {
 };
 
 
-typedef struct {
-  PyObject_HEAD
-  PyObject *tco_original;
-} Trampoline;
+PyObject *sib_tailcall(PyObject *work,
+		       PyObject *args, PyObject *kwds) {
+
+  // checked
+
+  TailCall *tc = PyObject_New(TailCall, &SibTailCallType);
+  if (unlikely(! tc))
+    return NULL;
+
+  Py_XINCREF(work);
+  tc->work = work;
+
+  Py_XINCREF(args);
+  tc->args = args;
+
+  Py_XINCREF(kwds);
+  tc->kwds = kwds;
+
+  return (PyObject *) tc;
+}
+
+
+/* === SibTrampolineType === */
 
 
 static void trampoline_dealloc(PyObject *self) {
 
+  // checked
+
   Py_CLEAR(((Trampoline *) self)->tco_original);
+
   Py_TYPE(self)->tp_free(self);
 }
 
@@ -125,15 +270,40 @@ static void trampoline_dealloc(PyObject *self) {
 static PyObject *trampoline_call(PyObject *self,
 				 PyObject *args, PyObject *kwds) {
 
-  PyObject *work = ((Trampoline *) self)->tco_original;
-  TailCall *res = NULL;
+  // checked
 
+  PyObject *work = ((Trampoline *) self)->tco_original;
+  TailCall *bounce = NULL;
+
+  if (unlikely(! work)) {
+    PyErr_SetString(PyExc_ValueError, "trampoline invoked with no function");
+    return NULL;
+  }
+
+  // initial call using the given arguments
   work = PyObject_Call(work, args, kwds);
 
-  while (likely(work) && work->ob_type == &TailCallType) {
-    res = (TailCall *) work;
-    work = PyObject_Call(res->fun, res->args, res->kwds);
-    Py_DECREF(res);
+  while (SibTailCall_Check(work)) {
+    // each bounce comes with its own work and arguments
+    bounce = (TailCall *) work;
+    work = bounce->work;
+    args = bounce->args;
+
+    if (likely(work && args)) {
+      work = PyObject_Call(work, args, bounce->kwds);
+      Py_DECREF(bounce);
+      continue;
+
+    } else if (! work) {
+      Py_DECREF(bounce);
+      PyErr_SetString(PyExc_ValueError, "tailcall bounced with no function");
+      return NULL;
+
+    } else if (! args) {
+      Py_DECREF(bounce);
+      PyErr_SetString(PyExc_ValueError, "tailcall bounced with no args");
+      return NULL;
+    }
   }
 
   return work;
@@ -141,15 +311,22 @@ static PyObject *trampoline_call(PyObject *self,
 
 
 static PyObject *trampoline_repr(PyObject *self) {
-  PyObject *original = ((Trampoline *)self)->tco_original;
+
+  // checked
+
+  PyObject *original = ((Trampoline *) self)->tco_original;
   return PyUnicode_FromFormat("<trampoline for %R>", original);
 }
 
 
 static PyObject *trampoline_tco_original(PyObject *self) {
-  PyObject *tco_original = ((Trampoline *)self)->tco_original;
+
+  // checked
+
+  PyObject *tco_original = ((Trampoline *) self)->tco_original;
 
   if (unlikely(! tco_original)) {
+    PyErr_SetString(PyExc_ValueError, "trampoline has no original");
     return NULL;
 
   } else {
@@ -160,16 +337,22 @@ static PyObject *trampoline_tco_original(PyObject *self) {
 
 
 static PyObject *trampoline_tco_enable(PyObject *self) {
-  PyObject *t = Py_True;
-  Py_INCREF(t);
-  return t;
+
+  // checked
+
+  Py_INCREF(Py_True);
+  return Py_True;
 }
 
 
 static PyObject *get_original(PyObject *self, char *name) {
-  PyObject *tco_original = ((Trampoline *)self)->tco_original;
+
+  // checked
+
+  PyObject *tco_original = ((Trampoline *) self)->tco_original;
 
   if (unlikely(! tco_original)) {
+    PyErr_SetString(PyExc_ValueError, "trampoline has no original");
     return NULL;
 
   } else {
@@ -179,8 +362,18 @@ static PyObject *get_original(PyObject *self, char *name) {
 
 
 static int set_original(PyObject *self, PyObject *val, char *name) {
-  PyObject *tco_original = ((Trampoline *)self)->tco_original;
-  return PyObject_SetAttrString(tco_original, name, val);
+
+  // checked
+
+  PyObject *tco_original = ((Trampoline *) self)->tco_original;
+
+  if (unlikely(! tco_original)) {
+    PyErr_SetString(PyExc_ValueError, "trampoline has no original");
+    return -1;
+
+  } else {
+    return PyObject_SetAttrString(tco_original, name, val);
+  }
 }
 
 
@@ -269,6 +462,8 @@ static PyGetSetDef trampoline_meth_getset[] = {
 static PyObject *descr_get(PyObject *self,
 			   PyObject *inst, PyObject *owner) {
 
+  // checked
+
   /**
      When a function trampoline member is retrieved from an object
      instance, this will be called to enable the function trampoline
@@ -280,43 +475,42 @@ static PyObject *descr_get(PyObject *self,
      function trampoline in that it will not re-wrap in this fashion.
    */
 
-  PyObject *orig = NULL, *tmp = NULL;
-  Trampoline *tramp = NULL;
+  PyObject *orig, *bound;
 
   if (unlikely((! inst) || inst == Py_None)) {
     Py_INCREF(self);
     return self;
+  }
+
+  orig = ((Trampoline *) self)->tco_original;
+
+  // TODO: try to detect the descr interface rather than calling
+  // __get__ directly like this.
+
+  bound = PyObject_CallMethodObjArgs(orig, __get__, inst, owner, NULL);
+  if (unlikely (! bound)) {
+    return NULL;
+
+  } else if (bound == orig) {
+    // descriptor returned same as original, we'll return self
+    Py_DECREF(bound);
+    Py_INCREF(self);
+    return self;
 
   } else {
-
-    // TODO: try to detect the descr interface rather than calling
-    // __get__ directly like this.
-
-    tramp = (Trampoline *) self;
-    orig = tramp->tco_original;
-
-    tmp = PyObject_CallMethodObjArgs(orig, __get__, inst, owner, NULL);
-    if (unlikely (! tmp))
+    // wrap the descriptor result up in a method trampoline
+    Trampoline *tramp = PyObject_New(Trampoline, &MethodTrampolineType);
+    if (unlikely(! tramp)) {
+      Py_DECREF(bound);
       return NULL;
-
-    if (tmp == orig) {
-      Py_DECREF(tmp);
-      Py_INCREF(tramp);
-
-    } else {
-      tramp = PyObject_New(Trampoline, &MethodTrampolineType);
-      if (unlikely(! tramp))
-	return NULL;
-
-      tramp->tco_original = tmp;
     }
-
+    tramp->tco_original = bound;
     return (PyObject *) tramp;
   }
 }
 
 
-static PyTypeObject FunctionTrampolineType = {
+PyTypeObject FunctionTrampolineType = {
     PyVarObject_HEAD_INIT(NULL, 0)
 
     "sibilant.FunctionTrampoline",
@@ -334,7 +528,7 @@ static PyTypeObject FunctionTrampolineType = {
 };
 
 
-static PyTypeObject MethodTrampolineType = {
+PyTypeObject MethodTrampolineType = {
     PyVarObject_HEAD_INIT(NULL, 0)
 
     "sibilant.MethodTrampoline",
@@ -352,89 +546,15 @@ static PyTypeObject MethodTrampolineType = {
 };
 
 
-static PyObject *_getattro(PyObject *inst, PyObject *name) {
-  /* Like PyObject_GetAttr except without some of the checks */
-
-  PyTypeObject *tp = Py_TYPE(inst);
-  PyObject *res = NULL;
-
-  if (tp->tp_getattro) {
-    res = tp->tp_getattro(inst, name);
-
-  } else if (tp->tp_getattr) {
-    res = tp->tp_getattr(inst, (char *) PyUnicode_AsUTF8(name));
-
-  } else {
-    return NULL;
-  }
-
-  if (! res)
-    PyErr_Clear();
-
-  return res;
-}
-
-
-static PyObject *tailcall(PyObject *self, PyObject *args) {
-  PyObject *fun = NULL;
-  PyObject *tmp = NULL;
-
-  if (unlikely(! PyArg_ParseTuple(args, "O", &fun))) {
-    return NULL;
-  }
-
-  tmp = (PyObject *) fun->ob_type;
-
-  if ((tmp == (PyObject *) &FunctionTrampolineType) ||
-      (tmp == (PyObject *) &MethodTrampolineType)) {
-
-    // it's a trampoline, so we'll tailcall using the original
-    // function if it allows it.
-    fun = ((Trampoline *) fun)->tco_original;
-    Py_INCREF(fun);
-
-  } else {
-    Py_INCREF(fun);
-
-    tmp = _getattro(fun, _tco_enable);
-    if (tmp == NULL) {
-      // _tco_enable was unset, default False, return original fun
-      return fun;
-
-    } else if (PyObject_IsTrue(tmp)) {
-      // _tco_enable was set True
-      Py_DECREF(tmp);
-
-      tmp = _getattro(fun, _tco_original);
-      if (tmp) {
-	Py_DECREF(fun);
-	fun = tmp;
-      }
-
-    } else {
-      // _tco_enable was explicitly False, return original fun
-      Py_DECREF(tmp);
-      return fun;
-    }
-  }
-
-  tmp = (PyObject *) PyObject_New(TailCall, &TailCallType);
-  if (unlikely(! tmp))
-    return NULL;
-
-  ((TailCall *) tmp)->fun = fun;
-  ((TailCall *) tmp)->args = NULL;
-  ((TailCall *) tmp)->kwds = NULL;
-  return tmp;
-}
-
-
 static PyObject *trampoline(PyObject *self, PyObject *args) {
+
+  // checked
+
   PyObject *fun = NULL;
   PyObject *tmp = NULL;
   Trampoline *tramp = NULL;
 
-  if (unlikely(! PyArg_ParseTuple(args, "O", &fun))) {
+  if (unlikely(! PyArg_ParseTuple(args, "O:function", &fun))) {
     return NULL;
   }
 
@@ -442,7 +562,6 @@ static PyObject *trampoline(PyObject *self, PyObject *args) {
   if (unlikely(! tramp))
     return NULL;
 
-  // tmp = getattr(fun, "_tco_original", fun)
   tmp = _getattro(fun, _tco_original);
   if (tmp) {
     fun = tmp;
@@ -456,11 +575,16 @@ static PyObject *trampoline(PyObject *self, PyObject *args) {
 
 
 static PyMethodDef methods[] = {
-  { "tailcall", tailcall, METH_VARARGS,
-    "" },
+
+  { "tailcall_full", (PyCFunction) tailcall_full, METH_VARARGS|METH_KEYWORDS,
+    "tailcall_full(function, *args, **kwds) ->"
+    " tailcall(function)(*args, **kwds)" },
 
   { "trampoline", trampoline, METH_VARARGS,
-    "" },
+    "wraps a callable in a trampoline. A trampoline will catch returned"
+    " tailcall instances and invoke their function and arguments"
+    " in-place. The trampoline will continue catching and bouncing until"
+    " a non-tailcall instance is returned or an exception is raised." },
 
   { NULL, NULL, 0, NULL },
 };
@@ -480,6 +604,8 @@ static struct PyModuleDef ctco = {
 
 
 PyMODINIT_FUNC PyInit__tco(void) {
+  PyObject *mod, *dict;
+
   if (! __get__) {
     __get__ = PyUnicode_FromString("__get__");
   }
@@ -490,7 +616,7 @@ PyMODINIT_FUNC PyInit__tco(void) {
     _tco_enable = PyUnicode_FromString(TCO_ENABLE);
   }
 
-  if (PyType_Ready(&TailCallType) < 0)
+  if (PyType_Ready(&SibTailCallType) < 0)
     return NULL;
 
   if (PyType_Ready(&FunctionTrampolineType) < 0)
@@ -499,7 +625,14 @@ PyMODINIT_FUNC PyInit__tco(void) {
   if (PyType_Ready(&MethodTrampolineType) < 0)
     return NULL;
 
-  return PyModule_Create(&ctco);
+  mod = PyModule_Create(&ctco);
+  if (! mod)
+    return NULL;
+
+  dict = PyModule_GetDict(mod);
+  PyDict_SetItemString(dict, "tailcall", (PyObject *) &SibTailCallType);
+
+  return mod;
 }
 
 
