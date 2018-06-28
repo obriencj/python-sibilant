@@ -47,9 +47,9 @@
 
 
 #define Py_ASSIGN(dest, value) {		\
-    Py_CLEAR(dest);				\
-    Py_XINCREF(value);				\
+    Py_XDECREF(dest);				\
     dest = value;				\
+    Py_XINCREF(dest);				\
   }
 
 
@@ -155,7 +155,7 @@ static PyObject *tailcall_new(PyTypeObject *type,
     return NULL;
   }
 
-  if (unlikely(! PyArg_ParseTuple(args, "O:callable", &work))) {
+  if (unlikely(! PyArg_ParseTuple(args, "O:tailcall", &work))) {
     return NULL;
   }
 
@@ -554,7 +554,7 @@ static PyObject *trampoline(PyObject *self, PyObject *args) {
   PyObject *tmp = NULL;
   Trampoline *tramp = NULL;
 
-  if (unlikely(! PyArg_ParseTuple(args, "O:function", &fun))) {
+  if (unlikely(! PyArg_ParseTuple(args, "O", &fun))) {
     return NULL;
   }
 
@@ -603,18 +603,15 @@ static struct PyModuleDef ctco = {
 };
 
 
-PyMODINIT_FUNC PyInit__tco(void) {
-  PyObject *mod, *dict;
+#define STR_CONST(which, val) {			\
+    if (! (which))				\
+      which = PyUnicode_FromString(val);	\
+  }
 
-  if (! __get__) {
-    __get__ = PyUnicode_FromString("__get__");
-  }
-  if (! _tco_original) {
-    _tco_original = PyUnicode_FromString(TCO_ORIGINAL);
-  }
-  if (! _tco_enable) {
-    _tco_enable = PyUnicode_FromString(TCO_ENABLE);
-  }
+
+PyMODINIT_FUNC PyInit__tco(void) {
+
+  // checked
 
   if (PyType_Ready(&SibTailCallType) < 0)
     return NULL;
@@ -625,11 +622,15 @@ PyMODINIT_FUNC PyInit__tco(void) {
   if (PyType_Ready(&MethodTrampolineType) < 0)
     return NULL;
 
-  mod = PyModule_Create(&ctco);
+  PyObject *mod = PyModule_Create(&ctco);
   if (! mod)
     return NULL;
 
-  dict = PyModule_GetDict(mod);
+  STR_CONST(__get__, "__get__");
+  STR_CONST(_tco_original, TCO_ORIGINAL);
+  STR_CONST(_tco_enable, TCO_ENABLE);
+
+  PyObject *dict = PyModule_GetDict(mod);
   PyDict_SetItemString(dict, "tailcall", (PyObject *) &SibTailCallType);
 
   return mod;
