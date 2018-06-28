@@ -53,6 +53,9 @@
   }
 
 
+/* === util === */
+
+
 static PyObject *__get__ = NULL;
 static PyObject *_tco_enable = NULL;
 static PyObject *_tco_original = NULL;
@@ -228,7 +231,6 @@ PyTypeObject SibTailCallType = {
     .tp_dealloc = tailcall_dealloc,
     .tp_call = tailcall_call,
     .tp_flags = Py_TPFLAGS_DEFAULT,
-    .tp_getattro = PyObject_GenericGetAttr,
 };
 
 

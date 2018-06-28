@@ -32,11 +32,6 @@
 #define DOCSTR "Native Sibilant core types and functions"
 
 
-#ifndef offsetof
-#define offsetof(TYPE, MEMBER) ((size_t) &((TYPE *)0)->MEMBER)
-#endif
-
-
 #if 1
 #define DEBUGMSG(msg, obj) {					\
     printf("** " msg " ");					\
@@ -66,6 +61,7 @@
 
 
 /* === util === */
+
 
 static PyObject *_str_close_paren = NULL;
 static PyObject *_str_colon = NULL;
