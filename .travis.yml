@@ -4,11 +4,11 @@ language: python
 python:
   - "3.5"
   - "3.6"
-  - "3.7-dev"
+  - "3.7"
 
 before_install:
   - "sudo apt-get -qq update"
-  - "sudo apt-get -qq install -y gdb"
+  - "sudo apt-get -qq install -y gdb python3-dbg"
 
 install:
   - "pip install appdirs flake8"
@@ -28,7 +28,7 @@ notifications:
     channels:
       - "chat.freenode.net#python-sibilant"
     on_success: change
-    on_failure: always
+    on_failure: change
     use_notice: true
     skip_join: true
 
