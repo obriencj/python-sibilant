@@ -324,7 +324,7 @@ static PyObject *trampoline_call(PyObject *self,
     }
   }
 
-  return res;
+  return work;
 }
 
 
