@@ -26,15 +26,10 @@
  */
 
 
-#include <py3-sibilant.h>
+#include <sibilant-types.h>
 
 
 #define DOCSTR "Native Sibilant core types and functions"
-
-
-#ifndef offsetof
-#define offsetof(TYPE, MEMBER) ((size_t) &((TYPE *)0)->MEMBER)
-#endif
 
 
 #if 1
@@ -58,7 +53,15 @@
 #endif
 
 
+#define Py_ASSIGN(dest, value) {		\
+    Py_XDECREF(dest);				\
+    dest = value;				\
+    Py_XINCREF(dest);				\
+  }
+
+
 /* === util === */
+
 
 static PyObject *_str_close_paren = NULL;
 static PyObject *_str_colon = NULL;
@@ -86,12 +89,15 @@ static PyObject *_str_values_paren = NULL;
 
 
 static PyObject *quoted(PyObject *u) {
-  PyObject *tmp, *result;
 
-  tmp = PyUnicode_Replace(u, _str_quote, _str_esc_quote, -1);
-  result = PyUnicode_FromFormat("\"%U\"", tmp);
+  // checked
+
+  PyObject *tmp = PyUnicode_Replace(u, _str_quote, _str_esc_quote, -1);
+  if (! tmp)
+    return NULL;
+
+  PyObject *result = PyUnicode_FromFormat("\"%U\"", tmp);
   Py_DECREF(tmp);
-
   return result;
 }
 
@@ -106,7 +112,7 @@ static PyObject *atom_new(PyObject *name,
 			  PyObject *intern,
 			  PyTypeObject *type) {
 
-  SibInternedAtom *atom = NULL;
+  // checked
 
   if(! name) {
     PyErr_SetString(PyExc_TypeError, "interned atom requires a name");
@@ -119,10 +125,16 @@ static PyObject *atom_new(PyObject *name,
     Py_INCREF(name);
   }
 
-  atom = (SibInternedAtom *) PyDict_GetItem(intern, name);
+  // name is ref'd
 
+  SibInternedAtom *atom = (SibInternedAtom *) PyDict_GetItem(intern, name);
   if (! atom) {
     atom = PyObject_New(SibInternedAtom, type);
+    if(! atom) {
+      Py_DECREF(name);
+      return NULL;
+    }
+
     atom->name = name;
 
     // DEBUGMSG("allocating and interning new atom", n);
@@ -163,6 +175,9 @@ static PyObject *atom_str(PyObject *self) {
 
 
 static void atom_rewrap(PyObject *vals, unaryfunc conv) {
+
+  // checked
+
   for (int index = PyList_Size(vals); index--; ) {
     PyList_SetItem(vals, index, conv(PyList_GET_ITEM(vals, index)));
   }
@@ -176,26 +191,31 @@ static PyObject *intern_syms = NULL;
 
 
 PyObject *sib_symbol(PyObject *name) {
+
+  // checked
+
   return atom_new(name, intern_syms, &SibSymbolType);
 }
 
 
 static void symbol_dealloc(PyObject *self) {
-  SibInternedAtom *s = (SibInternedAtom *) self;
 
-  // DEBUGMSG("symbol_dealloc", self);
-  // DEBUGMSG(" was named", s->name);
+  // checked
 
-  if (intern_syms)
-    PyDict_DelItem(intern_syms, s->name);
+  if (intern_syms) {
+    Py_REFCNT(self) = 3;
+    PyDict_DelItem(intern_syms, ((SibInternedAtom *) self)->name);
+  }
 
-  Py_DECREF(s->name);
+  Py_CLEAR(((SibInternedAtom *) self)->name);
   Py_TYPE(self)->tp_free(self);
 }
 
 
 static PyObject *symbol_new(PyTypeObject *type,
 			    PyObject *args, PyObject *kwds) {
+
+  // checked
 
   PyObject *name = NULL;
 
@@ -288,57 +308,66 @@ static Py_uhash_t gen_counter = 97531UL;
 
 
 PyObject *sib_gensym(PyObject *name, PyObject *predicate) {
-  PyObject *maybe_name = NULL;
-  PyObject *maybe_symbol = NULL;
-  PyObject *maybe = NULL;
 
-  while (! maybe_symbol) {
+  // checked
+
+  while (1) {
 
     // generate a name
+    PyObject *maybe_name;
     if (name) {
-      maybe_name = PyUnicode_FromFormat("%S#%x", name, gen_counter);
+      maybe_name = PyUnicode_FromFormat("%S#%x", name, gen_counter, NULL);
     } else {
-      maybe_name = PyUnicode_FromFormat("<gensym>#%x", gen_counter);
+      maybe_name = PyUnicode_FromFormat("<gensym>#%x", gen_counter, NULL);
     }
     if (! maybe_name)
       return NULL;
 
     // I don't know, some silliness to make the index number bounce
     // all over the damned place
-    gen_counter = (gen_counter + (unsigned long) maybe_name);
+    gen_counter += (Py_uhash_t) maybe_name;
+    gen_counter *= _PyHASH_MULTIPLIER;
     if (! gen_counter)
       gen_counter = 97531UL;
-    gen_counter = gen_counter * _PyHASH_MULTIPLIER;
 
     // check whether a symbol with that name is already allocated. If
     // it is, then this is not a unique symbol, try again.
     if (PyDict_GetItem(intern_syms, maybe_name)) {
-      Py_DECREF(maybe_name);
+      Py_CLEAR(maybe_name);
       continue;
-
-    } else {
-      // reserves the symbol for this gensym attempt
-      maybe_symbol = sib_symbol(maybe_name);
-      Py_DECREF(maybe_name);
     }
+
+    // reserves the symbol for this gensym attempt
+    PyObject *maybe_symbol = sib_symbol(maybe_name);
+    Py_CLEAR(maybe_name);
 
     if (predicate) {
-      maybe = PyObject_CallFunctionObjArgs(predicate, maybe_symbol, NULL);
-      if (! maybe)
+      PyObject *maybe = PyObject_CallFunctionObjArgs(predicate,
+						     maybe_symbol, NULL);
+      if (! maybe) {
 	return NULL;
 
-      if (PyObject_Not(maybe))
-	Py_CLEAR(maybe_symbol);
+      } else if (PyObject_IsTrue(maybe)) {
+	Py_DECREF(maybe);
+	return maybe_symbol;
 
-      Py_DECREF(maybe);
+      } else {
+	Py_DECREF(maybe);
+	Py_CLEAR(maybe_symbol);
+	continue;
+      }
+
+    } else {
+      return maybe_symbol;
     }
   }
-
-  return maybe_symbol;
 }
 
 
 static PyObject *m_gensym(PyObject *mod, PyObject *args) {
+
+  // checked
+
   PyObject *name = NULL;
   PyObject *predicate = NULL;
 
@@ -401,14 +430,15 @@ static PyObject *keyword_new(PyTypeObject *type,
 
 
 static void keyword_dealloc(PyObject *self) {
-  SibInternedAtom *s = (SibInternedAtom *) self;
 
-  // DEBUGMSG("keyword_dealloc", self);
+  // checked
 
-  if (intern_kwds)
-    PyDict_DelItem(intern_kwds, s->name);
+  if (intern_kwds) {
+    Py_REFCNT(self) = 3;
+    PyDict_DelItem(intern_kwds, ((SibInternedAtom *) self)->name);
+  }
 
-  Py_DECREF(s->name);
+  Py_CLEAR(((SibInternedAtom *) self)->name);
   Py_TYPE(self)->tp_free(self);
 }
 
@@ -494,8 +524,7 @@ typedef struct {
 
 
 static void piter_dealloc(PyObject *self) {
-  SibPairIterator *s = (SibPairIterator *) self;
-  Py_XDECREF(s->pair);
+  Py_CLEAR(((SibPairIterator *) self)->pair);
   Py_TYPE(self)->tp_free(self);
 }
 
@@ -555,9 +584,11 @@ typedef struct {
 
 
 static void pfoll_dealloc(PyObject *self) {
-  SibPairFollower *s = (SibPairFollower *) self;
-  Py_XDECREF(s->current);
-  Py_XDECREF(s->seen);
+
+  // checked
+
+  Py_CLEAR(((SibPairFollower *) self)->current);
+  Py_CLEAR(((SibPairFollower *) self)->seen);
   Py_TYPE(self)->tp_free(self);
 }
 
@@ -646,6 +677,8 @@ static PyTypeObject SibPairFollowerType = {
 static PyObject *pair_new(PyTypeObject *type,
 			  PyObject *args, PyObject *kwds) {
 
+  // checked
+
   PyObject *head = NULL;
   PyObject *tail = NULL;
 
@@ -661,53 +694,54 @@ static PyObject *pair_new(PyTypeObject *type,
 }
 
 
-static void pair_dealloc(PyObject *self) {
-  SibPair *s = (SibPair *) self;
-
-  // DEBUGMSG("pair_dealloc", self);
-
-  Py_XDECREF(s->head);
-  Py_XDECREF(s->tail);
-  Py_XDECREF(s->position);
-
-  Py_TYPE(self)->tp_free(self);
-}
-
-
 static Py_ssize_t pair_len(PyObject *self) {
+
+  // checked
+
   return 2;
 }
 
 
 static PyObject *pair_getitem(PyObject *self, Py_ssize_t index) {
+
+  // checked
+
   PyObject *result = NULL;
 
   switch(index) {
   case 0:
     result = CAR(self);
+    Py_XINCREF(result);
     break;
+
   case 1:
     result = CDR(self);
+    Py_XINCREF(result);
     break;
+
   default:
     PyErr_SetString(PyExc_IndexError, "pair index out of range");
   }
 
-  Py_XINCREF(result);
   return result;
 }
 
 
 static int pair_setitem(PyObject *self, Py_ssize_t index, PyObject *val) {
+
+  // checked
+
   int result = 0;
 
   switch(index) {
   case 0:
     SETCAR(self, val);
     break;
+
   case 1:
     SETCDR(self, val);
     break;
+
   default:
     PyErr_SetString(PyExc_IndexError, "pair index out of range");
     result = -1;
@@ -718,9 +752,13 @@ static int pair_setitem(PyObject *self, Py_ssize_t index, PyObject *val) {
 
 
 static PyObject *pair_iter(PyObject *self) {
-  SibPairIterator *i = NULL;
 
-  i = PyObject_New(SibPairIterator, &SibPairIteratorType);
+  // checked
+
+  SibPairIterator *i = PyObject_New(SibPairIterator, &SibPairIteratorType);
+  if(! i)
+    return NULL;
+
   Py_INCREF(self);
   i->pair = self;
   i->index = 0;
@@ -958,7 +996,22 @@ static PyObject *pair_richcomp(PyObject *self, PyObject *other, int op) {
 }
 
 
+static void pair_dealloc(PyObject *self) {
+
+  // checked
+
+  Py_CLEAR(CAR(self));
+  Py_CLEAR(CDR(self));
+  Py_CLEAR(((SibPair *) self)->position);
+
+  Py_TYPE(self)->tp_free(self);
+}
+
+
 static int pair_traverse(PyObject *self, visitproc visit, void *arg) {
+
+  // checked
+
   Py_VISIT(CAR(self));
   Py_VISIT(CDR(self));
   Py_VISIT(((SibPair *) self)->position);
@@ -967,6 +1020,9 @@ static int pair_traverse(PyObject *self, visitproc visit, void *arg) {
 
 
 static int pair_clear(PyObject *self) {
+
+  // checked
+
   Py_CLEAR(CAR(self));
   Py_CLEAR(CDR(self));
   Py_CLEAR(((SibPair *) self)->position);
@@ -975,11 +1031,12 @@ static int pair_clear(PyObject *self) {
 
 
 static PyObject *pair_copy(PyObject *self, PyObject *_noargs) {
-  PyObject *seen = NULL;
+
+  // checked
+
   PyObject *result = NULL;
   PyObject *tmp = NULL;
   PyObject *last = NULL;
-  PyObject *self_id = NULL;
 
   if (Sib_Nilp(self)) {
     Py_INCREF(self);
@@ -987,24 +1044,26 @@ static PyObject *pair_copy(PyObject *self, PyObject *_noargs) {
   }
 
   // records of the IDs of originals to instances of the new copies
-  seen = PyDict_New();
+  PyObject *seen = PyDict_New();
 
   for (; SibPair_CheckExact(self); self = CDR(self)) {
 
-    self_id = PyLong_FromVoidPtr(self);
+    PyObject *self_id = PyLong_FromVoidPtr(self);
 
     tmp = PyDict_GetItem(seen, self_id);
     if (tmp) {
+      // we've seen this one before, so we're recursive. Make the new
+      // copy recursive as well and break
       Py_DECREF(self_id);
       SETCDR(last, tmp);
-      Py_DECREF(last);
-      last = NULL; // prevent re-setting cdr after loop
-      tmp = NULL; // it was a borrowed ref, no need to decref
+      last = NULL; // this signals that we made a recursive link
       break;
     }
 
     // make a new pair, associate it with current ID
     tmp = sib_pair(CAR(self), Sib_Nil);
+    Py_ASSIGN(((SibPair *) tmp)->position, ((SibPair *) self)->position);
+
     PyDict_SetItem(seen, self_id, tmp);
     Py_DECREF(self_id);
 
@@ -1018,16 +1077,8 @@ static PyObject *pair_copy(PyObject *self, PyObject *_noargs) {
     // slot. then decref it and make current into the new prev
     if (last) {
       SETCDR(last, tmp);
-      Py_DECREF(last);
     }
     last = tmp;
-
-    // copy any position data from current into last
-    tmp = ((SibPair *) self)->position;
-    if (tmp) {
-      Py_INCREF(tmp);
-      ((SibPair *) last)->position = tmp;
-    }
   }
 
   // done with loop, don't need the seen dict anymore.
@@ -1035,20 +1086,11 @@ static PyObject *pair_copy(PyObject *self, PyObject *_noargs) {
 
   // either nil or a non-pair leftover is in self, otherwise last
   // would have been cleared
-  if (last) {
+  if (last)
     SETCDR(last, self);
-    Py_DECREF(last);
-  }
 
-  if (! result) {
-    if (Sib_Nilp(self)) {
-      Py_INCREF(self);
-      result = self;
-
-    } else {
-      PyErr_SetString(PyExc_TypeError, "expected pair");
-    }
-  }
+  if (! result)
+    PyErr_SetString(PyExc_TypeError, "expected pair");
 
   return result;
 }
@@ -1090,9 +1132,13 @@ static PyObject *pair_length(PyObject *self, PyObject *_noargs) {
 
 
 static PyObject *pair_follow(PyObject *self, PyObject *_noargs) {
-  SibPairFollower *i = NULL;
 
-  i = PyObject_New(SibPairFollower, &SibPairFollowerType);
+  // checked
+
+  SibPairFollower *i = PyObject_New(SibPairFollower, &SibPairFollowerType);
+  if(! i)
+    return NULL;
+
   Py_INCREF(self);
   i->current = self;
   i->seen = PySet_New(NULL);
@@ -1103,9 +1149,13 @@ static PyObject *pair_follow(PyObject *self, PyObject *_noargs) {
 
 
 static PyObject *pair_unpack(PyObject *self, PyObject *_noargs) {
-  SibPairFollower *i = NULL;
 
-  i = PyObject_New(SibPairFollower, &SibPairFollowerType);
+  // checked
+
+  SibPairFollower *i = PyObject_New(SibPairFollower, &SibPairFollowerType);
+  if(! i)
+    return NULL;
+
   Py_INCREF(self);
   i->current = self;
   i->seen = PySet_New(NULL);
@@ -1135,6 +1185,12 @@ static PyObject *pair_to_list(PyObject *self) {
 
 
 long SibPair_is_proper(PyObject *self) {
+
+  // checked
+
+  if (Sib_Nilp(self))
+    return 1;
+
   PyObject *seen = PySet_New(NULL);
   PyObject *pair_id;
   long result = 0;
@@ -1162,11 +1218,20 @@ long SibPair_is_proper(PyObject *self) {
 
 
 static PyObject *pair_is_proper(PyObject *self, PyObject *_noargs) {
+
+  // checked
+
   return PyBool_FromLong(SibPair_is_proper(self));
 }
 
 
 long SibPair_is_recursive(PyObject *self) {
+
+  // checked
+
+  if (Sib_Nilp(self))
+    return 0;
+
   PyObject *seen = PySet_New(NULL);
   PyObject *pair_id;
   long result = 0;
@@ -1192,11 +1257,17 @@ long SibPair_is_recursive(PyObject *self) {
 
 
 static PyObject *pair_is_recursive(PyObject *self, PyObject *_noargs) {
+
+  // checked
+
   return PyBool_FromLong(SibPair_is_recursive(self));
 }
 
 
 static void pwalk_setpos(PyObject *pair, PyObject *seen, PyObject *pos) {
+
+  // checked
+
   PyObject *pair_id;
   SibPair *sp;
 
@@ -1214,9 +1285,7 @@ static void pwalk_setpos(PyObject *pair, PyObject *seen, PyObject *pos) {
       Py_DECREF(pair_id);
     }
 
-    Py_XDECREF(sp->position);
-    Py_XINCREF(pos);
-    sp->position = pos;
+    Py_ASSIGN(sp->position, pos);
 
     if (SibPair_CheckExact(CAR(sp))) {
       pwalk_setpos(CAR(sp), seen, pos);
@@ -1226,6 +1295,9 @@ static void pwalk_setpos(PyObject *pair, PyObject *seen, PyObject *pos) {
 
 
 static void pwalk_fillpos(PyObject *pair, PyObject *seen, PyObject *pos) {
+
+  // checked
+
   PyObject *pair_id;
   SibPair *sp;
 
@@ -1261,8 +1333,6 @@ static void pwalk_fillpos(PyObject *pair, PyObject *seen, PyObject *pos) {
 static PyObject *pair_clear_position(PyObject *self,
 				     PyObject *args, PyObject *kwds) {
 
-  PyObject *seen;
-  SibPair *s = (SibPair *) self;
   static char *keywords[] = { "follow", NULL };
   int follow = 0;
 
@@ -1273,13 +1343,12 @@ static PyObject *pair_clear_position(PyObject *self,
     return NULL;
 
   if (follow) {
-    seen = PySet_New(NULL);
+    PyObject *seen = PySet_New(NULL);
     pwalk_setpos(self, seen, NULL);
     Py_DECREF(seen);
 
   } else {
-    if (s->position)
-      Py_CLEAR(s->position);
+    Py_CLEAR(((SibPair *) self)->position);
   }
 
   Py_RETURN_NONE;
@@ -1289,10 +1358,10 @@ static PyObject *pair_clear_position(PyObject *self,
 static PyObject *pair_set_position(PyObject *self,
 				   PyObject *args, PyObject *kwds) {
 
-  PyObject *seen;
-  PyObject *position = NULL;
-  SibPair *s = (SibPair *) self;
+  // checked
+
   static char *keywords[] = { "postition", "follow", NULL };
+  PyObject *position = NULL;
   int follow = 0;
 
   if (Sib_Nilp(self))
@@ -1303,14 +1372,12 @@ static PyObject *pair_set_position(PyObject *self,
     return NULL;
 
   if (follow) {
-    seen = PySet_New(NULL);
+    PyObject *seen = PySet_New(NULL);
     pwalk_setpos(self, seen, position);
     Py_DECREF(seen);
 
   } else {
-    Py_XDECREF(s->position);
-    s->position = position;
-    Py_INCREF(s->position);
+    Py_ASSIGN(((SibPair *) self)->position, position);
   }
 
   Py_RETURN_NONE;
@@ -1320,10 +1387,10 @@ static PyObject *pair_set_position(PyObject *self,
 static PyObject *pair_fill_position(PyObject *self,
 				    PyObject *args, PyObject *kwds) {
 
-  PyObject *seen;
-  PyObject *position = NULL;
-  SibPair *s = (SibPair *) self;
+  // checked
+
   static char *keywords[] = { "position", "follow", NULL };
+  PyObject *position = NULL;
   int follow = 0;
 
   if (! PyArg_ParseTupleAndKeywords(args, kwds, "O|p", keywords,
@@ -1331,14 +1398,14 @@ static PyObject *pair_fill_position(PyObject *self,
     return NULL;
 
   if (follow) {
-    seen = PySet_New(NULL);
+    PyObject *seen = PySet_New(NULL);
     pwalk_fillpos(self, seen, position);
     Py_DECREF(seen);
 
   } else {
-    if (! s->position) {
-      s->position = position;
-      Py_INCREF(s->position);
+    if (! ((SibPair *) self)->position) {
+      Py_INCREF(position);
+      ((SibPair *) self)->position = position;
     }
   }
 
@@ -1347,11 +1414,14 @@ static PyObject *pair_fill_position(PyObject *self,
 
 
 static PyObject *pair_get_position(PyObject *self, PyObject *_noargs) {
-  SibPair *s = (SibPair *) self;
 
-  if (s->position) {
-    Py_INCREF(s->position);
-    return s->position;
+  // checked
+
+  PyObject *position = ((SibPair *) self)->position;
+
+  if (position) {
+    Py_INCREF(position);
+    return position;
 
   } else {
     Py_RETURN_NONE;
@@ -1428,6 +1498,9 @@ PyTypeObject SibPairType = {
 
 
 PyObject *sib_pair(PyObject *head, PyObject *tail) {
+
+  // checked
+
   SibPair *self = NULL;
 
   if (! (head && tail)) {
@@ -1471,15 +1544,22 @@ static void nil_dealloc(PyObject *self) {
 
 
 static PyObject *nil_repr(PyObject *self) {
+
+  // checked
+
   Py_INCREF(_str_nil);
   return _str_nil;
 }
 
 
 static PyObject *nil_iter(PyObject *self) {
-  SibPairIterator *i = NULL;
 
-  i = PyObject_New(SibPairIterator, &SibPairIteratorType);
+  // checked
+
+  SibPairIterator *i = PyObject_New(SibPairIterator, &SibPairIteratorType);
+  if(! i)
+    return NULL;
+
   i->index = 0;
   i->pair = NULL;
 
@@ -1558,82 +1638,91 @@ SibPair _SibNil = {
 static PyObject *values_new(PyTypeObject *type,
 			    PyObject *args, PyObject *kwds) {
 
+  // checked
+
   return sib_values(args, kwds);
 }
 
 
 static void values_dealloc(PyObject *self) {
-  SibValues *s = (SibValues *) self;
 
-  Py_XDECREF(s->args);
-  Py_XDECREF(s->kwds);
+  // checked
+
+  Py_CLEAR(((SibValues *) self)->args);
+  Py_CLEAR(((SibValues *) self)->kwds);
 
   Py_TYPE(self)->tp_free(self);
 }
 
 
 static int values_traverse(PyObject *self, visitproc visit, void *arg) {
-  SibValues *s = (SibValues *) self;
-  Py_VISIT(s->args);
-  if (s->kwds)
-    Py_VISIT(s->kwds);
+
+  // checked
+
+  Py_VISIT(((SibValues *) self)->args);
+  Py_VISIT(((SibValues *) self)->kwds);
   return 0;
 }
 
 
 static int values_clear(PyObject *self) {
-  SibValues *s = (SibValues *) self;
-  Py_CLEAR(s->args);
-  if (s->kwds)
-    Py_CLEAR(s->kwds);
+
+  // checked
+
+  Py_CLEAR(((SibValues *) self)->args);
+  Py_CLEAR(((SibValues *) self)->kwds);
   return 0;
 }
 
 
 static PyObject *values_iter(PyObject *self) {
-  SibValues *s = (SibValues *) self;
-  return PyObject_GetIter(s->args);
+
+  // checked
+
+  return PyObject_GetIter(((SibValues *) self)->args);
 }
 
 
 static Py_ssize_t values_args_length(PyObject *self) {
-  SibValues *s = (SibValues *) self;
-  return PyTuple_GET_SIZE(s->args);
+
+  // checked
+
+  return PyTuple_GET_SIZE(((SibValues *) self)->args);
 }
 
 
 static PyObject *values_args_getitem(PyObject *self, Py_ssize_t index) {
-  SibValues *s = (SibValues *) self;
-  return PySequence_GetItem(s->args, index);
+
+  // checked
+
+  return PySequence_GetItem(((SibValues *) self)->args, index);
 }
 
 
 static Py_ssize_t values_kwds_length(PyObject *self) {
-  SibValues *s = (SibValues *) self;
 
-  if (s->kwds) {
-    return PyDict_Size(s->kwds);
-  } else {
-    return 0;
-  }
+  // checked
+
+  PyObject *kwds = ((SibValues *) self)->kwds;
+  return kwds? PyDict_Size(kwds): 0;
 }
 
 
 static PyObject *values_kwds_getitem(PyObject *self, PyObject *key) {
-  SibValues *s = (SibValues *) self;
+
+  // checked
 
   if (PyLong_CheckExact(key)) {
-    return PySequence_GetItem(s->args, PyLong_AsSsize_t(key));
+    return PySequence_GetItem(((SibValues *) self)->args,
+			      PyLong_AsSsize_t(key));
 
   } else {
-    PyObject *result = NULL;
-
-    if (s->kwds) {
-      result = PyDict_GetItem(s->kwds, key);
-    }
+    PyObject *kwds = ((SibValues *) self)->kwds;
+    PyObject *result = kwds? PyDict_GetItem(kwds, key): NULL;
 
     if (result) {
       Py_INCREF(result);
+      return result;
 
     } else {
       // we do our own error handling because result could be NULL
@@ -1641,15 +1730,16 @@ static PyObject *values_kwds_getitem(PyObject *self, PyObject *key) {
       // an actual NULL result from GetItem. in either of those cases,
       // we want to emit the same KeyError
       PyErr_SetObject(PyExc_KeyError, quoted(key));
+      return NULL;
     }
-
-    return result;
   }
 }
 
 
 static PyObject *values_call(PyObject *self,
 			     PyObject *args, PyObject *kwds) {
+
+  // checked
 
   SibValues *s = (SibValues *) self;
   PyObject *call_args, *call_kwds;
@@ -1723,8 +1813,10 @@ static PyObject *values_call(PyObject *self,
 
 
 static PyObject *values_repr(PyObject *self) {
+
+  // checked
+
   SibValues *s = (SibValues *) self;
-  PyObject *col = PyList_New(0);
   PyObject *tmp = NULL;
   Py_ssize_t count = 0, limit = 0;
   PyObject *key = NULL, *value = NULL;
@@ -1734,6 +1826,7 @@ static PyObject *values_repr(PyObject *self) {
   // "values(foo=4, bar=5)"
   // "values(1, 2, 3, foo=4, bar=5)"
 
+  PyObject *col = PyList_New(0);
   PyList_Append(col, _str_values_paren);
 
   limit = PyTuple_GET_SIZE(s->args);
@@ -1774,6 +1867,9 @@ static PyObject *values_repr(PyObject *self) {
 
 
 static Py_hash_t values_hash(PyObject *self) {
+
+  // checked
+
   SibValues *s = (SibValues *) self;
   Py_uhash_t result = s->hashed, khash;
   PyObject *tmp, *frozen;
@@ -1863,6 +1959,9 @@ static long values_eq(PyObject *self, PyObject *other) {
 
 
 static PyObject *values_richcomp(PyObject *self, PyObject *other, int op) {
+
+  // checked
+
   if (op == Py_EQ) {
     return PyBool_FromLong(values_eq(self, other));
 
@@ -1877,9 +1976,13 @@ static PyObject *values_richcomp(PyObject *self, PyObject *other, int op) {
 
 
 static int values_bool(PyObject *self) {
-  SibValues *s = (SibValues *) self;
 
-  return !!((s->kwds && PyDict_Size(s->kwds)) || PyTuple_GET_SIZE(s->args));
+  // checked
+
+  PyObject *args = ((SibValues *) self)->args;
+  PyObject *kwds = ((SibValues *) self)->kwds;
+
+  return !!((kwds && PyDict_Size(kwds)) || (args && PyTuple_GET_SIZE(args)));
 }
 
 
@@ -2044,6 +2147,9 @@ PyTypeObject SibValuesType = {
 
 
 PyObject *sib_values(PyObject *args, PyObject *kwds) {
+
+  // checked
+
   SibValues *self = NULL;
 
   if (! args) {
@@ -2055,8 +2161,7 @@ PyObject *sib_values(PyObject *args, PyObject *kwds) {
   if (unlikely(! self))
     return NULL;
 
-  Py_INCREF(args);
-  self->args = args;
+  self->args = PySequence_Tuple(args);
   self->kwds = kwds? PyDict_Copy(kwds): NULL;
   self->hashed = 0;
 
@@ -2068,19 +2173,59 @@ PyObject *sib_values(PyObject *args, PyObject *kwds) {
 /* === module === */
 
 
-static PyObject *m_cons(PyObject *mod, PyObject *args, PyObject *kwds) {
-  PyObject *result = NULL;
-  PyObject *work = NULL, *tmp = NULL;
-  int recursive = 0;
-  int count = PyTuple_Size(args);
+PyObject *sib_cons(PyObject *members, int recursive) {
 
+  // checked
+
+  PyObject *seq = PySequence_Fast(members,
+				  "cons members object must be a sequence");
+  if(! seq) {
+    return NULL;
+  }
+
+  int count = PySequence_Fast_GET_SIZE(seq);
   if (! count) {
+    Py_DECREF(seq);
     Py_INCREF(Sib_Nil);
     return Sib_Nil;
   }
 
+  PyObject *result = sib_pair(PySequence_Fast_GET_ITEM(seq, 0), Sib_Nil);
+
+  if (count == 1) {
+    if (recursive) {
+      SETCDR(result, result);
+    }
+
+  } else {
+    PyObject *work = recursive? result: PySequence_Fast_GET_ITEM(seq, --count);
+    Py_INCREF(work);
+
+    while (--count) {
+      PyObject *tmp = sib_pair(PySequence_Fast_GET_ITEM(seq, count), work);
+      Py_DECREF(work);
+      work = tmp;
+    }
+
+    SETCDR(result, work);
+    Py_DECREF(work);
+  }
+
+  Py_DECREF(seq);
+  return result;
+}
+
+
+static PyObject *m_cons(PyObject *mod, PyObject *args, PyObject *kwds) {
+
+  // checked
+
+  int recursive = 0;
+
   if (kwds) {
-    tmp = PyDict_GetItem(kwds, _str_recursive);
+    PyObject *tmp = PyDict_GetItem(kwds, _str_recursive);
+    // tmp is a borrowed ref
+
     if (tmp) {
       if (PyDict_Size(kwds) > 1) {
 	PyErr_SetString(PyExc_TypeError,
@@ -2101,32 +2246,14 @@ static PyObject *m_cons(PyObject *mod, PyObject *args, PyObject *kwds) {
     }
   }
 
-  result = sib_pair(PyTuple_GET_ITEM(args, 0), Sib_Nil);
-
-  if (count == 1) {
-    if (recursive) {
-      SETCDR(result, result);
-    }
-
-  } else {
-    work = recursive? result: PyTuple_GET_ITEM(args, --count);
-    Py_INCREF(work);
-
-    while (--count) {
-      tmp = sib_pair(PyTuple_GET_ITEM(args, count), work);
-      Py_DECREF(work);
-      work = tmp;
-    }
-
-    SETCDR(result, work);
-    Py_DECREF(work);
-  }
-
-  return result;
+  return sib_cons(args, recursive);
 }
 
 
 static PyObject *m_car(PyObject *mod, PyObject *pair) {
+
+  // checked
+
   PyObject *result = NULL;
 
   if (! SibPair_Check(pair)) {
@@ -2145,6 +2272,9 @@ static PyObject *m_car(PyObject *mod, PyObject *pair) {
 
 
 static PyObject *m_cdr(PyObject *mod, PyObject *pair) {
+
+  // checked
+
   PyObject *result = NULL;
 
   if (! SibPair_Check(pair)) {
@@ -2163,10 +2293,13 @@ static PyObject *m_cdr(PyObject *mod, PyObject *pair) {
 
 
 static PyObject *m_setcar(PyObject *mod, PyObject *args) {
+
+  // checked
+
   PyObject *pair = NULL;
   PyObject *val = NULL;
 
-  if (! PyArg_ParseTuple(args, "O!O:setcar", &SibPairType, &pair, &val)) {
+  if (! PyArg_ParseTuple(args, "O!O", &SibPairType, &pair, &val)) {
     return NULL;
 
   } else if (Sib_Nilp(pair)) {
@@ -2181,10 +2314,13 @@ static PyObject *m_setcar(PyObject *mod, PyObject *args) {
 
 
 static PyObject *m_setcdr(PyObject *mod, PyObject *args) {
+
+  // checked
+
   PyObject *pair = NULL;
   PyObject *val = NULL;
 
-  if (! PyArg_ParseTuple(args, "O!O:setcdr", &SibPairType, &pair, &val)) {
+  if (! PyArg_ParseTuple(args, "O!O", &SibPairType, &pair, &val)) {
     return NULL;
 
   } else if (Sib_Nilp(pair)) {
@@ -2199,6 +2335,9 @@ static PyObject *m_setcdr(PyObject *mod, PyObject *args) {
 
 
 static PyObject *m_getderef(PyObject *mod, PyObject *cell) {
+
+  // checked
+
   PyObject *result = NULL;
 
   if (! PyCell_Check(cell)) {
@@ -2216,13 +2355,17 @@ static PyObject *m_getderef(PyObject *mod, PyObject *cell) {
 
 
 static PyObject *m_setderef(PyObject *mod, PyObject *args) {
+
+  // checked
+
   PyObject *cell = NULL, *value = NULL;
 
-  if (! PyArg_ParseTuple(args, "O!O:setderef", &PyCell_Type, &cell, &value))
+  if (! PyArg_ParseTuple(args, "O!O", &PyCell_Type, &cell, &value))
     return NULL;
 
   if (PyCell_Set(cell, value)) {
     return NULL;
+
   } else {
     Py_RETURN_NONE;
   }
@@ -2231,11 +2374,15 @@ static PyObject *m_setderef(PyObject *mod, PyObject *args) {
 
 static PyObject *m_clearderef(PyObject *mod, PyObject *cell) {
 
+  // checked
+
   if (! PyCell_Check(cell)) {
     PyErr_SetString(PyExc_TypeError, "clearderef argument 1 must be a cell");
     return NULL;
+
   } else if (PyCell_Set(cell, NULL)) {
     return NULL;
+
   } else {
     Py_RETURN_NONE;
   }
@@ -2243,20 +2390,23 @@ static PyObject *m_clearderef(PyObject *mod, PyObject *cell) {
 
 
 static PyObject *m_reapply(PyObject *mod, PyObject *args, PyObject *kwds) {
-  PyObject *fun, *data, *result;
+
+  // checked
+
+  PyObject *work = NULL, *result = NULL;
   long count = 0;
 
-  static char *keywords[] = { "fun", "data", "count", NULL };
+  static char *keywords[] = { "work", "data", "count", NULL };
 
-  if (! PyArg_ParseTupleAndKeywords(args, kwds, "OOl:reapply", keywords,
-				    &fun, &data, &count))
+  if (! PyArg_ParseTupleAndKeywords(args, kwds, "OOl", keywords,
+				    &work, &result, &count))
     return NULL;
 
+  PyObject *data = result;
   Py_INCREF(data);
-  result = data;
 
   while (count-- > 0) {
-    result = PyObject_CallFunctionObjArgs(fun, data);
+    result = PyObject_CallFunctionObjArgs(work, data, NULL);
     Py_DECREF(data);
 
     if (! result)
@@ -2270,33 +2420,36 @@ static PyObject *m_reapply(PyObject *mod, PyObject *args, PyObject *kwds) {
 
 
 static PyObject *m_build_unpack_pair(PyObject *mod, PyObject *seqs) {
-  Py_ssize_t count = PyTuple_GET_SIZE(seqs);
-  Py_ssize_t index = 0;
-  PyObject *coll = NULL;
-  PyObject *work = NULL, *tmp = NULL;
-  PyObject *result = NULL;
 
-  if (count == 0) {
+  // checked
+
+  Py_ssize_t count = seqs? PyTuple_GET_SIZE(seqs): 0;
+  Py_ssize_t index = 0;
+  PyObject *tmp;
+
+  if (! count) {
     Py_INCREF(Sib_Nil);
     return Sib_Nil;
   }
 
-  coll = PyList_New(0);
+  PyObject *coll = PyList_New(0);
 
   while (index < count) {
-    tmp = PyTuple_GET_ITEM(seqs, index++);
+    PyObject *item = PyTuple_GET_ITEM(seqs, index++);
+    PyObject *work;
 
-    if (Sib_Nilp(tmp)) {
+    if (Sib_Nilp(item)) {
+      // skip nil
       continue;
 
-    } else if (SibPair_CheckExact(tmp)) {
-      work = pair_unpack(tmp, NULL);
+    } else if (SibPair_CheckExact(item)) {
+      work = pair_unpack(item, NULL);
 
     } else {
       // todo: check for lists and tuples explicitly, and see if
       // they're zero-length. If so, avoid creating an iterator, just
       // continue to the next item.
-      work = PyObject_GetIter(tmp);
+      work = PyObject_GetIter(item);
     }
 
     if (! work) {
@@ -2304,15 +2457,17 @@ static PyObject *m_build_unpack_pair(PyObject *mod, PyObject *seqs) {
       return NULL;
     }
 
-    result = _PyList_Extend((PyListObject *) coll, work);
+    // why the everloving fuck isn't this a regular call?  tmp will be
+    // NULL for exception, or a new PyNone reference if successful.
+    tmp = _PyList_Extend((PyListObject *) coll, work);
     Py_CLEAR(work);
 
-    if (! result) {
+    if (! tmp) {
       Py_DECREF(coll);
       return NULL;
 
     } else {
-      Py_CLEAR(result);
+      Py_CLEAR(tmp);
     }
   }
 
@@ -2330,54 +2485,51 @@ static PyObject *m_build_unpack_pair(PyObject *mod, PyObject *seqs) {
   // in order to avoid recursion. Is that too expensive?
   tmp = PyTuple_GET_ITEM(seqs, count - 1);
   if (SibPair_is_proper(tmp)) {
-    PyList_Append(coll, Sib_Nil);
-  }
-
-  // assemble coll into a pair
-  count = PyList_GET_SIZE(coll);
-  result = sib_pair(PyList_GET_ITEM(coll, 0), Sib_Nil);
-
-  if (count > 1) {
-    work = PyList_GET_ITEM(coll, --count);
-    Py_INCREF(work);
-
-    while (--count) {
-      tmp = sib_pair(PyList_GET_ITEM(coll, count), work);
-      Py_DECREF(work);
-      work = tmp;
+    if(PyList_Append(coll, Sib_Nil)) {
+      Py_DECREF(coll);
+      return NULL;
     }
-
-    SETCDR(result, work);
-    Py_DECREF(work);
   }
 
+  PyObject *result = sib_cons(coll, 0);
   Py_DECREF(coll);
   return result;
 }
 
 
 static PyObject *m_build_tuple(PyObject *mod, PyObject *values) {
-  Py_INCREF(values);
-  return values;
+
+  // checked
+
+  return PySequence_Tuple(values);
 }
 
 
 static PyObject *m_build_list(PyObject *mod, PyObject *values) {
+
+  // checked
+
   return PySequence_List(values);
 }
 
 
 static PyObject *m_build_set(PyObject *mod, PyObject *values) {
+
+  // checked
+
   return PySet_New(values);
 }
 
 
 static PyObject *m_build_dict(PyObject *mod, PyObject *values) {
+
+  // checked
+
   PyObject *collect;
   PyObject *result;
   PyObject *item;
 
-  int count = PyTuple_GET_SIZE(values);
+  int count = values? PyTuple_GET_SIZE(values): 0;
 
   result = PyDict_New();
   if (! count)
@@ -2388,28 +2540,31 @@ static PyObject *m_build_dict(PyObject *mod, PyObject *values) {
   collect = PyTuple_New(count);
 
   while (count--) {
+    item = PyTuple_GET_ITEM(values, count);
+
     /* because we support items as either an arbitrary iterable with
        len 2, or a pair (which may be proper), we need to potentially
        convert pairs via unpack */
-    item = PyTuple_GET_ITEM(values, count);
 
     if (SibPair_CheckExact(item) && SibPair_Check(CDR(item))) {
       /* pair of more than one link, convert to iterator */
-      PyTuple_SET_ITEM(collect, count, pair_unpack(item, NULL));
-
+      item = pair_unpack(item, NULL);
     } else {
       Py_INCREF(item);
-      PyTuple_SET_ITEM(collect, count, item);
     }
+
+    PyTuple_SET_ITEM(collect, count, item);
   }
 
-  if (PyDict_MergeFromSeq2(result, collect, 1)) {
+  if (unlikely(PyDict_MergeFromSeq2(result, collect, 1))) {
+    Py_DECREF(collect);
     Py_DECREF(result);
-    result = NULL;
-  }
+    return NULL;
 
-  Py_DECREF(collect);
-  return result;
+  } else {
+    Py_DECREF(collect);
+    return result;
+  }
 }
 
 
@@ -2498,7 +2653,7 @@ static struct PyModuleDef ctypes = {
 
 PyMODINIT_FUNC PyInit__types(void) {
 
-  PyObject *mod, *dict;
+  // checked
 
   if (PyType_Ready(&SibPairType) < 0)
     return NULL;
@@ -2557,11 +2712,11 @@ PyMODINIT_FUNC PyInit__types(void) {
       return NULL;
   }
 
-  mod = PyModule_Create(&ctypes);
+  PyObject *mod = PyModule_Create(&ctypes);
   if (! mod)
     return NULL;
 
-  dict = PyModule_GetDict(mod);
+  PyObject *dict = PyModule_GetDict(mod);
   PyDict_SetItemString(dict, "nil", Sib_Nil);
   PyDict_SetItemString(dict, "pair", (PyObject *) &SibPairType);
   PyDict_SetItemString(dict, "symbol", (PyObject *) &SibSymbolType);

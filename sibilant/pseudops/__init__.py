@@ -69,7 +69,7 @@ Constant = Union[CONST_TYPES]
 COMPILER_DEBUG = False
 
 # this is an amount to pad out all max_stack allocations
-STACK_SAFETY = 2
+STACK_SAFETY = 32
 
 
 class PseudopsException(SibilantException):

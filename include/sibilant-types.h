@@ -74,7 +74,7 @@ PyTypeObject SibValuesType;
 #define SibValues_Check(obj)					\
   ((obj) && PyType_IsSubtype((obj)->ob_type, &SibValuesType))
 
-#define SibValues_CheckExact(obj)			\
+#define SibValues_CheckExact(obj)		\
   ((obj) && ((obj)->ob_type == &SibValuesType))
 
 
@@ -89,6 +89,8 @@ PyObject *sib_keyword(PyObject *name);
 
 PyObject *sib_pair(PyObject *head, PyObject *tail);
 
+PyObject *sib_cons(PyObject *sequence, int recursive);
+
 PyObject *sib_values(PyObject *args, PyObject *kwds);
 
 
@@ -98,14 +100,14 @@ PyObject *sib_values(PyObject *args, PyObject *kwds);
 
 #define SETCAR(p, v) {				\
     Py_XDECREF(CAR(p));				\
-    Py_XINCREF(v);				\
     CAR(p) = (v);				\
+    Py_XINCREF(CAR(p));				\
   }
 
 #define SETCDR(p, v) {				\
     Py_XDECREF(CDR(p));				\
-    Py_XINCREF(v);				\
     CDR(p) = (v);				\
+    Py_XINCREF(CDR(p));				\
   }
 
 

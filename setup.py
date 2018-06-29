@@ -30,6 +30,7 @@ from setuptools import setup, Extension
 ext_tco = Extension(
     name = "sibilant._tco",
     sources = ["sibilant/_tco.c"],
+    include_dirs = ["include"],
     extra_compile_args=["--std=c99", "-g"],
 )
 
@@ -65,7 +66,8 @@ setup(
     ],
 
     headers = [
-        "include/py3-sibilant.h",
+        "include/sibilant-types.h",
+        "include/sibilant-tco.h",
     ],
 
     test_suite = "tests",
