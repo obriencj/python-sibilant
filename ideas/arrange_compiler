@@ -1,0 +1,23 @@
+
+
+compiler init (by version)
+  pseudops init (by version)
+
+
+pseudops has code spaces and blocks
+
+compiler creates code spaces
+* pushes blocks
+* pushes operations
+
+
+compiler has
+* activate
+* compile
+* compile_pair
+* compile_apply
+* compile_atom
+* compile_symbol
+* compile_keyword
+* compile_constant
+* complete

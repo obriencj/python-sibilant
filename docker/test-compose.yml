@@ -7,7 +7,7 @@ services:
           dockerfile: cpython35.test
         volumes:
             - ../:/src
-        command: "bash -c 'cd /src && ./setup.py clean test flake8'"
+        command: "/src/docker/tests.sh cpython35"
         network_mode: none
     cpython36.test:
         build:
@@ -15,7 +15,7 @@ services:
           dockerfile: cpython36.test
         volumes:
             - ../:/src
-        command: "bash -c 'cd /src && ./setup.py clean test flake8'"
+        command: "/src/docker/tests.sh cpython36"
         network_mode: none
     cpython37.test:
         build:
@@ -23,5 +23,5 @@ services:
           dockerfile: cpython37.test
         volumes:
             - ../:/src
-        command: "bash -c 'cd /src && ./setup.py clean test flake8'"
+        command: "/src/docker/tests.sh cpython37"
         network_mode: none
