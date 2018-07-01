@@ -31,14 +31,14 @@ ext_tco = Extension(
     name = "sibilant._tco",
     sources = ["sibilant/_tco.c"],
     include_dirs = ["include"],
-    extra_compile_args=["--std=c99", "-g"],
+    extra_compile_args=["--std=c99", "-g", "-Wall", "-Werror"],
 )
 
 ext_types = Extension(
     name = "sibilant._types",
     sources = ["sibilant/_types.c"],
     include_dirs = ["include"],
-    extra_compile_args=["--std=c99", "-g"],
+    extra_compile_args=["--std=c99", "-g", "-Wall", "-Werror"],
 )
 
 
