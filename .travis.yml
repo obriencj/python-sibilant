@@ -1,27 +1,34 @@
 
 language: python
 
+
 python:
   - "3.5"
   - "3.6"
-  - "3.7"
+  - "3.7-dev"
+
 
 before_install:
   - "sudo apt-get -qq update"
   - "sudo apt-get -qq install -y gdb python3-dbg"
 
+
 install:
   - "pip install appdirs flake8"
+
 
 before_script:
   - "ulimit -c unlimited -S"
 
+
 script:
   - "python setup.py test flake8"
+
 
 after_failure:
   - COREFILE=$(find . -maxdepth 1 -name "*core*" | head -n 1)
   - if [[ -f "$COREFILE" ]] ; then gdb -c "$COREFILE" python -ex "thread apply all bt" -ex "set pagination 0" -batch; fi
+
 
 notifications:
   irc:

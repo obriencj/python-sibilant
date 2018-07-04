@@ -1,7 +1,9 @@
 *#
 *.bak
+*.dll
 *.egg-info
 *.gz
+*.patch
 *.pyc
 *.so
 *.tar
@@ -17,4 +19,5 @@ _deploy
 build
 dist
 htmlcov
+logs
 tmp

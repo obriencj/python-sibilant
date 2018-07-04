@@ -88,7 +88,7 @@ static PyObject *_getattro(PyObject *inst, PyObject *name) {
 
   } else if (tp->tp_getattr) {
     // note, per docs AsUTF8 is cached internally, no need to free
-    res = tp->tp_getattr(inst, PyUnicode_AsUTF8(name));
+    res = tp->tp_getattr(inst, (char *) PyUnicode_AsUTF8(name));
 
   } else {
     return NULL;
