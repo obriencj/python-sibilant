@@ -925,7 +925,7 @@
     |}}
     |(?:{([^\\(^\\!\\:}]+
          |\\(.*\\))(\\!.)?([^}]+)?)}
-    )" (+ UNICODE VERBOSE)))
+    )" (bitwise-or UNICODE VERBOSE)))
 
   (def function parse-source [src-str]
        (reader.read (source_str src-str "<format string>")))

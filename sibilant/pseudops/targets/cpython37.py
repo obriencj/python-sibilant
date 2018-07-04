@@ -29,7 +29,7 @@ class PseudopsCPython37(PseudopsCPython36):
     }
 
 
-    @translator
+    @translator(Pseudop.LOAD_METHOD)
     def translate_load_method(self, pseudop, args):
         n = args[0]
         i = self.names.index(n)
