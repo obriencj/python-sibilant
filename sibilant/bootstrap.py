@@ -141,8 +141,8 @@ def __setup__(glbls):
     _ty(compiler.Alias, "alias")
     _ty(compiler.Operator, "operator")
 
+    _ty(tco.tailcall, "tailcall")
     _op(tco.trampoline, "trampoline")
-    _op(tco.tailcall, "tailcall")
     _op(tco.tailcall_disable, "tailcall-disable")
     _op(tco.tailcall_enable, "tailcall-enable")
 
@@ -191,6 +191,9 @@ def __setup__(glbls):
     _op(setattr, "setattr")
     _op(hasattr, "hasattr")
     _op(isinstance, "isinstance")
+    _op(isinstance, "instance?")
+    _op(issubclass, "issubclass")
+    _op(issubclass, "subclass?")
     _op(open, "open")
     _op(input, "input")
     _op(print, "print")
@@ -212,13 +215,16 @@ def __setup__(glbls):
     _ty(reversed, "reversed")
 
     _op(ascii, "ascii")
+    _op(bin, "bin")
     _op(chr, "chr")
     _op(ord, "ord")
-    _op(min, "min")
-    _op(max, "max")
-    _op(abs, "abs")
     _op(oct, "oct")
     _op(hex, "hex")
+
+    _op(abs, "abs")
+    _op(min, "min")
+    _op(max, "max")
+
     _op(all, "all")
     _op(any, "any")
 
