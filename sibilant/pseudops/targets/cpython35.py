@@ -52,7 +52,7 @@ _O = Opcode
 
 class PseudopsCPython35(PseudopsCompiler):
     """
-    Pseudo-Ops compiler emitting bytecode compatible with CPython
+    Pseudoops compiler emitting bytecode compatible with CPython
     version 3.5
     """
 
@@ -413,6 +413,13 @@ class PseudopsCPython35(PseudopsCompiler):
             yield Opcode.DELETE_GLOBAL, i, 0
         else:
             assert False, "missing global name %r" % n
+
+
+    @translator(Pseudop.GET_METHOD)
+    def translate_get_method(self, pseudop, args):
+        n = args[0]
+        i = self.names.index(n)
+        yield Opcode.LOAD_ATTR, i, 0
 
 
     @translator(Pseudop.GET_ATTR)

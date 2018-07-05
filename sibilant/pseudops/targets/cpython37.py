@@ -19,8 +19,8 @@ from .cpython36 import PseudopsCPython36, direct
 
 class PseudopsCPython37(PseudopsCPython36):
     """
-    SpecialCodeSpace emitting bytecode compatible with CPython version
-    3.7
+    Pseudops compiler emitting bytecode compatible with CPython
+    version 3.7
     """
 
 
