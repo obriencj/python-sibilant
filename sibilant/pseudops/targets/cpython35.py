@@ -196,155 +196,20 @@ class PseudopsCPython35(PseudopsCompiler):
         and arguments to represent this code.
         """
 
-        _Pseudop = Pseudop
-        _Opcode = Opcode
+        _p_pos = Pseudop.POSITION
+        _p_lab = Pseudop.LABEL
 
         for op, *args in self.gen_pseudops():
-            if op is _Pseudop.POSITION:
+            if op is _p_pos:
                 declare_position(*args)
 
-            elif op is _Pseudop.LABEL:
+            elif op is _p_lab:
                 declare_label(args[0])
-
-            elif op is _Pseudop.CONST:
-                i = _const_index(self.consts, args[0])
-                yield _Opcode.LOAD_CONST, i, 0
-
-            elif op is _Pseudop.LOAD_CELL:
-                n = args[0]
-                if n in self.cell_vars:
-                    i = self.cell_vars.index(n)
-                    yield _Opcode.LOAD_CLOSURE, i, 0
-                elif n in self.free_vars:
-                    i = self.free_vars.index(n) + len(self.cell_vars)
-                    yield _Opcode.LOAD_CLOSURE, i, 0
-                else:
-                    assert False, "missing cell name %r" % n
-
-            elif op is _Pseudop.SET_LOCAL:
-                n = args[0]
-                if n in self.cell_vars:
-                    i = self.cell_vars.index(n)
-                    yield _Opcode.STORE_DEREF, i, 0
-                elif n in self.free_vars:
-                    i = self.free_vars.index(n) + len(self.cell_vars)
-                    yield _Opcode.STORE_DEREF, i, 0
-                elif n in self.fast_vars:
-                    i = self.fast_vars.index(n)
-                    yield _Opcode.STORE_FAST, i, 0
-                else:
-                    assert False, "missing local name %r" % n
-
-            elif op is _Pseudop.GET_VAR:
-                n = args[0]
-                if n in self.cell_vars:
-                    i = self.cell_vars.index(n)
-                    yield _Opcode.LOAD_DEREF, i, 0
-                elif n in self.free_vars:
-                    i = self.free_vars.index(n) + len(self.cell_vars)
-                    yield _Opcode.LOAD_DEREF, i, 0
-                elif n in self.fast_vars:
-                    i = self.fast_vars.index(n)
-                    yield _Opcode.LOAD_FAST, i, 0
-                elif n in self.global_vars:
-                    i = self.names.index(n)
-                    yield _Opcode.LOAD_GLOBAL, i, 0
-                else:
-                    assert False, "missing var %r" % n
-
-            elif op is _Pseudop.SET_VAR:
-                n = args[0]
-                if n in self.cell_vars:
-                    i = self.cell_vars.index(n)
-                    yield _Opcode.STORE_DEREF, i, 0
-                elif n in self.free_vars:
-                    i = self.free_vars.index(n) + len(self.cell_vars)
-                    yield _Opcode.STORE_DEREF, i, 0
-                elif n in self.fast_vars:
-                    i = self.fast_vars.index(n)
-                    yield _Opcode.STORE_FAST, i, 0
-                elif n in self.global_vars:
-                    i = self.names.index(n)
-                    yield _Opcode.STORE_GLOBAL, i, 0
-                else:
-                    assert False, "missing var %r" % n
-
-            elif op is _Pseudop.DEL_VAR:
-                n = args[0]
-                if n in self.cell_vars:
-                    i = self.cell_vars.index(n)
-                    yield _Opcode.DELETE_DEREF, i, 0
-                elif n in self.free_vars:
-                    i = self.free_vars.index(n) + len(self.cell_vars)
-                    yield _Opcode.DELETE_DEREF, i, 0
-                elif n in self.fast_vars:
-                    i = self.fast_vars.index(n)
-                    yield _Opcode.DELETE_FAST, i, 0
-                elif n in self.global_vars:
-                    i = self.names.index(n)
-                    yield _Opcode.DELETE_GLOBAL, i, 0
-                else:
-                    assert False, "missing var %r" % n
-
-            elif op is _Pseudop.GET_GLOBAL:
-                n = args[0]
-                if n in self.global_vars:
-                    i = self.names.index(n)
-                    yield _Opcode.LOAD_GLOBAL, i, 0
-                else:
-                    assert False, "missing global name %r" % n
-
-            elif op is _Pseudop.SET_GLOBAL:
-                n = args[0]
-                if n in self.global_vars:
-                    i = self.names.index(n)
-                    yield _Opcode.STORE_GLOBAL, i, 0
-                else:
-                    assert False, "missing global name %r" % n
-
-            elif op is _Pseudop.DEL_GLOBAL:
-                n = args[0]
-                if n in self.global_vars:
-                    i = self.names.index(n)
-                    yield _Opcode.DELETE_GLOBAL, i, 0
-                else:
-                    assert False, "missing global name %r" % n
-
-            elif op is _Pseudop.GET_ATTR:
-                n = args[0]
-                i = self.names.index(n)
-                yield _Opcode.LOAD_ATTR, i, 0
-
-            elif op is _Pseudop.SET_ATTR:
-                n = args[0]
-                i = self.names.index(n)
-                yield _Opcode.STORE_ATTR, i, 0
-
-            elif op is _Pseudop.DEL_ATTR:
-                n = args[0]
-                i = self.names.index(n)
-                yield _Opcode.DELETE_ATTR, i, 0
-
-            # elif op is _Pseudop.MAGIC_POP_ALL:
-            #     n = args[0]
-            #     for _ in range(0, n):
-            #         yield _Opcode.POP_TOP,
-
-            elif op is _Pseudop.IMPORT_NAME:
-                n = args[0]
-                i = self.names.index(n)
-                yield _Opcode.IMPORT_NAME, i, 0
-
-            elif op is _Pseudop.IMPORT_FROM:
-                n = args[0]
-                i = self.names.index(n)
-                yield _Opcode.IMPORT_FROM, i, 0
 
             else:
                 yield from self.translate(op, args)
 
 
-    @translator(Pseudop.BUILD_STR)
     def pseudop_build_str(self, count):
         # emulate the BUILD_STRING opcode using string joining
 
@@ -359,7 +224,6 @@ class PseudopsCPython35(PseudopsCompiler):
         self.pseudop_call(1)
 
 
-    @translator(Pseudop.FORMAT)
     def pseudop_format(self, flags):
         # emulate the FORMAT_VALUE opcode using the format function
 
@@ -427,6 +291,163 @@ class PseudopsCPython35(PseudopsCompiler):
             yield _Opcode.LOAD_CONST, ci, 0
             yield _Opcode.LOAD_CONST, ni, 0
             yield _Opcode.MAKE_FUNCTION, default_count, kwonly_count
+
+
+    @translator(Pseudop.CONST)
+    def translate_load_const(self, pseudop, args):
+        i = _const_index(self.consts, args[0])
+        yield Opcode.LOAD_CONST, i, 0
+
+
+    @translator(Pseudop.LOAD_CELL)
+    def translate_load_cell(self, pseudop, args):
+        n = args[0]
+        if n in self.cell_vars:
+            i = self.cell_vars.index(n)
+            yield Opcode.LOAD_CLOSURE, i, 0
+        elif n in self.free_vars:
+            i = self.free_vars.index(n) + len(self.cell_vars)
+            yield Opcode.LOAD_CLOSURE, i, 0
+        else:
+            assert False, "missing cell name %r" % n
+
+
+    @translator(Pseudop.SET_LOCAL)
+    def translate_set_local(self, pseudop, args):
+        n = args[0]
+        if n in self.cell_vars:
+            i = self.cell_vars.index(n)
+            yield Opcode.STORE_DEREF, i, 0
+        elif n in self.free_vars:
+            i = self.free_vars.index(n) + len(self.cell_vars)
+            yield Opcode.STORE_DEREF, i, 0
+        elif n in self.fast_vars:
+            i = self.fast_vars.index(n)
+            yield Opcode.STORE_FAST, i, 0
+        else:
+            assert False, "missing local name %r" % n
+
+
+    @translator(Pseudop.GET_VAR)
+    def translate_get_var(self, pseudop, args):
+        n = args[0]
+        if n in self.cell_vars:
+            i = self.cell_vars.index(n)
+            yield Opcode.LOAD_DEREF, i, 0
+        elif n in self.free_vars:
+            i = self.free_vars.index(n) + len(self.cell_vars)
+            yield Opcode.LOAD_DEREF, i, 0
+        elif n in self.fast_vars:
+            i = self.fast_vars.index(n)
+            yield Opcode.LOAD_FAST, i, 0
+        elif n in self.global_vars:
+            i = self.names.index(n)
+            yield Opcode.LOAD_GLOBAL, i, 0
+        else:
+            assert False, "missing var %r" % n
+
+
+    @translator(Pseudop.SET_VAR)
+    def translate_set_var(self, pseudop, args):
+        n = args[0]
+        if n in self.cell_vars:
+            i = self.cell_vars.index(n)
+            yield Opcode.STORE_DEREF, i, 0
+        elif n in self.free_vars:
+            i = self.free_vars.index(n) + len(self.cell_vars)
+            yield Opcode.STORE_DEREF, i, 0
+        elif n in self.fast_vars:
+            i = self.fast_vars.index(n)
+            yield Opcode.STORE_FAST, i, 0
+        elif n in self.global_vars:
+            i = self.names.index(n)
+            yield Opcode.STORE_GLOBAL, i, 0
+        else:
+            assert False, "missing var %r" % n
+
+
+    @translator(Pseudop.DEL_VAR)
+    def translate_del_var(self, pseudop, args):
+        n = args[0]
+        if n in self.cell_vars:
+            i = self.cell_vars.index(n)
+            yield Opcode.DELETE_DEREF, i, 0
+        elif n in self.free_vars:
+            i = self.free_vars.index(n) + len(self.cell_vars)
+            yield Opcode.DELETE_DEREF, i, 0
+        elif n in self.fast_vars:
+            i = self.fast_vars.index(n)
+            yield Opcode.DELETE_FAST, i, 0
+        elif n in self.global_vars:
+            i = self.names.index(n)
+            yield Opcode.DELETE_GLOBAL, i, 0
+        else:
+            assert False, "missing var %r" % n
+
+
+    @translator(Pseudop.GET_GLOBAL)
+    def translate_get_global(self, pseudop, args):
+        n = args[0]
+        if n in self.global_vars:
+            i = self.names.index(n)
+            yield Opcode.LOAD_GLOBAL, i, 0
+        else:
+            assert False, "missing global name %r" % n
+
+
+    @translator(Pseudop.SET_GLOBAL)
+    def translate_set_global(self, pseudop, args):
+        n = args[0]
+        if n in self.global_vars:
+            i = self.names.index(n)
+            yield Opcode.STORE_GLOBAL, i, 0
+        else:
+            assert False, "missing global name %r" % n
+
+
+    @translator(Pseudop.DEL_GLOBAL)
+    def translate_del_global(self, pseudop, args):
+        n = args[0]
+        if n in self.global_vars:
+            i = self.names.index(n)
+            yield Opcode.DELETE_GLOBAL, i, 0
+        else:
+            assert False, "missing global name %r" % n
+
+
+    @translator(Pseudop.GET_ATTR)
+    def translate_get_attr(self, pseudop, args):
+        n = args[0]
+        i = self.names.index(n)
+        yield Opcode.LOAD_ATTR, i, 0
+
+
+    @translator(Pseudop.SET_ATTR)
+    def translate_set_attr(self, pseudop, args):
+        n = args[0]
+        i = self.names.index(n)
+        yield Opcode.STORE_ATTR, i, 0
+
+
+    @translator(Pseudop.DEL_ATTR)
+    def translate_del_attr(self, pseudop, args):
+        n = args[0]
+        i = self.names.index(n)
+        yield Opcode.DELETE_ATTR, i, 0
+
+
+    @translator(Pseudop.IMPORT_NAME)
+    def translate_import_name(self, pseudop, args):
+        n = args[0]
+        i = self.names.index(n)
+        yield Opcode.IMPORT_NAME, i, 0
+
+
+    @translator(Pseudop.IMPORT_FROM)
+    def translate_import_from(self, pseudop, args):
+        n = args[0]
+        i = self.names.index(n)
+        yield Opcode.IMPORT_FROM, i, 0
 
 
     def lnt_compile(self, lnt, firstline=None):
