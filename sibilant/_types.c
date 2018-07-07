@@ -1613,6 +1613,9 @@ PyTypeObject SibNilType = {
   .tp_new = nil_new,
   .tp_dealloc = nil_dealloc,
 
+  .tp_traverse = NULL,
+  .tp_clear = NULL,
+
   .tp_repr = nil_repr,
   .tp_str = nil_repr,
   .tp_iter = nil_iter,
