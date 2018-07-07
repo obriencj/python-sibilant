@@ -81,7 +81,7 @@
 ;; you can either run this directly, or you can compile it to a .pyc
 ;; and invoke it from the flask cli
 (when-main
- (app.run))
+ (! run app))
 
 
 ;;

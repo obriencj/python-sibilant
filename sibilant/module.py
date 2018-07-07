@@ -416,7 +416,11 @@ def marshal_wrapper(code_objs, filename=None, mtime=0, source_size=0,
     series of statements (as compiled code objects).
     """
 
-    from importlib._bootstrap_external import _code_to_bytecode
+    import importlib._bootstrap_external as ibe
+    try:
+        pyc = ibe._code_to_bytecode
+    except AttributeError:
+        pyc = ibe._code_to_timestamp_pyc
 
     factory = compiler_for_version()
     codespace = factory(filename=filename, mode=Mode.MODULE)
@@ -468,7 +472,7 @@ def marshal_wrapper(code_objs, filename=None, mtime=0, source_size=0,
 
         code = codespace.complete()
 
-    return _code_to_bytecode(code, mtime, source_size)
+    return pyc(code, mtime, source_size)
 
 
 def compile_to_file(name, pkgname, source_file, dest_file,
