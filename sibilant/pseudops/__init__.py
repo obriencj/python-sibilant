@@ -36,6 +36,7 @@ from typing import Union
 
 try:
     from enum import auto
+
 except ImportError:
     # 3.5 doesn't have it, so let's make our own
     from itertools import count
@@ -49,6 +50,7 @@ __all__ = (
     "PseudopsCompiler", "PseudopsException",
     "Opcode", "Pseudop", "Block",
     "CONST_TYPES",
+    "translator", "stackers",
 )
 
 
@@ -159,6 +161,7 @@ class Pseudop(Enum):
     DUP = auto()
     END_FINALLY = auto()
     FAUX_PUSH = auto()
+    FAUX_POP = auto()
     FOR_ITER = auto()
     FORMAT = auto()
     GET_ATTR = auto()
@@ -299,6 +302,32 @@ class CodeBlock(object):
 
 
     def max_stack(self, code):
+        sc = code.stack_counter(self.init_stack)
+
+        # print("enter max_stack()", self.block_type)
+        index = -1
+        for index, (op, *args) in enumerate(self.pseudops):
+            sc.stack(op, args)
+
+        # TODO: write a dump_pseudops and use that to output the
+        # pseudops and their stack start/end changes
+
+        leftovers = self.allow_leftovers
+        maxc = sc.max_stack
+        stac = sc.stack_count
+
+        if stac != leftovers:
+            print("leaving max_stack()", self.block_type, "with", stac)
+            for o in self.pseudops:
+                print("\t", repr(o))
+
+        assert (stac == leftovers), ("%i / %i left-over stack items for %r"
+                                     % (stac, leftovers, self.block_type))
+
+        return stac, maxc
+
+
+    def _old_max_stack(self, code):
         """
         Calculates the maximum stack size from the pseudo operations. This
         function is total crap, but it's good enough for now.
@@ -381,7 +410,7 @@ class CodeBlock(object):
             else:
                 # defer everything else so it can be overridden
                 # depending on Python version
-                code.helper_max_stack(op, args, push, pop)
+                code.stack(op, args, push, pop)
 
         # TODO: write a dump_pseudops and use that to output the pseudops and
         # their stack start/end changes
@@ -402,7 +431,7 @@ class Mode(Enum):
     MODULE = "module"
 
 
-class ABCTranslator(ABCMeta):
+class ABCPseudopsTarget(ABCMeta):
     """
     Combination of ABCMeta plus a self-registering pseudop translator.
     This is what makes the translator decorator work with the
@@ -411,9 +440,10 @@ class ABCTranslator(ABCMeta):
 
     def __init__(self, name, bases, members):
 
-        # the __translations__ class member is merged together with
-        # its bases, to provide a sort of inheritance.
+        # the _translations_ member is merged together with those of
+        # the bases, to provide a sort of inheritance.
         ntr = {}
+
         for base in bases:
             ntr.update(getattr(base, "_translations_", {}))
         ntr.update(members.get("_translations_", {}))
@@ -423,9 +453,11 @@ class ABCTranslator(ABCMeta):
                 trop = getattr(memb, "_translates_", None)
                 if trop is not None:
                     ntr[trop] = memb
+                    continue
 
         members["_translations_"] = ntr
         self._translations_ = ntr
+
         return super().__init__(name, bases, members)
 
 
@@ -436,7 +468,7 @@ def translator(pseudop):
     return decorator
 
 
-class PseudopsCompiler(metaclass=ABCTranslator):
+class PseudopsCompiler(metaclass=ABCPseudopsTarget):
     """
     Represents a lexical scope, expressions occurring within that
     scope, and nested sub-scopes.
@@ -444,7 +476,6 @@ class PseudopsCompiler(metaclass=ABCTranslator):
 
 
     _translations_ = {}
-
 
     def __init__(self, parent=None, name=None, args=(), kwonly=0,
                  varargs=False, varkeywords=False,
@@ -868,71 +899,61 @@ class PseudopsCompiler(metaclass=ABCTranslator):
         """
 
         assert self.blocks, "no blocks on stack"
-        self.blocks[-1].pseudops.append(op_and_args)
+        return self.blocks[-1].pseudops.append(op_and_args)
 
 
     def pseudop_debug(self, *op_args):
         if COMPILER_DEBUG:
-            self.pseudop(Pseudop.DEBUG_STACK, *op_args)
+            return self.pseudop(Pseudop.DEBUG_STACK, *op_args)
 
 
     def pseudop_get_attr(self, namesym: Symbol):
         # assert is_symbol(namesym)
         self.request_name(namesym)
-        self.pseudop(Pseudop.GET_ATTR, namesym)
+        return self.pseudop(Pseudop.GET_ATTR, namesym)
 
 
     def pseudop_set_attr(self, namesym: Symbol):
         # assert is_symbol(namesym)
         self.request_name(namesym)
-        self.pseudop(Pseudop.SET_ATTR, namesym)
+        return self.pseudop(Pseudop.SET_ATTR, namesym)
 
 
     def pseudop_del_attr(self, namesym: Symbol):
         # assert is_symbol(namesym)
         self.request_name(namesym)
-        self.pseudop(Pseudop.DEL_ATTR, namesym)
-
-
-    def pseudop_get_method(self, namesym: Symbol):
-        # assert is_symbol(namesym)
-        self.request_name(namesym)
-        self.pseudop(Pseudop.GET_METHOD, namesym)
+        return self.pseudop(Pseudop.DEL_ATTR, namesym)
 
 
     def pseudop_faux_push(self, count=1):
-        self.pseudop(Pseudop.FAUX_PUSH, count)
+        return self.pseudop(Pseudop.FAUX_PUSH, count)
 
 
     def pseudop_faux_pop(self, count=1):
-        self.pseudop(Pseudop.FAUX_PUSH, -count)
+        return self.pseudop(Pseudop.FAUX_POP, count)
 
 
     def pseudop_position(self, line, column):
         assert isinstance(line, int), "line must be int, not %r" % line
         assert isinstance(column, int), "column must be int, not %r" % column
 
-        self.pseudop(Pseudop.POSITION, line, column)
+        return self.pseudop(Pseudop.POSITION, line, column)
 
 
     def pseudop_call(self, argc, kwdc=0):
-        self.pseudop(Pseudop.CALL, argc, kwdc)
-
-
-    def pseudop_call_method(self, argc):
-        self.pseudop(Pseudop.CALL_METHOD, argc)
+        return self.pseudop(Pseudop.CALL, argc, kwdc)
 
 
     def pseudop_call_var(self, argc, kwdc=0):
-        self.pseudop(Pseudop.CALL_VAR, argc, kwdc)
+        return self.pseudop(Pseudop.CALL_VAR, argc, kwdc)
 
 
     def pseudop_call_kw(self, argc, kwdc=0):
-        self.pseudop(Pseudop.CALL_KW, argc, kwdc)
+        return self.pseudop(Pseudop.CALL_KW, argc, kwdc)
 
 
     def pseudop_call_var_kw(self, argc, kwdc=0):
-        self.pseudop(Pseudop.CALL_VAR_KW, argc, kwdc)
+        return self.pseudop(Pseudop.CALL_VAR_KW, argc, kwdc)
 
 
     def pseudop_const(self, val):
@@ -941,7 +962,7 @@ class PseudopsCompiler(metaclass=ABCTranslator):
         """
 
         self.declare_const(val)
-        self.pseudop(Pseudop.CONST, val)
+        return self.pseudop(Pseudop.CONST, val)
 
 
     def pseudop_set_local(self, namesym: Symbol):
@@ -950,7 +971,7 @@ class PseudopsCompiler(metaclass=ABCTranslator):
         """
         # assert is_symbol(namesym)
         self.declare_var(namesym)
-        self.pseudop(Pseudop.SET_LOCAL, namesym)
+        return self.pseudop(Pseudop.SET_LOCAL, namesym)
 
 
     def pseudop_get_var(self, namesym: Symbol):
@@ -959,7 +980,7 @@ class PseudopsCompiler(metaclass=ABCTranslator):
         """
         # assert is_symbol(namesym)
         self.request_var(namesym)
-        self.pseudop(Pseudop.GET_VAR, namesym)
+        return self.pseudop(Pseudop.GET_VAR, namesym)
 
 
     def pseudop_set_var(self, namesym: Symbol):
@@ -968,27 +989,22 @@ class PseudopsCompiler(metaclass=ABCTranslator):
         """
         # assert is_symbol(namesym)
         self.request_var(namesym)
-        self.pseudop(Pseudop.SET_VAR, namesym)
+        return self.pseudop(Pseudop.SET_VAR, namesym)
 
 
     def pseudop_del_var(self, namesym: Symbol):
         # assert is_symbol(namesym)
         self.request_var(namesym)
-        self.pseudop(Pseudop.DEL_VAR, namesym)
+        return self.pseudop(Pseudop.DEL_VAR, namesym)
 
 
     def pseudop_load_cell(self, namesym: Symbol):
-        self.pseudop(Pseudop.LOAD_CELL, namesym)
+        return self.pseudop(Pseudop.LOAD_CELL, namesym)
 
 
-    def pseudop_lambda(self, code, *params):
-        """
-        Pushes a pseudo op to load a lambda from code
-        """
-
-        self.declare_const(code)
-        self.declare_const(code.co_name)
-        self.pseudop(Pseudop.LAMBDA, code, *params)
+    @abstractmethod
+    def pseudop_lambda(self, code, defaults=(), kwonly=()):
+        pass
 
 
     def pseudop_pop(self, count=1):
@@ -1015,11 +1031,11 @@ class PseudopsCompiler(metaclass=ABCTranslator):
 
 
     def pseudop_unpack_sequence(self, argc):
-        self.pseudop(Pseudop.UNPACK_SEQUENCE, argc)
+        return self.pseudop(Pseudop.UNPACK_SEQUENCE, argc)
 
 
     def pseudop_unpack_ex(self, left, right):
-        self.pseudop(Pseudop.UNPACK_EX, left, right)
+        return self.pseudop(Pseudop.UNPACK_EX, left, right)
 
 
     def pseudop_return_none(self):
@@ -1027,29 +1043,29 @@ class PseudopsCompiler(metaclass=ABCTranslator):
         Pushes a pseudo op to return None
         """
         self.pseudop_const(None)
-        self.pseudop(Pseudop.RET_VAL)
+        return self.pseudop(Pseudop.RET_VAL)
 
 
     def pseudop_yield(self):
         self.declare_generator()
-        self.pseudop(Pseudop.YIELD_VAL)
+        return self.pseudop(Pseudop.YIELD_VAL)
 
 
     def pseudop_yield_none(self):
         self.declare_generator()
         self.pseudop_const(None)
-        self.pseudop(Pseudop.YIELD_VAL)
+        return self.pseudop(Pseudop.YIELD_VAL)
 
 
     def pseudop_yield_from(self):
         self.declare_generator()
-        self.pseudop(Pseudop.YIELD_FROM)
+        return self.pseudop(Pseudop.YIELD_FROM)
 
 
     def pseudop_get_global(self, namesym: Symbol):
         # assert is_symbol(namesym)
         self.request_global(namesym)
-        self.pseudop(Pseudop.GET_GLOBAL, namesym)
+        return self.pseudop(Pseudop.GET_GLOBAL, namesym)
 
 
     def pseudop_set_global(self, namesym: Symbol):
@@ -1058,102 +1074,114 @@ class PseudopsCompiler(metaclass=ABCTranslator):
         """
         # assert is_symbol(namesym)
         self.request_global(namesym)
-        self.pseudop(Pseudop.SET_GLOBAL, namesym)
+        return self.pseudop(Pseudop.SET_GLOBAL, namesym)
 
 
     def pseudop_del_global(self, namesym: Symbol):
         # assert is_symbol(namesym)
         self.request_global(namesym)
-        self.pseudop(Pseudop.DEL_GLOBAL, namesym)
+        return self.pseudop(Pseudop.DEL_GLOBAL, namesym)
 
 
-    def pseudop_label(self, name):
-        self.pseudop(Pseudop.LABEL, name)
+    def pseudop_label(self, name: str):
+        return self.pseudop(Pseudop.LABEL, name)
 
 
-    def pseudop_jump(self, label_name):
-        self.pseudop(Pseudop.JUMP, label_name)
+    def pseudop_jump(self, label_name: str):
+        return self.pseudop(Pseudop.JUMP, label_name)
 
 
-    def pseudop_jump_forward(self, label_name):
-        self.pseudop(Pseudop.JUMP_FORWARD, label_name)
+    def pseudop_jump_forward(self, label_name: str):
+        return self.pseudop(Pseudop.JUMP_FORWARD, label_name)
 
 
-    def pseudop_pop_jump_if_true(self, label_name):
-        self.pseudop(Pseudop.POP_JUMP_IF_TRUE, label_name)
+    def pseudop_pop_jump_if_true(self, label_name: str):
+        return self.pseudop(Pseudop.POP_JUMP_IF_TRUE, label_name)
 
 
-    def pseudop_pop_jump_if_false(self, label_name):
-        self.pseudop(Pseudop.POP_JUMP_IF_FALSE, label_name)
+    def pseudop_pop_jump_if_false(self, label_name: str):
+        return self.pseudop(Pseudop.POP_JUMP_IF_FALSE, label_name)
 
 
-    def pseudop_setup_loop(self, done_label):
-        self.pseudop(Pseudop.SETUP_LOOP, done_label)
+    def pseudop_setup_loop(self, done_label: str):
+        return self.pseudop(Pseudop.SETUP_LOOP, done_label)
 
 
-    def pseudop_setup_with(self, try_label):
-        self.pseudop(Pseudop.SETUP_WITH, try_label)
+    def pseudop_setup_with(self, try_label: str):
+        return self.pseudop(Pseudop.SETUP_WITH, try_label)
 
 
-    def pseudop_setup_except(self, try_label):
-        self.pseudop(Pseudop.SETUP_EXCEPT, try_label)
+    def pseudop_setup_except(self, try_label: str):
+        return self.pseudop(Pseudop.SETUP_EXCEPT, try_label)
 
 
-    def pseudop_setup_finally(self, final_label):
-        self.pseudop(Pseudop.SETUP_FINALLY, final_label)
+    def pseudop_setup_finally(self, final_label: str):
+        return self.pseudop(Pseudop.SETUP_FINALLY, final_label)
 
 
-    def pseudop_raise(self, count=0):
-        self.pseudop(Pseudop.RAISE, count)
+    def pseudop_raise(self, count: int):
+        return self.pseudop(Pseudop.RAISE, count)
 
 
-    def pseudop_build_str(self, count):
-        self.pseudop(Pseudop.BUILD_STR, count)
-
-
-    def pseudop_format(self, flags):
-        self.pseudop(Pseudop.FORMAT, flags)
-
-
-    def pseudop_build_slice(self, count):
+    def pseudop_build_slice(self, count: int):
         # assert (1 < count < 4)
-        self.pseudop(Pseudop.BUILD_SLICE, count)
+        return self.pseudop(Pseudop.BUILD_SLICE, count)
 
 
-    def pseudop_build_tuple(self, count):
-        self.pseudop(Pseudop.BUILD_TUPLE, count)
+    def pseudop_build_tuple(self, count: int):
+        return self.pseudop(Pseudop.BUILD_TUPLE, count)
 
 
-    def pseudop_build_list(self, count):
-        self.pseudop(Pseudop.BUILD_LIST, count)
+    def pseudop_build_list(self, count: int):
+        return self.pseudop(Pseudop.BUILD_LIST, count)
 
 
-    def pseudop_build_set(self, count):
-        self.pseudop(Pseudop.BUILD_SET, count)
+    def pseudop_build_set(self, count: int):
+        return self.pseudop(Pseudop.BUILD_SET, count)
 
 
-    def pseudop_build_tuple_unpack(self, count):
-        self.pseudop(Pseudop.BUILD_TUPLE_UNPACK, count)
+    def pseudop_build_tuple_unpack(self, count: int):
+        return self.pseudop(Pseudop.BUILD_TUPLE_UNPACK, count)
 
 
-    def pseudop_build_map(self, count):
-        self.pseudop(Pseudop.BUILD_MAP, count)
+    def pseudop_build_map(self, count: int):
+        return self.pseudop(Pseudop.BUILD_MAP, count)
 
 
-    def pseudop_build_map_unpack(self, count):
-        self.pseudop(Pseudop.BUILD_MAP_UNPACK, count)
+    def pseudop_build_map_unpack(self, count: int):
+        return self.pseudop(Pseudop.BUILD_MAP_UNPACK, count)
 
 
     def pseudop_import_name(self, namesym: Symbol):
         # assert is_symbol(namesym)
         self.request_name(namesym)
-        self.pseudop(Pseudop.IMPORT_NAME, namesym)
+        return self.pseudop(Pseudop.IMPORT_NAME, namesym)
 
 
     def pseudop_import_from(self, namesym: Symbol):
         # assert is_symbol(namesym)
         self.request_name(namesym)
-        self.pseudop(Pseudop.IMPORT_FROM, namesym)
+        return self.pseudop(Pseudop.IMPORT_FROM, namesym)
+
+
+    @abstractmethod
+    def pseudop_build_str(self, argc: int):
+        pass
+
+
+    @abstractmethod
+    def pseudop_format(self, flags: int):
+        pass
+
+
+    @abstractmethod
+    def pseudop_get_method(self, namesym: Symbol):
+        pass
+
+
+    @abstractmethod
+    def pseudop_call_method(self, argc: int):
+        pass
 
 
     def _op(argname, arg=None, *, _pseudop=pseudop):
@@ -1225,158 +1253,17 @@ class PseudopsCompiler(metaclass=ABCTranslator):
 
     @translator(Pseudop.FAUX_PUSH)
     def translate_faux_push(self, pseudop, args):
-        pass
+        return ()
+
+
+    @translator(Pseudop.FAUX_POP)
+    def translate_faux_pop(self, pseudop, args):
+        return ()
 
 
     @translator(Pseudop.DEBUG_STACK)
     def translate_debug_stack(self, pseudop, args):
-        pass
-
-
-    def helper_max_stack(self, op, args, push, pop):
-
-        _Pseudop = Pseudop
-        _Opcode = Opcode
-
-        if op in (_Pseudop.CONST,
-                  _Pseudop.DUP,
-                  _Pseudop.GET_VAR,
-                  _Pseudop.GET_GLOBAL,
-                  _Pseudop.BREAK_LOOP,
-                  _Pseudop.FOR_ITER,
-                  _Pseudop.IMPORT_FROM,
-                  _Pseudop.CONTINUE_LOOP,
-                  _Pseudop.LOAD_CELL, ):
-            push()
-
-        elif op in (_Pseudop.DEL_VAR,
-                    _Pseudop.DEL_GLOBAL,
-                    _Pseudop.ROT_TWO,
-                    _Pseudop.ROT_THREE, ):
-            pass
-
-        elif op in (_Pseudop.GET_ATTR,
-                    _Pseudop.UNARY_POSITIVE,
-                    _Pseudop.UNARY_NEGATIVE,
-                    _Pseudop.UNARY_NOT,
-                    _Pseudop.UNARY_INVERT,
-                    _Pseudop.ITER,
-                    _Pseudop.GET_YIELD_FROM_ITER,
-                    _Pseudop.YIELD_VAL, ):
-            pop()
-            push()
-
-        elif op in (_Pseudop.COMPARE_OP,
-                    _Pseudop.GET_ITEM,
-                    _Pseudop.BINARY_ADD,
-                    _Pseudop.BINARY_SUBTRACT,
-                    _Pseudop.BINARY_MULTIPLY,
-                    _Pseudop.BINARY_MATRIX_MULTIPLY,
-                    _Pseudop.BINARY_TRUE_DIVIDE,
-                    _Pseudop.BINARY_FLOOR_DIVIDE,
-                    _Pseudop.BINARY_POWER,
-                    _Pseudop.BINARY_MODULO,
-                    _Pseudop.BINARY_LSHIFT,
-                    _Pseudop.BINARY_RSHIFT,
-                    _Pseudop.BINARY_AND,
-                    _Pseudop.BINARY_XOR,
-                    _Pseudop.BINARY_OR,
-                    _Pseudop.IMPORT_NAME, ):
-            pop(2)
-            push()
-
-        elif op in (_Pseudop.SET_ATTR,
-                    _Pseudop.DEL_ITEM, ):
-            pop(2)
-
-        elif op is _Pseudop.SET_ITEM:
-            pop(3)
-
-        elif op in (_Pseudop.SET_GLOBAL,
-                    _Pseudop.SET_LOCAL,
-                    _Pseudop.SET_VAR,
-                    _Pseudop.RET_VAL,
-                    _Pseudop.YIELD_FROM,
-                    _Pseudop.DEL_ATTR,
-                    _Pseudop.POP, ):
-            pop()
-
-        elif op is _Pseudop.LAMBDA:
-            pop(args[1])
-            a = len(args[0].co_freevars)
-            if a:
-                push(a)
-                pop(a)
-            push(2)
-            pop(2)
-            push()
-
-        elif op is _Pseudop.BUILD_MAP:
-            pop(args[0] * 2)
-            push()
-
-        elif op is _Pseudop.UNPACK_SEQUENCE:
-            pop()
-            push(args[0])
-
-        elif op is _Pseudop.UNPACK_EX:
-            pop()
-            push(args[0] + args[1] + 1)
-
-        elif op in (_Pseudop.BUILD_LIST,
-                    _Pseudop.BUILD_SET,
-                    _Pseudop.BUILD_STR,
-                    _Pseudop.BUILD_TUPLE,
-                    _Pseudop.BUILD_TUPLE_UNPACK,
-                    _Pseudop.BUILD_MAP_UNPACK,
-                    _Pseudop.BUILD_SLICE,
-                    _Pseudop.RAISE, ):
-            pop(args[0])
-            push()  # we pretend RAISE has a value
-
-        elif op is _Pseudop.SETUP_EXCEPT:
-            # push(_Opcode.SETUP_EXCEPT.stack_effect(1))
-            push(6)
-
-        elif op is _Pseudop.SETUP_WITH:
-            # push(_Opcode.SETUP_WITH.stack_effect(1))
-            push(6)
-
-        elif op is _Pseudop.SETUP_FINALLY:
-            # push(_Opcode.SETUP_FINALLY.stack_effect(1))
-            push(6)
-
-        elif op is _Pseudop.SETUP_LOOP:
-            push(_Opcode.SETUP_LOOP.stack_effect(1))
-
-        elif op is _Pseudop.POP_BLOCK:
-            push(_Opcode.POP_BLOCK.stack_effect())
-
-        elif op is _Pseudop.POP_EXCEPT:
-            # in 3.5 and 3.6 this claims to be 0, but it's actually -3
-            # in 3.7 it starts to accurately represent itself as -3
-            # so... screw it, let's make it a hard pop 3
-
-            # push(_Opcode.POP_EXCEPT.stack_effect())
-            pop(3)
-
-        elif op is _Pseudop.WITH_CLEANUP_START:
-            # push(_Opcode.WITH_CLEANUP_START.stack_effect())
-            push(7)
-
-        elif op is _Pseudop.WITH_CLEANUP_FINISH:
-            # push(_Opcode.WITH_CLEANUP_FINISH.stack_effect())
-            pop(7)
-
-        elif op is _Pseudop.END_FINALLY:
-            # push(_Opcode.END_FINALLY.stack_effect())
-            pop(6)
-
-        elif op is _Pseudop.FAUX_PUSH:
-            push(args[0])
-
-        else:
-            assert False, "unknown pseudop %r" % op
+        return ()
 
 
     def max_stack(self, strict=True):
@@ -1451,12 +1338,11 @@ class PseudopsCompiler(metaclass=ABCTranslator):
                        consts, names, varnames, filename, name,
                        firstlineno, lnotab, freevars, cellvars)
 
-        if False:
-            print("completed a CodeSpace", ret)
-            dis.show_code(ret)
-            print("Disassembly:")
-            dis.dis(ret)
-            print()
+        # print("completed a CodeSpace", ret)
+        # dis.show_code(ret)
+        # print("Disassembly:")
+        # dis.dis(ret)
+        # print()
 
         return ret
 
@@ -1467,20 +1353,19 @@ class PseudopsCompiler(metaclass=ABCTranslator):
 
 
     @abstractmethod
+    def stack_counter(self, start_count=0, start_max=0):
+        pass
+
+
+    @abstractmethod
     def code_bytes(self, line_number_table):
         pass
 
 
     def translate(self, pseudop, args):
         handler = self._translations_.get(pseudop, None)
-        assert (handler is not None), ("no handler for %r" % pseudop)
-
-        # it's possible for a translation handler to do nothing, or to
-        # be entirely side-effect driven. In these cases it will
-        # return None rather than yield op,arg tuples. Since we are
-        # expecting to be iterating over these tuples, we'll convert
-        # any None results into an empty iterator.
-        return handler(self, pseudop, args) or ()
+        assert (handler is not None), ("no translator for %r" % pseudop)
+        return handler(self, pseudop, args)
 
 
 def _list_unique_append(onto_list, value):

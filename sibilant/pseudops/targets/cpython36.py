@@ -24,6 +24,7 @@ license: LGPL v.3
 
 
 from sibilant.pseudops import PseudopsCompiler, Pseudop, Opcode, translator
+from sibilant.pseudops.stack import StackCounter, stacker
 from sibilant.lib import symbol
 
 
@@ -130,12 +131,6 @@ class PseudopsCPython36(PseudopsCompiler):
     }
 
 
-    def pseudop_call(self, argc):
-        # changed in 3.6, CALL is used for invocations with only
-        # positional arguments.
-        self.pseudop(Pseudop.CALL, argc)
-
-
     def code_bytes(self, lnt):
         offset = 0
         coll = []
@@ -187,10 +182,14 @@ class PseudopsCPython36(PseudopsCompiler):
 
         if jabs or jrel or labels:
             # Given our labels, modify jmp calls to point to the label
-            apply_jump_labels(coll, jabs, jrel, labels)
+            self.apply_jump_labels(coll, jabs, jrel, labels)
 
-        coll = ((c.value, a) for c, a in coll)
-        return b''.join(bytes(c) for c in coll)
+        result = []
+        for c, a in coll:
+            result.append(c.value)
+            result.append(a)
+
+        return bytes(result)
 
 
     def gen_opcode(self, declare_label, declare_position):
@@ -215,20 +214,108 @@ class PseudopsCPython36(PseudopsCompiler):
                 yield from self.translate(op, args)
 
 
-    def pseudop_lambda(self, code, defaults=(), kwonly=()):
+    def apply_jump_labels(self, coll, jabs, jrel, labels):
+        for coll_offset, name in jabs:
+            target = labels[name]
 
-        if defaults:
+            coll_ext = coll[coll_offset]
+            coll_jmp = coll[coll_offset + 1]
+
+            coll_ext[1] = (target >> 8) & 0xff
+            coll_jmp[1] = target & 0xff
+
+        for coll_offset, name, off in jrel:
+            target = labels[name]
+            target -= (off + 4)
+
+            coll_ext = coll[coll_offset]
+            coll_jmp = coll[coll_offset + 1]
+
+            coll_ext[1] = (target >> 8) & 0xff
+            coll_jmp[1] = target & 0xff
+
+
+    def lnt_compile(self, lnt, firstline=None):
+        if not lnt:
+            return (1 if firstline is None else firstline), b''
+
+        firstline = lnt[0][1] if firstline is None else firstline
+        gathered = []
+
+        prev_offset = 0
+        prev_line = firstline
+
+        for offset, line, _col in lnt:
+            if gathered and line == prev_line:
+                continue
+
+            d_offset = (offset - prev_offset)
+            d_line = (line - prev_line)
+
+            d_offset &= 0xff
+
+            if d_line < 0:
+                # in version 3.6 and beyond, negative line numbers
+                # work fine, so a CALL_FUNCTION can correctly state
+                # that it happens at line it started on, rather than
+                # on the line it closes at
+                pass
+
+            if d_line < -128 or d_line > 127:
+                dd_line = (d_line >> 8) & 0xff
+                gathered.append(bytes([d_offset, dd_line]))
+
+            d_line &= 0xff
+            gathered.append(bytes([d_offset, d_line]))
+
+            prev_offset = offset
+            prev_line = line
+
+        res = firstline, b''.join(gathered)
+        return res
+
+
+    def pseudop_call(self, argc):
+        # changed in 3.6, CALL is used for invocations with only
+        # positional arguments.
+        self.pseudop(Pseudop.CALL, argc)
+
+
+    def pseudop_lambda(self, code, defaults=(), kwonly=()):
+        self.declare_const(code)
+        self.declare_const(code.co_name)
+
+        default_c = len(defaults)
+        kwonly_c = len(kwonly)
+
+        if default_c:
             for arg, expr in defaults:
                 self.add_expression(expr)
-            self.pseudop_build_tuple(len(defaults))
+            self.pseudop_build_tuple(default_c)
 
-        if kwonly:
+        if kwonly_c:
             for arg, expr in kwonly:
                 self.pseudop_const(str(arg))
                 self.add_expression(expr)
-            self.pseudop_build_map(len(kwonly))
+            self.pseudop_build_map(kwonly_c)
 
-        return super().pseudop_lambda(code, len(defaults), len(kwonly))
+        return self.pseudop(Pseudop.LAMBDA, code, default_c, kwonly_c)
+
+
+    def pseudop_build_str(self, count):
+        return self.pseudop(Pseudop.BUILD_STR, count)
+
+
+    def pseudop_format(self, flags):
+        return self.pseudop(Pseudop.FORMAT, flags)
+
+
+    def pseudop_get_method(self, namesym):
+        return self.pseudop_get_attr(namesym)
+
+
+    def pseudop_call_method(self, argc):
+        return self.pseudop_call(argc)
 
 
     @translator(Pseudop.LAMBDA)
@@ -449,77 +536,8 @@ class PseudopsCPython36(PseudopsCompiler):
         yield Opcode.IMPORT_FROM, i
 
 
-    def lnt_compile(self, lnt, firstline=None):
-        if not lnt:
-            return (1 if firstline is None else firstline), b''
-
-        firstline = lnt[0][1] if firstline is None else firstline
-        gathered = []
-
-        prev_offset = 0
-        prev_line = firstline
-
-        for offset, line, _col in lnt:
-            if gathered and line == prev_line:
-                continue
-
-            d_offset = (offset - prev_offset)
-            d_line = (line - prev_line)
-
-            d_offset &= 0xff
-
-            if d_line < 0:
-                # in version 3.6 and beyond, negative line numbers
-                # work fine, so a CALL_FUNCTION can correctly state
-                # that it happens at line it started on, rather than
-                # on the line it closes at
-                pass
-
-            if d_line < -128 or d_line > 127:
-                dd_line = (d_line >> 8) & 0xff
-                gathered.append(bytes([d_offset, dd_line]))
-
-            d_line &= 0xff
-            gathered.append(bytes([d_offset, d_line]))
-
-            prev_offset = offset
-            prev_line = line
-
-        res = firstline, b''.join(gathered)
-        return res
-
-
-    def helper_max_stack(self, op, args, push, pop):
-
-        _Pseudop = Pseudop
-
-        if op is _Pseudop.CALL:
-            pop(args[0] + 1)  # positionals, function
-            push()  # result
-
-        elif op is _Pseudop.CALL_VAR:
-            pop(2)  # args, function
-            push()  # result
-
-        elif op is _Pseudop.CALL_VAR_KW:
-            pop(3)  # kwargs, args, function
-            push()  # result
-
-        elif op is _Pseudop.LAMBDA:
-            if args[1]:
-                pop()
-            if args[2]:
-                pop()
-            push()
-
-        elif op is _Pseudop.FORMAT:
-            pop()
-            if args[0] & 0x04:
-                pop()
-            push()
-
-        else:
-            return super().helper_max_stack(op, args, push, pop)
+    def stack_counter(self, start_size=0):
+        return StackCounterCPython36(self, start_size)
 
 
 def _const_index(of_list, value):
@@ -546,25 +564,48 @@ def _const_index(of_list, value):
         assert False, "missing constant pool index for value %r" % value
 
 
-def apply_jump_labels(coll, jabs, jrel, labels):
-    for coll_offset, name in jabs:
-        target = labels[name]
+class StackCounterCPython36(StackCounter):
 
-        coll_ext = coll[coll_offset]
-        coll_jmp = coll[coll_offset + 1]
 
-        coll_ext[1] = (target >> 8) & 0xff
-        coll_jmp[1] = target & 0xff
+    @stacker(Pseudop.CALL)
+    def stacker_call(self, pseudop, args, push, pop):
+        pop(args[0] + 1)  # positionals, function
+        push()            # result
 
-    for coll_offset, name, off in jrel:
-        target = labels[name]
-        target -= (off + 4)
 
-        coll_ext = coll[coll_offset]
-        coll_jmp = coll[coll_offset + 1]
+    @stacker(Pseudop.CALL_VAR)
+    def stacker_call_var(self, pseudop, args, push, pop):
+        pop(2)  # args, function
+        push()  # result
 
-        coll_ext[1] = (target >> 8) & 0xff
-        coll_jmp[1] = target & 0xff
+
+    @stacker(Pseudop.CALL_VAR_KW)
+    def stacker_call_var_kw(self, pseudop, args, push, pop):
+        pop(3)  # kwargs, args, function
+        push()  # result
+
+
+    @stacker(Pseudop.LAMBDA)
+    def stacker_lambda(self, pseudop, args, push, pop):
+        if args[1]:
+            pop()   # defaults tuple
+        if args[2]:
+            pop()   # kwonly defaults dict
+        push()      # function inst
+
+
+    @stacker(Pseudop.FORMAT)
+    def stacker_format(self, pseudop, args, push, pop):
+        pop()
+        if args[0] & 0x04:
+            pop()
+        push()
+
+
+    @stacker(Pseudop.BUILD_STR)
+    def stacker_build_str(self, pseudop, args, push, pop):
+        pop(args[0])
+        push()
 
 
 #

@@ -13,7 +13,7 @@
 # <http://www.gnu.org/licenses/>.
 
 
-from . import Opcode, Pseudop, translator
+from . import Opcode, Pseudop, Symbol, translator
 from .cpython36 import PseudopsCPython36, direct
 
 
@@ -29,11 +29,25 @@ class PseudopsCPython37(PseudopsCPython36):
     }
 
 
-    @translator(Pseudop.LOAD_METHOD)
-    def translate_load_method(self, pseudop, args):
+    def pseudop_get_method(self, namesym: Symbol):
+        self.request_name(namesym)
+        return self.pseudop(Pseudop.GET_METHOD, namesym)
+
+
+    def pseudop_call_method(self, argc: int):
+        return self.pseudop(Pseudop.CALL_METHOD, argc)
+
+
+    @translator(Pseudop.GET_METHOD)
+    def translate_get_method(self, pseudop, args):
         n = args[0]
         i = self.names.index(n)
         yield Opcode.LOAD_METHOD, i
+
+
+    @translator(Pseudop.CALL_METHOD)
+    def translate_call_method(self, pseudop, args):
+        pass
 
 
 #

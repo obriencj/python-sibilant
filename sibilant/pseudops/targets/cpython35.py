@@ -23,8 +23,16 @@ license: LGPL v.3
 """
 
 
-from sibilant.pseudops import PseudopsCompiler, Pseudop, Opcode, translator
 from sibilant.lib import symbol
+
+from sibilant.pseudops import (
+    PseudopsCompiler, Pseudop, Opcode,
+    translator,
+)
+
+from sibilant.pseudops.stack import (
+    StackCounter, stacker,
+)
 
 
 _symbol_format_value = symbol("__format_value__")
@@ -90,7 +98,6 @@ class PseudopsCPython35(PseudopsCompiler):
         _P.BUILD_MAP: direct(_O.BUILD_MAP),
 
         _P.CALL: direct(_O.CALL_FUNCTION),
-        _P.CALL_METHOD: direct(_O.CALL_FUNCTION),
         _P.CALL_KW: direct(_O.CALL_FUNCTION_KW),
         _P.CALL_VAR: direct(_O.CALL_FUNCTION_VAR),
         _P.CALL_VAR_KW: direct(_O.CALL_FUNCTION_VAR_KW),
@@ -183,10 +190,14 @@ class PseudopsCPython35(PseudopsCompiler):
 
         if jabs or jrel or labels:
             # Given our labels, modify jmp calls to point to the label
-            apply_jump_labels(coll, jabs, jrel, labels)
+            self.apply_jump_labels(coll, jabs, jrel, labels)
 
-        coll = ((c.value, *a) for c, *a in coll)
-        return b''.join(bytes(c) for c in coll)
+        result = []
+        for c, *a in coll:
+            result.append(c.value)
+            result.extend(a)
+
+        return bytes(result)
 
 
     def gen_opcode(self, declare_label, declare_position):
@@ -208,6 +219,25 @@ class PseudopsCPython35(PseudopsCompiler):
 
             else:
                 yield from self.translate(op, args)
+
+
+    def apply_jump_labels(self, coll, jabs, jrel, labels):
+        for coll_offset, name in jabs:
+            target = labels[name]
+
+            coll_jmp = coll[coll_offset]
+
+            coll_jmp[1] = target & 0xff
+            coll_jmp[2] = (target >> 8) & 0xff
+
+        for coll_offset, name, off in jrel:
+            target = labels[name]
+            target -= (off + 3)
+
+            coll_jmp = coll[coll_offset]
+
+            coll_jmp[1] = target & 0xff
+            coll_jmp[2] = (target >> 8) & 0xff
 
 
     def pseudop_build_str(self, count):
@@ -242,6 +272,12 @@ class PseudopsCPython35(PseudopsCompiler):
 
 
     def pseudop_lambda(self, code, defaults=(), kwonly=()):
+        self.declare_const(code)
+        self.declare_const(code.co_name)
+
+        default_c = len(defaults)
+        kwonly_c = len(kwonly)
+
         for arg, expr in defaults:
             self.add_expression(expr)
 
@@ -249,7 +285,15 @@ class PseudopsCPython35(PseudopsCompiler):
             self.pseudop_const(str(arg))
             self.add_expression(expr)
 
-        return super().pseudop_lambda(code, len(defaults), len(kwonly))
+        return self.pseudop(Pseudop.LAMBDA, code, default_c, kwonly_c)
+
+
+    def pseudop_get_method(self, namesym):
+        return self.pseudop_get_attr(namesym)
+
+
+    def pseudop_call_method(self, argc):
+        return self.pseudop_call(argc)
 
 
     @translator(Pseudop.LAMBDA)
@@ -415,13 +459,6 @@ class PseudopsCPython35(PseudopsCompiler):
             assert False, "missing global name %r" % n
 
 
-    @translator(Pseudop.GET_METHOD)
-    def translate_get_method(self, pseudop, args):
-        n = args[0]
-        i = self.names.index(n)
-        yield Opcode.LOAD_ATTR, i, 0
-
-
     @translator(Pseudop.GET_ATTR)
     def translate_get_attr(self, pseudop, args):
         n = args[0]
@@ -497,41 +534,8 @@ class PseudopsCPython35(PseudopsCompiler):
         return res
 
 
-    def helper_max_stack(self, op, args, push, pop):
-
-        _Pseudop = Pseudop
-
-        if op is _Pseudop.CALL:
-            pop(args[0])      # positionals
-            pop(args[1] * 2)  # kw:val pairs
-            pop()             # function
-            push()            # result
-
-        elif op is _Pseudop.CALL_KW:
-            pop(args[0])      # positionals
-            pop(args[1] * 2)  # kw:val pairs
-            pop(2)            # kwds, function
-            push()            # result
-
-        elif op is _Pseudop.CALL_VAR:
-            pop(args[0])      # positionals
-            pop(args[1] * 2)  # kw:val pairs
-            pop(2)            # args, function
-            push()            # result
-
-        elif op is _Pseudop.CALL_VAR_KW:
-            pop(args[0])      # positionals
-            pop(args[1] * 2)  # kw:val pairs
-            pop(3)            # args, kwds, function
-            push()            # result
-
-        elif op is _Pseudop.LAMBDA:
-            pop(args[1])
-            pop(args[2] * 2)
-            push()
-
-        else:
-            return super().helper_max_stack(op, args, push, pop)
+    def stack_counter(self, start_size=0):
+        return StackCounterCPython35(self, start_size)
 
 
 def _const_index(of_list, value):
@@ -552,23 +556,46 @@ def _const_index(of_list, value):
         assert False, "missing constant pool index for value %r" % value
 
 
-def apply_jump_labels(coll, jabs, jrel, labels):
-    for coll_offset, name in jabs:
-        target = labels[name]
+class StackCounterCPython35(StackCounter):
 
-        coll_jmp = coll[coll_offset]
 
-        coll_jmp[1] = target & 0xff
-        coll_jmp[2] = (target >> 8) & 0xff
+    @stacker(Pseudop.CALL)
+    def stacker_call(self, pseudop, args, push, pop):
+        pop(args[0])      # positionals
+        pop(args[1] * 2)  # kw:val pairs
+        pop()             # function
+        push()            # result
 
-    for coll_offset, name, off in jrel:
-        target = labels[name]
-        target -= (off + 3)
 
-        coll_jmp = coll[coll_offset]
+    @stacker(Pseudop.CALL_KW)
+    def stacker_call_kw(self, pseudop, args, push, pop):
+        pop(args[0])      # positionals
+        pop(args[1] * 2)  # kw:val pairs
+        pop(2)            # kwds, function
+        push()            # result
 
-        coll_jmp[1] = target & 0xff
-        coll_jmp[2] = (target >> 8) & 0xff
+
+    @stacker(Pseudop.CALL_VAR)
+    def stacker_call_var(self, pseudop, args, push, pop):
+        pop(args[0])      # positionals
+        pop(args[1] * 2)  # kw:val pairs
+        pop(2)            # args, function
+        push()            # result
+
+
+    @stacker(Pseudop.CALL_VAR_KW)
+    def stacker_call_var_kw(self, pseudop, args, push, pop):
+        pop(args[0])      # positionals
+        pop(args[1] * 2)  # kw:val pairs
+        pop(3)            # args, kwds, function
+        push()            # result
+
+
+    @stacker(Pseudop.LAMBDA)
+    def stacker_lambda(self, pseudop, args, push, pop):
+        pop(args[1])      # defaults
+        pop(args[2] * 2)  # kwonly defaults
+        push()            # function instance
 
 
 #
