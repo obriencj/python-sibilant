@@ -26,6 +26,9 @@
  [[NameError] None])
 
 
+(define __lltrace__ True)
+
+
 ;; === defines ===
 
 (define-global defmacro
