@@ -890,7 +890,7 @@ class PseudopsCompiler(metaclass=ABCPseudopsTarget):
     def request_name(self, namesym: Symbol):
         # assert is_symbol(namesym)
 
-        _list_unique_append(self.names, namesym)
+        return _list_unique_append(self.names, namesym)
 
 
     def pseudop(self, *op_and_args):
