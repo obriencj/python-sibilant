@@ -26,9 +26,9 @@ from sibilant.pseudops.targets.cpython35 import PseudopsCPython35
 from sibilant.tco import tailcall, trampoline
 
 
-class SibilantCPython35(SibilantCompiler, PseudopsCPython35):
+class SibilantCPython35(PseudopsCPython35, SibilantCompiler):
     """
-    Sibilant Pseudops Compiler for CPython 3.5
+    Sibilant compiler for CPython 3.5
     """
 
 

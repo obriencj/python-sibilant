@@ -36,6 +36,22 @@
 #define TCO_ORIGINAL "_tco_original"
 
 
+#if 1
+#include <stdio.h>
+#define DEBUGMSG(msg, obj) {					\
+    printf("** " msg " ");					\
+    if (obj) {                                                  \
+      PyObject_Print(((PyObject *) (obj)), stdout, 0);          \
+    } else {                                                    \
+      printf("NULL");                                           \
+    }                                                           \
+    printf("\n");						\
+  }
+#else
+#define DEBUGMSG(msg, obj) {}
+#endif
+
+
 #if (defined(__GNUC__) &&					\
      (__GNUC__ > 2 || (__GNUC__ == 2 && (__GNUC_MINOR__ > 95))))
   #define likely(x)   __builtin_expect(!!(x), 1)

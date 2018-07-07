@@ -31,7 +31,7 @@ from .lib import (
     get_position, fill_position,
 )
 
-from .compiler import Special, gather_formals, Mode
+from .compiler import Special, gather_formals, gather_parameters, Mode
 from .tco import trampoline, tailcall
 
 from textwrap import dedent
@@ -42,6 +42,7 @@ __all__ = []
 
 _symbol__doc__ = symbol("__doc__")
 _symbol_attr = symbol("attr")
+_symbol_bang = symbol("!")
 _symbol_begin = symbol("begin")
 _symbol_build_proper = symbol("build-proper")
 _symbol_bup = symbol("build-unpack-pair")
@@ -64,6 +65,7 @@ _symbol_import_from = symbol("import-from")
 _symbol_keyword = symbol("keyword")
 _symbol_lambda = symbol("lambda")
 _symbol_let = symbol("let")
+_symbol_method_call = symbol("method-call")
 _symbol_nil = symbol("nil")
 _symbol_quasiquote = symbol("quasiquote")
 _symbol_quote = symbol("quote")
@@ -1922,7 +1924,8 @@ def special_import_from(code, source, tc=False):
 
         member, _tail = mp
         if not is_symbolish(member):
-            raise code.error("import-from members must be symbols", mp)
+            msg = "import-from members must be symbols, not %r" % member
+            raise code.error(msg, mp)
 
         # member = str(member)
         members.append(member)
@@ -1943,6 +1946,37 @@ def special_import_from(code, source, tc=False):
     code.pseudop_pop()
 
     code.pseudop_build_tuple(len(members))
+
+    return None
+
+
+@special(_symbol_method_call, _symbol_bang)
+def special_method_call(code, source, tc=False):
+    """
+    (! METHODSYM OBJEXPR ARGS...)
+    """
+
+    try:
+        called_by, (name, (obj, args)) = source
+    except ValueError:
+        raise code.error("too few arguments to method-call", source)
+
+    if not is_symbolish(name):
+        msg = "method name must be symbol, not %r" % name
+        raise code.error(msg, source)
+
+    pos, kwds, kvals, star, starstar = gather_parameters(args)
+
+    if kwds or star or starstar:
+        # method_call can't handle keyword args, only positionals
+        return cons(cons(_symbol_attr, obj, name, nil), args)
+
+    code.add_expression(obj)
+    code.pseudop_get_method(name)
+
+    for arg in pos:
+        code.add_expression(arg)
+    code.pseudop_call_method(len(pos))
 
     return None
 

@@ -461,6 +461,7 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
             return tailcall(self.compile_nil)(source_obj, tc, cont)
 
         if not is_proper(source_obj):
+            print("** WUT", self, source_obj, tc, cont)
             msg = "cannot evaluate improper lists as expressions"
             raise self._err(msg, source_obj)
 

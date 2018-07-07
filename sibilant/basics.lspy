@@ -151,11 +151,11 @@
 
 ;; === easier attr calling ===
 
-(defmacro ! [member inst_expr . args]
-  `(,(reduce (lambda [a b] `(attr ,a ,b))
-	     (member.rsplit ".")
-	     inst_expr)
-    ,@args))
+;; (defmacro ! [member inst_expr . args]
+;;   `(,(reduce (lambda [a b] `(attr ,a ,b))
+;; 	     (member.rsplit ".")
+;; 	     inst_expr)
+;;     ,@args))
 
 
 (defmacro super args
@@ -925,7 +925,7 @@
     |}}
     |(?:{([^\\(^\\!\\:}]+
          |\\(.*\\))(\\!.)?([^}]+)?)}
-    )" (+ UNICODE VERBOSE)))
+    )" (bitwise-or UNICODE VERBOSE)))
 
   (def function parse-source [src-str]
        (reader.read (source_str src-str "<format string>")))

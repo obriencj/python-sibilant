@@ -13,19 +13,56 @@
 # <http://www.gnu.org/licenses/>.
 
 
-from .cpython36 import PseudopsCPython36
+from sibilant.pseudops import Opcode, Pseudop, translator
+from sibilant.pseudops.stack import stacker
+from .cpython36 import PseudopsCPython36, StackCounterCPython36
 
 
 class PseudopsCPython37(PseudopsCPython36):
     """
-    SpecialCodeSpace emitting bytecode compatible with CPython version
-    3.7
+    Pseudops compiler emitting bytecode compatible with CPython
+    version 3.7
     """
 
-    # As of first pass, it looks like there shouldn't be bytecode
-    # issues between 3.6 and 3.7 so we'll just import and rename the
-    # class
-    pass
+
+    def pseudop_get_method(self, namesym):
+        self.request_name(namesym)
+        return self.pseudop(Pseudop.GET_METHOD, namesym)
+
+
+    def pseudop_call_method(self, argc):
+        return self.pseudop(Pseudop.CALL_METHOD, argc)
+
+
+    @translator(Pseudop.GET_METHOD)
+    def translate_get_method(self, pseudop, args):
+        n = args[0]
+        i = self.names.index(n)
+        yield Opcode.LOAD_METHOD, i
+
+
+    @translator(Pseudop.CALL_METHOD)
+    def translate_call_method(self, pseudop, args):
+        yield Opcode.CALL_METHOD, args[0]
+
+
+    def stack_counter(self, start_size=0):
+        return StackCounterCPython37(self, start_size)
+
+
+class StackCounterCPython37(StackCounterCPython36):
+
+
+    @stacker(Pseudop.GET_METHOD)
+    def stacker_get_method(self, pseudop, args, push, pop):
+        pop()    # obj
+        push(2)  # obj, callable
+
+
+    @stacker(Pseudop.CALL_METHOD)
+    def stacker_call_method(self, pseudop, args, push, pop):
+        pop(args[0] + 2)  # argc, obj, callable
+        push()            # result
 
 
 #

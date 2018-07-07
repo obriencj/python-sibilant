@@ -35,7 +35,7 @@
 #if 1
 #define DEBUGMSG(msg, obj) {					\
     printf("** " msg " ");					\
-    (obj) && PyObject_Print(((PyObject *) (obj)), stdout, 0);	\
+    if (obj) PyObject_Print(((PyObject *) (obj)), stdout, 0);	\
     printf("\n");						\
   }
 #else
