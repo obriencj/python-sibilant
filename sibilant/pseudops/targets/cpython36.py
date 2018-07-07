@@ -79,7 +79,6 @@ class PseudopsCPython36(PseudopsCompiler):
         _P.UNPACK_SEQUENCE: direct(_O.UNPACK_SEQUENCE),
 
         _P.CALL: direct(_O.CALL_FUNCTION),
-        _P.CALL_METHOD: direct(_O.CALL_FUNCTION),
         _P.CALL_KW: direct(_O.CALL_FUNCTION_KW),
         _P.CALL_VAR: direct(_O.CALL_FUNCTION_EX, 0x00),
         _P.CALL_VAR_KW: direct(_O.CALL_FUNCTION_EX, 0x01),
@@ -492,13 +491,6 @@ class PseudopsCPython36(PseudopsCompiler):
             yield Opcode.DELETE_GLOBAL, i
         else:
             assert False, "missing global name %r" % n
-
-
-    @translator(Pseudop.GET_METHOD)
-    def translator_get_method(self, pseudop, args):
-        n = args[0]
-        i = self.names.index(n)
-        yield Opcode.LOAD_ATTR, i
 
 
     @translator(Pseudop.GET_ATTR)

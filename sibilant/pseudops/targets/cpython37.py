@@ -13,8 +13,9 @@
 # <http://www.gnu.org/licenses/>.
 
 
-from . import Opcode, Pseudop, Symbol, translator
-from .cpython36 import PseudopsCPython36, direct
+from sibilant.pseudops import Opcode, Pseudop, translator
+from sibilant.pseudops.stack import stacker
+from .cpython36 import PseudopsCPython36, StackCounterCPython36
 
 
 class PseudopsCPython37(PseudopsCPython36):
@@ -24,17 +25,12 @@ class PseudopsCPython37(PseudopsCPython36):
     """
 
 
-    _translations_ = {
-        Pseudop.CALL_METHOD: direct(Opcode.CALL_METHOD),
-    }
-
-
-    def pseudop_get_method(self, namesym: Symbol):
+    def pseudop_get_method(self, namesym):
         self.request_name(namesym)
         return self.pseudop(Pseudop.GET_METHOD, namesym)
 
 
-    def pseudop_call_method(self, argc: int):
+    def pseudop_call_method(self, argc):
         return self.pseudop(Pseudop.CALL_METHOD, argc)
 
 
@@ -47,7 +43,26 @@ class PseudopsCPython37(PseudopsCPython36):
 
     @translator(Pseudop.CALL_METHOD)
     def translate_call_method(self, pseudop, args):
-        pass
+        yield Opcode.CALL_METHOD, args[0]
+
+
+    def stack_counter(self, start_size=0):
+        return StackCounterCPython37(self, start_size)
+
+
+class StackCounterCPython37(StackCounterCPython36):
+
+
+    @stacker(Pseudop.GET_METHOD)
+    def stacker_get_method(self, pseudop, args, push, pop):
+        pop()    # obj
+        push(2)  # obj, callable
+
+
+    @stacker(Pseudop.CALL_METHOD)
+    def stacker_call_method(self, pseudop, args, push, pop):
+        pop(args[0] + 2)  # argc, obj, callable
+        push()            # result
 
 
 #

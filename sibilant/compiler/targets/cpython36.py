@@ -26,10 +26,9 @@ from sibilant.pseudops.targets.cpython36 import PseudopsCPython36
 from sibilant.tco import tailcall, trampoline
 
 
-class SibilantCPython36(SibilantCompiler, PseudopsCPython36):
-
+class SibilantCPython36(PseudopsCPython36, SibilantCompiler):
     """
-    ExpressionCompiler
+    Sibilant compiler for CPython 3.6
     """
 
 

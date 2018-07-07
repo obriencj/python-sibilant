@@ -13,10 +13,14 @@
 # <http://www.gnu.org/licenses/>.
 
 
+from sibilant.pseudops.targets.cpython37 import PseudopsCPython37
 from .cpython36 import SibilantCPython36
 
 
-class SibilantCPython37(SibilantCPython36):
+class SibilantCPython37(PseudopsCPython37, SibilantCPython36):
+    """
+    Sibilant compiler for CPython 3.7
+    """
 
     # As of first pass, it looks like there shouldn't be bytecode
     # issues between 3.6 and 3.7 so we'll just import and rename the
