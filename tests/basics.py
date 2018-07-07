@@ -696,5 +696,59 @@ class Attrs(TestCase):
         self.assertEqual(res, True)
 
 
+class Compose(TestCase):
+
+
+    def test_compose_fn(self):
+
+        src = """
+        (compose
+        (partial + 1)
+        (partial * 2)
+        float
+        str)
+        """
+
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertTrue(callable(res))
+        res = res(101)
+
+        self.assertEqual(res, "204.0")
+
+
+    def test_compose_lambda(self):
+        src = """
+        (compose
+        (lambda [x]
+        (! append col x)
+        (+ x 1))
+        (lambda [x]
+        (! append col x)
+        (* x 2))
+        (lambda [x]
+        (! append col x)
+        x)
+        float
+        (lambda [x]
+        (! append col x)
+        x)
+        str)
+        """
+
+        col = []
+        stmt, env = compile_expr(src, col=col)
+        res = stmt()
+
+        self.assertTrue(callable(res))
+        res = res(101)
+
+        self.assertEqual(col, [101, 102, 204, 204.0])
+        self.assertIs(type(col[-1]), float)
+        self.assertIs(type(res), str)
+        self.assertEqual(res, "204.0")
+
+
 #
 # The end.
