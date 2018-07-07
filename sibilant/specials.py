@@ -1924,7 +1924,8 @@ def special_import_from(code, source, tc=False):
 
         member, _tail = mp
         if not is_symbolish(member):
-            raise code.error("import-from members must be symbols", mp)
+            msg = "import-from members must be symbols, not %r" % member
+            raise code.error(msg, mp)
 
         # member = str(member)
         members.append(member)
@@ -1952,13 +1953,17 @@ def special_import_from(code, source, tc=False):
 @special(_symbol_method_call, _symbol_bang)
 def special_method_call(code, source, tc=False):
     """
-    (! METHOD OBJ ARGS...)
+    (! METHODSYM OBJEXPR ARGS...)
     """
 
     try:
         called_by, (name, (obj, args)) = source
     except ValueError:
         raise code.error("too few arguments to method-call", source)
+
+    if not is_symbolish(name):
+        msg = "method name must be symbol, not %r" % name
+        raise code.error(msg, source)
 
     pos, kwds, kvals, star, starstar = gather_parameters(args)
 
