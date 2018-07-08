@@ -71,7 +71,10 @@ Constant = Union[CONST_TYPES]
 COMPILER_DEBUG = False
 
 # this is an amount to pad out all max_stack allocations
-STACK_SAFETY = 16
+STACK_SAFETY = 8
+
+# this is an amount to allocate stacks in multiples of
+STACK_CHUNK = 32
 
 
 class PseudopsException(SibilantException):
@@ -1287,6 +1290,7 @@ class PseudopsCompiler(metaclass=ABCPseudopsTarget):
         argcount = len(self.args)
 
         stacksize = self.max_stack() + max(1, STACK_SAFETY)
+        stacksize = ((stacksize // STACK_CHUNK) + 1) * STACK_CHUNK
 
         flags = CodeFlag.OPTIMIZED.value | CodeFlag.NEWLOCALS.value
 
