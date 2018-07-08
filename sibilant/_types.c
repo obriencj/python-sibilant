@@ -1000,11 +1000,16 @@ static void pair_dealloc(PyObject *self) {
 
   // checked
 
+  PyObject_GC_UnTrack(self);
+  Py_TRASHCAN_SAFE_BEGIN(self);
+
   Py_CLEAR(CAR(self));
   Py_CLEAR(CDR(self));
   Py_CLEAR(((SibPair *) self)->position);
 
-  Py_TYPE(self)->tp_free(self);
+  // Py_TYPE(self)->tp_free(self);
+  PyObject_GC_Del(self);
+  Py_TRASHCAN_SAFE_END(self);
 }
 
 
@@ -1651,10 +1656,16 @@ static void values_dealloc(PyObject *self) {
 
   // checked
 
+  PyObject_GC_UnTrack(self);
+  Py_TRASHCAN_SAFE_BEGIN(self);
+
   Py_CLEAR(((SibValues *) self)->args);
   Py_CLEAR(((SibValues *) self)->kwds);
 
-  Py_TYPE(self)->tp_free(self);
+  // Py_TYPE(self)->tp_free(self);
+
+  PyObject_GC_Del(self);
+  Py_TRASHCAN_SAFE_END(self);
 }
 
 
