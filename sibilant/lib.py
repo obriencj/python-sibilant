@@ -26,6 +26,8 @@ from ._types import build_tuple, build_list, build_set, build_dict
 from ._types import values
 from ._types import getderef, setderef, clearderef
 
+from ._tco import trampoline, tailcall
+
 
 __all__ = (
     "SibilantException", "NotYetImplemented",
@@ -49,6 +51,8 @@ __all__ = (
     "values",
 
     "getderef", "setderef", "clearderef",
+
+    "trampoline", "tailcall", "tailcall_disable", "tailcall_enable",
 )
 
 
@@ -199,7 +203,7 @@ def last(seq, empty=None):
     return val
 
 
-class sentinel():
+class sentinel(object):
     def __init__(self, words):
         self._r = "<{}>".format(words)
 
@@ -266,6 +270,31 @@ class lazygensym(object):
 
 
 is_lazygensym = TypePredicate("lazygensym?", lazygensym)
+
+
+is_tailcall = TypePredicate("tailcall?", tailcall)
+
+
+def tailcall_disable(fun):
+    """
+    Decorator to instruct the tailcall optimization to never tailcall
+    bounce the given function.
+    """
+
+    fun._tco_enable = False
+
+    return fun
+
+
+def tailcall_enable(fun):
+    """
+    Decorator to instruct the tailcall optimization to tailcall bounce
+    the given function.
+    """
+
+    fun._tco_enable = True
+
+    return fun
 
 
 #
