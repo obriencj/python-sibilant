@@ -22,10 +22,11 @@ license: LGPL v.3
 
 
 def __auto_enable_importer():
-    import os, sys
+    from os import environ
+    from sys import _xoptions as xoption
 
-    xopt = sys._xoptions.get("SIBILANT_NOIMPORTER", "0") == "0"
-    eopt = os.environ.get("SIBILANT_NOIMPORTER", "0") == "0"
+    xopt = xoption.get("SIBILANT_NOIMPORTER", "0") == "0"
+    eopt = environ.get("SIBILANT_NOIMPORTER", "0") == "0"
 
     if xopt and eopt:
         from .importlib import install
