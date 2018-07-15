@@ -21,10 +21,21 @@ license: LGPL v.3
 """
 
 
-from .lib import *  # noqa
-from .importlib import install
+def __auto_enable_importer():
+    import os, sys
 
-install()
+    xopt = sys._xoptions.get("SIBILANT_NOIMPORTER", "0") == "0"
+    eopt = os.environ.get("SIBILANT_NOIMPORTER", "0") == "0"
+
+    if xopt and eopt:
+        from .importlib import install
+        install()
+        return True
+    else:
+        return False
+
+
+__auto_enable_importer()
 
 
 #
