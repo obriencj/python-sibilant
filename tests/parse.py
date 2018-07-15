@@ -24,7 +24,7 @@ license: LGPL v.3
 from io import StringIO
 from unittest import TestCase
 
-from sibilant import cons, symbol, keyword, nil, car, cdr
+from sibilant.lib import cons, symbol, keyword, nil, car, cdr
 from sibilant.parse import default_reader, source_str
 
 

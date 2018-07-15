@@ -27,7 +27,7 @@ from functools import partial
 from types import GeneratorType
 from unittest import TestCase
 
-from sibilant import (
+from sibilant.lib import (
     symbol, keyword, cons, nil, is_nil,
     getderef, setderef, clearderef,
 )

@@ -28,7 +28,7 @@ from unittest import TestCase
 
 import sibilant.builtins
 
-from sibilant.tco import trampoline, tailcall
+from sibilant.lib import trampoline, tailcall
 
 from . import compile_expr
 

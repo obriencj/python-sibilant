@@ -24,7 +24,7 @@ license: LGPL v.3
 from functools import partial
 from unittest import TestCase
 
-from sibilant import (
+from sibilant.lib import (
     cons, pair, nil, is_pair, is_proper, is_nil,
     car, cdr, setcar, setcdr, last,
     symbol, is_symbol, keyword, is_keyword,

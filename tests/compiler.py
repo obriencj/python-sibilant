@@ -24,7 +24,7 @@ license: LGPL v.3
 from fractions import Fraction as fraction
 from unittest import TestCase
 
-from sibilant import (
+from sibilant.lib import (
     car, cdr, cons, nil,
     symbol, keyword, build_proper,
 )

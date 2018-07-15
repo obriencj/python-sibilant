@@ -29,10 +29,10 @@ from .lib import (
     is_lazygensym,
     nil, is_nil, cons, is_pair, is_proper,
     get_position, fill_position,
+    trampoline, tailcall,
 )
 
 from .compiler import Special, gather_formals, gather_parameters, Mode
-from .tco import trampoline, tailcall
 
 from textwrap import dedent
 

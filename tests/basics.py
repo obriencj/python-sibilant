@@ -28,7 +28,7 @@ from unittest import TestCase
 
 import sibilant.builtins
 
-from sibilant import (
+from sibilant.lib import (
     car, cdr, cons, nil, symbol,
     getderef, setderef, clearderef,
 )

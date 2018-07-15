@@ -55,7 +55,6 @@ def __setup__(glbls):
 
     import sibilant.lib as lib
     import sibilant.compiler as compiler
-    import sibilant.tco as tco
     import sibilant.specials as specials
     import sibilant.operators as operators
 
@@ -141,10 +140,10 @@ def __setup__(glbls):
     _ty(compiler.Alias, "alias")
     _ty(compiler.Operator, "operator")
 
-    _ty(tco.tailcall, "tailcall")
-    _op(tco.trampoline, "trampoline")
-    _op(tco.tailcall_disable, "tailcall-disable")
-    _op(tco.tailcall_enable, "tailcall-enable")
+    _ty(lib.tailcall, "tailcall")
+    _op(lib.trampoline, "trampoline")
+    _op(lib.tailcall_disable, "tailcall-disable")
+    _op(lib.tailcall_enable, "tailcall-enable")
 
     _op(compiler.current, "active-compiler")
 

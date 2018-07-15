@@ -42,8 +42,7 @@ from os.path import split, getmtime, getsize
 from types import ModuleType
 
 from sibilant.compiler import Mode, compiler_for_version
-from sibilant.lib import symbol
-from sibilant.tco import trampoline, tailcall, tailcall_enable
+from sibilant.lib import symbol, trampoline, tailcall, tailcall_enable
 from sibilant.parse import default_reader, source_open, source_str
 
 

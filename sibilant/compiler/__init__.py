@@ -42,14 +42,13 @@ from sibilant.lib import (
     keyword, is_keyword,
     pair, cons, is_pair, is_proper, nil, is_nil,
     get_position, fill_position,
+    trampoline, tailcall,
 )
 
 from sibilant.pseudops import (
     PseudopsCompiler, Mode,
     CONST_TYPES, Constant,
 )
-
-from sibilant.tco import trampoline, tailcall
 
 
 __all__ = (

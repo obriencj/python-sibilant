@@ -23,7 +23,7 @@ license: LGPL v.3
 
 from unittest import TestCase
 
-from sibilant import symbol, cons, nil, is_nil
+from sibilant.lib import symbol, cons, nil, is_nil
 from sibilant.compiler import (
     Special, is_special,
     Macro, is_macro,

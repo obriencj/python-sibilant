@@ -23,7 +23,7 @@ license: LGPL v.3
 
 from unittest import TestCase
 
-from sibilant import car, cdr, cons, nil, symbol
+from sibilant.lib import car, cdr, cons, nil, symbol
 from sibilant.module import new_module, init_module, load_module
 from sibilant.parse import source_str
 

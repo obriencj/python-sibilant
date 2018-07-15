@@ -23,7 +23,7 @@ license: LGPL v.3
 
 from sibilant.compiler import SibilantCompiler, gather_parameters
 from sibilant.pseudops.targets.cpython35 import PseudopsCPython35
-from sibilant.tco import tailcall, trampoline
+from sibilant.lib import tailcall, trampoline
 
 
 class SibilantCPython35(PseudopsCPython35, SibilantCompiler):
