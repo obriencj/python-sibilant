@@ -28,7 +28,7 @@
 
 	  (setf self.data (dict))
 
-	  (self.clear))
+	  (! clear self))
 
 
      (def function clear [self]
@@ -40,7 +40,7 @@
 	  ;; we set all the tracked values to dead, this will allow
 	  ;; any display to see which coordinates to turn off, and the
 	  ;; next call to tracked will clear the data
-	  (for-each [key (dat.keys)]
+	  (for-each [key (! keys dat)]
 		    (setf (item dat key) 0)))
 
 
@@ -51,7 +51,7 @@
           result in more of the board being filled, while a higher
           threshold will result in a more sparse board. "
 
-	  (self.clear)
+	  (! clear self)
 	  (seed)
 
 	  (define all-coords
@@ -60,7 +60,7 @@
 
 	  (for-each [[x y] all-coords]
 		    (when (< threshold (random))
-			  (self.set-cell x y 1))))
+			  (! set-cell self x y 1))))
 
 
      (def function tracked [self cleanup: True]
@@ -78,18 +78,18 @@
 	  (var coord cell [data self.data])
 
 	  (if cleanup
-	      then: (for-each [item (list (data.items))]
+	      then: (for-each [item (list (! items data))]
 			      (yield item)
 			      (setq-values (coord cell) item)
 			      (unless cell (del-item data coord)))
-	      else: (yield-from (data.items))))
+	      else: (yield-from (! items data))))
 
 
      (def function toggle [self x y]
 	  " Flip a living cell to dead, or a dead cell to alive. "
 
 	  (var [coord (#tuple x y)]
-	       [cell (self.data.get coord None)])
+	       [cell (! get self.data coord None)])
 
 	  (setf (item self.data coord) (if cell 0 1)))
 
@@ -110,15 +110,15 @@
 
 
      (def function get-cell [self x y]
-	  (define key (self.coord-key x y))
+	  (define key (! coord-key self x y))
 
 	  (if (None? key)
 	      then: 0
-	      else: (self.data.get key 0)))
+	      else: (! get self.data key 0)))
 
 
      (def function set-cell [self x y value]
-	  (define key (self.coord-key x y))
+	  (define key (! coord-key self x y))
 
 	  (unless (None? key)
 		  (setf (item self.data key) value)))
@@ -130,7 +130,7 @@
 
 
      (def function get-group [self x y]
-	  (starmap self.get-cell (self.group-coord x y)))
+	  (starmap self.get-cell (! group-coord self x y)))
 
 
      (def function get-all-groups [self]
@@ -151,11 +151,11 @@
 	  (for-each [[key value] (self.tracked cleanup: False)]
 		    (setq-values [x y] key)
 		    (setf (item dat key) (life-rule (self.get-group x y)))
-		    (followup.update (self.group-coord x y)))
+		    (! update followup (! group-coord self x y)))
 
 	  ;; cut out the cells we've already processed from the
 	  ;; followup coordinates
-	  (followup.difference_update (self.data.keys))
+	  (followup.difference_update (! keys self.data))
 
 	  ;; for each of the followup coordinates, calculate if it's
 	  ;; alive or not.
@@ -166,16 +166,15 @@
 				  (life-rule (self.get-group x y)))))
 
 	  ;; and that's our new data, done deal.
-	  (setf self.data dat))
+	  (setf self.data dat)
+	  self)
 
 
      (def function child [self]
 	  " Create a copy of this board and age it to the next
             generation. "
 
-	  (define kid (copy self))
-	  (kid.age)
-	  kid) )
+	  (! age (copy self)))
 
 
 (def function life-rule [group]
