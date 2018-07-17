@@ -26,39 +26,10 @@
  */
 
 
-#include "_types.h"
-#include "_pair.h"
+#include "types.h"
 
 
 #define DOCSTR "Native Sibilant core types and functions"
-
-
-#if 1
-#define DEBUGMSG(msg, obj) {					\
-    printf("** " msg " ");					\
-    if (obj) PyObject_Print(((PyObject *) (obj)), stdout, 0);	\
-    printf("\n");						\
-  }
-#else
-#define DEBUGMSG(msg, obj) {}
-#endif
-
-
-#if (defined(__GNUC__) &&					\
-     (__GNUC__ > 2 || (__GNUC__ == 2 && (__GNUC_MINOR__ > 95))))
-  #define likely(x)   __builtin_expect(!!(x), 1)
-  #define unlikely(x) __builtin_expect(!!(x), 0)
-#else
-  #define likely(x)   (x)
-  #define unlikely(x) (x)
-#endif
-
-
-#define Py_ASSIGN(dest, value) {		\
-    Py_XDECREF(dest);				\
-    dest = value;				\
-    Py_XINCREF(dest);				\
-  }
 
 
 /* === util === */
@@ -88,6 +59,10 @@ PyObject *_str_starstar = NULL;
 PyObject *_str_strip = NULL;
 PyObject *_str_values_paren = NULL;
 
+PyObject *__get__ = NULL;
+PyObject *_tco_enable = NULL;
+PyObject *_tco_original = NULL;
+
 
 PyObject *quoted(PyObject *u) {
 
@@ -101,417 +76,6 @@ PyObject *quoted(PyObject *u) {
   Py_DECREF(tmp);
   return result;
 }
-
-
-/* === interned atom === */
-
-
-#define ATOM_NAME(o) (((SibInternedAtom *)self)->name)
-
-
-static PyObject *atom_new(PyObject *name,
-			  PyObject *intern,
-			  PyTypeObject *type) {
-
-  // checked
-
-  if(! name) {
-    PyErr_SetString(PyExc_TypeError, "interned atom requires a name");
-    return NULL;
-
-  } else if (! PyUnicode_CheckExact(name)) {
-    name = PyObject_Str(name);
-
-  } else{
-    Py_INCREF(name);
-  }
-
-  // name is ref'd
-
-  SibInternedAtom *atom = (SibInternedAtom *) PyDict_GetItem(intern, name);
-  if (! atom) {
-    atom = PyObject_New(SibInternedAtom, type);
-    if(! atom) {
-      Py_DECREF(name);
-      return NULL;
-    }
-
-    atom->name = name;
-
-    // DEBUGMSG("allocating and interning new atom", n);
-
-    PyDict_SetItem(intern, name, (PyObject *) atom);
-
-    // make the intern a borrowed ref. This allows refcount to drop to
-    // zero, at which point the deallocation of the symbol will clear
-    // it from the intern dict.
-    Py_DECREF(atom);
-
-  } else {
-    // DEBUGMSG("returning previously interned atom", n);
-
-    Py_INCREF(atom);
-    Py_DECREF(name);
-  }
-
-  // DEBUGMSG("here is an atom", atom);
-  // printf("**  refcount: %zi\n", ((PyObject *) atom)->ob_refcnt);
-
-  return (PyObject *) atom;
-}
-
-
-static PyObject *atom_repr(PyObject *self) {
-  return PyUnicode_FromFormat("<%s %R>",
-			      self->ob_type->tp_name,
-			      ATOM_NAME(self));
-}
-
-
-static PyObject *atom_str(PyObject *self) {
-  PyObject *name = ATOM_NAME(self);
-  Py_INCREF(name);
-  return name;
-}
-
-
-static void atom_rewrap(PyObject *vals, unaryfunc conv) {
-
-  // checked
-
-  for (int index = PyList_Size(vals); index--; ) {
-    PyList_SetItem(vals, index, conv(PyList_GET_ITEM(vals, index)));
-  }
-}
-
-
-/* === symbol === */
-
-
-static PyObject *intern_syms = NULL;
-
-
-PyObject *sib_symbol(PyObject *name) {
-
-  // checked
-
-  return atom_new(name, intern_syms, &SibSymbolType);
-}
-
-
-static void symbol_dealloc(PyObject *self) {
-
-  // checked
-
-  if (intern_syms) {
-    Py_REFCNT(self) = 3;
-    PyDict_DelItem(intern_syms, ((SibInternedAtom *) self)->name);
-  }
-
-  Py_CLEAR(((SibInternedAtom *) self)->name);
-  Py_TYPE(self)->tp_free(self);
-}
-
-
-static PyObject *symbol_new(PyTypeObject *type,
-			    PyObject *args, PyObject *kwds) {
-
-  // checked
-
-  PyObject *name = NULL;
-
-  if (kwds && PyDict_Size(kwds)) {
-    PyErr_SetString(PyExc_TypeError, "symbol takes no named arguments");
-    return NULL;
-  }
-
-  if (! PyArg_ParseTuple(args, "O:symbol", &name))
-    return NULL;
-
-  return sib_symbol(name);
-}
-
-
-static PyObject *symbol_split(PyObject *self,
-			      PyObject *args, PyObject *kwds) {
-
-  PyObject *name = ATOM_NAME(self);
-  PyObject *method = NULL;
-  PyObject *result = NULL;
-
-  method = PyObject_GetAttr(name, _str_split);
-  if (! method)
-    return NULL;
-
-  result = PyObject_Call(method, args, kwds);
-  Py_CLEAR(method);
-  if (! result)
-    return NULL;
-
-  atom_rewrap(result, sib_symbol);
-  return result;
-}
-
-
-static PyObject *symbol_rsplit(PyObject *self,
-			       PyObject *args, PyObject *kwds) {
-
-  PyObject *name = ATOM_NAME(self);
-  PyObject *method = NULL;
-  PyObject *result = NULL;
-
-  method = PyObject_GetAttr(name, _str_rsplit);
-  if (! method)
-    return NULL;
-
-  result = PyObject_Call(method, args, kwds);
-  Py_CLEAR(method);
-  if (! result)
-    return NULL;
-
-  atom_rewrap(result, sib_symbol);
-  return result;
-}
-
-
-static PyMethodDef symbol_methods[] = {
-  { "split", (PyCFunction) symbol_split, METH_VARARGS|METH_KEYWORDS,
-    "S.split(sep=None, maxsplit=-1) -> list of symbols" },
-
-  { "rsplit", (PyCFunction) symbol_rsplit, METH_VARARGS|METH_KEYWORDS,
-    "S.rsplit(sep=None, maxsplit=-1) -> list of symbols" },
-
-  { NULL, NULL, 0, NULL },
-};
-
-
-PyTypeObject SibSymbolType = {
-  PyVarObject_HEAD_INIT(NULL, 0)
-
-  "symbol",
-  sizeof(SibInternedAtom),
-  0,
-
-  .tp_flags = Py_TPFLAGS_DEFAULT,
-  .tp_methods = symbol_methods,
-  .tp_new = symbol_new,
-  .tp_dealloc = symbol_dealloc,
-
-  .tp_repr = atom_repr,
-  .tp_str = atom_str,
-};
-
-
-/* === gensym === */
-
-
-static Py_uhash_t gen_counter = 97531UL;
-
-
-PyObject *sib_gensym(PyObject *name, PyObject *predicate) {
-
-  // checked
-
-  while (1) {
-
-    // generate a name
-    PyObject *maybe_name;
-    if (name) {
-      maybe_name = PyUnicode_FromFormat("%S#%x", name, gen_counter, NULL);
-    } else {
-      maybe_name = PyUnicode_FromFormat("<gensym>#%x", gen_counter, NULL);
-    }
-    if (! maybe_name)
-      return NULL;
-
-    // I don't know, some silliness to make the index number bounce
-    // all over the damned place
-    gen_counter += (Py_uhash_t) maybe_name;
-    gen_counter *= _PyHASH_MULTIPLIER;
-    if (! gen_counter)
-      gen_counter = 97531UL;
-
-    // check whether a symbol with that name is already allocated. If
-    // it is, then this is not a unique symbol, try again.
-    if (PyDict_GetItem(intern_syms, maybe_name)) {
-      Py_CLEAR(maybe_name);
-      continue;
-    }
-
-    // reserves the symbol for this gensym attempt
-    PyObject *maybe_symbol = sib_symbol(maybe_name);
-    Py_CLEAR(maybe_name);
-
-    if (predicate) {
-      PyObject *maybe = PyObject_CallFunctionObjArgs(predicate,
-						     maybe_symbol, NULL);
-      if (! maybe) {
-	return NULL;
-
-      } else if (PyObject_IsTrue(maybe)) {
-	Py_DECREF(maybe);
-	return maybe_symbol;
-
-      } else {
-	Py_DECREF(maybe);
-	Py_CLEAR(maybe_symbol);
-	continue;
-      }
-
-    } else {
-      return maybe_symbol;
-    }
-  }
-}
-
-
-static PyObject *m_gensym(PyObject *mod, PyObject *args) {
-
-  // checked
-
-  PyObject *name = NULL;
-  PyObject *predicate = NULL;
-
-  if (! PyArg_ParseTuple(args, "|OO:gensym", &name, &predicate))
-    return NULL;
-
-  if (predicate == Py_None)
-    predicate = NULL;
-
-  return sib_gensym(name, predicate);
-}
-
-
-/* === keyword === */
-
-
-static PyObject *intern_kwds = NULL;
-
-
-PyObject *sib_keyword(PyObject *name) {
-  PyObject *clean;
-  PyObject *result;
-
-  if(! name) {
-    PyErr_SetString(PyExc_TypeError, "keywrod requires a name");
-    return NULL;
-
-  } else if (! PyUnicode_CheckExact(name)) {
-    name = PyObject_Str(name);
-
-  } else{
-    Py_INCREF(name);
-  }
-
-  clean = PyObject_CallMethodObjArgs(name, _str_strip, _str_colon, NULL);
-  result = atom_new(clean, intern_kwds, &SibKeywordType);
-
-  Py_DECREF(name);
-  Py_DECREF(clean);
-
-  return result;
-}
-
-
-static PyObject *keyword_new(PyTypeObject *type,
-			     PyObject *args, PyObject *kwds) {
-
-  PyObject *name = NULL;
-
-  if (kwds && PyDict_Size(kwds)) {
-    PyErr_SetString(PyExc_TypeError, "keyword takes no named arguments");
-    return NULL;
-  }
-
-  if (! PyArg_ParseTuple(args, "O:keyword", &name))
-    return NULL;
-
-  return sib_keyword(name);
-}
-
-
-static void keyword_dealloc(PyObject *self) {
-
-  // checked
-
-  if (intern_kwds) {
-    Py_REFCNT(self) = 3;
-    PyDict_DelItem(intern_kwds, ((SibInternedAtom *) self)->name);
-  }
-
-  Py_CLEAR(((SibInternedAtom *) self)->name);
-  Py_TYPE(self)->tp_free(self);
-}
-
-
-static PyObject *keyword_split(PyObject *self,
-			       PyObject *args, PyObject *kwds) {
-
-  PyObject *name = ATOM_NAME(self);
-  PyObject *method = NULL;
-  PyObject *result = NULL;
-
-  method = PyObject_GetAttr(name, _str_split);
-  if (! method)
-    return NULL;
-
-  result = PyObject_Call(method, args, kwds);
-  Py_CLEAR(method);
-  if (! result)
-    return NULL;
-
-  atom_rewrap(result, sib_keyword);
-  return result;
-}
-
-
-static PyObject *keyword_rsplit(PyObject *self,
-				PyObject *args, PyObject *kwds) {
-
-  PyObject *name = ATOM_NAME(self);
-  PyObject *method = NULL;
-  PyObject *result = NULL;
-
-  method = PyObject_GetAttr(name, _str_rsplit);
-  if (! method)
-    return NULL;
-
-  result = PyObject_Call(method, args, kwds);
-  Py_CLEAR(method);
-  if (! result)
-    return NULL;
-
-  atom_rewrap(result, sib_keyword);
-  return result;
-}
-
-
-static PyMethodDef keyword_methods[] = {
-  { "split", (PyCFunction) keyword_split, METH_VARARGS|METH_KEYWORDS,
-    "K.split(sep=None, maxsplit=-1) -> list of keywords" },
-
-  { "rsplit", (PyCFunction) keyword_rsplit, METH_VARARGS|METH_KEYWORDS,
-    "K.rsplit(sep=None, maxsplit=-1) -> list of keywords" },
-
-  { NULL, NULL, 0, NULL },
-};
-
-
-PyTypeObject SibKeywordType = {
-  PyVarObject_HEAD_INIT(NULL, 0)
-
-  "keyword",
-  sizeof(SibInternedAtom),
-  0,
-
-  .tp_flags = Py_TPFLAGS_DEFAULT,
-  .tp_methods = keyword_methods,
-  .tp_new = keyword_new,
-  .tp_dealloc = keyword_dealloc,
-
-  .tp_repr = atom_repr,
-  .tp_str = atom_str,
-};
 
 
 /* === ValuesType === */
@@ -1277,13 +841,23 @@ static PyMethodDef methods[] = {
     "clearderef(cell) -> None\n"
     "Clears a cell." },
 
+  { "tailcall_full", (PyCFunction) m_tailcall_full, METH_VARARGS|METH_KEYWORDS,
+    "tailcall_full(function, *args, **kwds) ->"
+    " tailcall(function)(*args, **kwds)" },
+
+  { "trampoline", m_trampoline, METH_VARARGS,
+    "wraps a callable in a trampoline. A trampoline will catch returned"
+    " tailcall instances and invoke their function and arguments"
+    " in-place. The trampoline will continue catching and bouncing until"
+    " a non-tailcall instance is returned or an exception is raised." },
+
   { NULL, NULL, 0, NULL },
 };
 
 
 static struct PyModuleDef ctypes = {
   .m_base = PyModuleDef_HEAD_INIT,
-  .m_name = "sibilant._types",
+  .m_name = "sibilant.lib._types",
   .m_doc = DOCSTR,
   .m_size = -1,
   .m_methods = methods,
@@ -1304,6 +878,12 @@ PyMODINIT_FUNC PyInit__types(void) {
 
   // checked
 
+  if (PyType_Ready(&SibKeywordType) < 0)
+    return NULL;
+
+  if (PyType_Ready(&SibSymbolType) < 0)
+    return NULL;
+
   if (PyType_Ready(&SibPairType) < 0)
     return NULL;
 
@@ -1316,13 +896,16 @@ PyMODINIT_FUNC PyInit__types(void) {
   if (PyType_Ready(&SibNilType) < 0)
     return NULL;
 
-  if (PyType_Ready(&SibKeywordType) < 0)
-    return NULL;
-
-  if (PyType_Ready(&SibSymbolType) < 0)
-    return NULL;
-
   if (PyType_Ready(&SibValuesType) < 0)
+    return NULL;
+
+  if (PyType_Ready(&SibTailCallType) < 0)
+    return NULL;
+
+  if (PyType_Ready(&FunctionTrampolineType) < 0)
+    return NULL;
+
+  if (PyType_Ready(&MethodTrampolineType) < 0)
     return NULL;
 
   STR_CONST(_str_close_paren, ")");
@@ -1349,6 +932,10 @@ PyMODINIT_FUNC PyInit__types(void) {
   STR_CONST(_str_strip, "strip");
   STR_CONST(_str_values_paren, "values(");
 
+  STR_CONST(__get__, "__get__");
+  STR_CONST(_tco_original, "_tco_original");
+  STR_CONST(_tco_enable, "_tco_enable");
+
   if (! intern_syms) {
     intern_syms = PyDict_New();
     if (! intern_syms)
@@ -1371,6 +958,7 @@ PyMODINIT_FUNC PyInit__types(void) {
   PyDict_SetItemString(dict, "symbol", (PyObject *) &SibSymbolType);
   PyDict_SetItemString(dict, "keyword", (PyObject *) &SibKeywordType);
   PyDict_SetItemString(dict, "values", (PyObject *) &SibValuesType);
+  PyDict_SetItemString(dict, "tailcall", (PyObject *) &SibTailCallType);
 
   return mod;
 }

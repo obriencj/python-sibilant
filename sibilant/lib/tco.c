@@ -16,65 +16,22 @@
 
 
 /**
-   sibilant._tco
+   Part of sibilant.lib.ctypes
 
-   Native implementation of the TCO trampoline and state for
-   sibilant. These functions are re-exported from the sibilant.tco
-   module.
+   Native implementation of the TCO trampoline and state for sibilant.
 
    author: Christopher O'Brien  <obriencj@gmail.com>
    license: LGPL v.3
 */
 
 
-#include <sibilant-tco.h>
+#include "types.h"
 
 
 #define DOCSTR "Native TCO Implementation for Sibilant"
 
-#define TCO_ENABLE "_tco_enable"
-#define TCO_ORIGINAL "_tco_original"
-
-
-#if 1
-#include <stdio.h>
-#define DEBUGMSG(msg, obj) {					\
-    printf("** " msg " ");					\
-    if (obj) {                                                  \
-      PyObject_Print(((PyObject *) (obj)), stdout, 0);          \
-    } else {                                                    \
-      printf("NULL");                                           \
-    }                                                           \
-    printf("\n");						\
-  }
-#else
-#define DEBUGMSG(msg, obj) {}
-#endif
-
-
-#if (defined(__GNUC__) &&					\
-     (__GNUC__ > 2 || (__GNUC__ == 2 && (__GNUC_MINOR__ > 95))))
-  #define likely(x)   __builtin_expect(!!(x), 1)
-  #define unlikely(x) __builtin_expect(!!(x), 0)
-#else
-  #define likely(x)   (x)
-  #define unlikely(x) (x)
-#endif
-
-
-#define Py_ASSIGN(dest, value) {		\
-    Py_XDECREF(dest);				\
-    dest = value;				\
-    Py_XINCREF(dest);				\
-  }
-
 
 /* === util === */
-
-
-static PyObject *__get__ = NULL;
-static PyObject *_tco_enable = NULL;
-static PyObject *_tco_original = NULL;
 
 
 static PyObject *_getattro(PyObject *inst, PyObject *name) {
@@ -104,8 +61,7 @@ static PyObject *_getattro(PyObject *inst, PyObject *name) {
 /* === SibTailCallType === */
 
 
-static PyObject *tailcall_full(PyObject *self,
-			       PyObject *args, PyObject *kwds) {
+PyObject *m_tailcall_full(PyObject *self, PyObject *args, PyObject *kwds) {
 
   // checked
 
@@ -396,11 +352,11 @@ static int set_original(PyObject *self, PyObject *val, char *name) {
 
 
 static PyGetSetDef trampoline_func_getset[] = {
-  { TCO_ORIGINAL,
+  { "_tco_original",
     (getter) trampoline_tco_original, NULL,
     "", NULL},
 
-  { TCO_ENABLE,
+  { "_tco_enable",
     (getter) trampoline_tco_enable, NULL,
     "", NULL },
 
@@ -437,11 +393,11 @@ static PyGetSetDef trampoline_func_getset[] = {
 
 
 static PyGetSetDef trampoline_meth_getset[] = {
-  { TCO_ORIGINAL,
+  { "_tco_original",
     (getter) trampoline_tco_original, NULL,
     "", NULL},
 
-  { TCO_ENABLE,
+  { "_tco_enable",
     (getter) trampoline_tco_enable, NULL,
     "", NULL },
 
@@ -564,7 +520,7 @@ PyTypeObject MethodTrampolineType = {
 };
 
 
-static PyObject *trampoline(PyObject *self, PyObject *args) {
+PyObject *m_trampoline(PyObject *self, PyObject *args) {
 
   // checked
 
@@ -589,69 +545,6 @@ static PyObject *trampoline(PyObject *self, PyObject *args) {
 
   tramp->tco_original = fun;
   return (PyObject *) tramp;
-}
-
-
-static PyMethodDef methods[] = {
-
-  { "tailcall_full", (PyCFunction) tailcall_full, METH_VARARGS|METH_KEYWORDS,
-    "tailcall_full(function, *args, **kwds) ->"
-    " tailcall(function)(*args, **kwds)" },
-
-  { "trampoline", trampoline, METH_VARARGS,
-    "wraps a callable in a trampoline. A trampoline will catch returned"
-    " tailcall instances and invoke their function and arguments"
-    " in-place. The trampoline will continue catching and bouncing until"
-    " a non-tailcall instance is returned or an exception is raised." },
-
-  { NULL, NULL, 0, NULL },
-};
-
-
-static struct PyModuleDef ctco = {
-  .m_base = PyModuleDef_HEAD_INIT,
-  .m_name = "sibilant._tco",
-  .m_doc = DOCSTR,
-  .m_size = -1,
-  .m_methods = methods,
-  .m_slots = NULL,
-  .m_traverse = NULL,
-  .m_clear = NULL,
-  .m_free = NULL,
-};
-
-
-#define STR_CONST(which, val) {			\
-    if (! (which))				\
-      which = PyUnicode_FromString(val);	\
-  }
-
-
-PyMODINIT_FUNC PyInit__tco(void) {
-
-  // checked
-
-  if (PyType_Ready(&SibTailCallType) < 0)
-    return NULL;
-
-  if (PyType_Ready(&FunctionTrampolineType) < 0)
-    return NULL;
-
-  if (PyType_Ready(&MethodTrampolineType) < 0)
-    return NULL;
-
-  PyObject *mod = PyModule_Create(&ctco);
-  if (! mod)
-    return NULL;
-
-  STR_CONST(__get__, "__get__");
-  STR_CONST(_tco_original, TCO_ORIGINAL);
-  STR_CONST(_tco_enable, TCO_ENABLE);
-
-  PyObject *dict = PyModule_GetDict(mod);
-  PyDict_SetItemString(dict, "tailcall", (PyObject *) &SibTailCallType);
-
-  return mod;
 }
 
 

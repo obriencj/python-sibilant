@@ -16,59 +16,12 @@
 
 
 /**
-   part of sibilant._types
-
-   Native sibilant core types and helper functions. These function and
-   types will be re-exported from the sibilant module.
-
    author: Christopher O'Brien <obriencj@gmail.com>
    license: LGPL v.3
- */
+*/
 
 
-#include "_pair.h"
-
-
-#if (defined(__GNUC__) &&					\
-     (__GNUC__ > 2 || (__GNUC__ == 2 && (__GNUC_MINOR__ > 95))))
-  #define likely(x)   __builtin_expect(!!(x), 1)
-  #define unlikely(x) __builtin_expect(!!(x), 0)
-#else
-  #define likely(x)   (x)
-  #define unlikely(x) (x)
-#endif
-
-
-#define Py_ASSIGN(dest, value) {		\
-    Py_XDECREF(dest);				\
-    dest = value;				\
-    Py_XINCREF(dest);				\
-  }
-
-
-extern PyObject *_str_close_paren;
-extern PyObject *_str_colon;
-extern PyObject *_str_comma_space;
-extern PyObject *_str_cons_paren;
-extern PyObject *_str_dot_space;
-extern PyObject *_str_elipsis;
-extern PyObject *_str_empty;
-extern PyObject *_str_equals;
-extern PyObject *_str_esc_quote;
-extern PyObject *_str_nil;
-extern PyObject *_str_open_paren;
-extern PyObject *_str_quote;
-extern PyObject *_str_recursive;
-extern PyObject *_str_recursive_true;
-extern PyObject *_str_rsplit;
-extern PyObject *_str_space;
-extern PyObject *_str_space_dot_space;
-extern PyObject *_str_space_elipsis;
-extern PyObject *_str_split;
-extern PyObject *_str_star;
-extern PyObject *_str_starstar;
-extern PyObject *_str_strip;
-extern PyObject *_str_values_paren;
+#include "types.h"
 
 
 PyObject *quoted(PyObject *u);
