@@ -16,15 +16,16 @@
 
 
 /**
+   Part of sibilant.lib.ctypes
+
+   Native implementation of a pair type for sibilant.
+
    author: Christopher O'Brien <obriencj@gmail.com>
    license: LGPL v.3
 */
 
 
 #include "types.h"
-
-
-PyObject *quoted(PyObject *u);
 
 
 /* === PairIteratorType === */
