@@ -108,7 +108,7 @@ PyObject *sib_cons(PyObject *sequence, int recursive);
 
 PyObject *sib_values(PyObject *args, PyObject *kwds);
 
-PyObject *m_quoted(PyObject *u);
+PyObject *quoted(PyObject *u);
 
 PyObject *sib_tailcall(PyObject *work, PyObject *args, PyObject *kwds);
 
