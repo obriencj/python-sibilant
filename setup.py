@@ -30,10 +30,11 @@ from setuptools import setup, Extension
 ext_types = Extension(
     name = "sibilant.lib._types",
     sources = [
+        "sibilant/lib/_types.c",
         "sibilant/lib/atom.c",
         "sibilant/lib/pair.c",
         "sibilant/lib/tco.c",
-        "sibilant/lib/types.c",
+        "sibilant/lib/values.c",
     ],
     extra_compile_args=[
         "--std=c99",

@@ -59,12 +59,8 @@ PyObject *_str_starstar = NULL;
 PyObject *_str_strip = NULL;
 PyObject *_str_values_paren = NULL;
 
-PyObject *__get__ = NULL;
-PyObject *_tco_enable = NULL;
-PyObject *_tco_original = NULL;
 
-
-PyObject *quoted(PyObject *u) {
+PyObject *sib_quoted(PyObject *u) {
 
   // checked
 
@@ -215,9 +211,9 @@ static PyObject *m_build_dict(PyObject *mod, PyObject *values) {
        len 2, or a pair (which may be proper), we need to potentially
        convert pairs via unpack */
 
-    if (SibPair_CheckExact(item) && SibPair_Check(CDR(item))) {
+    if (SibPair_CheckExact(item) && SibPair_Check(SibPair_CDR(item))) {
       /* pair of more than one link, convert to iterator */
-      item = pair_unpack(item, NULL);
+      item = SibPair_Unpack(item);
     } else {
       Py_INCREF(item);
     }
@@ -238,39 +234,11 @@ static PyObject *m_build_dict(PyObject *mod, PyObject *values) {
 
 
 static PyMethodDef methods[] = {
-  { "gensym", (PyCFunction) m_gensym, METH_VARARGS,
-    "gensym(name, predicate=None -> generate a symbol" },
-
-  { "cons", (PyCFunction) m_cons, METH_VARARGS|METH_KEYWORDS,
-    "cons(head, *tail, recursive=Fasle) -> new pair\n"
-    "If no tail is specified, and recursive is False (the default),\n"
-    "then a nil will be presumed." },
-
-  { "car", m_car, METH_O,
-    "car(P) -> object\n"
-    "Returns the head element of a sibilant pair instance P."},
-
-  { "cdr", m_cdr, METH_O,
-    "cdr(P) -> object\n"
-    "Returns the tail element of a sibilant pair instance P." },
-
-  { "setcar", m_setcar, METH_VARARGS,
-    "setcar(P, obj) -> None\n"
-    "Assigns the head element of a sibilant pair instance P to obj." },
-
-  { "setcdr", m_setcdr, METH_VARARGS,
-    "setcdr(P, obj) -> None\n"
-    "Assigns the tail element of a sibilant pair instance P to obj." },
 
   { "reapply", (PyCFunction) m_reapply, METH_VARARGS|METH_KEYWORDS,
     "reapply(func, data, count) -> result data\n"
     "Calls `data = func(data)` count times (or until an exception is\n"
     "raised), and returns the final data value." },
-
-  { "build_unpack_pair", (PyCFunction) m_build_unpack_pair, METH_VARARGS,
-    "build_unpack_pair(*pair_or_seq) -> new pair\n"
-    "Creates a new sibilant pair list from a collection of pair or\n"
-    "non-pair sequences." },
 
   { "build_tuple", (PyCFunction) m_build_tuple, METH_VARARGS,
     "build_tuple(*args) -> args" },
@@ -296,16 +264,6 @@ static PyMethodDef methods[] = {
   { "clearderef", (PyCFunction) m_clearderef, METH_O,
     "clearderef(cell) -> None\n"
     "Clears a cell." },
-
-  { "tailcall_full", (PyCFunction) m_tailcall_full, METH_VARARGS|METH_KEYWORDS,
-    "tailcall_full(function, *args, **kwds) ->"
-    " tailcall(function)(*args, **kwds)" },
-
-  { "trampoline", m_trampoline, METH_VARARGS,
-    "wraps a callable in a trampoline. A trampoline will catch returned"
-    " tailcall instances and invoke their function and arguments"
-    " in-place. The trampoline will continue catching and bouncing until"
-    " a non-tailcall instance is returned or an exception is raised." },
 
   { NULL, NULL, 0, NULL },
 };
@@ -334,34 +292,7 @@ PyMODINIT_FUNC PyInit__types(void) {
 
   // checked
 
-  if (PyType_Ready(&SibKeywordType) < 0)
-    return NULL;
-
-  if (PyType_Ready(&SibSymbolType) < 0)
-    return NULL;
-
-  if (PyType_Ready(&SibPairType) < 0)
-    return NULL;
-
-  if (PyType_Ready(&SibPairIteratorType) < 0)
-    return NULL;
-
-  if (PyType_Ready(&SibPairFollowerType) < 0)
-    return NULL;
-
-  if (PyType_Ready(&SibNilType) < 0)
-    return NULL;
-
   if (PyType_Ready(&SibValuesType) < 0)
-    return NULL;
-
-  if (PyType_Ready(&SibTailCallType) < 0)
-    return NULL;
-
-  if (PyType_Ready(&FunctionTrampolineType) < 0)
-    return NULL;
-
-  if (PyType_Ready(&MethodTrampolineType) < 0)
     return NULL;
 
   STR_CONST(_str_close_paren, ")");
@@ -388,33 +319,18 @@ PyMODINIT_FUNC PyInit__types(void) {
   STR_CONST(_str_strip, "strip");
   STR_CONST(_str_values_paren, "values(");
 
-  STR_CONST(__get__, "__get__");
-  STR_CONST(_tco_original, "_tco_original");
-  STR_CONST(_tco_enable, "_tco_enable");
-
-  if (! intern_syms) {
-    intern_syms = PyDict_New();
-    if (! intern_syms)
-      return NULL;
-  }
-
-  if (! intern_kwds) {
-    intern_kwds = PyDict_New();
-    if (! intern_kwds)
-      return NULL;
-  }
-
   PyObject *mod = PyModule_Create(&ctypes);
   if (! mod)
     return NULL;
 
-  PyObject *dict = PyModule_GetDict(mod);
-  PyDict_SetItemString(dict, "nil", Sib_Nil);
-  PyDict_SetItemString(dict, "pair", (PyObject *) &SibPairType);
-  PyDict_SetItemString(dict, "symbol", (PyObject *) &SibSymbolType);
-  PyDict_SetItemString(dict, "keyword", (PyObject *) &SibKeywordType);
-  PyDict_SetItemString(dict, "values", (PyObject *) &SibValuesType);
-  PyDict_SetItemString(dict, "tailcall", (PyObject *) &SibTailCallType);
+  if (sib_types_atom_init(mod) ||
+      sib_types_pair_init(mod) ||
+      sib_types_tco_init(mod) ||
+      sib_types_values_init(mod)) {
+
+    Py_DECREF(mod);
+    return NULL;
+  }
 
   return mod;
 }

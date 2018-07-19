@@ -52,13 +52,13 @@ static PyObject *piter_iternext(PyObject *self) {
   if (pair) {
     switch(s->index) {
     case 0:
-      result = CAR(pair);
+      result = SibPair_CAR(pair);
       Py_INCREF(result);
       s->index = 1;
       break;
 
     case 1:
-      result = CDR(pair);
+      result = SibPair_CDR(pair);
       Py_INCREF(result);
       s->index = 2;
       Py_CLEAR(s->pair);
@@ -141,7 +141,7 @@ static PyObject *pfoll_iternext(PyObject *self) {
 
   /* get ready for the next */
   if (SibPair_CheckExact(current)) {
-    s->current = CDR(current);
+    s->current = SibPair_CDR(current);
     Py_INCREF(s->current);
 
   } else {
@@ -155,10 +155,10 @@ static PyObject *pfoll_iternext(PyObject *self) {
     /* if we're in items mode, then we want the CAR if current is a
        pair, otherwise if current is non-nil we return it. */
     if (SibPair_CheckExact(current)) {
-      result = CAR(current);
+      result = SibPair_CAR(current);
       Py_INCREF(result);
       Py_DECREF(current);
-    } else if (Sib_Nilp(current)) {
+    } else if (SibNil_Check(current)) {
       result = NULL;
       Py_DECREF(current);
     } else {
@@ -205,7 +205,7 @@ static PyObject *pair_new(PyTypeObject *type,
   if (! PyArg_ParseTuple(args, "OO:pair", &head, &tail))
     return NULL;
 
-  return sib_pair(head, tail);
+  return SibPair_New(head, tail);
 }
 
 
@@ -225,12 +225,12 @@ static PyObject *pair_getitem(PyObject *self, Py_ssize_t index) {
 
   switch(index) {
   case 0:
-    result = CAR(self);
+    result = SibPair_CAR(self);
     Py_XINCREF(result);
     break;
 
   case 1:
-    result = CDR(self);
+    result = SibPair_CDR(self);
     Py_XINCREF(result);
     break;
 
@@ -250,11 +250,11 @@ static int pair_setitem(PyObject *self, Py_ssize_t index, PyObject *val) {
 
   switch(index) {
   case 0:
-    SETCAR(self, val);
+    SibPair_SETCAR(self, val);
     break;
 
   case 1:
-    SETCDR(self, val);
+    SibPair_SETCDR(self, val);
     break;
 
   default:
@@ -316,12 +316,12 @@ static PyObject *pair_repr(PyObject *self) {
       PyDict_SetItem(found, rest_id, tmp);
       Py_DECREF(tmp);
 
-      tmp = PyObject_Repr(CAR(rest));
+      tmp = PyObject_Repr(SibPair_CAR(rest));
       PyList_Append(col, tmp);
       PyList_Append(col, _str_comma_space);
       Py_DECREF(tmp);
 
-      rest = CDR(rest);
+      rest = SibPair_CDR(rest);
       Py_DECREF(rest_id);
     }
   }
@@ -351,7 +351,7 @@ static PyObject *pair_str(PyObject *self) {
 
   PyList_Append(col, _str_open_paren);
 
-  for (rest = self; SibPair_CheckExact(rest); rest = CDR(rest)) {
+  for (rest = self; SibPair_CheckExact(rest); rest = SibPair_CDR(rest)) {
     rest_id = PyLong_FromVoidPtr(rest);
 
     if (PyDict_Contains(found, rest_id)) {
@@ -380,9 +380,9 @@ static PyObject *pair_str(PyObject *self) {
       Py_DECREF(tmp);
       Py_DECREF(rest_id);
 
-      tmp = CAR(rest);
+      tmp = SibPair_CAR(rest);
       if (PyUnicode_CheckExact(tmp)) {
-	tmp = quoted(tmp);
+	tmp = sib_quoted(tmp);
       } else {
 	tmp = PyObject_Str(tmp);
       }
@@ -394,7 +394,7 @@ static PyObject *pair_str(PyObject *self) {
     }
   }
 
-  if(Sib_Nilp(rest)) {
+  if(SibNil_Check(rest)) {
     /* end of a proper list */
 
     Py_INCREF(_str_close_paren);
@@ -405,7 +405,7 @@ static PyObject *pair_str(PyObject *self) {
 
     tmp = rest;
     if (PyUnicode_CheckExact(tmp)) {
-      tmp = quoted(tmp);
+      tmp = sib_quoted(tmp);
     } else {
       tmp = PyObject_Str(tmp);
     }
@@ -435,7 +435,7 @@ static long pair_eq(PyObject *left, PyObject *right) {
   seen = PyDict_New();
 
   while (left != right) {
-    if (Sib_Nilp(left) || Sib_Nilp(right)) {
+    if (SibNil_Check(left) || SibNil_Check(right)) {
       // one of our comparisons is a nil, and nil can only equal
       // itself, and left and right aren't the same object, so
       // therefore... nope
@@ -473,7 +473,8 @@ static long pair_eq(PyObject *left, PyObject *right) {
       Py_DECREF(right_id);
       break;
 
-    } else if (! PyObject_RichCompareBool(CAR(left), CAR(right), Py_EQ)) {
+    } else if (! PyObject_RichCompareBool(SibPair_CAR(left),
+					  SibPair_CAR(right), Py_EQ)) {
       /* haven't been compared before, but they're not equal */
       answer = 0;
       Py_DECREF(left_id);
@@ -488,8 +489,8 @@ static long pair_eq(PyObject *left, PyObject *right) {
       Py_DECREF(right_id);
     }
 
-    left = CDR(left);
-    right = CDR(right);
+    left = SibPair_CDR(left);
+    right = SibPair_CDR(right);
   }
 
   Py_DECREF(seen);
@@ -518,8 +519,8 @@ static void pair_dealloc(PyObject *self) {
   PyObject_GC_UnTrack(self);
   Py_TRASHCAN_SAFE_BEGIN(self);
 
-  Py_CLEAR(CAR(self));
-  Py_CLEAR(CDR(self));
+  Py_CLEAR(SibPair_CAR(self));
+  Py_CLEAR(SibPair_CDR(self));
   Py_CLEAR(((SibPair *) self)->position);
 
   // Py_TYPE(self)->tp_free(self);
@@ -532,8 +533,8 @@ static int pair_traverse(PyObject *self, visitproc visit, void *arg) {
 
   // checked
 
-  Py_VISIT(CAR(self));
-  Py_VISIT(CDR(self));
+  Py_VISIT(SibPair_CAR(self));
+  Py_VISIT(SibPair_CDR(self));
   Py_VISIT(((SibPair *) self)->position);
   return 0;
 }
@@ -543,8 +544,8 @@ static int pair_clear(PyObject *self) {
 
   // checked
 
-  Py_CLEAR(CAR(self));
-  Py_CLEAR(CDR(self));
+  Py_CLEAR(SibPair_CAR(self));
+  Py_CLEAR(SibPair_CDR(self));
   Py_CLEAR(((SibPair *) self)->position);
   return 0;
 }
@@ -558,7 +559,7 @@ static PyObject *pair_copy(PyObject *self, PyObject *_noargs) {
   PyObject *tmp = NULL;
   PyObject *last = NULL;
 
-  if (Sib_Nilp(self)) {
+  if (SibNil_Check(self)) {
     Py_INCREF(self);
     return self;
   }
@@ -566,7 +567,7 @@ static PyObject *pair_copy(PyObject *self, PyObject *_noargs) {
   // records of the IDs of originals to instances of the new copies
   PyObject *seen = PyDict_New();
 
-  for (; SibPair_CheckExact(self); self = CDR(self)) {
+  for (; SibPair_CheckExact(self); self = SibPair_CDR(self)) {
 
     PyObject *self_id = PyLong_FromVoidPtr(self);
 
@@ -575,13 +576,13 @@ static PyObject *pair_copy(PyObject *self, PyObject *_noargs) {
       // we've seen this one before, so we're recursive. Make the new
       // copy recursive as well and break
       Py_DECREF(self_id);
-      SETCDR(last, tmp);
+      SibPair_SETCDR(last, tmp);
       last = NULL; // this signals that we made a recursive link
       break;
     }
 
     // make a new pair, associate it with current ID
-    tmp = sib_pair(CAR(self), Sib_Nil);
+    tmp = SibPair_New(SibPair_CAR(self), SibNil);
     Py_ASSIGN(((SibPair *) tmp)->position, ((SibPair *) self)->position);
 
     PyDict_SetItem(seen, self_id, tmp);
@@ -596,7 +597,7 @@ static PyObject *pair_copy(PyObject *self, PyObject *_noargs) {
     // if we have a previous, assign this new pair to the prev's CDR
     // slot. then decref it and make current into the new prev
     if (last) {
-      SETCDR(last, tmp);
+      SibPair_SETCDR(last, tmp);
     }
     last = tmp;
   }
@@ -607,7 +608,7 @@ static PyObject *pair_copy(PyObject *self, PyObject *_noargs) {
   // either nil or a non-pair leftover is in self, otherwise last
   // would have been cleared
   if (last)
-    SETCDR(last, self);
+    SibPair_SETCDR(last, self);
 
   if (! result)
     PyErr_SetString(PyExc_TypeError, "expected pair");
@@ -621,13 +622,13 @@ static PyObject *pair_length(PyObject *self, PyObject *_noargs) {
   PyObject *tmp;
   long length = 0;
 
-  if (Sib_Nilp(self)) {
+  if (SibNil_Check(self)) {
     return PyLong_FromLong(length);
   }
 
   seen = PySet_New(NULL);
 
-  for(; SibPair_CheckExact(self); self = CDR(self)) {
+  for(; SibPair_CheckExact(self); self = SibPair_CDR(self)) {
 
     tmp = PyLong_FromVoidPtr(self);
 
@@ -643,7 +644,7 @@ static PyObject *pair_length(PyObject *self, PyObject *_noargs) {
     }
   }
 
-  if (self && ! Sib_Nilp(self))
+  if (self && ! SibNil_Check(self))
     length++;
 
   Py_DECREF(seen);
@@ -668,7 +669,7 @@ static PyObject *pair_follow(PyObject *self, PyObject *_noargs) {
 }
 
 
-PyObject *pair_unpack(PyObject *self, PyObject *_noargs) {
+static PyObject *pair_unpack(PyObject *self, PyObject *_noargs) {
 
   // checked
 
@@ -682,6 +683,11 @@ PyObject *pair_unpack(PyObject *self, PyObject *_noargs) {
   i->just_items = 1;
 
   return (PyObject *) i;
+}
+
+
+PyObject *SibPair_Unpack(PyObject *pair) {
+  return pair_unpack(pair, NULL);
 }
 
 
@@ -704,18 +710,18 @@ static PyObject *pair_to_list(PyObject *self) {
 */
 
 
-long SibPair_is_proper(PyObject *self) {
+long SibPair_IsProper(PyObject *self) {
 
   // checked
 
-  if (Sib_Nilp(self))
+  if (SibNil_Check(self))
     return 1;
 
   PyObject *seen = PySet_New(NULL);
   PyObject *pair_id;
   long result = 0;
 
-  for ( ; SibPair_CheckExact(self); self = CDR(self)) {
+  for ( ; SibPair_CheckExact(self); self = SibPair_CDR(self)) {
     pair_id = PyLong_FromVoidPtr(self);
 
     if (PySet_Contains(seen, pair_id)) {
@@ -733,7 +739,7 @@ long SibPair_is_proper(PyObject *self) {
   /* it's either recursive and thus proper, or the last item needs to
      have been a nil, or it's improper */
   Py_DECREF(seen);
-  return result || Sib_Nilp(self);
+  return result || SibNil_Check(self);
 }
 
 
@@ -741,22 +747,22 @@ static PyObject *pair_is_proper(PyObject *self, PyObject *_noargs) {
 
   // checked
 
-  return PyBool_FromLong(SibPair_is_proper(self));
+  return PyBool_FromLong(SibPair_IsProper(self));
 }
 
 
-long SibPair_is_recursive(PyObject *self) {
+long SibPair_IsRecursive(PyObject *self) {
 
   // checked
 
-  if (Sib_Nilp(self))
+  if (SibNil_Check(self))
     return 0;
 
   PyObject *seen = PySet_New(NULL);
   PyObject *pair_id;
   long result = 0;
 
-  for ( ; SibPair_CheckExact(self); self = CDR(self)) {
+  for ( ; SibPair_CheckExact(self); self = SibPair_CDR(self)) {
     pair_id = PyLong_FromVoidPtr(self);
 
     if (PySet_Contains(seen, pair_id)) {
@@ -780,7 +786,7 @@ static PyObject *pair_is_recursive(PyObject *self, PyObject *_noargs) {
 
   // checked
 
-  return PyBool_FromLong(SibPair_is_recursive(self));
+  return PyBool_FromLong(SibPair_IsRecursive(self));
 }
 
 
@@ -791,7 +797,7 @@ static void pwalk_setpos(PyObject *pair, PyObject *seen, PyObject *pos) {
   PyObject *pair_id;
   SibPair *sp;
 
-  for (; SibPair_CheckExact(pair); pair = CDR(pair)) {
+  for (; SibPair_CheckExact(pair); pair = SibPair_CDR(pair)) {
     sp = (SibPair *) pair;
 
     pair_id = PyLong_FromVoidPtr(pair);
@@ -807,8 +813,8 @@ static void pwalk_setpos(PyObject *pair, PyObject *seen, PyObject *pos) {
 
     Py_ASSIGN(sp->position, pos);
 
-    if (SibPair_CheckExact(CAR(sp))) {
-      pwalk_setpos(CAR(sp), seen, pos);
+    if (SibPair_CheckExact(SibPair_CAR(sp))) {
+      pwalk_setpos(SibPair_CAR(sp), seen, pos);
     }
   }
 }
@@ -821,7 +827,7 @@ static void pwalk_fillpos(PyObject *pair, PyObject *seen, PyObject *pos) {
   PyObject *pair_id;
   SibPair *sp;
 
-  for (; SibPair_CheckExact(pair); pair = CDR(pair)) {
+  for (; SibPair_CheckExact(pair); pair = SibPair_CDR(pair)) {
     sp = (SibPair *) pair;
 
     pair_id = PyLong_FromVoidPtr(pair);
@@ -843,8 +849,8 @@ static void pwalk_fillpos(PyObject *pair, PyObject *seen, PyObject *pos) {
       sp->position = pos;
     }
 
-    if (SibPair_CheckExact(CAR(sp))) {
-      pwalk_fillpos(CAR(sp), seen, pos);
+    if (SibPair_CheckExact(SibPair_CAR(sp))) {
+      pwalk_fillpos(SibPair_CAR(sp), seen, pos);
     }
   }
 }
@@ -856,7 +862,7 @@ static PyObject *pair_clear_position(PyObject *self,
   static char *keywords[] = { "follow", NULL };
   int follow = 0;
 
-  if (Sib_Nilp(self))
+  if (SibNil_Check(self))
     Py_RETURN_NONE;
 
   if (! PyArg_ParseTupleAndKeywords(args, kwds, "|p", keywords, &follow))
@@ -884,7 +890,7 @@ static PyObject *pair_set_position(PyObject *self,
   PyObject *position = NULL;
   int follow = 0;
 
-  if (Sib_Nilp(self))
+  if (SibNil_Check(self))
     Py_RETURN_NONE;
 
   if (! PyArg_ParseTupleAndKeywords(args, kwds, "O|p", keywords,
@@ -1017,7 +1023,7 @@ PyTypeObject SibPairType = {
 };
 
 
-PyObject *sib_pair(PyObject *head, PyObject *tail) {
+PyObject *SibPair_New(PyObject *head, PyObject *tail) {
 
   // checked
 
@@ -1053,8 +1059,8 @@ static PyObject *nil_new(PyTypeObject *type,
     return NULL;
   }
 
-  Py_INCREF(Sib_Nil);
-  return Sib_Nil;
+  Py_INCREF(SibNil);
+  return SibNil;
 }
 
 
@@ -1156,7 +1162,7 @@ SibPair _SibNil = {
 
 
 
-PyObject *sib_cons(PyObject *members, int recursive) {
+PyObject *SibPair_Cons(PyObject *members, int recursive) {
 
   // checked
 
@@ -1169,15 +1175,15 @@ PyObject *sib_cons(PyObject *members, int recursive) {
   int count = PySequence_Fast_GET_SIZE(seq);
   if (! count) {
     Py_DECREF(seq);
-    Py_INCREF(Sib_Nil);
-    return Sib_Nil;
+    Py_INCREF(SibNil);
+    return SibNil;
   }
 
-  PyObject *result = sib_pair(PySequence_Fast_GET_ITEM(seq, 0), Sib_Nil);
+  PyObject *result = SibPair_New(PySequence_Fast_GET_ITEM(seq, 0), SibNil);
 
   if (count == 1) {
     if (recursive) {
-      SETCDR(result, result);
+      SibPair_SETCDR(result, result);
     }
 
   } else {
@@ -1185,12 +1191,12 @@ PyObject *sib_cons(PyObject *members, int recursive) {
     Py_INCREF(work);
 
     while (--count) {
-      PyObject *tmp = sib_pair(PySequence_Fast_GET_ITEM(seq, count), work);
+      PyObject *tmp = SibPair_New(PySequence_Fast_GET_ITEM(seq, count), work);
       Py_DECREF(work);
       work = tmp;
     }
 
-    SETCDR(result, work);
+    SibPair_SETCDR(result, work);
     Py_DECREF(work);
   }
 
@@ -1199,7 +1205,7 @@ PyObject *sib_cons(PyObject *members, int recursive) {
 }
 
 
-PyObject *m_cons(PyObject *mod, PyObject *args, PyObject *kwds) {
+static PyObject *m_cons(PyObject *mod, PyObject *args, PyObject *kwds) {
 
   // checked
 
@@ -1229,11 +1235,11 @@ PyObject *m_cons(PyObject *mod, PyObject *args, PyObject *kwds) {
     }
   }
 
-  return sib_cons(args, recursive);
+  return SibPair_Cons(args, recursive);
 }
 
 
-PyObject *m_car(PyObject *mod, PyObject *pair) {
+static PyObject *m_car(PyObject *mod, PyObject *pair) {
 
   // checked
 
@@ -1242,11 +1248,11 @@ PyObject *m_car(PyObject *mod, PyObject *pair) {
   if (! SibPair_Check(pair)) {
     PyErr_SetString(PyExc_TypeError, "car argument must be pair");
 
-  } else if (Sib_Nilp(pair)) {
+  } else if (SibNil_Check(pair)) {
     PyErr_SetString(PyExc_TypeError, "cannot get car of nil");
 
   } else {
-    result = CAR(pair);
+    result = SibPair_CAR(pair);
     Py_INCREF(result);
   }
 
@@ -1254,7 +1260,7 @@ PyObject *m_car(PyObject *mod, PyObject *pair) {
 }
 
 
-PyObject *m_cdr(PyObject *mod, PyObject *pair) {
+static PyObject *m_cdr(PyObject *mod, PyObject *pair) {
 
   // checked
 
@@ -1263,11 +1269,11 @@ PyObject *m_cdr(PyObject *mod, PyObject *pair) {
   if (! SibPair_Check(pair)) {
     PyErr_SetString(PyExc_TypeError, "cdr argument must be pair");
 
-  } else if (Sib_Nilp(pair)) {
+  } else if (SibNil_Check(pair)) {
     PyErr_SetString(PyExc_TypeError, "cannot get cdr of nil");
 
   } else {
-    result = CDR(pair);
+    result = SibPair_CDR(pair);
     Py_INCREF(result);
   }
 
@@ -1275,7 +1281,7 @@ PyObject *m_cdr(PyObject *mod, PyObject *pair) {
 }
 
 
-PyObject *m_setcar(PyObject *mod, PyObject *args) {
+static PyObject *m_setcar(PyObject *mod, PyObject *args) {
 
   // checked
 
@@ -1285,18 +1291,18 @@ PyObject *m_setcar(PyObject *mod, PyObject *args) {
   if (! PyArg_ParseTuple(args, "O!O", &SibPairType, &pair, &val)) {
     return NULL;
 
-  } else if (Sib_Nilp(pair)) {
+  } else if (SibNil_Check(pair)) {
     PyErr_SetString(PyExc_TypeError, "cannot set car of nil");
     return NULL;
 
  } else {
-    SETCAR(pair, val);
+    SibPair_SETCAR(pair, val);
     Py_RETURN_NONE;
   }
 }
 
 
-PyObject *m_setcdr(PyObject *mod, PyObject *args) {
+static PyObject *m_setcdr(PyObject *mod, PyObject *args) {
 
   // checked
 
@@ -1306,19 +1312,19 @@ PyObject *m_setcdr(PyObject *mod, PyObject *args) {
   if (! PyArg_ParseTuple(args, "O!O", &SibPairType, &pair, &val)) {
     return NULL;
 
-  } else if (Sib_Nilp(pair)) {
+  } else if (SibNil_Check(pair)) {
     PyErr_SetString(PyExc_TypeError, "cannot set cdr of nil");
     return NULL;
 
   } else {
-    SETCDR(pair, val);
+    SibPair_SETCDR(pair, val);
     Py_RETURN_NONE;
   }
 }
 
 
 
-PyObject *m_build_unpack_pair(PyObject *mod, PyObject *seqs) {
+static PyObject *m_build_unpack_pair(PyObject *mod, PyObject *seqs) {
 
   // checked
 
@@ -1327,8 +1333,8 @@ PyObject *m_build_unpack_pair(PyObject *mod, PyObject *seqs) {
   PyObject *tmp;
 
   if (! count) {
-    Py_INCREF(Sib_Nil);
-    return Sib_Nil;
+    Py_INCREF(SibNil);
+    return SibNil;
   }
 
   PyObject *coll = PyList_New(0);
@@ -1337,7 +1343,7 @@ PyObject *m_build_unpack_pair(PyObject *mod, PyObject *seqs) {
     PyObject *item = PyTuple_GET_ITEM(seqs, index++);
     PyObject *work;
 
-    if (Sib_Nilp(item)) {
+    if (SibNil_Check(item)) {
       // skip nil
       continue;
 
@@ -1375,24 +1381,79 @@ PyObject *m_build_unpack_pair(PyObject *mod, PyObject *seqs) {
     // out early and just return nil
 
     Py_DECREF(coll);
-    Py_INCREF(Sib_Nil);
-    return Sib_Nil;
+    Py_INCREF(SibNil);
+    return SibNil;
   }
 
   // I wonder if there isn't a better way to do this. We end up
   // traversing the last cons pair twice, which means allocating a set
   // in order to avoid recursion. Is that too expensive?
   tmp = PyTuple_GET_ITEM(seqs, count - 1);
-  if (SibPair_is_proper(tmp)) {
-    if(PyList_Append(coll, Sib_Nil)) {
+  if (SibPair_IsProper(tmp)) {
+    if(PyList_Append(coll, SibNil)) {
       Py_DECREF(coll);
       return NULL;
     }
   }
 
-  PyObject *result = sib_cons(coll, 0);
+  PyObject *result = SibPair_Cons(coll, 0);
   Py_DECREF(coll);
   return result;
+}
+
+
+static PyMethodDef methods[] = {
+
+  { "cons", (PyCFunction) m_cons, METH_VARARGS|METH_KEYWORDS,
+    "cons(head, *tail, recursive=Fasle) -> new pair\n"
+    "If no tail is specified, and recursive is False (the default),\n"
+    "then a nil will be presumed." },
+
+  { "car", m_car, METH_O,
+    "car(P) -> object\n"
+    "Returns the head element of a sibilant pair instance P."},
+
+  { "cdr", m_cdr, METH_O,
+    "cdr(P) -> object\n"
+    "Returns the tail element of a sibilant pair instance P." },
+
+  { "setcar", m_setcar, METH_VARARGS,
+    "setcar(P, obj) -> None\n"
+    "Assigns the head element of a sibilant pair instance P to obj." },
+
+  { "setcdr", m_setcdr, METH_VARARGS,
+    "setcdr(P, obj) -> None\n"
+    "Assigns the tail element of a sibilant pair instance P to obj." },
+
+  { "build_unpack_pair", (PyCFunction) m_build_unpack_pair, METH_VARARGS,
+    "build_unpack_pair(*pair_or_seq) -> new pair\n"
+    "Creates a new sibilant pair list from a collection of pair or\n"
+    "non-pair sequences." },
+
+  { NULL, NULL, 0, NULL },
+};
+
+
+int sib_types_pair_init(PyObject *mod) {
+
+  if (PyType_Ready(&SibPairType))
+    return -1;
+
+  if (PyType_Ready(&SibPairIteratorType))
+    return -1;
+
+  if (PyType_Ready(&SibPairFollowerType))
+    return -1;
+
+  if (PyType_Ready(&SibNilType))
+    return -1;
+
+  PyObject *dict = PyModule_GetDict(mod);
+  PyDict_SetItemString(dict, "nil", SibNil);
+  PyDict_SetItemString(dict, "pair", (PyObject *) &SibPairType);
+
+
+  return PyModule_AddFunctions(mod, methods);
 }
 
 

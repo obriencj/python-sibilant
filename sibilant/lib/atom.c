@@ -103,10 +103,10 @@ static void atom_rewrap(PyObject *vals, unaryfunc conv) {
 /* === symbol === */
 
 
-PyObject *intern_syms = NULL;
+static PyObject *intern_syms = NULL;
 
 
-PyObject *sib_symbol(PyObject *name) {
+PyObject *SibSymbol_FromString(PyObject *name) {
 
   // checked
 
@@ -143,7 +143,7 @@ static PyObject *symbol_new(PyTypeObject *type,
   if (! PyArg_ParseTuple(args, "O:symbol", &name))
     return NULL;
 
-  return sib_symbol(name);
+  return SibSymbol_FromString(name);
 }
 
 
@@ -163,7 +163,7 @@ static PyObject *symbol_split(PyObject *self,
   if (! result)
     return NULL;
 
-  atom_rewrap(result, sib_symbol);
+  atom_rewrap(result, SibSymbol_FromString);
   return result;
 }
 
@@ -184,7 +184,7 @@ static PyObject *symbol_rsplit(PyObject *self,
   if (! result)
     return NULL;
 
-  atom_rewrap(result, sib_symbol);
+  atom_rewrap(result, SibSymbol_FromString);
   return result;
 }
 
@@ -223,7 +223,7 @@ PyTypeObject SibSymbolType = {
 static Py_uhash_t gen_counter = 97531UL;
 
 
-PyObject *sib_gensym(PyObject *name, PyObject *predicate) {
+PyObject *SibGensym_FromString(PyObject *name, PyObject *predicate) {
 
   // checked
 
@@ -254,7 +254,7 @@ PyObject *sib_gensym(PyObject *name, PyObject *predicate) {
     }
 
     // reserves the symbol for this gensym attempt
-    PyObject *maybe_symbol = sib_symbol(maybe_name);
+    PyObject *maybe_symbol = SibSymbol_FromString(maybe_name);
     Py_CLEAR(maybe_name);
 
     if (predicate) {
@@ -280,7 +280,7 @@ PyObject *sib_gensym(PyObject *name, PyObject *predicate) {
 }
 
 
-PyObject *m_gensym(PyObject *mod, PyObject *args) {
+static PyObject *m_gensym(PyObject *mod, PyObject *args) {
 
   // checked
 
@@ -293,17 +293,17 @@ PyObject *m_gensym(PyObject *mod, PyObject *args) {
   if (predicate == Py_None)
     predicate = NULL;
 
-  return sib_gensym(name, predicate);
+  return SibGensym_FromString(name, predicate);
 }
 
 
 /* === keyword === */
 
 
-PyObject *intern_kwds = NULL;
+static PyObject *intern_kwds = NULL;
 
 
-PyObject *sib_keyword(PyObject *name) {
+PyObject *SibKeyword_FromString(PyObject *name) {
   PyObject *clean;
   PyObject *result;
 
@@ -341,7 +341,7 @@ static PyObject *keyword_new(PyTypeObject *type,
   if (! PyArg_ParseTuple(args, "O:keyword", &name))
     return NULL;
 
-  return sib_keyword(name);
+  return SibKeyword_FromString(name);
 }
 
 
@@ -375,7 +375,7 @@ static PyObject *keyword_split(PyObject *self,
   if (! result)
     return NULL;
 
-  atom_rewrap(result, sib_keyword);
+  atom_rewrap(result, SibKeyword_FromString);
   return result;
 }
 
@@ -396,7 +396,7 @@ static PyObject *keyword_rsplit(PyObject *self,
   if (! result)
     return NULL;
 
-  atom_rewrap(result, sib_keyword);
+  atom_rewrap(result, SibKeyword_FromString);
   return result;
 }
 
@@ -427,6 +427,46 @@ PyTypeObject SibKeywordType = {
   .tp_repr = atom_repr,
   .tp_str = atom_str,
 };
+
+
+static PyMethodDef methods[] = {
+
+  { "gensym", (PyCFunction) m_gensym, METH_VARARGS,
+    "gensym(name, predicate=None -> generate a symbol" },
+
+  { NULL, NULL, 0, NULL },
+};
+
+
+int sib_types_atom_init(PyObject *mod) {
+
+  if (! mod)
+    return -1;
+
+  if (! intern_syms) {
+    intern_syms = PyDict_New();
+    if (! intern_syms)
+      return -1;
+  }
+
+  if (! intern_kwds) {
+    intern_kwds = PyDict_New();
+    if (! intern_kwds)
+      return -1;
+  }
+
+  if (PyType_Ready(&SibKeywordType))
+    return -1;
+
+  if (PyType_Ready(&SibSymbolType))
+    return -1;
+
+  PyObject *dict = PyModule_GetDict(mod);
+  PyDict_SetItemString(dict, "symbol", (PyObject *) &SibSymbolType);
+  PyDict_SetItemString(dict, "keyword", (PyObject *) &SibKeywordType);
+
+  return PyModule_AddFunctions(mod, methods);
+}
 
 
 /* The end. */

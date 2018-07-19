@@ -34,6 +34,11 @@
 /* === util === */
 
 
+static PyObject *__get__ = NULL;
+static PyObject *_tco_enable = NULL;
+static PyObject *_tco_original = NULL;
+
+
 static PyObject *_getattro(PyObject *inst, PyObject *name) {
   /* Like PyObject_GetAttr except without some of the checks */
 
@@ -109,10 +114,13 @@ PyObject *m_tailcall_full(PyObject *self, PyObject *args, PyObject *kwds) {
     }
   }
 
-  // kwds are borrowed, work and args are ref'd
-  tmp = sib_tailcall(work, args, kwds);
-  Py_DECREF(work);
-  Py_DECREF(args);
+  // kwds are borrowed, work and args are ref'd, let the new tailcall
+  // steal those references. kwds needs to be incref'd
+
+  tmp = SibTailcall_New(work);
+  ((TailCall *) tmp)->args = args;
+  ((TailCall *) tmp)->kwds = kwds;
+  Py_XINCREF(kwds);
   return tmp;
 }
 
@@ -161,7 +169,7 @@ static PyObject *tailcall_new(PyTypeObject *type,
 
   // work is ref'd
 
-  tmp = sib_tailcall(work, NULL, NULL);
+  tmp = SibTailcall_New(work);
   Py_DECREF(work);
   return tmp;
 }
@@ -206,8 +214,7 @@ PyTypeObject SibTailCallType = {
 };
 
 
-PyObject *sib_tailcall(PyObject *work,
-		       PyObject *args, PyObject *kwds) {
+PyObject *SibTailcall_New(PyObject *work) {
 
   // checked
 
@@ -218,11 +225,8 @@ PyObject *sib_tailcall(PyObject *work,
   Py_XINCREF(work);
   tc->work = work;
 
-  Py_XINCREF(args);
-  tc->args = args;
-
-  Py_XINCREF(kwds);
-  tc->kwds = kwds;
+  tc->args = NULL;
+  tc->kwds = NULL;
 
   return (PyObject *) tc;
 }
@@ -520,7 +524,7 @@ PyTypeObject MethodTrampolineType = {
 };
 
 
-PyObject *m_trampoline(PyObject *self, PyObject *args) {
+static PyObject *m_trampoline(PyObject *self, PyObject *args) {
 
   // checked
 
@@ -545,6 +549,52 @@ PyObject *m_trampoline(PyObject *self, PyObject *args) {
 
   tramp->tco_original = fun;
   return (PyObject *) tramp;
+}
+
+
+static PyMethodDef methods[] = {
+
+  { "tailcall_full", (PyCFunction) m_tailcall_full, METH_VARARGS|METH_KEYWORDS,
+    "tailcall_full(function, *args, **kwds) ->"
+    " tailcall(function)(*args, **kwds)" },
+
+  { "trampoline", m_trampoline, METH_VARARGS,
+    "wraps a callable in a trampoline. A trampoline will catch returned"
+    " tailcall instances and invoke their function and arguments"
+    " in-place. The trampoline will continue catching and bouncing until"
+    " a non-tailcall instance is returned or an exception is raised." },
+
+  { NULL, NULL, 0, NULL },
+};
+
+
+#define STR_CONST(which, val) {			\
+    if (! (which))				\
+      which = PyUnicode_FromString(val);	\
+  }
+
+
+int sib_types_tco_init(PyObject *mod) {
+  if (! mod)
+    return -1;
+
+  if (PyType_Ready(&SibTailCallType))
+    return -1;
+
+  if (PyType_Ready(&FunctionTrampolineType))
+    return -1;
+
+  if (PyType_Ready(&MethodTrampolineType))
+    return -1;
+
+  STR_CONST(__get__, "__get__");
+  STR_CONST(_tco_original, "_tco_original");
+  STR_CONST(_tco_enable, "_tco_enable");
+
+  PyObject *dict = PyModule_GetDict(mod);
+  PyDict_SetItemString(dict, "tailcall", (PyObject *) &SibTailCallType);
+
+  return PyModule_AddFunctions(mod, methods);
 }
 
 

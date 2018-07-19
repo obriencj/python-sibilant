@@ -76,45 +76,31 @@ extern PyTypeObject MethodTrampolineType;
 extern SibPair _SibNil;
 
 
-PyObject *sib_symbol(PyObject *name);
+PyObject *SibSymbol_FromString(PyObject *name);
 
-PyObject *sib_keyword(PyObject *name);
+PyObject *SibKeyword_FromString(PyObject *name);
 
-PyObject *sib_gensym(PyObject *name, PyObject *predicate);
+PyObject *SibGensym_FromString(PyObject *name, PyObject *predicate);
 
-PyObject *m_gensym(PyObject *mod, PyObject *args);
+long SibPair_IsProper(PyObject *self);
 
-PyObject *pair_unpack(PyObject *self, PyObject *_noargs);
+long SibPair_IsRecursive(PyObject *self);
 
-PyObject *m_cons(PyObject *mod, PyObject *args, PyObject *kwds);
+PyObject *SibPair_New(PyObject *head, PyObject *tail);
 
-PyObject *m_car(PyObject *mod, PyObject *pair);
+PyObject *SibPair_Unpack(PyObject *self);
 
-PyObject *m_cdr(PyObject *mod, PyObject *pair);
+PyObject *SibPair_Cons(PyObject *sequence, int recursive);
 
-PyObject *m_setcar(PyObject *mod, PyObject *args);
+PyObject *SibValues_New(PyObject *args, PyObject *kwds);
 
-PyObject *m_setcdr(PyObject *mod, PyObject *args);
+PyObject *SibTailcall_New(PyObject *work);
 
-PyObject *m_build_unpack_pair(PyObject *mod, PyObject *seqs);
+PyObject *SibTailcall_Full(PyObject *self, PyObject *args, PyObject *kwds);
 
-long SibPair_is_proper(PyObject *self);
+PyObject *SibTrampoline_New(PyObject *self, PyObject *args);
 
-long SibPair_is_recursive(PyObject *self);
-
-PyObject *sib_pair(PyObject *head, PyObject *tail);
-
-PyObject *sib_cons(PyObject *sequence, int recursive);
-
-PyObject *sib_values(PyObject *args, PyObject *kwds);
-
-PyObject *quoted(PyObject *u);
-
-PyObject *sib_tailcall(PyObject *work, PyObject *args, PyObject *kwds);
-
-PyObject *m_tailcall_full(PyObject *self, PyObject *args, PyObject *kwds);
-
-PyObject *m_trampoline(PyObject *self, PyObject *args);
+PyObject *sib_quoted(PyObject *u);
 
 
 #define SibSymbol_Check(obj)					\
@@ -137,25 +123,25 @@ PyObject *m_trampoline(PyObject *self, PyObject *args);
   ((obj) && ((obj)->ob_type == &SibPairType))
 
 
-#define Sib_Nil ((PyObject *) &_SibNil)
+#define SibNil ((PyObject *) &_SibNil)
 
-#define Sib_Nilp(val) (((void *) val) == (void *) &_SibNil)
+#define SibNil_Check(val) (((void *) val) == (void *) &_SibNil)
 
 
-#define CAR(p) (((SibPair *) (p))->head)
+#define SibPair_CAR(p) (((SibPair *) (p))->head)
 
-#define CDR(p) (((SibPair *) (p))->tail)
+#define SibPair_CDR(p) (((SibPair *) (p))->tail)
 
-#define SETCAR(p, v) {				\
-    Py_XDECREF(CAR(p));				\
-    CAR(p) = (v);				\
-    Py_XINCREF(CAR(p));				\
+#define SibPair_SETCAR(p, v) {				\
+    Py_XDECREF(SibPair_CAR(p));				\
+    SibPair_CAR(p) = (v);				\
+    Py_XINCREF(SibPair_CAR(p));				\
   }
 
-#define SETCDR(p, v) {				\
-    Py_XDECREF(CDR(p));				\
-    CDR(p) = (v);				\
-    Py_XINCREF(CDR(p));				\
+#define SibPair_SETCDR(p, v) {				\
+    Py_XDECREF(SibPair_CDR(p));				\
+    SibPair_CDR(p) = (v);				\
+    Py_XINCREF(SibPair_CDR(p));				\
   }
 
 
@@ -218,13 +204,11 @@ extern PyObject *_str_starstar;
 extern PyObject *_str_strip;
 extern PyObject *_str_values_paren;
 
-extern PyObject *__get__;
-extern PyObject *_tco_enable;
-extern PyObject *_tco_original;
 
-
-extern PyObject *intern_syms;
-extern PyObject *intern_kwds;
+int sib_types_atom_init(PyObject *module);
+int sib_types_pair_init(PyObject *module);
+int sib_types_tco_init(PyObject *module);
+int sib_types_values_init(PyObject *module);
 
 
 #if (defined(__GNUC__) &&						\

@@ -25,12 +25,15 @@
 */
 
 
+#include "types.h"
+
+
 static PyObject *values_new(PyTypeObject *type,
 			    PyObject *args, PyObject *kwds) {
 
   // checked
 
-  return sib_values(args, kwds);
+  return SibValues_New(args, kwds);
 }
 
 
@@ -125,7 +128,7 @@ static PyObject *values_kwds_getitem(PyObject *self, PyObject *key) {
       // either because there was a NULL keyword dict, or because of
       // an actual NULL result from GetItem. in either of those cases,
       // we want to emit the same KeyError
-      PyErr_SetObject(PyExc_KeyError, quoted(key));
+      PyErr_SetObject(PyExc_KeyError, sib_quoted(key));
       return NULL;
     }
   }
@@ -461,7 +464,7 @@ static PyObject *values_add(PyObject *left, PyObject *right) {
     return NULL;
   }
 
-  result = (SibValues *) sib_values(args, NULL);
+  result = (SibValues *) SibValues_New(args, NULL);
   if (result)
     result->kwds = kwds;  // just to avoid another copy
   Py_DECREF(args);
@@ -542,7 +545,7 @@ PyTypeObject SibValuesType = {
 };
 
 
-PyObject *sib_values(PyObject *args, PyObject *kwds) {
+PyObject *SibValues_New(PyObject *args, PyObject *kwds) {
 
   // checked
 
@@ -563,6 +566,20 @@ PyObject *sib_values(PyObject *args, PyObject *kwds) {
 
   PyObject_GC_Track((PyObject *) self);
   return (PyObject *) self;
+}
+
+
+int sib_types_values_init(PyObject *mod) {
+  if (! mod)
+    return -1;
+
+  if (PyType_Ready(&SibValuesType))
+    return -1;
+
+  PyObject *dict = PyModule_GetDict(mod);
+  PyDict_SetItemString(dict, "values", (PyObject *) &SibValuesType);
+
+  return 0;
 }
 
 
