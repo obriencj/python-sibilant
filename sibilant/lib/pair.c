@@ -28,6 +28,9 @@
 #include "types.h"
 
 
+#define PAIR_MAX_FREE 256
+
+
 /* === PairIteratorType === */
 
 
@@ -187,6 +190,10 @@ PyTypeObject SibPairFollowerType = {
 
 
 /* === pair === */
+
+
+static SibPair *pair_free_list = NULL;
+static int pair_free_count = 0;
 
 
 static PyObject *pair_new(PyTypeObject *type,
@@ -523,8 +530,20 @@ static void pair_dealloc(PyObject *self) {
   Py_CLEAR(SibPair_CDR(self));
   Py_CLEAR(((SibPair *) self)->position);
 
-  // Py_TYPE(self)->tp_free(self);
-  PyObject_GC_Del(self);
+  if (pair_free_count < PAIR_MAX_FREE) {
+    SibPair_CDR(self) = (PyObject *) pair_free_list;
+    pair_free_list = (SibPair *) self;
+    pair_free_count++;
+
+    // printf("saving SibPair for later, count=%i\n", pair_free_count);
+
+  } else {
+
+    // printf("plenty of SibPair, not recycling\n");
+    // Py_TYPE(self)->tp_free(self);
+    PyObject_GC_Del(self);
+  }
+
   Py_TRASHCAN_SAFE_END(self);
 }
 
@@ -1034,7 +1053,19 @@ PyObject *SibPair_New(PyObject *head, PyObject *tail) {
     return NULL;
   }
 
-  self = PyObject_GC_New(SibPair, &SibPairType);
+  if (pair_free_list) {
+    // printf("reusing existing SibPair, count=%i\n", pair_free_count);
+
+    self = pair_free_list;
+    pair_free_list = (SibPair *) SibPair_CDR(self);
+    pair_free_count--;
+    Py_INCREF(self);
+
+  } else {
+    // printf("no spare SibPair, allocating fresh\n");
+    self = PyObject_GC_New(SibPair, &SibPairType);
+  }
+
   self->position = NULL;
 
   Py_INCREF(head);
