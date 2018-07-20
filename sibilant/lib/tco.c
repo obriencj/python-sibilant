@@ -266,6 +266,12 @@ static void trampoline_dealloc(PyObject *self) {
 }
 
 
+#define STEAL(dest, orig) {			\
+    dest = (orig);				\
+    orig = NULL;				\
+  }
+
+
 static PyObject *trampoline_call(PyObject *self,
 				 PyObject *args, PyObject *kwds) {
 
@@ -285,9 +291,9 @@ static PyObject *trampoline_call(PyObject *self,
   while (SibTailcall_Check(result)) {
     // each bounce comes with its own work and arguments
 
-    work = ((Tailcall *) result)->work; Py_XINCREF(work);
-    args = ((Tailcall *) result)->args; Py_XINCREF(args);
-    kwds = ((Tailcall *) result)->kwds; Py_XINCREF(kwds);
+    STEAL(work, ((Tailcall *) result)->work);
+    STEAL(args, ((Tailcall *) result)->args);
+    STEAL(kwds, ((Tailcall *) result)->kwds);
 
     // free up the Tailcall early so it can be reused. This also sets
     // result to a NULL in case we're in an error state.
