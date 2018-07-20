@@ -42,7 +42,7 @@ from sibilant.lib import (
     keyword, is_keyword,
     pair, cons, is_pair, is_proper, nil, is_nil,
     get_position, fill_position,
-    trampoline, tailcall, tailcall_full,
+    trampoline, tailcall,
 )
 
 from sibilant.pseudops import (
