@@ -52,7 +52,7 @@ typedef struct {
   PyObject *work;
   PyObject *args;
   PyObject *kwds;
-} TailCall;
+} Tailcall;
 
 
 typedef struct {
@@ -68,7 +68,7 @@ extern PyTypeObject SibPairIteratorType;
 extern PyTypeObject SibPairFollowerType;
 extern PyTypeObject SibNilType;
 extern PyTypeObject SibValuesType;
-extern PyTypeObject SibTailCallType;
+extern PyTypeObject SibTailcallType;
 extern PyTypeObject FunctionTrampolineType;
 extern PyTypeObject MethodTrampolineType;
 
@@ -95,8 +95,6 @@ PyObject *SibPair_Cons(PyObject *sequence, int recursive);
 PyObject *SibValues_New(PyObject *args, PyObject *kwds);
 
 PyObject *SibTailcall_New(PyObject *work);
-
-PyObject *SibTailcall_Full(PyObject *self, PyObject *args, PyObject *kwds);
 
 PyObject *SibTrampoline_New(PyObject *self, PyObject *args);
 
@@ -152,8 +150,8 @@ PyObject *sib_quoted(PyObject *u);
   ((obj) && ((obj)->ob_type == &SibValuesType))
 
 
-#define SibTailCall_Check(obj)				\
-  (likely(obj) && ((obj)->ob_type == &SibTailCallType))
+#define SibTailcall_Check(obj)				\
+  (likely(obj) && ((obj)->ob_type == &SibTailcallType))
 
 
 #define SibTrampoline_Check(obj)			\

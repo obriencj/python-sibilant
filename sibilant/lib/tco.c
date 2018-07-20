@@ -39,6 +39,9 @@ static PyObject *_tco_enable = NULL;
 static PyObject *_tco_original = NULL;
 
 
+static Tailcall *tailcall_free_list = NULL;
+
+
 static PyObject *_getattro(PyObject *inst, PyObject *name) {
   /* Like PyObject_GetAttr except without some of the checks */
 
@@ -63,10 +66,11 @@ static PyObject *_getattro(PyObject *inst, PyObject *name) {
 }
 
 
-/* === SibTailCallType === */
+/* === SibTailcallType === */
 
 
-PyObject *m_tailcall_full(PyObject *self, PyObject *args, PyObject *kwds) {
+static PyObject *m_tailcall_full(PyObject *self,
+				 PyObject *args, PyObject *kwds) {
 
   // checked
 
@@ -118,8 +122,8 @@ PyObject *m_tailcall_full(PyObject *self, PyObject *args, PyObject *kwds) {
   // steal those references. kwds needs to be incref'd
 
   tmp = SibTailcall_New(work);
-  ((TailCall *) tmp)->args = args;
-  ((TailCall *) tmp)->kwds = kwds;
+  ((Tailcall *) tmp)->args = args;
+  ((Tailcall *) tmp)->kwds = kwds;
   Py_XINCREF(kwds);
   return tmp;
 }
@@ -179,11 +183,15 @@ static void tailcall_dealloc(PyObject *self) {
 
   // checked
 
-  Py_CLEAR(((TailCall *) self)->work);
-  Py_CLEAR(((TailCall *) self)->args);
-  Py_CLEAR(((TailCall *) self)->kwds);
+  Py_CLEAR(((Tailcall *) self)->work);
+  Py_CLEAR(((Tailcall *) self)->args);
+  Py_CLEAR(((Tailcall *) self)->kwds);
 
-  Py_TYPE(self)->tp_free(self);
+  if (tailcall_free_list) {
+    Py_TYPE(self)->tp_free(self);
+  } else {
+    tailcall_free_list = (Tailcall *) self;
+  }
 }
 
 
@@ -192,19 +200,19 @@ static PyObject *tailcall_call(PyObject *self,
 
   // checked
 
-  Py_ASSIGN(((TailCall *) self)->args, args);
-  Py_ASSIGN(((TailCall *) self)->kwds, kwds);
+  Py_ASSIGN(((Tailcall *) self)->args, args);
+  Py_ASSIGN(((Tailcall *) self)->kwds, kwds);
 
   Py_INCREF(self);
   return self;
 }
 
 
-PyTypeObject SibTailCallType = {
+PyTypeObject SibTailcallType = {
     PyVarObject_HEAD_INIT(NULL, 0)
 
-    "sibilant.TailCall",
-    sizeof(TailCall),
+    "sibilant.Tailcall",
+    sizeof(Tailcall),
     0,
 
     .tp_new = tailcall_new,
@@ -218,15 +226,28 @@ PyObject *SibTailcall_New(PyObject *work) {
 
   // checked
 
-  TailCall *tc = PyObject_New(TailCall, &SibTailCallType);
-  if (unlikely(! tc))
-    return NULL;
+  Tailcall *tc = NULL;
+
+  if (tailcall_free_list) {
+    // printf("using existing Tailcall instance\n");
+
+    tc = tailcall_free_list;
+    tailcall_free_list = NULL;
+    Py_INCREF(tc);
+
+  } else {
+    // printf("no existing Tailcall instance, allocating\n");
+
+    tc = PyObject_New(Tailcall, &SibTailcallType);
+    if (unlikely(! tc))
+      return NULL;
+
+    tc->args = NULL;
+    tc->kwds = NULL;
+  }
 
   Py_XINCREF(work);
   tc->work = work;
-
-  tc->args = NULL;
-  tc->kwds = NULL;
 
   return (PyObject *) tc;
 }
@@ -251,7 +272,7 @@ static PyObject *trampoline_call(PyObject *self,
   // checked
 
   PyObject *work = ((Trampoline *) self)->tco_original;
-  TailCall *bounce = NULL;
+  PyObject *result = NULL;
 
   if (unlikely(! work)) {
     PyErr_SetString(PyExc_ValueError, "trampoline invoked with no function");
@@ -259,32 +280,35 @@ static PyObject *trampoline_call(PyObject *self,
   }
 
   // initial call using the given arguments
-  work = PyObject_Call(work, args, kwds);
+  result = PyObject_Call(work, args, kwds);
 
-  while (SibTailCall_Check(work)) {
+  while (SibTailcall_Check(result)) {
     // each bounce comes with its own work and arguments
-    bounce = (TailCall *) work;
-    work = bounce->work;
-    args = bounce->args;
+
+    work = ((Tailcall *) result)->work; Py_XINCREF(work);
+    args = ((Tailcall *) result)->args; Py_XINCREF(args);
+    kwds = ((Tailcall *) result)->kwds; Py_XINCREF(kwds);
+
+    // free up the Tailcall early so it can be reused. This also sets
+    // result to a NULL in case we're in an error state.
+    Py_CLEAR(result);
 
     if (likely(work && args)) {
-      work = PyObject_Call(work, args, bounce->kwds);
-      Py_DECREF(bounce);
-      continue;
+      result = PyObject_Call(work, args, kwds);
 
     } else if (! work) {
-      Py_DECREF(bounce);
       PyErr_SetString(PyExc_ValueError, "tailcall bounced with no function");
-      return NULL;
 
     } else if (! args) {
-      Py_DECREF(bounce);
       PyErr_SetString(PyExc_ValueError, "tailcall bounced with no args");
-      return NULL;
     }
+
+    Py_CLEAR(work);
+    Py_CLEAR(args);
+    Py_CLEAR(kwds);
   }
 
-  return work;
+  return result;
 }
 
 
@@ -578,7 +602,7 @@ int sib_types_tco_init(PyObject *mod) {
   if (! mod)
     return -1;
 
-  if (PyType_Ready(&SibTailCallType))
+  if (PyType_Ready(&SibTailcallType))
     return -1;
 
   if (PyType_Ready(&FunctionTrampolineType))
@@ -592,7 +616,7 @@ int sib_types_tco_init(PyObject *mod) {
   STR_CONST(_tco_enable, "_tco_enable");
 
   PyObject *dict = PyModule_GetDict(mod);
-  PyDict_SetItemString(dict, "tailcall", (PyObject *) &SibTailCallType);
+  PyDict_SetItemString(dict, "tailcall", (PyObject *) &SibTailcallType);
 
   return PyModule_AddFunctions(mod, methods);
 }
