@@ -27,18 +27,21 @@ Sibilant, a LISP for Python
 from setuptools import setup, Extension
 
 
-ext_tco = Extension(
-    name = "sibilant._tco",
-    sources = ["sibilant/_tco.c"],
-    include_dirs = ["include"],
-    extra_compile_args=["--std=c99", "-g", "-Wall", "-Werror"],
-)
-
 ext_types = Extension(
-    name = "sibilant._types",
-    sources = ["sibilant/_types.c"],
-    include_dirs = ["include"],
-    extra_compile_args=["--std=c99", "-g", "-Wall", "-Werror"],
+    name = "sibilant.lib._types",
+    sources = [
+        "sibilant/lib/_types.c",
+        "sibilant/lib/atom.c",
+        "sibilant/lib/pair.c",
+        "sibilant/lib/tco.c",
+        "sibilant/lib/values.c",
+    ],
+    extra_compile_args=[
+        "--std=c99",
+        "-g",
+        "-Wall",
+        "-Werror",
+    ],
 )
 
 
@@ -50,6 +53,7 @@ setup(
         "sibilant",
         "sibilant.compiler",
         "sibilant.compiler.targets",
+        "sibilant.lib",
         "sibilant.pseudops",
         "sibilant.pseudops.targets",
         "sibilant.site",
@@ -61,13 +65,7 @@ setup(
     },
 
     ext_modules = [
-        ext_tco,
         ext_types,
-    ],
-
-    headers = [
-        "include/sibilant-types.h",
-        "include/sibilant-tco.h",
     ],
 
     test_suite = "tests",

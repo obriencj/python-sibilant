@@ -25,20 +25,18 @@ from ._types import reapply
 from ._types import build_tuple, build_list, build_set, build_dict
 from ._types import values
 from ._types import getderef, setderef, clearderef
-
-from ._tco import trampoline, tailcall
+from ._types import trampoline, tailcall, tailcall_full
 
 
 __all__ = (
     "SibilantException", "NotYetImplemented",
+
     "symbol", "is_symbol",
     "keyword", "is_keyword",
+    "gensym", "lazygensym", "is_lazygensym",
 
-    "gensym",
-    "lazygensym", "is_lazygensym",
-
-    "pair", "cons", "nil",
-    "car", "cdr", "setcar", "setcdr",
+    "pair", "nil",
+    "cons" "car", "cdr", "setcar", "setcdr",
     "is_nil", "is_pair", "is_proper", "is_recursive",
 
     "build_proper", "unpack",
@@ -52,7 +50,8 @@ __all__ = (
 
     "getderef", "setderef", "clearderef",
 
-    "trampoline", "tailcall", "tailcall_disable", "tailcall_enable",
+    "trampoline", "tailcall", "tailcall_full",
+    "tailcall_disable", "tailcall_enable",
 )
 
 
