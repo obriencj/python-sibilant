@@ -42,7 +42,7 @@ from sibilant.lib import (
     keyword, is_keyword,
     pair, cons, is_pair, is_proper, nil, is_nil,
     get_position, fill_position,
-    trampoline, tailcall,
+    trampoline, tailcall, tailcall_full,
 )
 
 from sibilant.pseudops import (
@@ -78,6 +78,7 @@ _symbol_False = symbol("False")
 _symbol_ellipsis = symbol("...")
 _symbol_keyword = symbol("keyword")
 _symbol_tailcall = symbol("tailcall")
+_symbol_tailcall_full = symbol("tailcall-full")
 
 
 Symbol = Union[lazygensym, symbol]
@@ -526,6 +527,11 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
             # itself, even if it would be a tailcall to apply it as a
             # function afterwards.
             return tailcall(self.compile_pair)(head, False, ccp)
+
+        elif tc:
+            self.declare_tailcall()
+            self.pseudop_get_global(_symbol_tailcall_full)
+            return tailcall(self.complete_apply)(source_obj, pos, False, cont)
 
         else:
             self.add_expression(head)

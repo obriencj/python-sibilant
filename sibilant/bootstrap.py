@@ -141,6 +141,7 @@ def __setup__(glbls):
     _ty(compiler.Operator, "operator")
 
     _ty(lib.tailcall, "tailcall")
+    _op(lib.tailcall_full, "tailcall-full")
     _op(lib.trampoline, "trampoline")
     _op(lib.tailcall_disable, "tailcall-disable")
     _op(lib.tailcall_enable, "tailcall-enable")
