@@ -25,7 +25,7 @@ from ._types import reapply
 from ._types import build_tuple, build_list, build_set, build_dict
 from ._types import values
 from ._types import getderef, setderef, clearderef
-from ._types import trampoline, tailcall, tailcall_full
+from ._types import trampoline, tailcall, tailcall_full, tcr_frame_vars
 
 
 __all__ = (
@@ -50,7 +50,7 @@ __all__ = (
 
     "getderef", "setderef", "clearderef",
 
-    "trampoline", "tailcall", "tailcall_full",
+    "trampoline", "tailcall", "tailcall_full", "tcr_frame_vars",
     "tailcall_disable", "tailcall_enable",
 )
 

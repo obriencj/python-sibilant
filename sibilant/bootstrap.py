@@ -145,6 +145,7 @@ def __setup__(glbls):
     _op(lib.trampoline, "trampoline")
     _op(lib.tailcall_disable, "tailcall-disable")
     _op(lib.tailcall_enable, "tailcall-enable")
+    _op(lib.tcr_frame_vars, "__tcr_frame_vars__")
 
     _op(compiler.current, "active-compiler")
 

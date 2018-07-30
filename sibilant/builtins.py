@@ -65,6 +65,7 @@ def __setup__(glbls):
         "__import__",
         "__format_value__",
         "__build_string__",
+        "__tcr_frame_vars__",
     )
 
     # 3. merge bootstrap and basics together into this module

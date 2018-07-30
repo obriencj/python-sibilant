@@ -79,7 +79,7 @@ _symbol_ellipsis = symbol("...")
 _symbol_keyword = symbol("keyword")
 _symbol_tailcall = symbol("tailcall")
 _symbol_tailcall_full = symbol("tailcall-full")
-
+_symbol_tcr_frame = symbol("__tcr_frame_vars__")
 
 Symbol = Union[lazygensym, symbol]
 
@@ -496,12 +496,15 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
         Compile a runtime function apply expression.
         """
 
+        if tc and self.tco_enabled and not self.generator and self.self_ref:
+            return tailcall(self.compile_tcr_apply)(source_obj, tc, cont)
+
         head, tail = source_obj
 
         pos = source_obj.get_position()
 
         if is_pair(head):
-            @trampoline
+            # @trampoline
             def ccp(new_head, tc):
                 # Continue Compiling Pair. This is how we finish
                 # compiling a function invocation after first
@@ -536,6 +539,43 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
         else:
             self.add_expression(head)
             return tailcall(self.complete_apply)(tail, pos, tc, cont)
+
+
+    @trampoline
+    def compile_tcr_apply(self, source_obj: pair, tc, cont):
+        assert tc
+
+        # print("compiling a tcr apply", source_obj)
+
+        pos = source_obj.get_position()
+        tcr_source = cons(self.self_ref, source_obj)
+        tcr_source.set_position(pos)
+
+        # @trampoline
+        def ccp(done_source, tc):
+            assert done_source is None
+            return tailcall(self.complete_tcr_apply)(cont)
+
+        self.pseudop_get_global(_symbol_tcr_frame)
+        return tailcall(self.complete_apply)(tcr_source, pos, False, ccp)
+
+
+    @trampoline
+    def complete_tcr_apply(self, cont):
+        # print("completing a tcr apply")
+
+        non_tcr = self.gen_label()
+
+        self.pseudop_unpack_sequence(2)
+        self.pseudop_pop_jump_if_false(non_tcr)
+
+        self.pseudop_pop()
+        self.pseudop_jump(0)
+
+        self.pseudop_label(non_tcr)
+        self.declare_tailcall()
+
+        return tailcall(cont)(None, False)
 
 
     @abstractmethod
