@@ -119,6 +119,8 @@ static PyObject *do_tc_full(PyObject *work, PyObject *args, PyObject *kwds) {
 static void
 format_missing(const char *kind, PyCodeObject *co, PyObject *names)
 {
+  /* directly copied from cpython, for use from apply_frame_vars */
+
     int err;
     Py_ssize_t len = PyList_GET_SIZE(names);
     PyObject *name_str, *comma, *tail, *tmp;
@@ -182,6 +184,8 @@ static void
 missing_arguments(PyCodeObject *co, Py_ssize_t missing, Py_ssize_t defcount,
                   PyObject **fastlocals)
 {
+    /* directly copied from cpython, for use from apply_frame_vars */
+
     Py_ssize_t i, j = 0;
     Py_ssize_t start, end;
     int positional = (defcount != -1);
@@ -220,6 +224,8 @@ static void
 too_many_positional(PyCodeObject *co, Py_ssize_t given, Py_ssize_t defcount,
                     PyObject **fastlocals)
 {
+    /* directly copied from cpython, for use from apply_frame_vars */
+
     int plural;
     Py_ssize_t kwonly_given = 0;
     Py_ssize_t i;
@@ -278,40 +284,56 @@ static int apply_frame_vars(PyFrameObject *frame,
 			    PyObject **args, Py_ssize_t argcount,
 			    PyObject *kwds_dict) {
 
+  /* adapted from cpython, this is a way for us to reset a frame's
+     local and cell vars similarly to how they would be initialized
+     during function calls. */
+
   PyCodeObject *co = frame->f_code;
   PyObject **fastlocals = frame->f_localsplus;
 
+  const Py_ssize_t n_locals = co->co_nlocals;
+  const Py_ssize_t n_cellvars = PyTuple_GET_SIZE(co->co_cellvars);
+
   const Py_ssize_t total_args = co->co_argcount + co->co_kwonlyargcount;
   Py_ssize_t i, n;
-  PyObject *kwdict;
 
   PyObject *x, *u;
 
   // reset the frame's locals and cell vars. free vars remain
   // untouched.
-  for (i = (co->co_nlocals + PyTuple_GET_SIZE(co->co_cellvars)); i--; ) {
+  for (i = (n_locals + n_cellvars); i--; ) {
     Py_CLEAR(fastlocals[i]);
   }
 
-  PyObject **defs = NULL;
-  Py_ssize_t defcount = 0;
+  PyObject **defs;
+  Py_ssize_t defcount;
 
   u = PyFunction_GET_DEFAULTS(func);
   if (u && PyTuple_Check(u)) {
     defs = &PyTuple_GET_ITEM(u, 0);
     defcount = PyTuple_GET_SIZE(u);
+  } else {
+    defs = NULL;
+    defcount = 0;
   }
 
   PyObject *kwdefs = PyFunction_GET_KW_DEFAULTS(func);
 
-  // the rest of this is a nearly identical copy of what CPython's
-  // _PyEval_EvalCodeWithName does to copy args/kwds into the frame
+  /*
+    the rest of this is a nearly identical copy of what CPython's
+    _PyEval_EvalCodeWithName does to copy args/kwds into the frame.
+    Some aspects were adopted to work with the slightly different
+    structure of arguments we deal with.
+  */
 
-  /* Create a dictionary for keyword parameters (**kwags) */
+  // Create a dictionary for keyword parameters (**kwags)
+  PyObject *kwdict;
+
   if (co->co_flags & CO_VARKEYWORDS) {
     kwdict = PyDict_New();
-    if (kwdict == NULL)
+    if (kwdict == NULL) {
       goto fail;
+    }
     i = total_args;
     if (co->co_flags & CO_VARARGS) {
       i++;
@@ -323,14 +345,9 @@ static int apply_frame_vars(PyFrameObject *frame,
   }
 
   // Copy positional arguments into locals
-  if (argcount > co->co_argcount) {
-    n = co->co_argcount;
+  n = (argcount > co->co_argcount)? co->co_argcount: argcount;
 
-  } else {
-    n = argcount;
-  }
-
-  for (i = 0; i < n; i++) {
+  for (i = n; i--; ) {
     x = args[i];
     Py_INCREF(x);
     SETLOCAL(i, x);
@@ -351,7 +368,6 @@ static int apply_frame_vars(PyFrameObject *frame,
   }
 
   // Handle keyword arguments passed as two strided arrays
-
   if (kwds_dict && (PyDict_Size(kwds_dict))) {
     Py_ssize_t pos = 0;
     PyObject *keyword = NULL;
@@ -372,7 +388,7 @@ static int apply_frame_vars(PyFrameObject *frame,
       /* Speed hack: do raw pointer compares. As names are
 	 normally interned this should almost always hit. */
       co_varnames = ((PyTupleObject *)(co->co_varnames))->ob_item;
-      for (j = 0; j < total_args; j++) {
+      for (j = total_args; j--; ) {
 	PyObject *name = co_varnames[j];
 	if (name == keyword) {
 	  goto kw_found;
@@ -380,7 +396,7 @@ static int apply_frame_vars(PyFrameObject *frame,
       }
 
       /* Slow fallback, just in case */
-      for (j = 0; j < total_args; j++) {
+      for (j = total_args; j--; ) {
 	PyObject *name = co_varnames[j];
 	int cmp = PyObject_RichCompareBool(keyword, name, Py_EQ);
 	if (cmp > 0) {
@@ -390,17 +406,18 @@ static int apply_frame_vars(PyFrameObject *frame,
 	}
       }
 
-      if (j >= total_args && kwdict == NULL) {
+      if (kwdict == NULL) {
 	PyErr_Format(PyExc_TypeError,
 		     "%U() got an unexpected keyword argument '%S'",
 		     co->co_name, keyword);
 	goto fail;
-      }
 
-      if (PyDict_SetItem(kwdict, keyword, value) == -1) {
+      } else if (PyDict_SetItem(kwdict, keyword, value) == -1) {
 	goto fail;
+
+      } else {
+	continue;
       }
-      continue;
 
     kw_found:
       if (GETLOCAL(j)) {
@@ -415,13 +432,13 @@ static int apply_frame_vars(PyFrameObject *frame,
     }
   }
 
-  /* Check the number of positional arguments */
+  // Check the number of positional arguments
   if (argcount > co->co_argcount && !(co->co_flags & CO_VARARGS)) {
     too_many_positional(co, argcount, defcount, fastlocals);
     goto fail;
   }
 
-  /* Add missing positional arguments (copy default values from defs) */
+  // Add missing positional arguments (copy default values from defs)
   if (argcount < co->co_argcount) {
     Py_ssize_t m = co->co_argcount - defcount;
     Py_ssize_t missing = 0;
@@ -448,7 +465,7 @@ static int apply_frame_vars(PyFrameObject *frame,
     }
   }
 
-  /* Add missing keyword arguments (copy default values from kwdefs) */
+  // Add missing keyword arguments (copy default values from kwdefs)
   if (co->co_kwonlyargcount > 0) {
     Py_ssize_t missing = 0;
 
@@ -479,7 +496,7 @@ static int apply_frame_vars(PyFrameObject *frame,
   }
 
   // Allocate and initialize storage for cell vars
-  for (i = 0; i < PyTuple_GET_SIZE(co->co_cellvars); ++i) {
+  for (i = 0; i < n_cellvars; ++i) {
     PyObject *c;
     int arg;
 
@@ -507,50 +524,56 @@ static int apply_frame_vars(PyFrameObject *frame,
 static PyObject *m_tcr_frame_vars(PyObject *mod,
 				  PyObject *args, PyObject *kwds) {
 
-  PyObject *selfref = NULL, *work = NULL;
-  PyObject *result = NULL;
+  PyObject *result;
 
-  selfref = PyTuple_GET_ITEM(args, 0);
-  work = PyTuple_GET_ITEM(args, 1);
+  Py_ssize_t argc = args? PyTuple_GET_SIZE(args): 0;
+  if (argc < 2) {
+    return NULL;
+  }
 
-  // printf("entering tcr_frame_vars\n");
+  PyObject *selfref = PyTuple_GET_ITEM(args, 0);
+  PyObject *work = PyTuple_GET_ITEM(args, 1);
 
-  // note, this won't TCR on methods.
+  // note, this won't TCR on methods. We might make adapt that to work
+  // later on (moving self ref over into args)
+
   if (work == selfref) {
+    PyObject **argptr = (argc > 2)? &PyTuple_GET_ITEM(args, 2): NULL;
 
-    PyObject **argptr = NULL;
-    Py_ssize_t argc = PyTuple_GET_SIZE(args);
-    if (argc > 2) {
-      argptr = &PyTuple_GET_ITEM(args, 2);
-      argc -= 2;
-    }
+    if (apply_frame_vars(PyEval_GetFrame(), work, argptr, argc - 2, kwds)) {
+      result = NULL;
 
-    // apply remaining args into existing top frame
-    if (! apply_frame_vars(PyEval_GetFrame(), work, argptr, argc, kwds)) {
-      result = PyTuple_New(2);
-      Py_INCREF(Py_None);
-      PyTuple_SET_ITEM(result, 1, Py_None);
-
-      Py_INCREF(Py_True);
-      PyTuple_SET_ITEM(result, 0, Py_True);
+    } else {
+      Py_INCREF(Py_False);
+      result = Py_False;
     }
 
   } else {
+
+    // this isn't the same function, so we won't be doing the jump
+    // 0. Instead, we'll be using tailcall_full to either wrap up the
+    // function or invoke it inline if it's not TCO enabled.
 
     args = PyTuple_GetSlice(args, 2, PyTuple_GET_SIZE(args));
     PyObject *tc = do_tc_full(work, args, kwds);
     Py_DECREF(args);
 
     if (tc) {
-      result = PyTuple_New(2);
-      PyTuple_SET_ITEM(result, 1, tc);
+      result = PyTuple_New(1);
+      PyTuple_SET_ITEM(result, 0, tc);
 
-      Py_INCREF(Py_False);
-      PyTuple_SET_ITEM(result, 0, Py_False);
+    } else {
+      result = NULL;
     }
   }
 
-  // DEBUGMSG("leaving tcr_frame_vars", result);
+  /*
+    result is one of the following:
+     - NULL to signal an exception
+     - False if a JUMP 0 is appropriate
+     - 1-tuple of Tailcall instance for the trampoline to bounce
+     - 1-tuple of inline function call result for trampoline to return
+  */
   return result;
 }
 

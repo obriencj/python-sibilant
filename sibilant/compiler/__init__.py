@@ -566,13 +566,11 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
 
         non_tcr = self.gen_label()
 
-        self.pseudop_unpack_sequence(2)
-        self.pseudop_pop_jump_if_false(non_tcr)
-
-        self.pseudop_pop()
+        self.pseudop_jump_if_true_or_pop(non_tcr)
         self.pseudop_jump(0)
 
         self.pseudop_label(non_tcr)
+        self.pseudop_unpack_sequence(1)
         self.declare_tailcall()
 
         return tailcall(cont)(None, False)
