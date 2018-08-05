@@ -268,14 +268,14 @@ class StackCounter(metaclass=MetaStackCounter):
 
     @stacker(Pseudop.JUMP_IF_FALSE_OR_POP)
     def stacker_jump_if_false_or_pop(self, pseudop, args, push, pop):
-        # pop()
         self.stacker_jump(pseudop, args, push, pop)
+        pop()
 
 
     @stacker(Pseudop.JUMP_IF_TRUE_OR_POP)
     def stacker_jump_if_true_or_pop(self, pseudop, args, push, pop):
-        # pop()
         self.stacker_jump(pseudop, args, push, pop)
+        pop()
 
 
     @stacker(Pseudop.POP_JUMP_IF_FALSE)
