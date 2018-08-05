@@ -1,0 +1,87 @@
+(X A B C)
+::= (return ((tailcall X) A B C))
+::= (return (tailcall-full X A B C))
+
+
+
+(X A B C)
+::= (if (current-function? X)
+      then: {(set-frame-vars A B C)
+      	     (jump 0)}
+      else: (return (tailcall-full X A B C)))
+
+
+(defmacro current-function? (f)
+  `(== ,(request-self-ref) ,f))
+
+
+::=
+
+EXPR X
+DUP_TOP
+LOAD_DEREF $self-ref
+COMPARE_IS
+POP_JUMP_IF_FALSE $non-tco
+
+$tco:
+POP_TOP
+LOAD_GLOBAL __set_frame_vars__
+EXPR A
+EXPR B
+EXPR C
+CALL_FUNCTION 3
+JUMP_0
+
+$non-tco:
+LOAD_GLOBAL __tailcall__
+ROT_TWO
+CALL_FUNCTION 1
+EXPR A
+EXPR B
+EXPR C
+CALL_FUNCTION 3
+RETURN_VAL
+
+
+---
+
+LOAD_GLOBAL __tcr_frame_vars__
+LOAD_DEREF $self_ref
+EXPR X
+EXPR A
+EXPR B
+EXPR C
+CALL_FUNCTION 5
+JUMP_IF_FALSE_ELSE_POP 0
+UNPACK_SEQUENCE 1
+RETURN_VAL
+
+
+---
+
+EXPR X
+DUP
+LOAD_DEREF $self_ref
+COMPARE_IS
+POP_JUMP_IF_FALSE $non_tco
+
+$tco:
+POP
+EXPR A
+EXPR B
+EXPR C
+SET_LOCAL C
+SET_LOCAL B
+SET_LOCAL A
+JUMP 0
+
+$non_tco:
+LOAD_GLOBAL tailcall-full
+ROT_TWO
+EXPR A
+EXPR B
+EXPR C
+CALL_FUNCTION 4
+RETURN_VAL
+
+...
