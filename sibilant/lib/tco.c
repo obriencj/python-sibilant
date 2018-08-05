@@ -584,7 +584,6 @@ static PyObject *m_tailcall_full(PyObject *mod,
   // checked
 
   PyObject *work = NULL;
-  PyObject *result = NULL;
 
   if (PyTuple_GET_SIZE(args) <= 1) {
     if (unlikely(! PyArg_ParseTuple(args, "O", &work))) {
@@ -597,7 +596,7 @@ static PyObject *m_tailcall_full(PyObject *mod,
     args = PyTuple_GetSlice(args, 1, PyTuple_GET_SIZE(args));
   }
 
-  result = do_tc_full(work, args, kwds);
+  PyObject *result = do_tc_full(work, args, kwds);
   Py_DECREF(args);
 
   return result;
@@ -784,9 +783,9 @@ static PyObject *trampoline_call(PyObject *self,
       PyErr_SetString(PyExc_ValueError, "tailcall bounced with no args");
     }
 
-    Py_CLEAR(work);
-    Py_CLEAR(args);
-    Py_CLEAR(kwds);
+    Py_XDECREF(work);
+    Py_XDECREF(args);
+    Py_XDECREF(kwds);
   }
 
   return result;
@@ -869,6 +868,14 @@ static PyGetSetDef trampoline_func_getset[] = {
     (getter) trampoline_tco_enable, NULL,
     "", NULL },
 
+  { "__annotations__",
+    (getter) get_original, (setter) set_original,
+    "", "__annotations__" },
+
+  { "__closure__",
+    (getter) get_original, (setter) set_original,
+    "", "__closure__" },
+
   { "__code__",
     (getter) get_original, (setter) set_original,
     "", "__code__" },
@@ -880,10 +887,6 @@ static PyGetSetDef trampoline_func_getset[] = {
   { "__kwdefaults__",
     (getter) get_original, (setter) set_original,
     "", "__kwdefaults__" },
-
-  { "__annotations__",
-    (getter) get_original, (setter) set_original,
-    "", "__annotations__" },
 
   { "__dict__",
     (getter) get_original, (setter) set_original,
