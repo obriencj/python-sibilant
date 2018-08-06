@@ -499,7 +499,9 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
         Compile a runtime function apply expression.
         """
 
-        if tc and self.tco_enabled and not self.generator and self.self_ref:
+        tc = tc and self.tco_enabled and not self.generator
+
+        if tc and self.self_ref:
             return tcf(self.compile_tcr_apply, source_obj, tc, cont)
 
         head, tail = source_obj
@@ -551,16 +553,22 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
         # print("compiling a tcr apply", source_obj)
 
         pos = source_obj.get_position()
-        tcr_source = cons(self.self_ref, source_obj)
-        tcr_source.set_position(pos)
 
-        # @trampoline
-        def ccp(done_source, tc):
-            assert done_source is None
-            return tcf(self.complete_tcr_apply, cont)
+        maybe = self.helper_inline_tcr(source_obj)
+        if maybe:
+            fun, args = source_obj
+            return tcf(self.complete_apply, args, pos, True,  cont)
 
-        self.pseudop_get_global(_symbol_tcr_frame)
-        return tcf(self.complete_apply, tcr_source, pos, False, ccp)
+        else:
+            def ccp(done_source, tc):
+                assert done_source is None
+                return tcf(self.complete_tcr_apply, cont)
+
+            tcr_source = cons(self.self_ref, source_obj)
+            tcr_source.set_position(pos)
+
+            self.pseudop_get_global(_symbol_tcr_frame)
+            return tcf(self.complete_apply, tcr_source, pos, False, ccp)
 
 
     @trampoline
@@ -675,14 +683,14 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
 
         self.declare_tailcall()
 
-        self.helper_tailrecur_tos(args, position)
+        # self.helper_tailrecur_tos(args, position)
 
         self.pseudop_get_global(_symbol_tailcall)
         self.pseudop_rot_two()
         self.pseudop_call(1)
 
 
-    def helper_tailrecur_tos(self, args, position):
+    def helper_inline_tcr(self, source_obj):
         """
         Checks for a tail recursion invocation. This should only be
         invoked if it has already been determined that a tail-call
@@ -694,13 +702,8 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
         code object.
         """
 
-        # test for possible recursion optimization.
-
-        # first check, make sure we've got a self-ref available. If we
-        # don't then we cannot ensure it's actually a recursive call
-        # at runtime, so a jump0 is unsafe.
-        if self.self_ref is None:
-            return
+        position = source_obj.get_position()
+        fun, args = source_obj
 
         # next, let's see if the parameters being passed line up with
         # the formals we're set up with
@@ -708,13 +711,16 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
         parameters = gather_parameters(args, position)
         pos, kwds, vals, star, starstar = parameters
 
-        if self.varargs or self.varkeywords or star or starstar:
+        if star or starstar \
+           or self.varargs or self.varkeywords \
+           or self.cell_vars:
+
             # no support for variadics, it's too tricky to inline. A
             # trampoline bounce isn't any slower than us calling to
             # other functions to figure out how to reform variadics
             # prior to a jump0, so just let the trampoline do its
             # bounce.
-            return
+            return False
 
         self_args = self.args
 
@@ -728,10 +734,10 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
             if arg in bindings:
                 # keyword parameter dups positional parameter name,
                 # fall back on trampoline
-                return
+                return False
             elif arg not in self_args:
                 # unknown keyword parameter, fall back on trampoline
-                return
+                return False
             else:
                 bindings.append(arg)
 
@@ -740,7 +746,7 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
             # again it's easier to just let the trampoline bounce and
             # have python figure out the args (and potentially raise a
             # TypeError). Default values take too much effort for now.
-            return
+            return False
 
         # if we made it this far, then we have a mapping of the
         # arguments we were given to the argument names, and thus can
@@ -751,6 +757,7 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
 
         tclabel = self.gen_label()
 
+        self.add_expression(fun, False)
         self.pseudop_dup()
         self.pseudop_get_var(self.self_ref)
         self.pseudop_compare_is()
@@ -768,7 +775,10 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
             self.pseudop_set_var(var)
 
         self.pseudop_jump(0)
+
         self.pseudop_label(tclabel)
+
+        return True
 
 
     def declare_tailcall(self):
