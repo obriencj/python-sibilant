@@ -557,7 +557,7 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
         maybe = self.helper_inline_tcr(source_obj)
         if maybe:
             fun, args = source_obj
-            return tcf(self.complete_apply, args, pos, True,  cont)
+            return tcf(self.complete_apply, args, pos, True, cont)
 
         else:
             def ccp(done_source, tc):
