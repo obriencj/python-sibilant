@@ -230,7 +230,8 @@ def __setup__(glbls):
     _op(any, "any")
 
     _op(hash, "hash")
-    _ty(type, "type")
+    _op(type, "type")
+    _op((lambda val: isinstance(val, type)), "type?", rename=True)
 
     _op(repr, "repr")
     _op(help, "help")

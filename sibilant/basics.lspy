@@ -598,7 +598,12 @@
   the class in the local namespace.
   """
 
-  `(flet [[create-class [name fields *: bases metaclass: type]
+  `(flet [[create-class [name fields *: bases metaclass: None]
+			(when (None? metaclass)
+			      (setq metaclass
+				    (if bases
+					then: (type (item bases 0))
+					else: type)))
 			(metaclass name bases fields)]
 	  [create-members [__module__]
 			  (define __class__)
