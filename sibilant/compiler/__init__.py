@@ -501,10 +501,11 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
 
         tc = tc and self.tco_enabled and not self.generator
 
-        if tc and self.self_ref:
-            return tcf(self.compile_tcr_apply, source_obj, tc, cont)
-
         head, tail = source_obj
+
+        if tc and self.self_ref and \
+           is_symbol(head) and (str(head) == self.name):
+            return tcf(self.compile_tcr_apply, source_obj, tc, cont)
 
         pos = source_obj.get_position()
 
