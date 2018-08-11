@@ -158,18 +158,21 @@ def operator_and(code, source, tc=False):
     """
 
     called_by, exprs = source
-
     code.pseudop_position_of(source)
-    code.pseudop_const(True)
+
+    if not exprs:
+        code.pseudop_const(True)
+        return None
 
     end_label = code.gen_label()
-    while exprs:
-        code.pseudop_pop()
 
+    ex, exprs = exprs
+    code.add_expression(ex)
+
+    while exprs:
+        code.pseudop_jump_if_false_or_pop(end_label)
         ex, exprs = exprs
         code.add_expression(ex)
-        code.pseudop_dup()
-        code.pseudop_pop_jump_if_false(end_label)
 
     code.pseudop_label(end_label)
 
@@ -193,18 +196,21 @@ def operator_or(code, source, tc=False):
     """
 
     called_by, exprs = source
-
     code.pseudop_position_of(source)
-    code.pseudop_const(False)
+
+    if not exprs:
+        code.pseudop_const(False)
+        return None
 
     end_label = code.gen_label()
-    while exprs:
-        code.pseudop_pop()
 
+    ex, exprs = exprs
+    code.add_expression(ex)
+
+    while exprs:
+        code.pseudop_jump_if_true_or_pop(end_label)
         ex, exprs = exprs
         code.add_expression(ex)
-        code.pseudop_dup()
-        code.pseudop_pop_jump_if_true(end_label)
 
     code.pseudop_label(end_label)
 

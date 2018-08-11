@@ -141,9 +141,11 @@ def __setup__(glbls):
     _ty(compiler.Operator, "operator")
 
     _ty(lib.tailcall, "tailcall")
+    _op(lib.tailcall_full, "tailcall-full")
     _op(lib.trampoline, "trampoline")
     _op(lib.tailcall_disable, "tailcall-disable")
     _op(lib.tailcall_enable, "tailcall-enable")
+    _op(lib.tcr_frame_vars, "__tcr_frame_vars__")
 
     _op(compiler.current, "active-compiler")
 
@@ -228,7 +230,8 @@ def __setup__(glbls):
     _op(any, "any")
 
     _op(hash, "hash")
-    _ty(type, "type")
+    _op(type, "type")
+    _op((lambda val: isinstance(val, type)), "type?", rename=True)
 
     _op(repr, "repr")
     _op(help, "help")

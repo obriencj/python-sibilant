@@ -1956,6 +1956,10 @@ def special_method_call(code, source, tc=False):
     (! METHODSYM OBJEXPR ARGS...)
     """
 
+    # TODO: this doesn't currently tailcall if it's in the tail
+    # position, it only calls in-line. Should this turn into a
+    # tailcall_full in the event that it's in the tail position?
+
     try:
         called_by, (name, (obj, args)) = source
     except ValueError:

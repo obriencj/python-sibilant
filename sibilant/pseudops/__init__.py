@@ -178,6 +178,8 @@ class Pseudop(Enum):
     ITER = auto()
     JUMP = auto()
     JUMP_FORWARD = auto()
+    JUMP_IF_FALSE_OR_POP = auto()
+    JUMP_IF_TRUE_OR_POP = auto()
     LABEL = auto()
     LAMBDA = auto()
     LOAD_CELL = auto()
@@ -1096,6 +1098,14 @@ class PseudopsCompiler(metaclass=ABCPseudopsTarget):
 
     def pseudop_jump_forward(self, label_name: str):
         return self.pseudop(Pseudop.JUMP_FORWARD, label_name)
+
+
+    def pseudop_jump_if_false_or_pop(self, label_name: str):
+        return self.pseudop(Pseudop.JUMP_IF_FALSE_OR_POP, label_name)
+
+
+    def pseudop_jump_if_true_or_pop(self, label_name: str):
+        return self.pseudop(Pseudop.JUMP_IF_TRUE_OR_POP, label_name)
 
 
     def pseudop_pop_jump_if_true(self, label_name: str):

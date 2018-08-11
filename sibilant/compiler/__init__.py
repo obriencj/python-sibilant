@@ -42,8 +42,11 @@ from sibilant.lib import (
     keyword, is_keyword,
     pair, cons, is_pair, is_proper, nil, is_nil,
     get_position, fill_position,
-    trampoline, tailcall,
+    trampoline,
 )
+
+from sibilant.lib import tailcall_full as tcf
+
 
 from sibilant.pseudops import (
     PseudopsCompiler, Mode,
@@ -78,7 +81,8 @@ _symbol_False = symbol("False")
 _symbol_ellipsis = symbol("...")
 _symbol_keyword = symbol("keyword")
 _symbol_tailcall = symbol("tailcall")
-
+_symbol_tailcall_full = symbol("tailcall-full")
+_symbol_tcr_frame = symbol("__tcr_frame_vars__")
 
 Symbol = Union[lazygensym, symbol]
 
@@ -165,7 +169,7 @@ class Special(Compiled):
     @trampoline
     def compile(self, compiler, source_obj, tc, cont):
         result = self.compile_impl(compiler, source_obj, tc)
-        return tailcall(cont)(result, tc)
+        return tcf(cont, result, tc)
 
 
 def is_special(obj):
@@ -219,7 +223,7 @@ class Macro(Compiled):
         expr = _symbol_None if expr is None else expr
 
         fill_position(expr, source_obj.get_position())
-        return tailcall(cont)(expr, tc)
+        return tcf(cont, expr, tc)
 
 
 def is_macro(obj):
@@ -240,7 +244,7 @@ class Alias(Macro):
             fill_position(res, source_obj.get_position())
             expanded = res
 
-        return tailcall(cont)(expanded, tc)
+        return tcf(cont, expanded, tc)
 
 
 def is_alias(obj):
@@ -280,7 +284,7 @@ class Operator(Compiled):
     @trampoline
     def compile(self, compiler, source_obj, tc, cont):
         result = self.compile_impl(compiler, source_obj, tc)
-        return tailcall(cont)(result, tc)
+        return tcf(cont, result, tc)
 
 
 def is_operator(obj):
@@ -427,7 +431,7 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
             msg = "Unsupported source object %r" % source_obj
             raise self.error(msg, source_obj)
 
-        return tailcall(dispatch)(source_obj, tc, cont or self._compile_cont)
+        return tcf(dispatch, source_obj, tc, cont or self._compile_cont)
 
 
     @trampoline
@@ -445,7 +449,7 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
         else:
             # anything else is a transformation, and needs to be
             # compiled.
-            return tailcall(self.compile)(source_obj, tc, None)
+            return tcf(self.compile, source_obj, tc, None)
 
 
     @trampoline
@@ -457,7 +461,7 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
         """
 
         if is_nil(source_obj):
-            return tailcall(self.compile_nil)(source_obj, tc, cont)
+            return tcf(self.compile_nil, source_obj, tc, cont)
 
         if not is_proper(source_obj):
             print("** WUT", self, source_obj, tc, cont)
@@ -473,20 +477,20 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
             if comp:
                 # the head of the pair is a symbolic reference which
                 # resolved to a compile-time object. Invoke that.
-                return tailcall(comp.compile)(self, source_obj, tc, cont)
+                return tcf(comp.compile, self, source_obj, tc, cont)
 
             else:
-                return tailcall(self.compile_apply)(source_obj, tc, cont)
+                return tcf(self.compile_apply, source_obj, tc, cont)
 
         elif is_pair(head):
-            return tailcall(self.compile_apply)(source_obj, tc, cont)
+            return tcf(self.compile_apply, source_obj, tc, cont)
 
         else:
             # TODO: should this be a compile-time error? If we have
             # something that isn't a symbolic reference or isn't a
             # pair, then WTF else would it be? Let's just let it break
             # at runtime, for now.
-            return tailcall(self.compile_apply)(source_obj, tc, cont)
+            return tcf(self.compile_apply, source_obj, tc, cont)
 
 
     @trampoline
@@ -495,12 +499,18 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
         Compile a runtime function apply expression.
         """
 
+        tc = tc and self.tco_enabled and not self.generator
+
         head, tail = source_obj
+
+        if tc and self.self_ref and \
+           is_symbol(head) and (str(head) == self.name):
+            return tcf(self.compile_tcr_apply, source_obj, tc, cont)
 
         pos = source_obj.get_position()
 
         if is_pair(head):
-            @trampoline
+            # @trampoline
             def ccp(new_head, tc):
                 # Continue Compiling Pair. This is how we finish
                 # compiling a function invocation after first
@@ -510,14 +520,14 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
                     # the original head pair compiled down to a None,
                     # which means it pushed bytecode and left a value
                     # on the stack. Complete the apply based on that.
-                    return tailcall(self.complete_apply)(tail, pos, tc, cont)
+                    return tcf(self.complete_apply, tail, pos, tc, cont)
                 else:
                     # the original head pair was transformed, so now
                     # we need to start over in a new compile_pair call
                     # using a newly assembled expression.
                     expr = pair(new_head, tail)
                     expr.set_position(pos)
-                    return tailcall(self.compile_pair)(expr, tc, cont)
+                    return tcf(self.compile_pair, expr, tc, cont)
 
             # we need to compile the head first, to figure out if it
             # expands into a symbolic reference or something. We'll
@@ -525,11 +535,57 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
             # evaluation of the head of the pair is never a tailcall
             # itself, even if it would be a tailcall to apply it as a
             # function afterwards.
-            return tailcall(self.compile_pair)(head, False, ccp)
+            return tcf(self.compile_pair, head, False, ccp)
+
+        elif tc:
+            self.declare_tailcall()
+            self.pseudop_get_global(_symbol_tailcall_full)
+            return tcf(self.complete_apply, source_obj, pos, False, cont)
 
         else:
             self.add_expression(head)
-            return tailcall(self.complete_apply)(tail, pos, tc, cont)
+            return tcf(self.complete_apply, tail, pos, tc, cont)
+
+
+    @trampoline
+    def compile_tcr_apply(self, source_obj: pair, tc, cont):
+        assert tc
+
+        # print("compiling a tcr apply", source_obj)
+
+        pos = source_obj.get_position()
+
+        maybe = self.helper_inline_tcr(source_obj)
+        if maybe:
+            fun, args = source_obj
+            return tcf(self.complete_apply, args, pos, True, cont)
+
+        else:
+            def ccp(done_source, tc):
+                assert done_source is None
+                return tcf(self.complete_tcr_apply, cont)
+
+            tcr_source = cons(self.self_ref, source_obj)
+            tcr_source.set_position(pos)
+
+            self.pseudop_get_global(_symbol_tcr_frame)
+            return tcf(self.complete_apply, tcr_source, pos, False, ccp)
+
+
+    @trampoline
+    def complete_tcr_apply(self, cont):
+        # print("completing a tcr apply")
+
+        non_tcr = self.gen_label()
+
+        self.pseudop_jump_if_true_or_pop(non_tcr)
+        self.pseudop_jump(0)
+
+        self.pseudop_label(non_tcr)
+        self.pseudop_unpack_sequence(1)
+        self.declare_tailcall()
+
+        return tcf(cont, None, False)
 
 
     @abstractmethod
@@ -565,30 +621,30 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
 
         comp = self.find_compiled(sym)
         if comp and is_alias(comp):
-            return tailcall(comp.compile)(self, sym, tc, cont)
+            return tcf(comp.compile, self, sym, tc, cont)
 
         elif sym is _symbol_None:
-            return tailcall(self.compile_constant)(None, tc, cont)
+            return tcf(self.compile_constant, None, tc, cont)
 
         elif sym is _symbol_True:
-            return tailcall(self.compile_constant)(True, tc, cont)
+            return tcf(self.compile_constant, True, tc, cont)
 
         elif sym is _symbol_False:
-            return tailcall(self.compile_constant)(False, tc, cont)
+            return tcf(self.compile_constant, False, tc, cont)
 
         elif sym is _symbol_ellipsis:
-            return tailcall(self.compile_constant)(..., tc, cont)
+            return tcf(self.compile_constant, ..., tc, cont)
 
         elif is_lazygensym(sym):
-            return tailcall(cont)(self.pseudop_get_var(sym), tc)
+            return tcf(cont, self.pseudop_get_var(sym), tc)
 
         else:
             ex = sym.rsplit(".", 1)
             if len(ex) == 1:
-                return tailcall(cont)(self.pseudop_get_var(sym), None)
+                return tcf(cont, self.pseudop_get_var(sym), None)
             else:
                 source = cons(_symbol_attr, *ex, nil)
-                return tailcall(self.compile)(source, tc, cont)
+                return tcf(self.compile, source, tc, cont)
 
 
     @trampoline
@@ -598,7 +654,7 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
         """
 
         source = cons(_symbol_keyword, str(kwd), nil)
-        return tailcall(self.compile)(source, False, cont)
+        return tcf(self.compile, source, False, cont)
 
 
     @trampoline
@@ -607,7 +663,7 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
         Compile a constant value expression
         """
 
-        return tailcall(cont)(self.pseudop_const(value), tc)
+        return tcf(cont, self.pseudop_const(value), tc)
 
 
     @trampoline
@@ -616,7 +672,7 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
         Compile a literal nil expression
         """
 
-        return tailcall(cont)(self.pseudop_get_global(_symbol_nil), tc)
+        return tcf(cont, self.pseudop_get_global(_symbol_nil), tc)
 
 
     def helper_tailcall_tos(self, args, position):
@@ -628,14 +684,14 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
 
         self.declare_tailcall()
 
-        self.helper_tailrecur_tos(args, position)
+        # self.helper_tailrecur_tos(args, position)
 
         self.pseudop_get_global(_symbol_tailcall)
         self.pseudop_rot_two()
         self.pseudop_call(1)
 
 
-    def helper_tailrecur_tos(self, args, position):
+    def helper_inline_tcr(self, source_obj):
         """
         Checks for a tail recursion invocation. This should only be
         invoked if it has already been determined that a tail-call
@@ -647,13 +703,8 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
         code object.
         """
 
-        # test for possible recursion optimization.
-
-        # first check, make sure we've got a self-ref available. If we
-        # don't then we cannot ensure it's actually a recursive call
-        # at runtime, so a jump0 is unsafe.
-        if self.self_ref is None:
-            return
+        position = source_obj.get_position()
+        fun, args = source_obj
 
         # next, let's see if the parameters being passed line up with
         # the formals we're set up with
@@ -661,13 +712,16 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
         parameters = gather_parameters(args, position)
         pos, kwds, vals, star, starstar = parameters
 
-        if self.varargs or self.varkeywords or star or starstar:
+        if star or starstar \
+           or self.varargs or self.varkeywords \
+           or self.cell_vars:
+
             # no support for variadics, it's too tricky to inline. A
             # trampoline bounce isn't any slower than us calling to
             # other functions to figure out how to reform variadics
             # prior to a jump0, so just let the trampoline do its
             # bounce.
-            return
+            return False
 
         self_args = self.args
 
@@ -681,10 +735,10 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
             if arg in bindings:
                 # keyword parameter dups positional parameter name,
                 # fall back on trampoline
-                return
+                return False
             elif arg not in self_args:
                 # unknown keyword parameter, fall back on trampoline
-                return
+                return False
             else:
                 bindings.append(arg)
 
@@ -693,7 +747,7 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
             # again it's easier to just let the trampoline bounce and
             # have python figure out the args (and potentially raise a
             # TypeError). Default values take too much effort for now.
-            return
+            return False
 
         # if we made it this far, then we have a mapping of the
         # arguments we were given to the argument names, and thus can
@@ -704,6 +758,7 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
 
         tclabel = self.gen_label()
 
+        self.add_expression(fun, False)
         self.pseudop_dup()
         self.pseudop_get_var(self.self_ref)
         self.pseudop_compare_is()
@@ -721,7 +776,10 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
             self.pseudop_set_var(var)
 
         self.pseudop_jump(0)
+
         self.pseudop_label(tclabel)
+
+        return True
 
 
     def declare_tailcall(self):

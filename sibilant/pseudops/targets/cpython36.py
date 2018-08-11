@@ -115,8 +115,10 @@ class PseudopsCPython36(PseudopsCompiler):
 
         _P.JUMP: direct(_O.JUMP_ABSOLUTE),
         _P.JUMP_FORWARD: direct(_O.JUMP_FORWARD),
-        _P.POP_JUMP_IF_TRUE: direct(_O.POP_JUMP_IF_TRUE),
+        _P.JUMP_IF_FALSE_OR_POP: direct(_O.JUMP_IF_FALSE_OR_POP),
+        _P.JUMP_IF_TRUE_OR_POP: direct(_O.JUMP_IF_TRUE_OR_POP),
         _P.POP_JUMP_IF_FALSE: direct(_O.POP_JUMP_IF_FALSE),
+        _P.POP_JUMP_IF_TRUE: direct(_O.POP_JUMP_IF_TRUE),
         _P.SETUP_WITH: direct(_O.SETUP_WITH),
         _P.WITH_CLEANUP_START: direct(_O.WITH_CLEANUP_START, 0),
         _P.WITH_CLEANUP_FINISH: direct(_O.WITH_CLEANUP_FINISH, 0),

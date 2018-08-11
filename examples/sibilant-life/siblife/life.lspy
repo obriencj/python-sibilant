@@ -175,6 +175,7 @@
             generation. "
 
 	  (! age (copy self)))
+     )
 
 
 (def function life-rule [group]
