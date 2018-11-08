@@ -6,8 +6,9 @@
 # N801 class names should use CapWords (you first)
 # N813 camelcase import as lowercase (I do what I want)
 # T484 relative imports are good. don't tell me ..lib is bad
+# W504 line break after binary operator (I like to break up after `and`)
 
-ignore = E303,N801,N813,T484
+ignore = E303,N801,N813,T484,W504
 exclude = setup.py,build,dist,.git
 
 #
