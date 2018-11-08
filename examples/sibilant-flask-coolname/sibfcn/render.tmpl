@@ -19,15 +19,13 @@
 </head>
 
 <body>
-  {(when header
-      (render-header header))}
+  {(if header (render-header header) "")}
 
   <div class="cool">
     {body!s}
   </div>
 
-  {(when footer
-      (render-footer footer))}
+  {(if footer (render-footer footer) "")}
 <body>
 
 </html>

@@ -65,13 +65,25 @@
 
 
 (deftemplate render-tmpl [body header: None footer: None]
-  "render.tmpl")
+  "sibfcn/render.tmpl")
 
-(deftemplate render-header [header]
-  "header.tmpl")
+;; (deftemplate render-header [header]
+;;   "header.tmpl")
 
-(deftemplate render-footer [footer]
-  "footer.tmpl")
+;; (deftemplate render-footer [footer]
+;;   "footer.tmpl")
+
+
+(url-rule
+ index "/"
+
+ (define body (#fmt """
+ <p><a href="/slug/2">Try some 2-slugs</a></p>
+ <p><a href="/slug/3">Try some 3-slugs</a></p>
+ <p><a href="/slug/4">Try some 4-slugs</a></p>
+ """))
+
+ (render-tmpl body))
 
 
 (url-rule
@@ -86,6 +98,7 @@
  (define body (#fmt """
   <p>Here are some cool names composed of {length} elements</p>
   <p><ul>{(apply #str namelist)}</ul></p>
+  <p><a href="javascript:window.location.reload(true)">Reload</a> for more</p>
   """))
 
  (render-tmpl body))
