@@ -1,0 +1,101 @@
+#! /usr/bin/env sibilant
+
+;; This library is free software; you can redistribute it and/or modify
+;; it under the terms of the GNU Lesser General Public License as
+;; published by the Free Software Foundation; either version 3 of the
+;; License, or (at your option) any later version.
+;;
+;; This library is distributed in the hope that it will be useful, but
+;; WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;; Lesser General Public License for more details.
+;;
+;; You should have received a copy of the GNU Lesser General Public
+;; License along with this library; if not, see
+;; <http://www.gnu.org/licenses/>.
+
+
+
+;; ===
+;; this is some helper macros which might make their way into a
+;; sibilant.site.flask module at some point.
+;; ===
+
+(def import-from flask Flask escape)
+(def import-from werkzeug.routing parse_rule)
+
+
+(defmacro url-rule [name rule . body]
+  (define formals
+    (iter-each [[converter _ignored name] (parse_rule (str rule))]
+	       (symbol name) unless: (None? converter)))
+
+  `(app.add_url_rule
+    ,(str rule)
+    endpoint: ,(str name)
+    view_func: (function ,name (,@formals) ,@body)))
+
+
+(defmacro declare-app [name]
+  ;; Flask wants its application to be named app, so that's what we
+  ;; bind it to.
+  `(define app (Flask ,(str name))))
+
+
+;;; === This is our actual app ===
+
+
+;; one day, this will be how you'd import all the macros
+;; (site-import flask)
+
+
+(def import-from coolname generate_slug)
+
+
+(declare-app simple-flask)
+
+
+(defmacro template [filename]
+  (with [(open filename "rt") as: f]
+	`(#fmt ,(! read f))))
+
+
+(defmacro deftemplate [name formals filename]
+  `(defun ,name ,formals (template ,filename)))
+
+
+(deftemplate render-tmpl [body header: None footer: None]
+  "render.tmpl")
+
+(deftemplate render-header [header]
+  "header.tmpl")
+
+(deftemplate render-footer [footer]
+  "footer.tmpl")
+
+
+(url-rule
+ cool-slug "/slug/<int:length>"
+
+ (setq length (max length 2))
+ (setq length (min length 4))
+
+ (define namelist (#gen [name (take (repeatedly generate_slug length) 10)]
+			(#fmt "<li>{(escape name)}</li>")))
+
+ (define body (#fmt """
+  <p>Here are some cool names composed of {length} elements</p>
+  <p><ul>{(apply #str namelist)}</ul></p>
+  """))
+
+ (render-tmpl body))
+
+
+;; you can either run this directly, or you can compile it to a .pyc
+;; and invoke it from the flask cli
+(when-main
+ (app.run host: "0.0.0.0" port: 8080))
+
+
+;;
+;; The end.
