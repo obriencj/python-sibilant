@@ -464,9 +464,9 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
             return tcf(self.compile_nil, source_obj, tc, cont)
 
         if not is_proper(source_obj):
-            print("** WUT", self, source_obj, tc, cont)
+            # print("** WUT", self, source_obj, tc, cont)
             msg = "cannot evaluate improper lists as expressions"
-            raise self._err(msg, source_obj)
+            raise self.error(msg, source_obj)
 
         self.pseudop_position_of(source_obj)
 
