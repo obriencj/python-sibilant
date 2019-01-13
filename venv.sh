@@ -40,6 +40,7 @@ COMMAND may be one of the following:
 
   help          show this message and exit
   init          setup (and clear if existing) a basic virtualenv
+  install	build and install sibilant wheel into virtualenv
   setup         run setup.py from the virtualenv (hint: setup install)
   python        run python from the virtualenv
   pip           run pip from the virtualenv
