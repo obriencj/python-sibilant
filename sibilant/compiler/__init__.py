@@ -877,14 +877,16 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
         self.env_tmp_compiled.pop()
 
 
-    def find_compiled(self, namesym: Symbol):
+    def find_compiled(self, namesym: Symbol, env=None):
         """
         Search for and return a Compiled instance within the activated
         environment for this compiler. Returns None if nothing was
         found.
         """
 
-        self.require_active()
+        env = self.env if env is None else env
+
+        # self.require_active()
 
         if is_lazygensym(namesym):
             # I might make this work some day, with macrolet, but for
@@ -895,7 +897,53 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
             if namesym in tmp_env:
                 return tmp_env[namesym]
         else:
-            return env_find_compiled(self.env, namesym)
+            return env_find_compiled(env, namesym)
+
+
+    def find_expander(self, source_obj, env=None):
+        """
+        Find an expander function for the given source obj in the
+        specified environment.
+        """
+
+        env = self.env if env is None else env
+        if not isinstance(env, Mapping):
+            env = vars(env)
+
+        expander = None
+
+        if source_obj is nil:
+            return None
+
+        elif is_symbol(source_obj):
+            namesym = source_obj
+            found = self.find_compiled(namesym, env)
+            if is_alias(found):
+                expander = found.expand
+
+        elif is_proper(source_obj):
+            namesym, params = source_obj
+
+            if is_symbol(namesym):
+                found = self.find_compiled(namesym, env)
+                if is_alias(found):
+                    def expander():
+                        expanded = cons(found.expand(), params)
+                        expanded.set_position(source_obj.get_position())
+                        return expanded
+
+                elif is_macro(found):
+                    if found._proper:
+                        # FIXME: this is some garbage right here. we need
+                        # to make sure macros aren't being invoked this
+                        # way with a variadic.
+                        position = params.get_position()
+                        args, kwargs = simple_parameters(params, position)
+                        expander = partial(found.expand, *args, **kwargs)
+                    else:
+                        expander = partial(found.expand, *params.unpack())
+
+        return expander
 
 
 def compile_expression(source_obj, env, filename="<anon>",
@@ -1286,9 +1334,12 @@ def env_get_expander(env, source_obj):
 
 
 def iter_macroexpand(env, source_obj, position=None):
-    if env is None:
+    if env:
+        compiler = env.get("__compiler__") or current()
+    elif env is None:
         compiler = current()
-        env = None if compiler is None else compiler.env
+        if compiler:
+            env = compiler.env
 
     if env is None:
         raise CompilerException("macroexpand requires non-None env when"
@@ -1297,12 +1348,15 @@ def iter_macroexpand(env, source_obj, position=None):
     if position is None and is_pair(source_obj):
         position = source_obj.get_position()
 
-    expander = env_get_expander(env, source_obj)
+    # expander = env_get_expander(env, source_obj)
+    expander = compiler.find_expander(source_obj, env)
+
     while expander:
         expanded = expander()
         yield expanded
 
-        expander = env_get_expander(env, expanded)
+        # expander = env_get_expander(env, expanded)
+        expander = compiler.find_expander(expanded, env)
         if is_pair(expanded):
             fill_position(expanded, position)
 
