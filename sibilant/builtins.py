@@ -49,7 +49,7 @@ def __setup__(glbls):
 
     # 2. grab the basics definitions
     src = get_data(__name__, "basics.lspy").decode("utf8")
-    filename = join(dirname(__file__), "basics.lspy")
+    filename = join(dirname(glbls.get("__file__", "./")), "basics.lspy")
     source_stream = source_str(src, filename=filename)
 
     basics = new_module("sibilant.basics")

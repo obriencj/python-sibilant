@@ -268,9 +268,11 @@ def __setup__(glbls):
         glbls[name] = sd[name]
         _all_.append(name)
 
+    bltns = glbls.get("__builtins__")
+
     # all the exceptions from builtins. We'll pick other values more
     # selectively later
-    for name, value in __builtins__.items():
+    for name, value in bltns.items():
         if isinstance(value, type) and issubclass(value, BaseException):
             glbls[name] = value
             _all_.append(name)
