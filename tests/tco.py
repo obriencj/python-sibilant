@@ -248,6 +248,8 @@ class TestTrampolineAttrs(TestCase):
         self.assertRaises(AttributeError, getattr, maybe, "foo")
         self.assertRaises(AttributeError, getattr, tsure, "foo")
 
+        self.assertIs(tsure._tco_original, sure)
+
         sure.foo = "Foo"
         tsure.bar = "Bar"
 
