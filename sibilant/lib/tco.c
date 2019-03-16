@@ -746,6 +746,7 @@ static void trampoline_dealloc(PyObject *self) {
   }
 
 
+
 static PyObject *trampoline_call(PyObject *self,
 				 PyObject *args, PyObject *kwds) {
 
@@ -868,37 +869,9 @@ static PyGetSetDef trampoline_func_getset[] = {
     (getter) trampoline_tco_enable, NULL,
     "", NULL },
 
-  { "__annotations__",
+  { "__doc__",
     (getter) get_original, (setter) set_original,
-    "", "__annotations__" },
-
-  { "__closure__",
-    (getter) get_original, (setter) set_original,
-    "", "__closure__" },
-
-  { "__code__",
-    (getter) get_original, (setter) set_original,
-    "", "__code__" },
-
-  { "__defaults__",
-    (getter) get_original, (setter) set_original,
-    "", "__defaults__" },
-
-  { "__kwdefaults__",
-    (getter) get_original, (setter) set_original,
-    "", "__kwdefaults__" },
-
-  { "__dict__",
-    (getter) get_original, (setter) set_original,
-    "", "__dict__" },
-
-  { "__name__",
-    (getter) get_original, (setter) set_original,
-    "", "__name__" },
-
-  { "__qualname__",
-    (getter) get_original, (setter) set_original,
-    "", "__qualname__" },
+    "", "__doc__" },
 
   { NULL },
 };
@@ -913,33 +886,9 @@ static PyGetSetDef trampoline_meth_getset[] = {
     (getter) trampoline_tco_enable, NULL,
     "", NULL },
 
-  { "__dict__",
-    (getter) get_original, (setter) set_original,
-    "", "__dict__" },
-
   { "__doc__",
     (getter) get_original, (setter) set_original,
     "", "__doc__" },
-
-  { "__name__",
-    (getter) get_original, (setter) set_original,
-    "", "__name__" },
-
-  { "__qualname__",
-    (getter) get_original, (setter) set_original,
-    "", "__qualname__" },
-
-  { "__self__",
-    (getter) get_original, (setter) set_original,
-    "", "__self__" },
-
-  { "__func__",
-    (getter) get_original, (setter) set_original,
-    "", "__func__" },
-
-  { "__text_signature__",
-    (getter) get_original, (setter) set_original,
-    "", "__text_signature__" },
 
   { NULL },
 };
@@ -996,6 +945,53 @@ static PyObject *descr_get(PyObject *self,
 }
 
 
+static PyObject *trampoline_getattr(PyObject *self, PyObject *name) {
+
+  PyObject *orig = ((Trampoline *) self)->tco_original;
+  PyObject **odp = orig? _PyObject_GetDictPtr(orig): NULL;
+  PyObject *od = odp? *odp: NULL;
+
+  #if PY_VERSION_HEX < 0x03070000
+  PyObject *res = _PyObject_GenericGetAttrWithDict(self, name, od);
+  #else
+  PyObject *res = _PyObject_GenericGetAttrWithDict(self, name, od, 1);
+  #endif
+
+  if(res == NULL) {
+    // wasn't found directly on the trampoline, pass through to the
+    // underlying function instead.
+
+    #if PY_VERSION_HEX < 0x03070000
+    PyErr_Clear();
+    #endif
+
+    res = PyObject_GetAttr(orig, name);
+  }
+
+  return res;
+}
+
+
+static int trampoline_setattr(PyObject *self, PyObject *name,
+			      PyObject *value) {
+
+  PyObject *orig = ((Trampoline *) self)->tco_original;
+  PyObject **odp = orig? _PyObject_GetDictPtr(orig): NULL;
+  PyObject *od = odp? *odp: NULL;
+
+  int res = _PyObject_GenericSetAttrWithDict(self, name, value, od);
+
+  if(res != 0) {
+    // wasn't found directly on the trampoline, pass through to the
+    // underlying function instead.
+    PyErr_Clear();
+    res = PyObject_SetAttr(orig, name, value);
+  }
+
+  return res;
+}
+
+
 PyTypeObject FunctionTrampolineType = {
     PyVarObject_HEAD_INIT(NULL, 0)
 
@@ -1010,7 +1006,8 @@ PyTypeObject FunctionTrampolineType = {
     .tp_call = trampoline_call,
     .tp_repr = trampoline_repr,
     .tp_flags = Py_TPFLAGS_DEFAULT,
-    .tp_getattro = PyObject_GenericGetAttr,
+    .tp_getattro = trampoline_getattr,
+    .tp_setattro = trampoline_setattr,
 };
 
 
@@ -1028,7 +1025,8 @@ PyTypeObject MethodTrampolineType = {
     .tp_call = trampoline_call,
     .tp_repr = trampoline_repr,
     .tp_flags = Py_TPFLAGS_DEFAULT,
-    .tp_getattro = PyObject_GenericGetAttr,
+    .tp_getattro = trampoline_getattr,
+    .tp_setattro = trampoline_setattr,
 };
 
 
@@ -1060,6 +1058,11 @@ static PyObject *m_trampoline(PyObject *self, PyObject *args) {
 }
 
 
+static PyObject *m_trampoline_check(PyObject *self, PyObject *obj) {
+  return PyBool_FromLong(SibTrampoline_Check(obj));
+}
+
+
 static PyMethodDef methods[] = {
 
   { "tailcall_full", (PyCFunction) m_tailcall_full,
@@ -1072,6 +1075,9 @@ static PyMethodDef methods[] = {
     " tailcall instances and invoke their function and arguments"
     " in-place. The trampoline will continue catching and bouncing until"
     " a non-tailcall instance is returned or an exception is raised." },
+
+  { "is_trampoline", m_trampoline_check, METH_O,
+    "True if an object is a trampoline." },
 
   { "tcr_frame_vars", (PyCFunction) m_tcr_frame_vars,
     METH_VARARGS|METH_KEYWORDS,

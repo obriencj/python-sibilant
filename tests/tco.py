@@ -28,7 +28,7 @@ from unittest import TestCase
 
 import sibilant.builtins
 
-from sibilant.lib import trampoline, tailcall
+from sibilant.lib import trampoline, is_trampoline, tailcall
 
 from . import compile_expr
 
@@ -220,6 +220,65 @@ class TestTCOCompiler(TestCase):
 
         self.assertTrue(even(count))
         self.assertTrue(odd(count - 1))
+
+
+class TestTrampolineAttrs(TestCase):
+
+    def test_func_getset(self):
+        src = """
+        {
+         (defun Sure [] "Sure is a Function" True)
+         (defun Maybe [] "Maybe is a Trampoline" (Sure))
+         (define TSure (trampoline Sure))
+        }
+        """
+
+        stmt, env = compile_expr(src)
+        stmt()
+
+        sure = env["Sure"]
+        maybe = env["Maybe"]
+        tsure = env["TSure"]
+
+        self.assertFalse(is_trampoline(sure))
+        self.assertTrue(is_trampoline(maybe))
+        self.assertTrue(is_trampoline(tsure))
+
+        self.assertRaises(AttributeError, getattr, sure, "foo")
+        self.assertRaises(AttributeError, getattr, maybe, "foo")
+        self.assertRaises(AttributeError, getattr, tsure, "foo")
+
+        self.assertIs(tsure._tco_original, sure)
+
+        sure.foo = "Foo"
+        tsure.bar = "Bar"
+
+        self.assertEqual(sure.foo, "Foo")
+        self.assertEqual(tsure.foo, "Foo")
+
+        self.assertEqual(sure.bar, "Bar")
+        self.assertEqual(tsure.bar, "Bar")
+
+        tsure.bar = None
+
+        self.assertEqual(sure.bar, None)
+        self.assertEqual(tsure.bar, None)
+
+        self.assertEqual(sure.__name__, "Sure")
+        self.assertEqual(tsure.__name__, "Sure")
+        self.assertEqual(maybe.__name__, "Maybe")
+
+        self.assertEqual(sure.__doc__, "Sure is a Function")
+        self.assertEqual(tsure.__doc__, "Sure is a Function")
+        self.assertEqual(maybe.__doc__, "Maybe is a Trampoline")
+
+        checks = ("__code__", "__doc__", "__defaults__",
+                  "__kwdefaults__", "__annotations__",
+                  "__dict__", "__name__", "__qualname__",
+                  "foo", "bar")
+
+        for attr in checks:
+            self.assertIs(getattr(sure, attr), getattr(tsure, attr))
 
 
 #
