@@ -951,11 +951,19 @@ static PyObject *trampoline_getattr(PyObject *self, PyObject *name) {
   PyObject **odp = orig? _PyObject_GetDictPtr(orig): NULL;
   PyObject *od = odp? *odp: NULL;
 
+  #if PY_VERSION_HEX < 0x03070000
+  PyObject *res = _PyObject_GenericGetAttrWithDict(self, name, od);
+  #else
   PyObject *res = _PyObject_GenericGetAttrWithDict(self, name, od, 1);
+  #endif
 
   if(res == NULL) {
     // wasn't found directly on the trampoline, pass through to the
     // underlying function instead.
+
+    #if PY_VERSION_HEX < 0x03070000
+    PyErr_Clear();
+    #endif
 
     res = PyObject_GetAttr(orig, name);
   }
