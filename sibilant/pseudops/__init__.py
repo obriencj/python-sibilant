@@ -417,8 +417,8 @@ class CodeBlock(object):
                 # depending on Python version
                 code.stack(op, args, push, pop)
 
-        # TODO: write a dump_pseudops and use that to output the pseudops and
-        # their stack start/end changes
+        # TODO: write a dump_pseudops and use that to output the
+        # pseudops and their stack start/end changes
 
         if stac != leftovers:
             print("leaving max_stack()", self.block_type, "with", stac)

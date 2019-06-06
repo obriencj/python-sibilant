@@ -178,8 +178,13 @@ class PseudopsCPython36(PseudopsCompiler):
                 offset += 4
 
             else:
-                coll.append(opa)
-                offset += 2
+                if arg > 0xff:
+                    coll.append([Opcode.EXTENDED_ARG, arg >> 8])
+                    coll.append([op, arg & 0xff])
+                    offset += 4
+                else:
+                    coll.append(opa)
+                    offset += 2
 
         if jabs or jrel or labels:
             # Given our labels, modify jmp calls to point to the label
