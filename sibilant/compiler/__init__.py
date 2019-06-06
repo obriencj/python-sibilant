@@ -114,6 +114,16 @@ class CompilerSyntaxError(SibilantSyntaxError):
     pass
 
 
+class UncaughtCompilerException(CompilerException):
+    def __init__(self, origin_ex, source_obj):
+        self.origin_ex = origin_ex
+        self.source_obj = source_obj
+
+    def __repr__(self):
+        return "Uncaught Compiler Exception: %r\nSource: %s" % \
+            (self.origin_ex, self.source_obj)
+
+
 class UnsupportedVersion(SibilantException):
     pass
 
@@ -431,7 +441,13 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
             msg = "Unsupported source object %r" % source_obj
             raise self.error(msg, source_obj)
 
-        return tcf(dispatch, source_obj, tc, cont or self._compile_cont)
+        try:
+            return dispatch(source_obj, tc, cont or self._compile_cont)
+        except (CompilerException, SibilantSyntaxError):
+            # these two should be propogated unchanged
+            raise
+        except Exception as ex:
+            raise UncaughtCompilerException(ex, source_obj)
 
 
     @trampoline
@@ -834,7 +850,7 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
         # a return is, by its very nature, always in the tailcall
         # position. Therefore we'll compile this as tailcall if we
         # have such enabled.
-        self.compile(expr, True, None)
+        self.add_expression(expr, True)
 
         # and insert the return op
         self.pseudop_return()
