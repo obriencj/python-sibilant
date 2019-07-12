@@ -70,7 +70,8 @@ case "$CMD" in
 
     install)
 	$VIRTUALENV "$VDIR" || exit $?
-	"$VBIN/python" setup.py clean bdist_wheel || exit $?
+	rm -rf build dist
+	"$VBIN/python" setup.py bdist_wheel || exit $?
 	"$VBIN/pip" install -I dist/*.whl || exit $?
 	;;
 
