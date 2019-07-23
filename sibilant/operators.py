@@ -816,6 +816,13 @@ def operator_raise(code, source, tc=False):
     return None
 
 
+_CONST_TYPES = (
+    str, bytes,
+    bool, int, float, complex,
+    type(None), type(...),
+)
+
+
 @operator(_symbol_build_tuple, build_tuple, _symbol_hash_tuple)
 def operator_build_tuple(code, source, tc=False):
     """
@@ -826,6 +833,20 @@ def operator_build_tuple(code, source, tc=False):
     """
 
     called_by, items = source
+
+    const_items = []
+    for ce in items.unpack():
+        if type(ce) in _CONST_TYPES:
+            # print("  %r is a CONST TYPE" % ce)
+            const_items.append(ce)
+        else:
+            # print("  %r is not a CONST TYPE" % ce)
+            break
+    else:
+        # all expressions were simple constants, therefore we can make
+        # this a LOAD_CONST of a tuple
+        code.pseudop_const(tuple(const_items))
+        return None
 
     c = 0
     for c, ce in enumerate(items.unpack(), 1):
