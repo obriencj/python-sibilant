@@ -199,17 +199,17 @@ class Atomics(TestCase):
         src = "1.5d"
         col = parse_source(src)
         self.assertEqual(col, cons(symbol("decimal"),
-                                   "1.5", nil))
+                                   (0, (1, 5), -1), nil))
 
         src = ".5d"
         col = parse_source(src)
         self.assertEqual(col, cons(symbol("decimal"),
-                                   ".5", nil))
+                                   (0, (5, ), -1), nil))
 
         src = "1.d"
         col = parse_source(src)
         self.assertEqual(col, cons(symbol("decimal"),
-                                   "1.", nil))
+                                   (0, (1, ), 0), nil))
 
 
 class Strings(TestCase):
