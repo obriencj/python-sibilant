@@ -242,12 +242,32 @@ def operator_add(code, source, tc=False):
     code.pseudop_position_of(source)
 
     val, rest = rest
-    code.add_expression(val)
 
     if rest is nil:
-        code.pseudop_unary_positive()
+        if type(val) in (int, float):
+            return +val
+        else:
+            code.add_expression(val)
+            code.pseudop_unary_positive()
 
     else:
+        if type(val) in (int, float):
+            accu = val
+            while rest:
+                val, rest = rest
+                if type(val) in (int, float):
+                    accu += val
+                else:
+                    code.add_expression(accu)
+                    code.add_expression(val)
+                    code.pseudop_binary_add()
+                    break
+            else:
+                return accu
+
+        else:
+            code.add_expression(val)
+
         while rest:
             val, rest = rest
             code.add_expression(val)
@@ -279,12 +299,32 @@ def operator_subtract(code, source, tc=False):
     code.pseudop_position_of(source)
 
     val, rest = rest
-    code.add_expression(val)
 
     if rest is nil:
-        code.pseudop_unary_negative()
+        if type(val) in (int, float):
+            return -val
+        else:
+            code.add_expression(val)
+            code.pseudop_unary_negative()
 
     else:
+        if type(val) in (int, float):
+            accu = val
+            while rest:
+                val, rest = rest
+                if type(val) in (int, float):
+                    accu -= val
+                else:
+                    code.add_expression(accu)
+                    code.add_expression(val)
+                    code.pseudop_binary_subtract()
+                    break
+            else:
+                return accu
+
+        else:
+            code.add_expression(val)
+
         while rest:
             val, rest = rest
             code.add_expression(val)
