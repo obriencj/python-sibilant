@@ -108,8 +108,8 @@ def _as_decimal(s):
     # decimal. It presumes strongly that there was a d or D suffix on
     # the value
     s = s[:-1]
-    decimal(s)
-    return cons(_symbol_decimal, s, nil)
+    ct = decimal(s).as_tuple()
+    return cons(_symbol_decimal, tuple(ct), nil)
 
 
 def _as_complex(s):
