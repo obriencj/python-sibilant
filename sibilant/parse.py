@@ -62,14 +62,18 @@ CLOSE_PAIR = keyword("close-pair")
 EOF = keyword("eof")
 
 
-_integer_re = regex(r"-?\d+").match
-_bin_re = regex(r"0b[01]+").match
-_oct_re = regex(r"0o[0-7]+").match
-_hex_re = regex(r"0x[\da-f]+").match
-_float_re = regex(r"-?((\d*\.\d+|\d+\.\d*)(e-?\d+)?|(\d+e-?\d+))f?").match
-_decimal_re = regex(r"-?((\d*\.\d+)|(\d+\.\d*)|\d+)d").match
+_integer_re = regex(r"^-?\d+$").match
+_bin_re = regex(r"^0b[01]+$").match
+_oct_re = regex(r"^0o[0-7]+$").match
+_hex_re = regex(r"^0x[\da-f]+$").match
+_float_re = regex(r"^-?("
+                  r"(\d*\.\d+|\d+\.\d*)(e-?\d+)?f?"
+                  r"|(\d+e-?\d+)f?"
+                  r"|\d+f"
+                  ")$").match
+_decimal_re = regex(r"^-?((\d*\.\d+)|(\d+\.\d*)|\d+)d$").match
 _fraction_re = regex(r"-?\d+/\d+").match
-_complex_re = regex(r"-?\d*\.?\d+\+\d*\.?\d*[ij]").match
+_complex_re = regex(r"^-?\d*\.?\d+\+\d*\.?\d*[ij]$").match
 _keyword_re = regex(r"^(:.+|.+:)$").match
 
 
@@ -382,10 +386,10 @@ class Reader(object):
 
         ap(symbol("keyword"), _keyword_re, keyword)
         ap(symbol("int"), _integer_re, _as_integer)
+        ap(symbol("float"), _float_re, _as_float)
         ap(symbol("hex"), _hex_re, _as_hex)
         ap(symbol("oct"), _oct_re, _as_oct)
         ap(symbol("binary"), _bin_re, _as_bin)
-        ap(symbol("float"), _float_re, _as_float)
         ap(symbol("complex"), _complex_re, _as_complex)
         ap(symbol("fraction"), _fraction_re, _as_fraction)
         ap(symbol("decimal"), _decimal_re, _as_decimal)
