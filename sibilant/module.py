@@ -36,6 +36,8 @@ license: LGPL v.3
 """
 
 
+import sys
+
 from collections import MutableMapping
 from functools import partial
 from os.path import split, getmtime, getsize
@@ -55,10 +57,14 @@ __all__ = (
 )
 
 
-def new_module(name, package_name=None):
+def new_module(name, package_name=None, system=True):
     mod = ModuleType(name)
     if package_name:
         mod.__package__ = package_name
+
+    if system:
+        sys.modules[package_name or name] = mod
+
     return mod
 
 
