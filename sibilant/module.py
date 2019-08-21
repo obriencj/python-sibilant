@@ -57,13 +57,15 @@ __all__ = (
 )
 
 
-def new_module(name, package_name=None, system=True):
+def new_module(name, package_name=None, system=False):
     mod = ModuleType(name)
     if package_name:
         mod.__package__ = package_name
 
     if system:
-        sys.modules[package_name or name] = mod
+        if package_name:
+            name = ".".join([package_name, name])
+        sys.modules[name] = mod
 
     return mod
 
