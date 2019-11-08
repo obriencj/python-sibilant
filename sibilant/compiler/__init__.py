@@ -270,8 +270,8 @@ class Operator(Compiled):
 
 
     def __new__(cls, name, compilefn, runtimefn):
-        assert(compilefn is not None)
-        assert(runtimefn is not None)
+        assert compilefn is not None
+        assert runtimefn is not None
 
         if not callable(compilefn):
             msg = "compilefn must be callable, not %r" % compilefn
@@ -426,6 +426,8 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
         pair, symbol, keyword, and the pythonic constant types are
         valid source obj types.
         """
+
+        self.require_active()
 
         tc = self.tco_enabled and tc
 
