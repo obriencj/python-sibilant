@@ -81,6 +81,10 @@ class PseudopsException(SibilantException):
     pass
 
 
+class PseudopsRemovedOpcode(PseudopsException):
+    pass
+
+
 class OpcodeEnum(Enum):
 
     def hasconst(self):
@@ -108,7 +112,26 @@ class OpcodeEnum(Enum):
         return dis.stack_effect(self.value, arg)
 
 
-Opcode = OpcodeEnum("Opcode", dis.opmap)
+# opcodes which have at some point been removed. We'll provide default
+# spaces for them in the opmap so that we can continue to inherit from
+# previous pseudop targets still, without triggering an attribute
+# error.
+REMOVED_OPS = {
+    # removed in CPython 3.8
+    'BREAK_LOOP': -1,
+    'CONTINUE_LOOP': -2,
+    'SETUP_LOOP': -3,
+    'SETUP_EXCEPT': -4,
+}
+
+
+def safe_opmap():
+    safe = dict(REMOVED_OPS)
+    safe.update(dis.opmap)
+    return safe
+
+
+Opcode = OpcodeEnum("Opcode", safe_opmap())
 
 
 class Block(Enum):
@@ -306,7 +329,7 @@ class CodeBlock(object):
                 yield (op, *args)
 
 
-    def max_stack(self, code):
+    def stack_counter(self, code):
         sc = code.stack_counter(self.init_stack)
 
         # print("enter max_stack()", self.block_type)
@@ -314,8 +337,16 @@ class CodeBlock(object):
         for index, (op, *args) in enumerate(self.pseudops):
             sc.stack(op, args)
 
-        # TODO: write a dump_pseudops and use that to output the
-        # pseudops and their stack start/end changes
+        return sc
+
+
+    def current_stack(self, code):
+        sc = self.stack_counter(code)
+        return sc.stack_count
+
+
+    def max_stack(self, code):
+        sc = self.stack_counter(code)
 
         leftovers = self.allow_leftovers
         maxc = sc.max_stack
@@ -737,7 +768,7 @@ class PseudopsCompiler(metaclass=ABCPseudopsTarget):
 
 
     def get_block_pop_label(self):
-        return self.get_block().top_label
+        return self.get_block().pop_label
 
 
     def get_block_storage(self):
@@ -1289,6 +1320,37 @@ class PseudopsCompiler(metaclass=ABCPseudopsTarget):
         return maximum
 
 
+    def _codetype(self,
+                  argcount=0, posonlyargcount=0, kwonlyargcount=0,
+                  nlocals=0,
+                  stacksize=0, flags=0, codestring=None,
+                  constants=(), names=(), varnames=(),
+                  filename=None, name="<anon>",
+                  firstlineno=1, lnotab=(),
+                  freevars=(), cellvars=()):
+
+        # this indirection is necessary because the CodeType
+        # parameters changes in later versions
+
+        # note: posonlyargcount is 3.8+
+
+        return CodeType(argcount,
+                        kwonlyargcount,
+                        nlocals,
+                        stacksize,
+                        flags,
+                        codestring,
+                        constants,
+                        names,
+                        varnames,
+                        filename,
+                        name,
+                        firstlineno,
+                        lnotab,
+                        freevars,
+                        cellvars)
+
+
     def complete(self):
         """
         Produces a python code object representing the state of this
@@ -1348,9 +1410,22 @@ class PseudopsCompiler(metaclass=ABCPseudopsTarget):
         freevars = tuple(map(str, self.free_vars))
         cellvars = tuple(map(str, self.cell_vars))
 
-        ret = CodeType(argcount, kwonly, nlocals, stacksize, flags, code,
-                       consts, names, varnames, filename, name,
-                       firstlineno, lnotab, freevars, cellvars)
+        ret = self._codetype(
+            argcount=argcount,
+            kwonlyargcount=kwonly,
+            nlocals=nlocals,
+            stacksize=stacksize,
+            flags=flags,
+            codestring=code,
+            constants=consts,
+            names=names,
+            varnames=varnames,
+            filename=filename,
+            name=name,
+            firstlineno=firstlineno,
+            lnotab=lnotab,
+            freevars=freevars,
+            cellvars=cellvars)
 
         # print("completed a CodeSpace", ret)
         # dis.show_code(ret)

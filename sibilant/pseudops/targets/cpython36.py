@@ -23,7 +23,10 @@ license: LGPL v.3
 """
 
 
-from sibilant.pseudops import PseudopsCompiler, Pseudop, Opcode, translator
+from sibilant.pseudops import (
+    PseudopsRemovedOpcode, PseudopsCompiler,
+    Pseudop, Opcode, translator
+)
 from sibilant.pseudops.stack import StackCounter, stacker
 from sibilant.lib import symbol
 
@@ -176,6 +179,10 @@ class PseudopsCPython36(PseudopsCompiler):
                 coll.append([Opcode.EXTENDED_ARG, 0])
                 coll.append([op, 0])
                 offset += 4
+
+            elif op.value < 0:
+                # print("op:", repr(op), "arg:", repr(arg))
+                raise PseudopsRemovedOpcode(op, arg)
 
             else:
                 if arg > 0xff:
