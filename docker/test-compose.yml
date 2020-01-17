@@ -25,3 +25,11 @@ services:
             - ../:/src
         command: "/src/docker/tests.sh cpython37"
         network_mode: none
+    cpython38.test:
+        build:
+          context: .
+          dockerfile: cpython38.test
+        volumes:
+            - ../:/src
+        command: "/src/docker/tests.sh cpython38"
+        network_mode: none

@@ -318,7 +318,11 @@ def compiler_for_version(ver=version_info,
         # TODO : user some sort of introspection instead of having to
         # write an import for every case...
 
-        if (3, 7) <= ver <= (3, 8):
+        if (3, 8) <= ver <= (3, 9):
+            from .targets.cpython38 import SibilantCPython38
+            return SibilantCPython38
+
+        elif (3, 7) <= ver <= (3, 8):
             from .targets.cpython37 import SibilantCPython37
             return SibilantCPython37
 
