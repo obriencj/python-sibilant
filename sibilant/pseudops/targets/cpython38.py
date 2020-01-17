@@ -13,8 +13,6 @@
 # <http://www.gnu.org/licenses/>.
 
 
-from sibilant.pseudops import Opcode, Pseudop, translator
-from sibilant.pseudops.stack import stacker
 from .cpython37 import PseudopsCPython37, StackCounterCPython37
 
 
