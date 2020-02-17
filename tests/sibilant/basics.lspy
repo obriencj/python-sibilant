@@ -213,6 +213,15 @@
      """
 
 
+     (def function test_escaped_fmt [self]
+
+	  (self.assertEqual (#fmt "{{nothing") "{nothing")
+	  (self.assertEqual (#fmt "{{nothing {0}") "{nothing 0")
+	  (self.assertEqual (#fmt "{0} {{nothing") "0 {nothing")
+
+	  None)
+
+
      (def function test_simple_fmt [self]
 	  (def function stmt [count food]
 	       (#fmt """I want {count} {food}."""))
