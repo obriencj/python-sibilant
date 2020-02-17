@@ -27,8 +27,9 @@ license: LGPL v.3
 from .compiler import Operator
 
 from .lib import (
-    symbol, pair, nil, is_pair,
-    build_tuple, build_list, build_set, build_dict
+    symbol, pair, nil, is_pair, is_symbol,
+    build_tuple, build_list, build_set, build_dict,
+    cons,
 )
 
 from functools import reduce
@@ -104,11 +105,13 @@ _symbol_not_in = symbol("not-in")
 _symbol_or = symbol("or")
 _symbol_pow = symbol("power")
 _symbol_pow_ = symbol("**")
+_symbol_quote = symbol("quote")
 _symbol_raise = symbol("raise")
 _symbol_rshift = symbol("shift-right")
 _symbol_rshift_ = symbol(">>")
 _symbol_set_item = symbol("set-item")
 _symbol_slice = symbol("slice")
+_symbol_str = symbol("str")
 _symbol_sub = symbol("subtract")
 _symbol_sub_ = symbol("-")
 
@@ -1073,6 +1076,12 @@ def operator_format(code, source, tc=False):
 
     if rest:
         spec, rest = rest
+        if is_pair(spec):
+            a, b = spec
+            if a is _symbol_quote and b and is_symbol(b[0]):
+                spec = str(b[0])
+            else:
+                spec = cons(_symbol_str, spec, nil)
     else:
         spec = None
 
