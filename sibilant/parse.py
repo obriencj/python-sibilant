@@ -37,12 +37,13 @@ from re import compile as regex, UNICODE, VERBOSE
 
 
 __all__ = (
-    "ReaderSyntaxError",
+    "ReaderSyntaxError", "FormatStringSyntaxError",
     "SourceStream", "source_open", "source_str", "source_stream",
     "Reader", "default_reader",
 )
 
 
+_symbol__str = symbol("#str")
 _symbol_begin = symbol("begin")
 _symbol_decimal = symbol("decimal")
 _symbol_format = symbol("format")
@@ -145,6 +146,12 @@ def _as_unicode(s, pattern=ESCAPE_SEQUENCE_RE):
 class ReaderSyntaxError(SibilantSyntaxError):
     """
     An error in sibilant syntax during read time
+    """
+
+
+class FormatStringSyntaxError(ReaderSyntaxError):
+    """
+    A read-time error from inside an f-string
     """
 
 
@@ -349,7 +356,9 @@ class Reader(object):
         sm('"', self._read_string, True)
         sm("'", self._read_quote, True)
         sm("`", self._read_quasiquote, True)
-        sm(";", self._read_comment, True)
+        sm(';', self._read_comment, True)
+
+        sm('f', self._read_fstring, False)
 
 
     def set_atom_pattern(self, namesym, match_fn, conversion_fn):
@@ -501,19 +510,43 @@ class Reader(object):
         return CLOSE_PAIR, char
 
 
+    def _read_fstring(self, stream, fchar):
+
+        if stream.peek(1) != '"':
+            return self._read_default(stream, fchar)
+
+        char = stream.read(1)
+        pos = stream.position()
+        lin, col = pos
+
+        if stream.peek(3) == '"""':
+            col += 2
+
+        _evnt, data = self._read_string(stream, char)
+
+        substream = source_str(data, stream.filename,
+                               line_no=lin, col_no=col)
+
+        fsr = FormatStringReader(self)
+        result = fsr.split(substream)
+        result.append(nil)
+
+        return VALUE, cons(_symbol__str, *result)
+
+
     def _read_string(self, stream, char):
         """
         The character macro handler for string literals
         """
 
-        result = []
-
-        is_escp = partial(str.__eq__, "\\")
-        is_char = partial(str.__eq__, char)
-
         if stream.peek(2) == (char * 2):
             stream.read(2)
             return self._read_3string(stream, char)
+
+        result = []
+
+        is_escp = "\\".__eq__
+        is_char = char.__eq__
 
         sr = partial(stream.read, 1)
         for C in iter(sr, ''):
@@ -646,29 +679,35 @@ class FormatStringReader(object):
             self.normal = normal_reader
 
 
-    def read(self, stream):
+    def split(self, stream):
         result = []
 
         norm = self.normal
         check = partial(str.__eq__, "{")
 
-        peek = stream.peek(2)
-        while peek:
-            if peek == "{{":
-                stream.read(2)
-                result.append("{")
-
-            elif peek[0] == "{":
-                stream.read(1)
-                event, child = norm._read_pair("}", stream, "{")
-                new_child = cons(_symbol_format, child)
-                new_child.set_position(child.get_position())
-                result.append(new_child)
-
-            else:
-                result.append(stream.read_until(check))
-
+        try:
             peek = stream.peek(2)
+            while peek:
+                if peek == "{{":
+                    stream.read(2)
+                    result.append("{")
+
+                elif peek[0] == "{":
+                    stream.read(1)
+                    event, child = norm._read_pair("}", stream, "{")
+                    new_child = cons(_symbol_format, child)
+                    new_child.set_position(child.get_position())
+                    result.append(new_child)
+
+                else:
+                    result.append(stream.read_until(check))
+
+                peek = stream.peek(2)
+
+        except ReaderSyntaxError as rex:
+            raise FormatStringSyntaxError(rex.message, rex.location,
+                                          filename=rex.filename,
+                                          text=rex.text)
 
         return result
 
@@ -681,7 +720,8 @@ def source_open(filename, auto_skip_exec=True):
         yield reader
 
 
-def source_str(source_str, filename, auto_skip_exec=True):
+def source_str(source_str, filename, auto_skip_exec=True,
+               line_no=1, col_no=0):
     return SourceStream(StringIO(source_str), filename,
                         auto_skip_exec=auto_skip_exec)
 
@@ -693,7 +733,8 @@ def source_stream(source_stream, filename, auto_skip_exec=True):
 
 class SourceStream(object):
 
-    def __init__(self, stream, filename, auto_skip_exec=True):
+    def __init__(self, stream, filename, auto_skip_exec=True,
+                 line_no=1, col_no=0):
 
         if not stream.seekable():
             raise TypeError("SourceStream's stream argument must be seekable")
@@ -701,8 +742,8 @@ class SourceStream(object):
         self.filename = filename
         self.stream = stream
 
-        self.lin = 1
-        self.col = 0
+        self.lin = line_no
+        self.col = col_no
 
         if auto_skip_exec:
             self.skip_exec()
