@@ -5,7 +5,7 @@
     div.cool {{
     font-size: 2em;
     font-weight: bold;
-    }}
+    }
     body {{
     background: #DDEEDD;
     margin: 1em;
@@ -13,7 +13,7 @@
     border-style: solid;
     border-width: thin;
     border-color: black;
-    }}
+    }
   </style>
 
 </head>
@@ -22,7 +22,7 @@
   {(if header (render-header header) "")}
 
   <div class="cool">
-    {body!s}
+    {(str body)}
   </div>
 
   {(if footer (render-footer footer) "")}
