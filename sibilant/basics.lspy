@@ -934,7 +934,7 @@ license: LGPL v.3
   (defmacro #fmt [text . rest]
     (var [fsr (FormatStringReader __reader__)]
 	 [src (source_str text "<format string>")]
-	 [result (fsr.read src)])
+	 [result (fsr.split src)])
 
     (if rest
 	then: `(#str ,@result (#fmt ,@rest))
