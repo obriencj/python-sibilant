@@ -213,6 +213,15 @@
      """
 
 
+     (def function test_escaped_fmt [self]
+
+	  (self.assertEqual (#fmt "{{nothing") "{nothing")
+	  (self.assertEqual (#fmt "{{nothing {0}") "{nothing 0")
+	  (self.assertEqual (#fmt "{0} {{nothing") "0 {nothing")
+
+	  None)
+
+
      (def function test_simple_fmt [self]
 	  (def function stmt [count food]
 	       (#fmt """I want {count} {food}."""))
@@ -239,9 +248,9 @@
 	  None)
 
 
-     (def function test_complicated_fmt [self]
+     (def function test_spec_str_fmt [self]
 	  (def function stmt [count food polite]
-	       (#fmt """I want 0x{count:04x} {food!s}"""
+	       (#fmt """I want 0x{count "04x"} {food}"""
 		     """{(if polite ", please" "")}."""))
 
 	  (self.assertEqual "I want 0x0001 tacos, please."
@@ -250,7 +259,54 @@
 	  (self.assertEqual "I want 0x000f pizza."
 			    (stmt 15 'pizza False))
 
-	  None))
+	  None)
+
+
+     (def function test_spec_symbol_fmt [self]
+	  (def function stmt [count food polite]
+	       (#fmt """I want 0x{count '04x} {food}"""
+		     """{(if polite ", please" "")}."""))
+
+	  (self.assertEqual "I want 0x0001 tacos, please."
+			    (stmt 1 'tacos True))
+
+	  (self.assertEqual "I want 0x000f pizza."
+			    (stmt 15 'pizza False))
+
+	  None)
+
+
+     (def function test_issue_212 [self]
+	  (self.assertEqual
+	   (#fmt "{0} {1}")
+	   "0 1")
+
+	  (self.assertEqual
+	   (#fmt "{0} {1} {(+ 1 1)}")
+	   "0 1 2")
+
+	  (self.assertEqual
+	   (#fmt "{0} {1} {(+ 1 1)} {3}")
+	   "0 1 2 3")
+
+	  (self.assertEqual
+	   (#fmt "{0} {1} {(+ 1 1)} {3} {(+ 2 2)}")
+	   "0 1 2 3 4")
+
+	  (self.assertEqual
+	   (#fmt "{0} {1} {(+ 1 1)} {3} {(+ 2 2)} {5}")
+	   "0 1 2 3 4 5")
+
+	  (self.assertEqual
+	   (#fmt "{0} {1} {(+ 1 1)} {3} {(+ 2 2)} {5} {(+ 3 3)}")
+	   "0 1 2 3 4 5 6")
+
+	  (self.assertEqual
+	   (#fmt "{0} {1} {(+ 1 1)} {3} {(+ 2 2)} {5} {(+ 3 3)} {7}")
+	   "0 1 2 3 4 5 6 7")
+
+	  None)
+     ) ; FormatString
 
 
 (def class Compose [TestCase]
@@ -277,7 +333,10 @@
 	  (self.assertEqual col (#list 101 102 204 204.0))
 	  (self.assertIs (type (item col -1)) float)
 	  (self.assertIs (type res) str)
-	  (self.assertEqual res "204.0")))
+	  (self.assertEqual res "204.0")
+
+	  None)
+     ) ; Compose
 
 
 ;;

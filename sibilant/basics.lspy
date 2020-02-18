@@ -194,6 +194,10 @@ license: LGPL v.3
   `(is None ,value))
 
 
+(defmacro zero? [value]
+  `(== 0 ,value))
+
+
 (defun within? [min_i max_i value_i]
   "
   (within? MIN MAX VALUE)
@@ -924,72 +928,20 @@ license: LGPL v.3
 
 
 (let []
-  (def import-from re
-       [compile as: regex] UNICODE VERBOSE)
-
   (def import-from sibilant.parse
-       [default_reader as: reader] source_str)
-
-  (define fmt-re
-    (regex "(
-    (\\n\\r|\\n)
-    |{{
-    |}}
-    |(?:{([^\\(^\\!\\:}]+
-         |\\(.*\\))(\\!.)?([^}]+)?)}
-    )" (bitwise-or UNICODE VERBOSE)))
-
-  (def function parse-source [src-str]
-       (reader.read (source_str src-str "<format string>")))
+       FormatStringReader source_str)
 
   (defmacro #fmt [text . rest]
-    (var [result (#list)]
-	 [offset 0])
-
-    (for-each [f (fmt-re.finditer text)]
-        (define-values [start stop] (f.span))
-	(result.append (item-slice text offset start))
-	(setq offset stop)
-
-	(var [g (f.groups)]
-	     [c (item g 0)])
-
-	(if (contains (#tuple "{{" "}}" "\n" "\n\r") c)
-	    then: (result.append (item c 0))
-	    else:
-	    { (var [expr (parse-source (item g 2))]
-		   [conv (item g 3)]
-		   [fmt (item g 4)])
-
-	      (setq expr
-		    (cond
-		     [(not conv) expr]
-		     [(== "!r" conv)
-		      `(repr ,expr)]
-		     [(== "!s" conv)
-		      `(str ,expr)]
-		     [(== "!a" conv)
-		      `(ascii ,expr)]
-		     [else:
-		      (raise! Exception
-			      (% "bad format conversion %r" conv))]))
-
-	      (when fmt
-		(setq fmt (item-slice fmt 1)))
-
-	      (setq expr
-		    (if fmt
-			then: `(format ,expr ,fmt)
-			else: `(format ,expr)))
-
-	      (result.append expr) }))
-
-    (result.append (item-slice text offset))
+    (var [fsr (FormatStringReader __reader__)]
+	 [src (source_str text "<format string>")]
+	 [result (fsr.read src)])
 
     (if rest
 	then: `(#str ,@result (#fmt ,@rest))
 	else: `(#str ,@result))))
 
+
+;; == defrecord (maybe throw this away)
 
 (defmacro defrecord [name fields]
   `(def class ,name []
@@ -997,6 +949,8 @@ license: LGPL v.3
 	     ,@(iter-each [field (unpack fields)]
 		   `(set-attr self ,field ,field)))))
 
+
+;; == compiler TCO features
 
 (defmacro compiler-tco-disable []
   (try

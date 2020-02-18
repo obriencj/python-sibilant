@@ -45,6 +45,7 @@ __all__ = (
 
 _symbol_begin = symbol("begin")
 _symbol_decimal = symbol("decimal")
+_symbol_format = symbol("format")
 _symbol_fraction = symbol("fraction")
 _symbol_quasiquote = symbol("quasiquote")
 _symbol_quote = symbol("quote")
@@ -633,6 +634,43 @@ class Reader(object):
         """
 
         return SKIP, stream.readline()
+
+
+class FormatStringReader(object):
+
+
+    def __init__(self, normal_reader=None):
+        if normal_reader is None:
+            self.normal = default_reader
+        else:
+            self.normal = normal_reader
+
+
+    def read(self, stream):
+        result = []
+
+        norm = self.normal
+        check = partial(str.__eq__, "{")
+
+        peek = stream.peek(2)
+        while peek:
+            if peek == "{{":
+                stream.read(2)
+                result.append("{")
+
+            elif peek[0] == "{":
+                stream.read(1)
+                event, child = norm._read_pair("}", stream, "{")
+                new_child = cons(_symbol_format, child)
+                new_child.set_position(child.get_position())
+                result.append(new_child)
+
+            else:
+                result.append(stream.read_until(check))
+
+            peek = stream.peek(2)
+
+        return result
 
 
 @contextmanager
