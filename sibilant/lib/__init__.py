@@ -86,6 +86,11 @@ class SibilantSyntaxError(SyntaxError):
         else:
             super().__init__(message)
 
+        self.message = message
+        self.location = location
+        self.filename = filename
+        self.text = text
+
 
 class TypePredicate(partial):
     def __new__(cls, name, typeobj):
