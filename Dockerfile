@@ -4,19 +4,18 @@ FROM python:3.7-alpine as base
 
 
 # An intermediary container which will have some of the necessary
-# tools to build the binary extensions in gnureadline and
-# sibilant. We'll deposit the results somewhere to be installed from
-# later
+# tools to build the binary extensions in sibilant. We'll deposit the
+# resulting wheel to be installed later
 
 FROM base as builder
 
-COPY . /src
+COPY setup.py /build/setup.py
+COPY sibilant /build/sibilant/
 
 RUN \
-  mkdir /wheels ; \
-  apk add gcc make readline-dev musl-dev python3-dev ; \
-  pip3 install --upgrade pip setuptools wheel ; \
-  pip3 wheel -w /wheels gnureadline /src
+  apk add gcc musl-dev python3-dev && \
+  mkdir /wheels && \
+  pip wheel -w /wheels /build/
 
 
 # The real container, installing the wheels built into the /wheels dir
@@ -26,10 +25,11 @@ FROM base
 
 COPY --from=builder /wheels /wheels
 RUN \
-  pip3 install /wheels/*.whl ; \
+  pip install /wheels/*.whl && \
   rm -rf /wheels
 
-CMD ["sibilant"]
+
+CMD sibilant
 
 
 # The end.
