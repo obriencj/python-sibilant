@@ -9,7 +9,7 @@ FROM python:3.7-alpine as base
 
 FROM base as builder
 
-COPY setup.py /build/setup.py
+COPY setup.py setup.json /build/
 COPY sibilant /build/sibilant/
 
 RUN \
