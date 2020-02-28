@@ -23,6 +23,17 @@ RUN \
 
 FROM base
 
+LABEL maintainer = "obriencj@redhat.com" \
+      version = "0.9.0"
+
+# http://label-schema.org/rc1/
+LABEL org.label-schema.schema-version = "1.0" \
+      org.label-schema.name = "sibilant" \
+      org.label-schema.version = "0.9.0" \
+      org.label-schema.url = "https://github.com/obriencj/sibilant" \
+      org.label-schema.vcs-url = "https://github.com/obriencj/sibilant"
+
+
 COPY --from=builder /wheels /wheels
 RUN \
   pip install /wheels/*.whl && \
