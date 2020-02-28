@@ -17,90 +17,37 @@
 
 
 """
-Sibilant, a LISP for Python
+Sibilant, a Lisp dialect for Python
 
 :author: Christopher O'Brien  <obriencj@gmail.com>
 :license: LGPL v.3
 """
 
 
-from setuptools import setup, Extension
+def setup_data():
+    # In order to make the build process more data-driven, I've opted
+    # to store all of the build configuration in the setup.json
+    # file. This allows me to re-use the data in the Dockerfile and
+    # potentially elsewhere
+
+    from json import load
+
+    with open("setup.json") as dat:
+        return load(dat)
 
 
-ext_types = Extension(
-    name = "sibilant.lib._types",
-    sources = [
-        "sibilant/lib/_types.c",
-        "sibilant/lib/atom.c",
-        "sibilant/lib/pair.c",
-        "sibilant/lib/tco.c",
-        "sibilant/lib/values.c",
-    ],
-    extra_compile_args=[
-        "--std=c99",
-        "-g",
-        "-Wall",
-        "-Werror",
-    ],
-)
+def setup():
+    from setuptools import setup, Extension
+
+    data = setup_data()
+    exts = [Extension(**ext) for ext in data.pop("ext_modules", ())]
+    data["ext_modules"] = exts
+
+    setup(**data)
 
 
-setup(
-    name = "sibilant",
-    version = "0.9.0",
-
-    packages = [
-        "sibilant",
-        "sibilant.compiler",
-        "sibilant.compiler.targets",
-        "sibilant.lib",
-        "sibilant.pseudops",
-        "sibilant.pseudops.targets",
-        "sibilant.site",
-    ],
-
-    package_data = {
-        "sibilant": ["*.lspy"],
-        "sibilant.site": ["*.lspy"],
-    },
-
-    ext_modules = [
-        ext_types,
-    ],
-
-    test_suite = "tests",
-
-    entry_points = {
-        "console_scripts": [
-            'sibilant=sibilant.cli:main',
-        ],
-    },
-
-    # todo: make this optional and just for cli
-    # install_requires = ["appdirs", ],
-
-    # targets only support Python 3.5 through 3.7
-    python_requires = ">=3.5, <3.8",
-
-    description = "LISP dialect for Python",
-
-    # PyPI information
-    author = "Christopher O'Brien",
-    author_email = "obriencj@gmail.com",
-    url = "https://github.com/obriencj/python-sibilant",
-    license = "GNU Lesser General Public License",
-
-    zip_safe = False,
-
-    classifiers = [
-        "Intended Audience :: Developers",
-        "Programming Language :: Python :: 3 :: Only",
-        "Programming Language :: Python :: 3.5",
-        "Programming Language :: Python :: 3.6",
-        "Programming Language :: Python :: Implementation :: CPython",
-        "Topic :: Software Development",
-    ],
-)
+if __name__ == "__main__":
+    setup()
 
 
 #
