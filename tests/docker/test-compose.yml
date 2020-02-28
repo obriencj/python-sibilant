@@ -5,23 +5,23 @@ services:
         build:
           context: .
           dockerfile: cpython35.test
-        volumes:
-            - ../:/src
-        command: "/src/docker/tests.sh cpython35"
+        volumes: &volumes
+          - ../../:/src
+        command: "/src/tests/docker/tests.sh cpython35"
         network_mode: none
     cpython36.test:
         build:
           context: .
           dockerfile: cpython36.test
-        volumes:
-            - ../:/src
-        command: "/src/docker/tests.sh cpython36"
+        volumes: *volumes
+        command: "/src/tests/docker/tests.sh cpython36"
         network_mode: none
     cpython37.test:
         build:
           context: .
           dockerfile: cpython37.test
-        volumes:
-            - ../:/src
-        command: "/src/docker/tests.sh cpython37"
+        volumes: *volumes
+        command: "/src/tests/docker/tests.sh cpython37"
         network_mode: none
+
+# The end.

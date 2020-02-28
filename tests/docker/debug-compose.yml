@@ -5,20 +5,20 @@ services:
         build:
           context: .
           dockerfile: cpython35.debug
-        volumes:
-            - ../:/src
+        volumes: &volumes
+            - ../../:/src
         network_mode: none
     cpython36.debug:
         build:
           context: .
           dockerfile: cpython36.debug
-        volumes:
-            - ../:/src
+        volumes: *volumes
         network_mode: none
     cpython37.debug:
         build:
           context: .
           dockerfile: cpython37.debug
-        volumes:
-            - ../:/src
+        volumes: *volumes
         network_mode: none
+
+# The end.

@@ -11,6 +11,6 @@ echo "Cleaning old test logs"
 rm -rf ./logs/*test.log
 
 echo "Running tests, output will be written to $PWD/logs/"
-docker-compose -f ./docker/test-compose.yml up
+docker-compose -f ./tests/docker/test-compose.yml up
 
 # The end.

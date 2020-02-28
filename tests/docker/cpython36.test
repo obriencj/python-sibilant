@@ -1,0 +1,5 @@
+FROM python:3.6
+
+RUN pip3 install --upgrade pip setuptools gnureadline flake8
+
+# The end.
