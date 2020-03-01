@@ -162,6 +162,11 @@ static PyObject *m_reapply(PyObject *mod, PyObject *args, PyObject *kwds) {
 }
 
 
+static PyObject *m_pass(PyObject *mod, PyObject *args, PyObject *kwds) {
+  Py_RETURN_NONE;
+}
+
+
 static PyObject *m_build_tuple(PyObject *mod, PyObject *values) {
 
   // checked
@@ -239,6 +244,9 @@ static PyMethodDef methods[] = {
     "reapply(func, data, count) -> result data\n"
     "Calls `data = func(data)` count times (or until an exception is\n"
     "raised), and returns the final data value." },
+
+  { "_pass", (PyCFunction) m_pass, METH_VARARGS|METH_KEYWORDS,
+    "pass(*args, **kwds) -> None\n" },
 
   { "build_tuple", (PyCFunction) m_build_tuple, METH_VARARGS,
     "build_tuple(*args) -> args" },

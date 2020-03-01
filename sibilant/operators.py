@@ -29,7 +29,7 @@ from .compiler import Operator
 from .lib import (
     symbol, pair, nil, is_pair, is_symbol,
     build_tuple, build_list, build_set, build_dict,
-    cons,
+    cons, _pass,
 )
 
 from functools import reduce
@@ -103,6 +103,7 @@ _symbol_not_eq = symbol("not-eq")
 _symbol_not_eq_ = symbol("!=")
 _symbol_not_in = symbol("not-in")
 _symbol_or = symbol("or")
+_symbol_pass = symbol("pass")
 _symbol_pow = symbol("power")
 _symbol_pow_ = symbol("**")
 _symbol_quote = symbol("quote")
@@ -141,10 +142,26 @@ def operator(namesym, runtime, *aliases):
     return deco
 
 
+# --- oddball pass operator ---
+
+
+@operator(_symbol_pass, _pass)
+def operator_pass(code, source, tc=False):
+    """
+    Evaluates to None.
+    Sub-expressions are not evaluated.
+    """
+
+    code.pseudop_position_of(source)
+    code.pseudop_const(None)
+    return None
+
+
 # --- conditionally reducing operators ---
 
 
 def runtime_and(*vals):
+    # if only `all` didn't coerce to bool we wouldn't need this
     val = True
     for val in vals:
         if not val:
@@ -183,6 +200,7 @@ def operator_and(code, source, tc=False):
 
 
 def runtime_or(*vals):
+    # if only `any` didn't coerce to bool we wouldn't need this
     val = False
     for val in vals:
         if val:
