@@ -1,27 +1,23 @@
-version: "2"
+version: "3"
 
 services:
-    cpython35.test:
-        build:
-          context: .
-          dockerfile: cpython35.test
-        volumes: &volumes
-          - ../../:/src
-        command: "/src/tests/docker/tests.sh cpython35"
-        network_mode: none
-    cpython36.test:
-        build:
-          context: .
-          dockerfile: cpython36.test
-        volumes: *volumes
-        command: "/src/tests/docker/tests.sh cpython36"
-        network_mode: none
-    cpython37.test:
-        build:
-          context: .
-          dockerfile: cpython37.test
-        volumes: *volumes
-        command: "/src/tests/docker/tests.sh cpython37"
-        network_mode: none
+  cpython35.test:
+    image: "python:3.5"
+    volumes: &volumes
+      - ../../:/src
+    entrypoint: &entry "/bin/bash"
+    command: &cmd "/src/tests/docker/tests.sh"
+
+  cpython36.test:
+    image: "python:3.6"
+    volumes: *volumes
+    entrypoint: *entry
+    command: *cmd
+
+  cpython37.test:
+    image: "python:3.7"
+    volumes: *volumes
+    entrypoint: *entry
+    command: *cmd
 
 # The end.
