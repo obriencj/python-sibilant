@@ -21,7 +21,7 @@ import operator
 from ._types import symbol, keyword, gensym
 from ._types import pair, nil, cons, car, cdr, setcar, setcdr
 from ._types import build_unpack_pair
-from ._types import reapply
+from ._types import reapply, _pass
 from ._types import build_tuple, build_list, build_set, build_dict
 from ._types import values
 from ._types import getderef, setderef, clearderef
@@ -43,7 +43,7 @@ __all__ = (
     "build_proper", "unpack",
     "build_unpack_pair",
 
-    "reapply", "repeatedly", "last", "take",
+    "reapply", "repeatedly", "last", "take", "_pass",
 
     "build_tuple", "build_list", "build_set", "build_dict",
 
