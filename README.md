@@ -71,27 +71,9 @@ more is there?
 
 ## Python Version Support
 
-CPython 3.5 and 3.6 are currently supported. Cpython 3.7 appears to
-work in testing, but as it has not reached GA yet that could change.
-Sibilant outputs python bytecode directly, and creates code, function,
-nd module instances from there. The Python 3 line has changed its
-bytecode quite a bit between these two minor versions. It's possible
-that earlier versions of Python 3 could also be supported, but there
-are some that the sibilant implementation uses which would need to be
-changed. It's a low priority currently, but I'm definitely open to
-pull requests on that front if someone really needs 3.4 support.
-
-[PyPy3] is [being considered], but a very key piece of necessary
-functionality (the ability to specify a custom `builtins` module) is
-[disabled] by [default] as an optimization.
-
-[PyPy3]: https://pypy.org/
-
-[being considered]: https://github.com/obriencj/python-sibilant/issues/51
-
-[disabled]: https://bitbucket.org/pypy/pypy/issues/2653/
-
-[default]: http://doc.pypy.org/en/latest/config/objspace.honor__builtins__.html
+CPython 3.5, 3.6, and 3.7 are currently supported. CPython 3.8 has
+made some bytecode changes (removals) that impact sibilant's ability
+to target it.
 
 
 ## References
@@ -237,6 +219,13 @@ use-case!
 
 [let me know]: https://github.com/obriencj/python-sibilant/issues
 
+
+## Installation
+
+Sibilant needs to be installed as a wheel to function correctly:
+```bash
+pip3 install .
+```
 
 ## Contact
 
