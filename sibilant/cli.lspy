@@ -33,6 +33,7 @@ license: LGPL v.3
 (def import-from .module new_module init_module load_module compile_to_file)
 (def import-from .parse source_open)
 (def import-from .repl repl)
+(def import-from .site.argparse arguments)
 
 
 (define DEFAULT_HISTFILE None)
@@ -95,16 +96,6 @@ license: LGPL v.3
 		   (return)))
 
      (repl mod))
-
-
-(defmacro arguments [parent . args]
-  `(let [[_add_argument_ (attr ,parent add_argument)]]
-    ,@(iter-each
-       [[name params] args]
-       {(define names (if (pair? name)
-			  then: (map str (name.unpack))
-			  else: (#tuple (str name))))
-	`(_add_argument_ ,@names ,@params)})))
 
 
 (def function cli-option-parser [name]

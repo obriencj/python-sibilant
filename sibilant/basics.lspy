@@ -1011,10 +1011,17 @@ license: LGPL v.3
   each SYMBOL replaced with its gensym counterpart.
   """
 
-  (var [symtable (dict (#lc [sym (! unpack symnames)]
+  (var [symtable (dict (#lc [sym (unpack symnames)]
 			    (cons sym (gensym sym))))])
 
   `{,@(map (partial swap-symbols symtable) body)})
+
+
+(defmacro var-gensyms [bindings . body]
+  (var [syms (#lc [[b v] (map parse-binding (unpack bindings))] b)])
+  `(with-gensyms ,syms
+      {(var ,@bindings)
+       ,@body}))
 
 
 (defmacro let-gensyms [bindings . body]
@@ -1028,7 +1035,7 @@ license: LGPL v.3
   (var [decls (#list)]
        [swaps (#dict)])
 
-  (for-each [[sym val] (map parse-binding (! unpack bindings))]
+  (for-each [[sym val] (map parse-binding (unpack bindings))]
 	    (var [gsym (gensym sym)])
 	    (! append decls (cons gsym val nil))
 	    (setf (item swaps sym) gsym))
@@ -1050,6 +1057,22 @@ license: LGPL v.3
 	    (setf (item swaps sym) gsym))
 
   `(letrec [,@decls] ,@(map (partial swap-symbols swaps) body)))
+
+
+(defmacro let*-gensyms [bindings . body]
+  """
+  (let*-gensyms [[SYM BINDING]...] . BODY)
+  """
+
+  (var [decls (#list)]
+       [swaps (#dict)])
+
+  (for-each [[sym val] (map parse-binding (! unpack bindings))]
+	    (var [gsym (gensym sym)])
+	    (! append decls (cons gsym val nil))
+	    (setf (item swaps sym) gsym))
+
+  `(let* [,@decls] ,@(map (partial swap-symbols swaps) body)))
 
 
 ;; === for setting up __all__

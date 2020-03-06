@@ -1,0 +1,64 @@
+;; This library is free software; you can redistribute it and/or modify
+;; it under the terms of the GNU Lesser General Public License as
+;; published by the Free Software Foundation; either version 3 of the
+;; License, or (at your option) any later version.
+;;
+;; This library is distributed in the hope that it will be useful, but
+;; WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;; Lesser General Public License for more details.
+;;
+;; You should have received a copy of the GNU Lesser General Public
+;; License along with this library; if not, see
+;; <http://www.gnu.org/licenses/>.
+
+
+(export arguments)
+
+
+(defmacro arguments [parser . args]
+  """
+  example usage:
+
+  (define-values [prgn . args] sys.argv)
+  (define parser (ArgumentParser prog: prgn))
+
+  (arguments
+   parser
+
+   [-f
+    dest: "foo" action: "store_true" default: False
+    help:
+    "Foo is very important sometimes"]
+
+   [[-X --extra]
+    dest: "extras" action: "append"
+    help:
+    "Some extras to keep in mind"])
+
+  (arguments
+   (parser.add_mutually_exclusive_group)
+
+   [--beer action: "store_true"]
+   [--wine action: "store_true"])
+
+  (parser.parse_args args)
+  """
+
+  `(var-gensyms
+    [[#parser ,parser]
+     [#add_argument (attr #parser add_argument)]]
+
+    ,@(iter-each
+       [[name params] args]
+
+       `(#add_argument
+	 ,@(if (pair? name)
+	       then: (map str (name.unpack))
+	       else: (#tuple (str name)))
+	 ,@params))
+
+    #parser))
+
+
+;; The end.
