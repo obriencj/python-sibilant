@@ -11,8 +11,9 @@ so that the lldebug flag can be used.
 
 ## test-compose.yml
 
-This will load the cpython3?.test images and execute tests.sh in
-each. The results of which will be collected in the logs directory.
+This will load CPython images for 3.5, 3.6, and 3.7 to execute
+tests.sh in each. The results of which will be collected in the logs
+directory.
 
 
 # Docker Images
@@ -20,12 +21,6 @@ each. The results of which will be collected in the logs directory.
 ## cpython3?.debug
 
 This is an image with Python installed with debugging enabled.
-
-## cpython3?.test
-
-This is a simple Python image with gnureadline and flake8 installed.
-The test-compose.yml uses this for running unit tests across a variety
-of Python versions. It can also be used for simple debugging.
 
 
 # Supporting Files
