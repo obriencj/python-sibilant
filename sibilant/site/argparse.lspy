@@ -45,7 +45,7 @@
   (parser.parse_args args)
   """
 
-  `(var-gensyms
+  `(varrec-gensyms
     [[#parser ,parser]
      [#add_argument (attr #parser add_argument)]]
 
