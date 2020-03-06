@@ -46,19 +46,19 @@
   """
 
   `(varrec-gensyms
-    [[#parser ,parser]
-     [#add_argument (attr #parser add_argument)]]
+    [[&parser ,parser]
+     [&add_argument (attr &parser add_argument)]]
 
     ,@(iter-each
        [[name params] args]
 
-       `(#add_argument
+       `(&add_argument
 	 ,@(if (pair? name)
 	       then: (map str (name.unpack))
 	       else: (#tuple (str name)))
 	 ,@params))
 
-    #parser))
+    &parser))
 
 
 ;; The end.
