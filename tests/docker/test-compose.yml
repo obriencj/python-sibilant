@@ -1,0 +1,22 @@
+version: "3"
+
+
+services:
+
+  cpython35.test: &baseline
+    image: "python:3.5"
+    volumes:
+      -  ../../:/src
+    entrypoint: "/bin/bash"
+    command: "/src/tests/docker/tests.sh"
+
+  cpython36.test:
+    << : *baseline
+    image: "python:3.6"
+
+  cpython37.test:
+    << : *baseline
+    image: "python:3.7"
+
+
+# The end.
