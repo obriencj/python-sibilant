@@ -445,7 +445,7 @@ PyTypeObject SibKeywordType = {
 static PyMethodDef methods[] = {
 
   { "gensym", (PyCFunction) m_gensym, METH_VARARGS,
-    "gensym(name, predicate=None -> generate a symbol" },
+    "gensym(name, predicate=None) -> generate a symbol" },
 
   { NULL, NULL, 0, NULL },
 };
