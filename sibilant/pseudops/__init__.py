@@ -1407,7 +1407,9 @@ class PseudopsCompiler(metaclass=ABCPseudopsTarget):
 
 def _list_unique_append(onto_list, value):
 
-    if value in [0, 1]:
+    if value in (0, 1):
+        # value is one of  0, 1, True, False
+
         # we have to manually loop and use the `is` operator, because the
         # list.index method will match False with 0 and True with 1, which
         # incorrectly collapses const pools when both values are present
