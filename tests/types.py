@@ -304,6 +304,16 @@ class SymbolTest(TestCase):
         self.assertNotEqual('x', x)
 
 
+    def test_len(self):
+        empty = symbol('')
+        short = symbol('1')
+        more = symbol('sibilant')
+
+        self.assertEqual(len(empty), len(''))
+        self.assertEqual(len(short), len('1'))
+        self.assertEqual(len(more), len('sibilant'))
+
+
 class KeywordTest(TestCase):
 
     def test_keyword(self):
@@ -402,6 +412,16 @@ class KeywordTest(TestCase):
 
         self.assertNotEqual(x, 'x')
         self.assertNotEqual('x', x)
+
+
+    def test_len(self):
+        empty = keyword('')
+        short = keyword('1')
+        more = keyword('sibilant')
+
+        self.assertEqual(len(empty), len(''))
+        self.assertEqual(len(short), len('1'))
+        self.assertEqual(len(more), len('sibilant'))
 
 
 class BuildUnpackPairTest(TestCase):

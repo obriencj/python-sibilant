@@ -90,6 +90,12 @@ static PyObject *atom_str(PyObject *self) {
 }
 
 
+static Py_ssize_t atom_len(PyObject *self) {
+  PyObject *name = ATOM_NAME(self);
+  return PyUnicode_GET_LENGTH(name);
+}
+
+
 static void atom_rewrap(PyObject *vals, unaryfunc conv) {
 
   // checked
@@ -98,6 +104,11 @@ static void atom_rewrap(PyObject *vals, unaryfunc conv) {
     PyList_SetItem(vals, index, conv(PyList_GET_ITEM(vals, index)));
   }
 }
+
+
+static PySequenceMethods atom_as_sequence = {
+  .sq_length = atom_len,
+};
 
 
 /* === symbol === */
@@ -212,6 +223,7 @@ PyTypeObject SibSymbolType = {
   .tp_new = symbol_new,
   .tp_dealloc = symbol_dealloc,
 
+  .tp_as_sequence = &atom_as_sequence,
   .tp_repr = atom_repr,
   .tp_str = atom_str,
 };
@@ -424,6 +436,7 @@ PyTypeObject SibKeywordType = {
   .tp_new = keyword_new,
   .tp_dealloc = keyword_dealloc,
 
+  .tp_as_sequence = &atom_as_sequence,
   .tp_repr = atom_repr,
   .tp_str = atom_str,
 };
