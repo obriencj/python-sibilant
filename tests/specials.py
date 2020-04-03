@@ -1429,7 +1429,43 @@ class SpecialYield(TestCase):
                                      (2, 3), (1, 4)])
 
 
-class SpecielYieldFrom(TestCase):
+class SpecialAwait(TestCase):
+
+    def test_await(self):
+        import sys, asyncio, math
+
+        inputs = (4, 3, 2)
+
+        src = """
+        (begin
+          (define asyncio (import asyncio))
+          (define factorial
+            (function factorial [number]
+              (cond
+               [(< number 0)
+                (raise (ArgumentError "undefined for negative numbers"))]
+               [(<= number 2) number]
+               [else:
+                (* number (await (factorial (- number 1))))])))
+          (function main [*: inputs]
+            (await (asyncio.gather *: (map factorial inputs)))))
+        """
+        stmt, env = compile_expr(src)
+
+        awaitable = stmt()(*inputs)
+
+        # before python 3.7 this is pretty awkward
+        if sys.version_info.minor < 7:
+            loop = asyncio.get_event_loop()
+            res = loop.run_until_complete(awaitable)
+            loop.close()
+        else:
+            res = asyncio.run(awaitable)
+
+        self.assertEqual(res, list(map(math.factorial, inputs)))
+
+
+class SpecialYieldFrom(TestCase):
 
     def test_yield_from(self):
         src = """

@@ -142,6 +142,7 @@ class StackCounter(metaclass=MetaStackCounter):
         Pseudop.UNARY_INVERT: stacking(1, 1),
         Pseudop.ITER: stacking(1, 1),
         Pseudop.GET_YIELD_FROM_ITER: stacking(1, 1),
+        Pseudop.GET_AWAITABLE: stacking(1, 1),
         Pseudop.YIELD_VAL: stacking(1, 1),
 
         Pseudop.COMPARE_OP: stacking(1, 2),
@@ -172,7 +173,7 @@ class StackCounter(metaclass=MetaStackCounter):
         Pseudop.SET_LOCAL: stacking(0, 1),
         Pseudop.SET_VAR: stacking(0, 1),
         Pseudop.RET_VAL: stacking(0, 1),
-        Pseudop.YIELD_FROM: stacking(0, 1),
+        Pseudop.YIELD_FROM: stacking(1, 2),
 
         Pseudop.SETUP_EXCEPT: stacking(6, 0),
         Pseudop.POP_EXCEPT: stacking(0, 3),

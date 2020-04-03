@@ -42,6 +42,7 @@ __all__ = []
 
 _symbol__doc__ = symbol("__doc__")
 _symbol_attr = symbol("attr")
+_symbol_await = symbol("await")
 _symbol_bang = symbol("!")
 _symbol_begin = symbol("begin")
 _symbol_build_proper = symbol("build-proper")
@@ -1316,18 +1317,13 @@ def special_yield(code, source, tc=False):
     return None
 
 
-@special(_symbol_yield_from)
-def special_yield_from(code, source, tc=False):
+def _helper_yield_from(code, source):
 
     try:
         called_by, (value, rest) = source
 
     except ValueError:
         msg = "Too few arguments to %s, %r" % (called_by, source)
-        raise code.error(msg, source)
-
-    if not is_nil(rest):
-        msg = "Too many arguments to %s, %r" % (called_by, source)
         raise code.error(msg, source)
 
     # the expression being yielded from is always NOT tco valid
@@ -1337,11 +1333,46 @@ def special_yield_from(code, source, tc=False):
     # YIELD_FROM, but that always fails. If I look at a disassembly of
     # a simple yield from call in Python, I see that there's a const
     # None at TOS, with the generator below it whenever YIELD_FROM
-    # happens. I'm emulating that here.
+    # happens.
 
-    # it looks like the None is being sent to the iter!
+    if not is_nil(rest):
+
+        try:
+            kw, arg = rest.unpack()
+
+        except ValueError:
+            # helpful comment describing helpful error message
+            msg = "Wrong arguments to %s, %r" % (called_by, source)
+            raise code.error(msg, source)
+
+        if kw == keyword("send"):
+            return arg
+
+        else:
+            msg = "Too many arguments to %s, %r" % (called_by, source)
+            raise code.error(msg, source)
+
+    else:
+        return None
+
+
+@special(_symbol_await)
+def special_await(code, source, tc=False):
+    send_value = _helper_yield_from(code, source)
+
+    code.pseudop_get_awaitable()
+    code.pseudop_const(send_value)
+    code.pseudop_yield_from()
+
+    return None
+
+
+@special(_symbol_yield_from)
+def special_yield_from(code, source, tc=False):
+    send_value = _helper_yield_from(code, source)
+
     code.pseudop_get_yield_from_iter()
-    code.pseudop_const(None)
+    code.pseudop_const(send_value)
     code.pseudop_yield_from()
     code.pseudop_pop()
 
