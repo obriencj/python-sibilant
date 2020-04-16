@@ -21,7 +21,7 @@ Pythonic builtin definitions for sibilant.
 These are used to bootstrap an importer that can load the
 basics.lspy module
 
-bootstrap and basica are then merged together to create the final
+bootstrap and basics are then merged together to create the final
 builtins module, which is made available to any module being loaded
 via sibilant.
 

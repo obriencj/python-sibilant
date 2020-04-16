@@ -315,18 +315,18 @@ def compiler_for_version(ver=version_info,
     """
 
     if impl == 'CPython':
-        # TODO : user some sort of introspection instead of having to
+        # TODO: use some sort of introspection instead of having to
         # write an import for every case...
 
-        if (3, 7) <= ver <= (3, 8):
+        if (3, 7) <= ver < (3, 8):
             from .targets.cpython37 import SibilantCPython37
             return SibilantCPython37
 
-        elif (3, 6) <= ver <= (3, 7):
+        elif (3, 6) <= ver < (3, 7):
             from .targets.cpython36 import SibilantCPython36
             return SibilantCPython36
 
-        elif (3, 5) <= ver <= (3, 6):
+        elif (3, 5) <= ver < (3, 6):
             from .targets.cpython35 import SibilantCPython35
             return SibilantCPython35
 
@@ -338,7 +338,7 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
 
     def __init__(self, tco_enabled=True, self_ref=None, **kwopts):
 
-        # TODO: using **kwops is crap, maybe we need a copiler options
+        # TODO: using **kwopts is crap, maybe we need a compiler options
         # object to document the options and what they mean.
 
         super().__init__(**kwopts)
@@ -1036,7 +1036,7 @@ def gather_formals(args, declared_at=None, filename=None):
         elif is_symbol(arg) or is_lazygensym(arg):
             positional.append(arg)
         else:
-            raise err("positional formals must be symbols, nor %r" % arg)
+            raise err("positional formals must be symbols, not %r" % arg)
     else:
         # handled all of args, done deal.
         if improper:
