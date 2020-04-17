@@ -23,7 +23,7 @@ RUN \
 
 FROM base
 
-LABEL maintainer = "obriencj@redhat.com" \
+LABEL maintainer = "obriencj@gmail.com" \
       version = "0.9.0"
 
 # http://label-schema.org/rc1/
