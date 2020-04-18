@@ -493,7 +493,7 @@ class PseudopsCompiler(metaclass=ABCPseudopsTarget):
 
         self.mode = mode
 
-        self.async = False
+        self.coroutine = False
         self.generator = False
 
         self.filename = filename
@@ -566,7 +566,7 @@ class PseudopsCompiler(metaclass=ABCPseudopsTarget):
         self.blocks = [CodeBlock(Block.BASE, 0, 0)]
         self.consts = [None]
 
-        self.async = False
+        self.coroutine = False
         self.generator = False
 
         self.fast_vars.clear()
@@ -751,8 +751,8 @@ class PseudopsCompiler(metaclass=ABCPseudopsTarget):
         self.get_block().storage = value
 
 
-    def declare_async(self):
-        self.async = True
+    def declare_coroutine(self):
+        self.coroutine = True
 
 
     def declare_generator(self):
@@ -1075,7 +1075,7 @@ class PseudopsCompiler(metaclass=ABCPseudopsTarget):
 
 
     def pseudop_get_awaitable(self):
-        self.declare_async()
+        self.declare_coroutine()
         return self.pseudop(Pseudop.GET_AWAITABLE)
 
 
@@ -1333,7 +1333,7 @@ class PseudopsCompiler(metaclass=ABCPseudopsTarget):
         if self.parent:
             flags |= CodeFlag.NESTED.value
 
-        if self.async:
+        if self.coroutine:
             flags |= CodeFlag.COROUTINE.value
 
         if self.generator:
