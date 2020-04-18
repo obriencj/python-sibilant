@@ -1333,7 +1333,9 @@ def _helper_yield_from(code, source):
     # YIELD_FROM, but that always fails. If I look at a disassembly of
     # a simple yield from call in Python, I see that there's a const
     # None at TOS, with the generator below it whenever YIELD_FROM
-    # happens.
+    # happens. I'm emulating that here, with the additional option to
+    # send the result of any expression to the generator/coroutine,
+    # rather than just None.
 
     if not is_nil(rest):
 
@@ -1361,6 +1363,7 @@ def special_await(code, source, tc=False):
     send_value = _helper_yield_from(code, source)
 
     code.pseudop_get_awaitable()
+    # see comment in _helper_yield_from()
     code.pseudop_const(send_value)
     code.pseudop_yield_from()
 
@@ -1372,6 +1375,7 @@ def special_yield_from(code, source, tc=False):
     send_value = _helper_yield_from(code, source)
 
     code.pseudop_get_yield_from_iter()
+    # see comment in _helper_yield_from()
     code.pseudop_const(send_value)
     code.pseudop_yield_from()
     code.pseudop_pop()
