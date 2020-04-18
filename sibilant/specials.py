@@ -1364,7 +1364,7 @@ def special_await(code, source, tc=False):
 
     code.pseudop_get_awaitable()
     # see comment in _helper_yield_from()
-    code.pseudop_const(send_value)
+    code.add_expression(send_value)
     code.pseudop_yield_from()
 
     return None
@@ -1376,7 +1376,7 @@ def special_yield_from(code, source, tc=False):
 
     code.pseudop_get_yield_from_iter()
     # see comment in _helper_yield_from()
-    code.pseudop_const(send_value)
+    code.add_expression(send_value)
     code.pseudop_yield_from()
     code.pseudop_pop()
 
