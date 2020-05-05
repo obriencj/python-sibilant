@@ -87,6 +87,7 @@ _symbol_yield_from = symbol("yield-from")
 
 _keyword_as = keyword("as")
 _keyword_else = keyword("else")
+_keyword_except = keyword("except")
 _keyword_finally = keyword("finally")
 _keyword_star = keyword("*")
 
@@ -1439,19 +1440,34 @@ def _collect_catches(code, catches):
 
         ex, act = ca
         if is_proper(ex):
+            # [[err Exception] body…]
+            # [[Exception as: err] body…]
             ex_binding, ex_expr = _helper_binding(code, ex, None)
 
             ex = cons([ex_binding, ex_expr], act)
             fill_position(ex, ca.get_position())
             normal_catches.append(ex)
 
+        elif ex is _keyword_except:
+            # [except: Exception body…]
+            try:
+                ex_type, act = act
+            except ValueError:
+                raise code.error("malformed except: clause in try", ca)
+
+            ex = cons([ex, ex_type], act)
+            fill_position(ex, ca.get_position())
+            normal_catches.append(ex)
+
         elif ex is _keyword_finally:
+            # [finally: body…]
             if act_finally:
                 raise code.error("duplicate finally: clause in try", ca)
 
             act_finally = act
 
         elif ex is _keyword_else:
+            # [else: body…]
             if act_else:
                 raise code.error("duplicate else: clause in try", ca)
 
@@ -1537,6 +1553,11 @@ def _except(code, catches, except_label, end_label,
 
         for ca in catches:
             (key, match), act = ca
+            # this makes the following two formats equivalent:
+            # [[Exception] body…]
+            # [except: Exception body…]
+            if key == _keyword_except:
+                key = None
 
             code.pseudop_position_of(ca)
             _except_match(code, key, match,
