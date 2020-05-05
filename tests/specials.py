@@ -634,6 +634,23 @@ class SpecialTry(TestCase):
         self.assertEqual(accu2, [-111])
 
 
+    def test_keyword_try_exc(self):
+
+        accu1, bad_guy = make_raise_accumulator()
+        accu2, good_guy = make_accumulator()
+
+        src = """
+        (try
+          (bad_guy 567)
+          (except: Exception (good_guy -111)))
+        """
+        stmt, env = compile_expr(src, **locals())
+        res = stmt()
+        self.assertEqual(res, -111)
+        self.assertEqual(accu1, [567])
+        self.assertEqual(accu2, [-111])
+
+
     def test_named_try_exc(self):
 
         accu1, bad_guy = make_raise_accumulator()
@@ -666,6 +683,21 @@ class SpecialTry(TestCase):
         self.assertEqual(accu2, [])
 
 
+    def test_keyword_try_exc_miss(self):
+        accu1, bad_guy = make_raise_accumulator(BaseException)
+        accu2, good_guy = make_accumulator()
+
+        src = """
+        (try
+          (bad_guy 567)
+          (except: Exception (good_guy -111)))
+        """
+        stmt, env = compile_expr(src, **locals())
+        self.assertRaises(BaseException, stmt)
+        self.assertEqual(accu1, [567])
+        self.assertEqual(accu2, [])
+
+
     def test_named_try_exc_miss(self):
         accu1, bad_guy = make_raise_accumulator(BaseException)
         accu2, good_guy = make_accumulator()
@@ -690,6 +722,24 @@ class SpecialTry(TestCase):
         (try
           (bad_guy 567)
           ((Exception) (good_guy -111))
+          (else: (good_guy 987)))
+        """
+        stmt, env = compile_expr(src, **locals())
+        res = stmt()
+        self.assertEqual(res, -111)
+        self.assertEqual(accu1, [567])
+        self.assertEqual(accu2, [-111])
+
+
+    def test_keyword_try_exc_else(self):
+
+        accu1, bad_guy = make_raise_accumulator()
+        accu2, good_guy = make_accumulator()
+
+        src = """
+        (try
+          (bad_guy 567)
+          (except: Exception (good_guy -111))
           (else: (good_guy 987)))
         """
         stmt, env = compile_expr(src, **locals())
@@ -735,6 +785,24 @@ class SpecialTry(TestCase):
         self.assertEqual(accu2, [-111, 789])
 
 
+    def test_keyword_try_exc_finally(self):
+
+        accu1, bad_guy = make_raise_accumulator()
+        accu2, good_guy = make_accumulator()
+
+        src = """
+        (try
+          (bad_guy 567)
+          (except: Exception (good_guy -111))
+          (finally: (good_guy 789)))
+        """
+        stmt, env = compile_expr(src, **locals())
+        res = stmt()
+        self.assertEqual(res, -111)
+        self.assertEqual(accu1, [567])
+        self.assertEqual(accu2, [-111, 789])
+
+
     def test_named_try_exc_finally(self):
 
         accu1, bad_guy = make_raise_accumulator()
@@ -762,6 +830,25 @@ class SpecialTry(TestCase):
         (try
           (bad_guy 567)
           ((Exception) (good_guy -111))
+          (else: (good_guy 456))
+          (finally: (good_guy 789)))
+        """
+        stmt, env = compile_expr(src, **locals())
+        res = stmt()
+        self.assertEqual(res, -111)
+        self.assertEqual(accu1, [567])
+        self.assertEqual(accu2, [-111, 789])
+
+
+    def test_keyword_try_exc_else_finally(self):
+
+        accu1, bad_guy = make_raise_accumulator()
+        accu2, good_guy = make_accumulator()
+
+        src = """
+        (try
+          (bad_guy 567)
+          (except: Exception (good_guy -111))
           (else: (good_guy 456))
           (finally: (good_guy 789)))
         """
