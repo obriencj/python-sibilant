@@ -1153,7 +1153,7 @@ def _helper_setq_values(code, bindings, declare):
 
             if is_symbolish(mid):
                 if declare:
-                    code.declare_var(b)
+                    code.declare_var(mid)
                 code.pseudop_set_var(mid)
             else:
                 msg = "start bindings must be symbols, not %r" % mid
