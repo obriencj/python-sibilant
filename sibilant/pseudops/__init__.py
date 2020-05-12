@@ -225,6 +225,7 @@ class CodeFlag(Enum):
     NOFREE = 64
     COROUTINE = 128
     ITERABLE_COROUTINE = 256
+    ASYNC_GENERATOR = 512
 
 
 # these types alone are valid constant value types when marshalling a
@@ -1333,11 +1334,18 @@ class PseudopsCompiler(metaclass=ABCPseudopsTarget):
         if self.parent:
             flags |= CodeFlag.NESTED.value
 
-        if self.coroutine:
+        # using show_code from the dis module, it seems that ASYNC_GENERATOR is
+        # set when COROUTINE and GENERATOR would be set together; I have not
+        # investigated what happens if those flags are set together
+
+        if self.coroutine and not self.generator:
             flags |= CodeFlag.COROUTINE.value
 
-        if self.generator:
+        if self.generator and not self.coroutine:
             flags |= CodeFlag.GENERATOR.value
+
+        if self.generator and self.coroutine:
+            flags |= CodeFlag.ASYNC_GENERATOR.value
 
         lnt = []
         code = self.code_bytes(lnt)

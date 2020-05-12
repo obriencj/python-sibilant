@@ -63,6 +63,35 @@ license: LGPL v.3
   `(define-global ,name (function ,name ,params ,@body)))
 
 
+(defmacro coroutine [name params . body]
+  """
+  (coroutine NAME (FORMAL...) BODY...)
+
+  Creates a coroutine with a binding to itself as NAME, taking FORMAL
+  arguments, and executing the BODY expressions in order. An awaitable
+  coroutine is returned, which ultimately yields the result of the final
+  expression.
+  """
+  `(function ,name ,params (declare-async) ,@body))
+
+
+;; awaitable lambda
+(defmacro coro [params . body]
+  """
+  (coro (FORMAL...) BODY...)
+
+  Creates an anonymous coroutine taking FORMAL arguments, and executing the
+  BODY expressions in order. An awaitable coroutine is returned, which
+  ultimately yields the result of the final expression.
+  """
+  `(lambda ,params (declare-async) ,@body))
+
+
+(defmacro defcoro [name params . body]
+  "Defines a coroutine with the given name in the current module"
+  `(define-global ,name (coroutine ,name ,params ,@body)))
+
+
 (defmacro defclass [name bases . body]
   "Defines a class with the given name in the current module"
   `(define-global ,name (class ,name ,bases ,@body)))
@@ -408,9 +437,8 @@ license: LGPL v.3
 
 
 (gd-define-simple-target function 'function)
-(gd-define-simple-target method 'method)
+(gd-define-simple-target coroutine 'coroutine)
 (gd-define-simple-target class 'class)
-(gd-define-simple-target macro 'macro)
 
 
 ;; === def import and def import-from ==

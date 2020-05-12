@@ -26,6 +26,7 @@ import dis
 from functools import partial
 from types import GeneratorType
 from unittest import TestCase
+from asynctest import TestCase as AsyncTestCase
 
 from sibilant.lib import (
     symbol, keyword, cons, nil, is_nil,
@@ -1429,10 +1430,10 @@ class SpecialYield(TestCase):
                                      (2, 3), (1, 4)])
 
 
-class SpecialAwait(TestCase):
+class SpecialAwait(AsyncTestCase):
 
     def test_await(self):
-        import sys, asyncio, math
+        import math
 
         inputs = (4, 3, 2)
 
@@ -1451,18 +1452,56 @@ class SpecialAwait(TestCase):
             (await (asyncio.gather *: (map factorial inputs)))))
         """
         stmt, env = compile_expr(src)
-
-        awaitable = stmt()(*inputs)
-
-        # before python 3.7 this is pretty awkward
-        if sys.version_info.minor < 7:
-            loop = asyncio.get_event_loop()
-            res = loop.run_until_complete(awaitable)
-            loop.close()
-        else:
-            res = asyncio.run(awaitable)
+        awaitable = stmt()
+        res = self.loop.run_until_complete(awaitable(*inputs))
 
         self.assertEqual(res, list(map(math.factorial, inputs)))
+
+
+class SpecialDeclareAsync(AsyncTestCase):
+
+    # test that the coroutine makes it through the asyncio event loop
+    def test_declare_async(self):
+        src = """
+        (function coro-echo [obj]
+          (declare-async)
+          obj)
+        """
+        stmt, env = compile_expr(src)
+        awaitable = stmt()
+        input_atom = object()
+        res = self.loop.run_until_complete(awaitable(input_atom))
+
+        self.assertEqual(res, input_atom)
+
+    # every expression has a value
+    def test_declare_async_expr(self):
+        src = """
+        (function coro-echo [obj]
+          obj
+          (declare-async))
+        """
+        stmt, env = compile_expr(src)
+        awaitable = stmt()
+        input_atom = object()
+        res = self.loop.run_until_complete(awaitable(input_atom))
+
+        self.assertEqual(res, None)
+
+
+def asyncio_run(awaitable):
+    import sys, asyncio
+
+    # before python 3.7 this is pretty awkward
+    if sys.version_info.minor < 7:
+        loop = asyncio.get_event_loop()
+        res = loop.run_until_complete(awaitable)
+        # normally, you would want to do this:
+        #loop.close()
+        # but, there doesn't seem to be a way to reset it
+        return res
+    else:
+        return asyncio.run(awaitable)
 
 
 class SpecialYieldFrom(TestCase):

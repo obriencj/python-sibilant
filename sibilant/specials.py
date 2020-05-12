@@ -51,6 +51,7 @@ _symbol_break = symbol("break")
 _symbol_cond = symbol("cond")
 _symbol_cons = symbol("cons")
 _symbol_continue = symbol("continue")
+_symbol_declare_async = symbol("declare-async")
 _symbol_define = symbol("define")
 _symbol_define_global = symbol("define-global")
 _symbol_define_values = symbol("define-values")
@@ -753,6 +754,27 @@ def special_function(code, source, tc=False):
     code.pseudop_call(0)
 
     # no additional transform needed
+    return None
+
+
+@special(_symbol_declare_async)
+def special_declare_async(code, source, tc=False):
+    """
+    (declare-async)
+
+    Flags the current function or generator as a coroutine or asynchronous
+    generator, respectively. Returns None, always.
+    """
+
+    called_by, rest = source
+
+    if not is_nil(rest):
+        raise code.error("too many arguments to declare-async", source)
+
+    code.declare_coroutine()
+    # unfortunately, this is a real statement
+    code.pseudop_const(None)
+
     return None
 
 
