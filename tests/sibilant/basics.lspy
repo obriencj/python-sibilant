@@ -36,49 +36,39 @@
 	  None))
 
 
-;; This can't be defined in the class, or it won't get called until runtime?
-(defmacro test-coro [macro-label def-expr . test-exprs]
-  """
-  (test-coro LABEL DEFINITION [TESTS...])
-
-  create a member function test_LABEL and use the given expression to
-  define the coro-echo identity coroutine using the indicated macro,
-  which will automatically tested to verify it runs in the asyncio
-  event loop and returns a test atom, and any additional expressions
-  will be run
-  """
-  `(def function ,(symbol (#fmt "test_{macro-label}")) [self]
-        ,def-expr
-        (var [input-atom (object)]
-             [res (self.loop.run_until_complete (coro-echo input-atom))])
-
-        (self.assertEqual res input-atom)
-        ,@test-exprs
-        
-        None))
-
-
 (def class CoroutineTest [AsyncTestCase]
+     ;; as long as you name the object coro-echo, this wrapper is for you
+     (macro-let [[testfn [macro-label def-expr . test-exprs]
+                  `(def function ,(symbol (#fmt "test_{macro-label}")) [self]
+                        ,def-expr
+                        (var [input-atom (object)]
+                             [res (self.loop.run_until_complete
+                                    (coro-echo input-atom))])
 
-     ;; async function
-     (test-coro coroutine
-       (define coro-echo (coroutine coro-echo [obj] obj)))
+                        (self.assertEqual res input-atom)
+                        ,@test-exprs
 
-     ;; async def function
-     (test-coro def_coroutine
-       (def coroutine coro-echo [obj] obj))
+                        None)]]
 
-     ;; async lambda
-     (test-coro coro
-       (define coro-echo (coro [obj] obj)))
+       ;; async function
+       (testfn coroutine
+         (define coro-echo (coroutine coro-echo [obj] obj)))
 
-     ;; async defun
-     (test-coro defcoro
-       {(define pre-globals (frozenset (! keys (globals))))
-        (defcoro coro-echo [obj] obj)}
-       (define post-globals (frozenset (! keys (globals))))
-       (self.assertEqual (- post-globals pre-globals)
-                         (frozenset (#tuple "coro-echo"))))
+       ;; async def function
+       (testfn def_coroutine
+         (def coroutine coro-echo [obj] obj))
+
+       ;; async lambda
+       (testfn coro
+         (define coro-echo (coro [obj] obj)))
+
+       ;; async defun
+       (testfn defcoro
+         {(define pre-globals (frozenset (! keys (globals))))
+          (defcoro coro-echo [obj] obj)}
+         (define post-globals (frozenset (! keys (globals))))
+         (self.assertEqual (- post-globals pre-globals)
+                           (frozenset (#tuple "coro-echo")))))
 
      ;; async let
      (def function test_async_let [self]
