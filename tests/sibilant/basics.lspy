@@ -14,6 +14,7 @@
 
 
 (def import-from unittest TestCase)
+(def import-from asynctest [TestCase as: AsyncTestCase])
 
 
 (def class DefclassTest [TestCase]
@@ -33,6 +34,51 @@
 	  (self.assertEqual sinst.foo (sinst.get-foo))
 
 	  None))
+
+
+(def class CoroutineTest [AsyncTestCase]
+     ;; as long as you name the object coro-echo, this wrapper is for you
+     (macro-let [[testfn [macro-label def-expr . test-exprs]
+                  `(def function ,(symbol (#fmt "test_{macro-label}")) [self]
+                        ,def-expr
+                        (var [input-atom (object)]
+                             [res (self.loop.run_until_complete
+                                    (coro-echo input-atom))])
+
+                        (self.assertEqual res input-atom)
+                        ,@test-exprs
+
+                        None)]]
+
+       ;; async function
+       (testfn coroutine
+         (define coro-echo (coroutine coro-echo [obj] obj)))
+
+       ;; async def function
+       (testfn def_coroutine
+         (def coroutine coro-echo [obj] obj))
+
+       ;; async lambda
+       (testfn coro
+         (define coro-echo (coro [obj] obj)))
+
+       ;; async defun
+       (testfn defcoro
+         {(define pre-globals (frozenset (! keys (globals))))
+          (defcoro coro-echo [obj] obj)}
+         (define post-globals (frozenset (! keys (globals))))
+         (self.assertEqual (- post-globals pre-globals)
+                           (frozenset (#tuple "coro-echo")))))
+
+     ;; async let
+     (def function test_async_let [self]
+          (define input-atom (object))
+          (self.assertEqual
+            (self.loop.run_until_complete
+              (let& [[obj input-atom]] obj))
+            input-atom)
+
+          None))
 
 
 (def class LabelsTest [TestCase]

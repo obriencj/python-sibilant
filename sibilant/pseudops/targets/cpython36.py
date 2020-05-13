@@ -75,6 +75,7 @@ class PseudopsCPython36(PseudopsCompiler):
         _P.ITER: direct(_O.GET_ITER, 0),
         _P.FOR_ITER: direct(_O.FOR_ITER),
         _P.GET_YIELD_FROM_ITER: direct(_O.GET_YIELD_FROM_ITER, 0),
+        _P.GET_AWAITABLE: direct(_O.GET_AWAITABLE, 0),
 
         _P.UNPACK_SEQUENCE: direct(_O.UNPACK_SEQUENCE),
 

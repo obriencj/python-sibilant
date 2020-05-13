@@ -168,6 +168,7 @@ class Pseudop(Enum):
     FOR_ITER = auto()
     FORMAT = auto()
     GET_ATTR = auto()
+    GET_AWAITABLE = auto()
     GET_GLOBAL = auto()
     GET_ITEM = auto()
     GET_METHOD = auto()
@@ -224,6 +225,7 @@ class CodeFlag(Enum):
     NOFREE = 64
     COROUTINE = 128
     ITERABLE_COROUTINE = 256
+    ASYNC_GENERATOR = 512
 
 
 # these types alone are valid constant value types when marshalling a
@@ -492,6 +494,7 @@ class PseudopsCompiler(metaclass=ABCPseudopsTarget):
 
         self.mode = mode
 
+        self.coroutine = False
         self.generator = False
 
         self.filename = filename
@@ -564,6 +567,7 @@ class PseudopsCompiler(metaclass=ABCPseudopsTarget):
         self.blocks = [CodeBlock(Block.BASE, 0, 0)]
         self.consts = [None]
 
+        self.coroutine = False
         self.generator = False
 
         self.fast_vars.clear()
@@ -746,6 +750,10 @@ class PseudopsCompiler(metaclass=ABCPseudopsTarget):
 
     def set_block_storage(self, value):
         self.get_block().storage = value
+
+
+    def declare_coroutine(self):
+        self.coroutine = True
 
 
     def declare_generator(self):
@@ -1062,9 +1070,14 @@ class PseudopsCompiler(metaclass=ABCPseudopsTarget):
         return self.pseudop(Pseudop.YIELD_VAL)
 
 
-    def pseudop_yield_from(self):
+    def pseudop_get_yield_from_iter(self):
         self.declare_generator()
-        return self.pseudop(Pseudop.YIELD_FROM)
+        return self.pseudop(Pseudop.GET_YIELD_FROM_ITER)
+
+
+    def pseudop_get_awaitable(self):
+        self.declare_coroutine()
+        return self.pseudop(Pseudop.GET_AWAITABLE)
 
 
     def pseudop_get_global(self, namesym: Symbol):
@@ -1219,7 +1232,7 @@ class PseudopsCompiler(metaclass=ABCPseudopsTarget):
 
     pseudop_iter = _op("ITER")
     pseudop_for_iter = _op("FOR_ITER")
-    pseudop_get_yield_from_iter = _op("GET_YIELD_FROM_ITER")
+    pseudop_yield_from = _op("YIELD_FROM")
 
     pseudop_rot_two = _op("ROT_TWO")
     pseudop_rot_three = _op("ROT_THREE")
@@ -1321,8 +1334,18 @@ class PseudopsCompiler(metaclass=ABCPseudopsTarget):
         if self.parent:
             flags |= CodeFlag.NESTED.value
 
-        if self.generator:
+        # using show_code from the dis module, it seems that ASYNC_GENERATOR is
+        # set when COROUTINE and GENERATOR would be set together; I have not
+        # investigated what happens if those flags are set together
+
+        if self.coroutine and not self.generator:
+            flags |= CodeFlag.COROUTINE.value
+
+        if self.generator and not self.coroutine:
             flags |= CodeFlag.GENERATOR.value
+
+        if self.generator and self.coroutine:
+            flags |= CodeFlag.ASYNC_GENERATOR.value
 
         lnt = []
         code = self.code_bytes(lnt)

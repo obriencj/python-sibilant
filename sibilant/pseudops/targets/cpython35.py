@@ -86,6 +86,7 @@ class PseudopsCPython35(PseudopsCompiler):
         _P.ITER: direct(_O.GET_ITER),
         _P.FOR_ITER: direct(_O.FOR_ITER),
         _P.GET_YIELD_FROM_ITER: direct(_O.GET_YIELD_FROM_ITER),
+        _P.GET_AWAITABLE: direct(_O.GET_AWAITABLE),
         _P.BINARY_ADD: direct(_O.BINARY_ADD),
 
         _P.BUILD_TUPLE: direct(_O.BUILD_TUPLE),
