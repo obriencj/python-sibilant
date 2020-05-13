@@ -78,7 +78,17 @@
         (defcoro coro-echo [obj] obj)}
        (define post-globals (frozenset (! keys (globals))))
        (self.assertEqual (- post-globals pre-globals)
-                         (frozenset (#tuple "coro-echo")))))
+                         (frozenset (#tuple "coro-echo"))))
+
+     ;; async let
+     (def function test_async_let [self]
+          (define input-atom (object))
+          (self.assertEqual
+            (self.loop.run_until_complete
+              (let& [[obj input-atom]] obj))
+            input-atom)
+
+          None))
 
 
 (def class LabelsTest [TestCase]

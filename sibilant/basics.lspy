@@ -87,6 +87,32 @@ license: LGPL v.3
   `(lambda ,params (declare-async) ,@body))
 
 
+(defmacro let& [formals . body]
+  """
+  (let& ((BINDING EXPR) ...) BODY...)
+
+  Same as let, except returning an awaitable coroutine rather than the result
+  of the final expression.
+
+  (let& NAME ((BINDING EXPR) ...) BODY...)
+
+  Same as above, but also binds a recursive coroutine NAME which re-enters the
+  LET with updated binding values. Using await is necessary to obtain the
+  results of recursive invocation.
+
+  In both cases, the alternative binding syntax may be used, eg.
+  (let ((EXPR as: BINDING) ...) BODY...)
+  """
+  (cond
+    ;; named let
+    [(symbol? formals)
+     (define-values [named [formals . body]] `(,formals . ,body))
+     `(let ,named [,@formals] (declare-async) ,@body)]
+    ;; anonymous let
+    [else:
+     `(let [,@formals] (declare-async) ,@body)]))
+
+
 (defmacro defcoro [name params . body]
   "Defines a coroutine with the given name in the current module"
   `(define-global ,name (coroutine ,name ,params ,@body)))
