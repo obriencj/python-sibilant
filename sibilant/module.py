@@ -273,9 +273,9 @@ def compile_time(module, source_expr):
 
     compiler = get_module_compiler(module)
 
-    with compiler.active_context(module, auto_copy=True):
-        compiler.add_expression_with_return(source_expr)
-        code_obj = compiler.complete()
+    with compiler.active_context(module, auto_copy=True) as comp:
+        comp.add_expression_with_return(source_expr)
+        code_obj = comp.complete()
 
     return code_obj
 
