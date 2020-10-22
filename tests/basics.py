@@ -29,7 +29,7 @@ from unittest import TestCase
 import sibilant.builtins
 
 from sibilant.lib import (
-    car, cdr, cons, nil, symbol,
+    car, cdr, cons, nil, pair, symbol,
     getderef, setderef, clearderef,
 )
 
@@ -430,6 +430,41 @@ class Eval(TestCase):
         """
         stmt, env = compile_expr(src, source_sym=data, tacos=5)
         self.assertEqual(stmt(), 5)
+
+
+    def test_eval_reactivate(self):
+
+        data = []
+        work = data.append
+
+        src = """
+        (defmacro my_macro [some-arg flag: 'False]
+            (define cooked-flag (eval flag))
+
+            (work flag.__class__)
+            (work cooked-flag.__class__)
+            (if cooked-flag then: "Good" else: "Bad"))
+        """
+        stmt, env = compile_expr(src, work=work)
+        self.assertEqual(stmt(), None)
+
+        self.assertTrue("my_macro" in env)
+        my_macro = env["my_macro"]
+
+        src = """
+        (my_macro () flag: True)
+        """
+        stmt, env = compile_expr(src, work=work, my_macro=my_macro)
+        self.assertEqual(stmt(), "Good")
+        self.assertEqual(data, [symbol, bool])
+        data.clear()
+
+        src = """
+        (my_macro () flag: (bool 0))
+        """
+        stmt, env = compile_expr(src, work=work, my_macro=my_macro)
+        self.assertEqual(stmt(), "Bad")
+        self.assertEqual(data, [pair, bool])
 
 
 class Compile(TestCase):

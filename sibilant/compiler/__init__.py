@@ -367,6 +367,9 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
         available to the compiler.
         """
 
+        if self.env is not None:
+            raise CompilerException("compiler is already in use")
+
         if not isinstance(environment, Mapping):
             environment = vars(environment)
         self.env = environment
@@ -385,22 +388,33 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
 
 
     @contextmanager
-    def active_context(self, env):
+    def active_context(self, env, auto_copy=False):
         """
         Binds to an environment, clears self at end of context
         """
 
-        self.activate(env)
+        if auto_copy and self.env is not None:
+            # this is an already active context, but we don't want to
+            # raise an exception. Instead we'll make a child from
+            # ourselves.
 
-        old_compiler = current()
-        set_current(self)
+            with self.child_context() as kid:
+                # orphaned!
+                kid.parent = None
+                yield kid
 
-        try:
-            yield self
+        else:
+            self.activate(env)
 
-        finally:
-            set_current(old_compiler)
-            self.reset()
+            old_compiler = current()
+            set_current(self)
+
+            try:
+                yield self
+
+            finally:
+                set_current(old_compiler)
+                self.reset()
 
 
     def child(self, **addtl):
