@@ -110,7 +110,7 @@ class CompilerException(Exception):
     pass
 
 
-class CompilerSyntaxError(SibilantSyntaxError):
+class CompilerSyntaxError(SibilantSyntaxError, CompilerException):
     pass
 
 
@@ -455,7 +455,7 @@ class SibilantCompiler(PseudopsCompiler, metaclass=ABCMeta):
             dispatch = self.compile_constant
         else:
             msg = "Unsupported source object %r" % source_obj
-            raise self.error(msg, source_obj)
+            raise CompilerException(msg)
 
         try:
             return dispatch(source_obj, tc, cont or self._compile_cont)

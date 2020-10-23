@@ -174,6 +174,8 @@ def __setup__(glbls):
     _ty(set, "set")
     _ty(frozenset, "frozenset")
 
+    _ty(type(Ellipsis), "Ellipsis")
+
     _op(id, "id")
 
     _op(lambda value: hasattr(value, "__iter__"),
@@ -193,9 +195,7 @@ def __setup__(glbls):
     _op(setattr, "setattr")
     _op(hasattr, "hasattr")
     _op(isinstance, "isinstance")
-    _op(isinstance, "instance?")
     _op(issubclass, "issubclass")
-    _op(issubclass, "subclass?")
     _op(open, "open")
     _op(input, "input")
     _op(print, "print")
@@ -231,8 +231,12 @@ def __setup__(glbls):
     _op(any, "any")
 
     _op(hash, "hash")
+
+    # We can't use _ty for type because its __instancecheck__ won't
+    # work that way.
     _op(type, "type")
     _op((lambda val: isinstance(val, type)), "type?", rename=True)
+    # _ty(type, "type")
 
     _op(repr, "repr")
     _op(help, "help")
@@ -251,7 +255,6 @@ def __setup__(glbls):
     _op(sys.exit, "exit")
 
     _val(sys, "sys")
-
 
     _op(format, "__format_value__")
     _op("".join, "__build_string__")

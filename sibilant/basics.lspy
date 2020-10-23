@@ -733,28 +733,55 @@ license: LGPL v.3
   set to filename.lspy
   """
 
-  `(let [[src ,source] [glbls ,env] [fname ,filename]]
-     (def import-from io IOBase)
-     (def import-from types CodeType)
-     (def import-from sibilant.parse source_stream source_str)
-     (def import-from sibilant.module
-	  init_module parse_time compile_time run_time)
+  `(evaluate ,source ,env filename: ,filename))
 
-     (cond
-      [(isinstance src CodeType) (py-eval src glbls fname)]
 
-      [else:
-       (var [stream
-	     (cond [(isinstance src str) (source_str src fname)]
-		   [(isinstance src IOBase) (source_stream src fname)]
-		   [(or (pair? src) (symbolish? src) (keyword? src)) None]
-		   [else: src])]
-	    [mod (init_module glbls stream filename: ,filename)])
+(defmacro instance? [OBJ TYPE . TYPES]
+  (if TYPES
+      `(isinstance ,OBJ (#tuple ,TYPE ,@TYPES))
+      `(isinstance ,OBJ ,TYPE)))
 
-       (unless (or (pair? src) (symbolish? src) (keyword? src))
-	 (setq src (parse_time mod)))
 
-       (run_time mod (compile_time mod src))])))
+(defmacro subclass? [OBJ TYPE . TYPES]
+  (if TYPES
+      `(issubtype ,OBJ (#tuple ,TYPE ,@TYPES))
+      `(issubtype ,OBJ ,TYPE)))
+
+
+(let []
+  (def import-from io IOBase)
+  (def import-from types CodeType)
+  (def import-from sibilant.parse source_stream source_str)
+  (def import-from sibilant.module
+       init_module parse_time compile_time run_time)
+
+  (defun evaluate [source env filename: "<anon>"]
+    """
+    (evaluate SOURCE ENV filename: FILENAME)
+
+    Evaluates SOURCE with ENV as the globals, with the source filename
+    set to FILENAME
+
+    SOURCE may be one of the following:
+     * Python code object
+     * IOBase stream from which to read and compile a single expression
+     * str from which to parse and compile a single expression
+     * cons pair representing source forms
+     * symbol or keyword object
+    """
+
+    (cond
+     [(instance? source CodeType) (py-eval source env fname)]
+
+     [else:
+      (var [stream
+	    (cond [(isinstance source str) (source_str source filename)]
+		  [(isinstance source IOBase) (source_stream source filename)]
+		  [else: None])]
+	   [mod (init_module env stream filename: filename)]
+	   [src (if stream (parse_time mod) source)])
+
+      (run_time mod (compile_time mod src))])))
 
 
 (let []

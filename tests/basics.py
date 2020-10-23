@@ -35,6 +35,7 @@ from sibilant.lib import (
 
 from sibilant.compiler import (
     is_macro, Macro, is_alias, Alias,
+    CompilerException,
 )
 
 from . import compile_expr
@@ -430,6 +431,74 @@ class Eval(TestCase):
         """
         stmt, env = compile_expr(src, source_sym=data, tacos=5)
         self.assertEqual(stmt(), 5)
+
+
+    def test_eval_const(self):
+        src = """
+        (eval True)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), True)
+
+        src = """
+        (eval False)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), False)
+
+        src = """
+        (eval 21)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 21)
+
+        src = """
+        (eval 2.1)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 2.1)
+
+        src = """
+        (eval 2+5i)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), 2+5j)
+
+        src = """
+        (eval None)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), None)
+
+        src = """
+        (eval ...)
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), ...)
+
+        src = """
+        (eval (#tuple))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), ())
+
+        src = """
+        (eval (#list))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), [])
+
+        src = """
+        (eval 2.1d)
+        """
+        stmt, env = compile_expr(src)
+        self.assertRaises(CompilerException, stmt)
+
+        src = """
+        (eval 21/10)
+        """
+        stmt, env = compile_expr(src)
+        self.assertRaises(CompilerException, stmt)
 
 
     def test_eval_reactivate(self):
