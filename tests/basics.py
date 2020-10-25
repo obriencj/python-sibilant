@@ -29,6 +29,7 @@ from unittest import TestCase
 import sibilant.builtins
 
 from sibilant.lib import (
+    SibilantSyntaxError,
     car, cdr, cons, nil, pair, symbol,
     getderef, setderef, clearderef,
 )
@@ -777,6 +778,127 @@ class Lets(TestCase):
         res = stmt()
 
         self.assertEqual(res, True)
+
+
+class LiteralCollection(TestCase):
+
+    def test_tuple(self):
+        src = """
+        #()
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertTrue(type(res) is tuple)
+        self.assertEqual(res, ())
+
+        src = """
+        #(1 2 3)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertTrue(type(res) is tuple)
+        self.assertEqual(res, (1, 2, 3))
+
+        src = """
+        #(#() 2 3)
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertTrue(type(res) is tuple)
+        self.assertEqual(res, ((), 2, 3))
+
+
+    def test_list(self):
+        src = """
+        #[]
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertTrue(type(res) is list)
+        self.assertEqual(res, [])
+
+        src = """
+        #[1 2 3]
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertTrue(type(res) is list)
+        self.assertEqual(res, [1, 2, 3])
+
+        src = """
+        #[#[] 2 3]
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertTrue(type(res) is list)
+        self.assertEqual(res, [[], 2, 3])
+
+
+    def test_dict(self):
+        src = """
+        #{}
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertTrue(type(res) is dict)
+        self.assertEqual(res, {})
+
+        src = """
+        #{foo: 1 bar: 2 baz: 3}
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertTrue(type(res) is dict)
+        self.assertEqual(res, dict(foo=1, bar=2, baz=3))
+
+        src = """
+        #{["foo" 1] ["bar" 2] ["baz" 3]}
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertTrue(type(res) is dict)
+        self.assertEqual(res, dict(foo=1, bar=2, baz=3))
+
+        src = """
+        #{["foo" . 1] ("bar" . 2) baz: 3}
+        """
+        stmt, env = compile_expr(src)
+        res = stmt()
+
+        self.assertTrue(type(res) is dict)
+        self.assertEqual(res, dict(foo=1, bar=2, baz=3))
+
+        src = """
+        #{["foo" 1] bar baz: 3}
+        """
+        stmt, env = compile_expr(src, bar=["bar", 2])
+        res = stmt()
+
+        self.assertTrue(type(res) is dict)
+        self.assertEqual(res, dict(foo=1, bar=2, baz=3))
+
+        src = """
+        #{["foo" 1] bar baz: 3}
+        """
+        stmt, env = compile_expr(src, bar=cons("bar", 2))
+        res = stmt()
+
+        self.assertTrue(type(res) is dict)
+        self.assertEqual(res, dict(foo=1, bar=2, baz=3))
+
+        src = """
+        #{foo: 1 ["bar" 2]}
+        """
+        self.assertRaises(SibilantSyntaxError, compile_expr, src)
 
 
 class Attrs(TestCase):

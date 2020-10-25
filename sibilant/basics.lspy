@@ -187,6 +187,12 @@ license: LGPL v.3
 (_reader_macro get-atom-pattern get_atom_pattern)
 (_reader_macro clear-atom-pattern clear_atom_pattern)
 (_reader_macro set-atom-regex set_atom_regex)
+(delq _reader_macro)
+
+
+;; === better #dict ===
+(defmacro #dict [*: keyvals **: kwargs]
+  `(build-dict ,@keyvals ,@(kwargs.items)))
 
 
 ;; === conditionals ===
@@ -1187,6 +1193,28 @@ license: LGPL v.3
 	 (,@(reduce (lambda [v f] (cons f v nil))
 		    (map car decls)
 		    `(first-call *: args **: kwds)))))))
+
+
+;; === easier collection literal syntax ===
+
+(defun read-literal-collection [stream c]
+  (unless (in (stream.peek 1) "({[")
+    (return (process-atom f"#{(read-atom stream)}")))
+
+  (var [pos (stream.position)]
+       [peek (stream.read 1)]
+       [i (! index "({[" peek)]
+       [closer (item ")}]" i)]
+       [name (item (#tuple "#tuple" "#dict" "#list") i)]
+       [result (cons (symbol name) (read-pair stream peek closer))])
+
+  (result.set_position pos)
+  result)
+
+(let []
+  (def import-from sibilant.parse default_reader)
+  (default_reader.set_macro_character
+    "#" read-literal-collection terminating: False))
 
 
 ;;
