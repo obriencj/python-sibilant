@@ -101,6 +101,36 @@ class Defmacro(TestCase):
         self.assertEqual(stmt(), cons(symbol("hello"), symbol("world")))
 
 
+class Macrolet(TestCase):
+
+    def test_macro_let(self):
+        src = """
+        (macro-let
+          [[swap_test (a b c)
+            (cons c b a '())]]
+
+          (swap_test 'world 'hello cons))
+        """
+        stmt, env = compile_expr(src)
+        self.assertEqual(stmt(), cons(symbol("hello"), symbol("world")))
+        self.assertFalse("swap_test" in env)
+
+
+    def test_inline_macro(self):
+
+        data = []
+
+        src = """
+        (inline-macro
+           `{,@(#gen [val (reversed (range 0 5))] `(work ,val))
+              -999})
+        """
+        stmt, env = compile_expr(src, work=data.append)
+        self.assertEqual(stmt(), -999)
+        self.assertEqual(data, [4, 3, 2, 1, 0])
+        self.assertTrue("_macro" not in env)
+
+
 class Setf(TestCase):
 
     def test_setf_var(self):

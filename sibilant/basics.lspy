@@ -1182,6 +1182,11 @@ license: LGPL v.3
 	(! compile comp `{,@body} tc None)))
 
 
+(defmacro inline-macro body
+  (with-gensyms [_macro]
+     `(macro-let [[_macro [] ,@body]] (_macro))))
+
+
 ;; === function composition ===
 
 (defmacro compose [call . calls]
