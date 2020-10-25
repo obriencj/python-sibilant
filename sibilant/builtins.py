@@ -25,7 +25,7 @@ license: LGPL v.3
 """
 
 
-def __setup__(glbls):
+def __setup__(glbls, clean=True):
     import sys
     from os.path import join, dirname
     from pkgutil import get_data
@@ -69,26 +69,27 @@ def __setup__(glbls):
     )
 
     # 3. merge bootstrap and basics together into this module
-    _all = set()
     for module in (bootstrap, basics):
         for key, val in module.__dict__.items():
             if (not key.startswith("__")) or key in SPECIAL_NAMES:
                 glbls[key] = val
-                _all.add(key)
 
-    # return tuple(_all)
+    # 4. optionally remove some stray normal-module definitions from
+    # globals
+    if clean:
+        PURGE_NAMES = (
+            "__file__", "__builtins__", "__doc__",
+            "__setup__",
+        )
+
+        for val in PURGE_NAMES:
+            if val in glbls:
+                del glbls[val]
+
     return None
 
 
-__setup__(globals())
-
-try:
-    del __setup__     # noqa
-    del __file__      # noqa
-    del __builtins__  # noqa
-    del __doc__       # noqa
-except NameError:
-    pass
+__setup__(globals(), clean=True)
 
 
 #
