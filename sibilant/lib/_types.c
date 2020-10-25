@@ -191,7 +191,8 @@ static PyObject *m_build_set(PyObject *mod, PyObject *values) {
 }
 
 
-static PyObject *m_build_dict(PyObject *mod, PyObject *values) {
+static PyObject *m_build_dict(PyObject *mod, PyObject *values,
+			      PyObject *kwds) {
 
   // checked
 
@@ -233,8 +234,14 @@ static PyObject *m_build_dict(PyObject *mod, PyObject *values) {
 
   } else {
     Py_DECREF(collect);
-    return result;
   }
+
+  if (unlikely(PyDict_Merge(result, kwds, 1))) {
+    Py_DECREF(result);
+    return NULL;
+  }
+
+  return result;
 }
 
 
@@ -257,7 +264,7 @@ static PyMethodDef methods[] = {
   { "build_set", (PyCFunction) m_build_set, METH_VARARGS,
     "build_set(*args) -> set(args)" },
 
-  { "build_dict",  (PyCFunction) m_build_dict, METH_VARARGS,
+  { "build_dict",  (PyCFunction) m_build_dict, METH_VARARGS|METH_KEYWORDS,
     "build_dict(*items) -> dict(items)" },
 
   { "getderef", (PyCFunction) m_getderef, METH_O,

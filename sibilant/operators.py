@@ -982,9 +982,19 @@ def operator_build_dict(code, source, tc=False):
             else:
                 code.add_expression(cu[0])
                 code.add_expression(cu[1])
+
+        elif isinstance(ce, (tuple, list)):
+            if len(ce) != 2:
+                msg = "too many elements in build-dict item #%i" % c
+                raise code.error(msg, source)
+            else:
+                code.add_expression(ce[0])
+                code.add_expression(ce[1])
+
         else:
             code.add_expression(ce)
             code.pseudop_unpack_sequence(2)
+            code.pseudop_rot_two()
 
     code.pseudop_position_of(source)
     code.pseudop_build_map(c)
