@@ -360,6 +360,8 @@ class Reader(object):
 
         sm('f', self._read_fstring, False)
 
+        sm('#', self._read_collection, False)
+
 
     def set_atom_pattern(self, namesym, match_fn, conversion_fn):
         for patt in self.atom_patterns:
@@ -427,6 +429,19 @@ class Reader(object):
             return symbol(atom)
 
 
+    def read_pair(self, stream, openchar=None, closechar=None):
+        if openchar is None:
+            openchar = stream.read(1)
+
+        if closechar is None:
+            if openchar in "{[(":
+                i = "{[(".index(openchar)
+                closechar = "}])"[i]
+
+        _event, result = self._read_pair(closechar, stream, openchar)
+        return result
+
+
     def _read_pair(self, closer, stream, char):
         """
         The character macro handler for pair notation
@@ -484,7 +499,7 @@ class Reader(object):
                 setcdr(work, new_work)
                 work = new_work
 
-        if value != closer:
+        if closer and value != closer:
             raise stream.error("mismatched open and close characters",
                                position)
 
@@ -508,6 +523,30 @@ class Reader(object):
         """
 
         return CLOSE_PAIR, char
+
+
+    def _read_collection(self, stream, fchar):
+        peek = stream.peek(1)
+        if peek not in "({[<":
+            return self._read_default(stream, fchar)
+
+        peek = stream.read(1)
+        i = "({[".index(peek)
+
+        closer = ")}]"[i]
+        name = ("#tuple", "#dict", "#list")[i]
+
+        pos = stream.position()
+
+        with self.temporary_event_macro(closer, self._close_pair, True):
+            event, result = self._read_pair(closer, stream, peek)
+
+        if event is VALUE:
+            new_result = cons(symbol(name), result)
+            new_result.set_position(pos)
+            result = new_result
+
+        return event, result
 
 
     def _read_fstring(self, stream, fchar):
