@@ -114,12 +114,22 @@ class CompilerSyntaxError(SibilantSyntaxError, CompilerException):
     pass
 
 
+class MacroException(CompilerException):
+    def __init__(self, macroname, origin_ex):
+        self.macroname = macroname
+        self.origin_ex = origin_ex
+
+    def __str__(self):
+        return "Exception while expanding macro %s: %s" % \
+            (self.macroname, self.origin_ex)
+
+
 class UncaughtCompilerException(CompilerException):
     def __init__(self, origin_ex, source_obj):
         self.origin_ex = origin_ex
         self.source_obj = source_obj
 
-    def __repr__(self):
+    def __str__(self):
         return "Uncaught Compiler Exception: %r\nSource: %s" % \
             (self.origin_ex, self.source_obj)
 
@@ -225,7 +235,12 @@ class Macro(Compiled):
         if self._proper:
             position = source_obj.get_position()
             args, kwargs = simple_parameters(source, position)
-            expr = self.expand(*args, **kwargs)
+            try:
+                expr = self.expand(*args, **kwargs)
+            except Exception as exc:
+                work = MacroException(self.__name__, exc)
+                work = work.with_traceback(exc.__traceback__)
+                raise work from None
 
         else:
             expr = self.expand(*source.unpack())
