@@ -1179,12 +1179,12 @@ license: LGPL v.3
 			   ,@macro-body))))))))
 
   (with [_ (! tmp_compiled comp tmp-macros)]
-	(! compile comp `{,@body} tc None)))
+      (! compile comp `{,@body} tc None)))
 
 
 (defmacro inline-macro body
-  (with-gensyms [_macro]
-     `(macro-let [[_macro [] ,@body]] (_macro))))
+  (with-gensyms [inline-macro]
+     `(macro-let [[inline-macro [] ,@body]] (inline-macro))))
 
 
 ;; === function composition ===
