@@ -73,7 +73,7 @@ license: LGPL v.3
 	 (stderr.flush))
 
 	([Exception as: se]
-	 (show_traceback 1 stderr)
+	 (show_traceback True stderr)
 	 (stderr.flush)))
 
        (stdout.flush))
@@ -92,15 +92,48 @@ license: LGPL v.3
 	    file: to-file))
 
 
-(def function show_traceback [skip to-file]
+(def function iter_traceback [tb]
+     (while tb
+	 (yield tb)
+	 (setq tb tb.tb_next)))
+
+
+(define FILTER-MODULES
+  (#set "sibilant.compiler"
+	"sibilant.repl"
+	"sibilant.module"
+	"sibilant.specials"
+	"sibilant.opeprators"
+	"sibilant.parse"
+	"sibilant"))
+
+
+(def function filter_internal_tb [tb mods: FILTER-MODULES]
+
+     (define filtered_trace
+       (#gen [itb (iter_traceback tb)] itb
+	     unless: (in (item itb.tb_frame.f_globals "__name__")
+			 FILTER-MODULES)))
+
+     (var [result (next filtered_trace)]
+          [work result])
+
+     (for-each [tb filtered_trace]
+	  (setf work.tb_next tb)
+	  (setq work tb))
+
+     result)
+
+
+(def function show_traceback [omit_internal to-file]
      (define-values [type_ value tb] (sys.exc_info))
      (setf sys.last_type type_)
      (setf sys.last_value value)
-     (setf sys.last_traceback tb)
 
-     (while (and (> skip 0) tb.tb_next)
-	    (setq tb tb.tb_next)
-	    (decr skip))
+     (when omit_internal
+       (setq tb (filter_internal_tb tb)))
+
+     (setf sys.last_traceback tb)
 
      (print (str.join "" (format_exception type_ value tb))
 	    file: to-file))
