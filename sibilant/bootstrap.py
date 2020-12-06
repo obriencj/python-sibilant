@@ -226,6 +226,7 @@ def __setup__(glbls):
     _op(abs, "abs")
     _op(min, "min")
     _op(max, "max")
+    _op(sum, "sum")
 
     _op(all, "all")
     _op(any, "any")
