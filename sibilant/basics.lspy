@@ -721,7 +721,7 @@ license: LGPL v.3
      (compile_time mod src)))
 
 
-(defmacro eval [source env: '(globals) filename: "<anon>"]
+(defmacro eval [source env: '(globals) filename: '__file__]
   """
   (eval SOURCE)
 
@@ -815,7 +815,7 @@ license: LGPL v.3
     (when details
           (show-code obj)
           (print "Disassembly:"))
-    (dis obj)
+    (dis obj depth: 0)
 
     (when depth
 	  (when (has-attr obj __func__) (setq obj obj.__func__))
