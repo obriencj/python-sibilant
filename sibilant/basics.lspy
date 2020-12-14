@@ -792,6 +792,7 @@ license: LGPL v.3
 
 
 (let []
+  (def import sys)
   (def import-from types CodeType)
   (def import-from dis dis [show_code as: show-code])
 
@@ -815,7 +816,10 @@ license: LGPL v.3
     (when details
           (show-code obj)
           (print "Disassembly:"))
-    (dis obj depth: 0)
+
+    (if (< sys.version_info #(3 7))
+	then: (dis obj)
+	else: (dis obj depth: 0))
 
     (when depth
 	  (when (has-attr obj __func__) (setq obj obj.__func__))
