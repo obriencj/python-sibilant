@@ -1391,6 +1391,29 @@ class SpecialForEach(TestCase):
         self.assertEqual(res, 45)
 
 
+    def test_continue(self):
+
+        data = []
+        src = """
+        (for-each [i (range 8)]
+          (cond [(% i 2) (continue)] [else: (collect i)]))
+        """
+        stmt, env = compile_expr(src, collect=data.append)
+        res = stmt()
+        self.assertEqual(res, None)
+        self.assertEqual(data, [0, 2, 4, 6])
+
+        data = []
+        src = """
+        (for-each [i (range 8)]
+          (cond [(% i 2) (continue i)] [else: (collect i)]))
+        """
+        stmt, env = compile_expr(src, collect=data.append)
+        res = stmt()
+        self.assertEqual(res, 7)
+        self.assertEqual(data, [0, 2, 4, 6])
+
+
     def test_unpack_enum(self):
 
         accu1, good_guy = make_accumulator()

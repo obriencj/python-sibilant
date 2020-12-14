@@ -1029,28 +1029,36 @@ def special_for_each(code, source, tc=False):
 
     next_label = code.gen_label()
 
+    code.add_expression(expr, False)
+    code.pseudop_iter()
+
     with code.block_loop() as block:
         # this enables continue and break to find it and set it
         block.storage = storage
-
-        code.add_expression(expr, False)
-        code.pseudop_iter()
 
         code.pseudop_label(next_label)
         code.pseudop_for_iter(block.pop_label)
 
         _helper_setq_values(code, bindings, True)
 
-        whatever = code.gen_label()
-        with code.block_finally(whatever):
+        if True:
             _helper_begin(code, body, False)
             code.pseudop_set_var(storage)
 
-        with code.block_finally_cleanup(whatever):
-            pass
+        else:
+            # this is a WIP for 3.8 bytecode support to enable clean block
+            # popping
+            whatever = code.gen_label()
+            with code.block_finally(whatever):
+                _helper_begin(code, body, False)
+                code.pseudop_set_var(storage)
+
+            with code.block_finally_cleanup(whatever):
+                pass
 
         code.pseudop_jump(next_label)
-        code.pseudop_faux_pop()
+
+    code.pseudop_faux_pop()
 
     code.pseudop_get_var(storage)
     code.pseudop_const(None)
@@ -1232,7 +1240,6 @@ def special_continue(code, source, tc=False):
             break
     else:
         raise code.error("continue called without while", source)
-
 
     if is_nil(rest):
         value = None
