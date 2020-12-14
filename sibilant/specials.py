@@ -1041,20 +1041,17 @@ def special_for_each(code, source, tc=False):
 
         _helper_setq_values(code, bindings, True)
 
-        if True:
+        # This is in place to ensure that any stray stack will be
+        # cleared when we continue the loop. For example, if a
+        # continue is used inside of the parameter list of another
+        # call, which seems insane but is completely possible
+        whatever = code.gen_label()
+        with code.block_finally(whatever):
             _helper_begin(code, body, False)
             code.pseudop_set_var(storage)
 
-        else:
-            # this is a WIP for 3.8 bytecode support to enable clean block
-            # popping
-            whatever = code.gen_label()
-            with code.block_finally(whatever):
-                _helper_begin(code, body, False)
-                code.pseudop_set_var(storage)
-
-            with code.block_finally_cleanup(whatever):
-                pass
+        with code.block_finally_cleanup(whatever):
+            pass
 
         code.pseudop_jump(next_label)
 
