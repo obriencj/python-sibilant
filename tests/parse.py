@@ -224,6 +224,10 @@ class Strings(TestCase):
         col = parse_source(src)
         self.assertEqual(col, "")
 
+        src = r' "\"" '
+        col = parse_source(src)
+        self.assertEqual(col, "\"")
+
         src = '"hello world"'
         col = parse_source(src)
         self.assertEqual(col, "hello world")
@@ -285,6 +289,40 @@ class Strings(TestCase):
         src = r'"""¿\n?"""'
         col = parse_source(src)
         self.assertEqual(col, "¿\n?")
+
+
+    def test_raw(self):
+        src = r'r""'
+        col = parse_source(src)
+        self.assertEqual(col, "")
+
+        src = r' r"" '
+        col = parse_source(src)
+        self.assertEqual(col, "")
+
+        src = r' r"\"" '
+        col = parse_source(src)
+        self.assertEqual(col, r"\"")
+
+        src = 'r"hello world"'
+        col = parse_source(src)
+        self.assertEqual(col, "hello world")
+
+        src = r' r"hello\n \tworld" '
+        col = parse_source(src)
+        self.assertEqual(col, r"hello\n \tworld")
+
+        src = r' r"hello\n \tworld" '
+        col = parse_source(src)
+        self.assertEqual(col, r"hello\n \tworld")
+
+        src = r'r"¿?"'
+        col = parse_source(src)
+        self.assertEqual(col, r"¿?")
+
+        src = r'r"¿\\n?"'
+        col = parse_source(src)
+        self.assertEqual(col, r"¿\\n?")
 
 
 class Quoted(TestCase):
