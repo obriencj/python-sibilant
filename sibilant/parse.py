@@ -750,6 +750,12 @@ class FormatStringReader(object):
                     stream.read(2)
                     result.append("}")
 
+                elif peek == "}":
+                    raise FormatStringSyntaxError("mis-matched closing } in"
+                                                  " f-string",
+                                                  stream.position(),
+                                                  filename=stream.filename)
+
                 elif peek[0] == "{":
                     stream.read(1)
                     event, child = norm._read_pair("}", stream, "{")
