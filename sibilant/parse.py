@@ -737,7 +737,7 @@ class FormatStringReader(object):
         result = []
 
         norm = self.normal
-        check = partial(str.__eq__, "{")
+        check = "{}".__contains__
 
         try:
             peek = stream.peek(2)
@@ -745,6 +745,10 @@ class FormatStringReader(object):
                 if peek == "{{":
                     stream.read(2)
                     result.append("{")
+
+                elif peek == "}}":
+                    stream.read(2)
+                    result.append("}")
 
                 elif peek[0] == "{":
                     stream.read(1)
