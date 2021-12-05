@@ -24,22 +24,79 @@ Sibilant, a Lisp dialect for Python
 """
 
 
-def setup_data():
-    # In order to make the build process more data-driven, I've opted
-    # to store all of the build configuration in the setup.json
-    # file. This allows me to re-use the data in the Dockerfile and
-    # potentially elsewhere
+def config():
+    return {
+        "packages": [
+            "sibilant",
+            "sibilant.compiler",
+            "sibilant.compiler.targets",
+            "sibilant.lib",
+            "sibilant.pseudops",
+            "sibilant.pseudops.targets",
+            "sibilant.site",
+        ],
 
-    from json import load
+        "package_data": {
+            "sibilant": [
+                "*.lspy",
+            ],
+            "sibilant.lib": [
+                "*.h",
+            ],
+            "sibilant.site": [
+                "*.lspy",
+            ],
+        },
 
-    with open("setup.json") as dat:
-        return load(dat)
+        "headers": [
+            "sibilant/lib/types.h",
+        ],
+
+        "ext_modules": [
+            {
+                "name": "sibilant.lib._types",
+                "sources": [
+                    "sibilant/lib/_types.c",
+                    "sibilant/lib/atom.c",
+                    "sibilant/lib/pair.c",
+                    "sibilant/lib/tco.c",
+                    "sibilant/lib/values.c",
+                ],
+                "extra_compile_args": [
+                    "--std=c99",
+                    "-g",
+                    "-Wall",
+                    "-Werror",
+                ],
+                "depends": [
+                    "sibilant/lib/types.h",
+                ],
+                "include_dirs": [
+                    "sibilant/lib",
+                ],
+            },
+        ],
+
+        "python_requires": ">=3.5, <3.8",
+
+        "tests_require": [
+            "asynctest",
+        ],
+
+        "zip_safe": False,
+
+        "entry_points": {
+            "console_scripts": [
+                "sibilant=sibilant.cli:main",
+            ],
+        },
+    }
 
 
 def setup():
     from setuptools import setup, Extension
 
-    data = setup_data()
+    data = config()
     exts = [Extension(**ext) for ext in data.pop("ext_modules", ())]
     data["ext_modules"] = exts
 

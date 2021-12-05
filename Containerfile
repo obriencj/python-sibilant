@@ -9,7 +9,7 @@ FROM python:3.7-alpine as base
 
 FROM base as builder
 
-COPY setup.py setup.json /build/
+COPY setup.py setup.cfg /build/
 COPY sibilant /build/sibilant/
 
 RUN \
@@ -24,15 +24,12 @@ RUN \
 FROM base
 
 LABEL maintainer = "obriencj@gmail.com" \
-      version = "0.9.0"
-
-# http://label-schema.org/rc1/
-LABEL org.label-schema.schema-version = "1.0" \
+      version = "0.9.0" \
+      org.label-schema.schema-version = "1.0" \
       org.label-schema.name = "sibilant" \
       org.label-schema.version = "0.9.0" \
       org.label-schema.url = "https://github.com/obriencj/sibilant" \
       org.label-schema.vcs-url = "https://github.com/obriencj/sibilant"
-
 
 COPY --from=builder /wheels /wheels
 RUN \
