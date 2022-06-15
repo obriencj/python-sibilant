@@ -359,6 +359,7 @@ class Reader(object):
         sm(';', self._read_comment, True)
 
         sm('f', self._read_fstring, False)
+        sm('r', self._read_rstring, False)
 
         sm('#', self._read_collection, False)
 
@@ -573,14 +574,21 @@ class Reader(object):
         return VALUE, cons(_symbol__str, *result)
 
 
-    def _read_string(self, stream, char):
+    def _read_rstring(self, stream, char):
+        if stream.peek(1) != '"':
+            return self._read_default(stream, char)
+        else:
+            return self._read_string(stream, stream.read(1), False)
+
+
+    def _read_string(self, stream, char, with_escapes=True):
         """
         The character macro handler for string literals
         """
 
         if stream.peek(2) == (char * 2):
             stream.read(2)
-            return self._read_3string(stream, char)
+            return self._read_3string(stream, char, with_escapes)
 
         result = []
 
@@ -597,10 +605,14 @@ class Reader(object):
         else:
             raise stream.error("Unexpected EOF")
 
-        return VALUE, _as_unicode("".join(result))
+        res = "".join(result)
+        if with_escapes:
+            res = _as_unicode(res)
+
+        return VALUE, res
 
 
-    def _read_3string(self, stream, char):
+    def _read_3string(self, stream, char, with_escapes=True):
         seen = 0
         esc = False
 
@@ -634,7 +646,10 @@ class Reader(object):
             # we ran out of stream
             raise stream.error("Unexpected EOF")
 
-        return VALUE, _as_unicode(value)
+        if with_escapes:
+            value = _as_unicode(value)
+
+        return VALUE, value
 
 
     def _read_quote(self, stream, char):
@@ -722,7 +737,7 @@ class FormatStringReader(object):
         result = []
 
         norm = self.normal
-        check = partial(str.__eq__, "{")
+        check = "{}".__contains__
 
         try:
             peek = stream.peek(2)
@@ -730,6 +745,16 @@ class FormatStringReader(object):
                 if peek == "{{":
                     stream.read(2)
                     result.append("{")
+
+                elif peek == "}}":
+                    stream.read(2)
+                    result.append("}")
+
+                elif peek == "}":
+                    raise FormatStringSyntaxError("mis-matched closing } in"
+                                                  " f-string",
+                                                  stream.position(),
+                                                  filename=stream.filename)
 
                 elif peek[0] == "{":
                     stream.read(1)

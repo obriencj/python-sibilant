@@ -231,11 +231,11 @@ pip3 install .
 
 Author: Christopher O'Brien  <obriencj@gmail.com>
 
-IRC Channel: #python-sibilant on [Freenode]
+IRC Channel: #py-sibilant on [Libera]
 
 Original Git Repository: <https://github.com/obriencj/python-sibilant>
 
-[Freenode]: https://freenode.net
+[Libera]: https://libera.chat
 
 
 ## License
