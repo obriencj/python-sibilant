@@ -130,7 +130,7 @@ static void symbol_dealloc(PyObject *self) {
   // checked
 
   if (intern_syms) {
-    Py_REFCNT(self) = 3;
+    self->ob_refcnt = 3;
     PyDict_DelItem(intern_syms, ((SibInternedAtom *) self)->name);
   }
 
@@ -362,7 +362,7 @@ static void keyword_dealloc(PyObject *self) {
   // checked
 
   if (intern_kwds) {
-    Py_REFCNT(self) = 3;
+    self->ob_refcnt = 3;
     PyDict_DelItem(intern_kwds, ((SibInternedAtom *) self)->name);
   }
 
