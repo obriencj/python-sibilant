@@ -26,7 +26,7 @@ license: LGPL v.3
 import threading
 
 from abc import ABCMeta, abstractmethod
-from collections import Mapping
+from collections.abc import Mapping
 from contextlib import contextmanager
 from functools import partial
 from itertools import count

@@ -38,7 +38,7 @@ license: LGPL v.3
 
 import sys
 
-from collections import MutableMapping
+from collections.abc import MutableMapping
 from functools import partial
 from os.path import split, getmtime, getsize
 from types import ModuleType
