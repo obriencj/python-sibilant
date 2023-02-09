@@ -27,7 +27,10 @@
 
 #include "types.h"
 
+#if PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION < 8
 #include <cellobject.h>
+#endif
+
 #include <frameobject.h>
 
 
