@@ -524,7 +524,7 @@ static void pair_dealloc(PyObject *self) {
   // checked
 
   PyObject_GC_UnTrack(self);
-  Py_TRASHCAN_SAFE_BEGIN(self);
+  CPy_TRASHCAN_BEGIN(self, pair_dealloc);
 
   Py_CLEAR(SibPair_CAR(self));
   Py_CLEAR(SibPair_CDR(self));
@@ -544,7 +544,7 @@ static void pair_dealloc(PyObject *self) {
     PyObject_GC_Del(self);
   }
 
-  Py_TRASHCAN_SAFE_END(self);
+  CPy_TRASHCAN_END(self);
 }
 
 

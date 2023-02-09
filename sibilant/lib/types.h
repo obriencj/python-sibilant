@@ -219,6 +219,15 @@ int sib_types_values_init(PyObject *module);
 #endif
 
 
+#if PY_MAJOR_VERSION >= 3 && PY_MINOR_VERSION < 8
+#  define CPy_TRASHCAN_BEGIN(op, dealloc) Py_TRASHCAN_SAFE_BEGIN(op)
+#  define CPy_TRASHCAN_END(op) Py_TRASHCAN_SAFE_END(op)
+#else
+#  define CPy_TRASHCAN_BEGIN(op, dealloc) Py_TRASHCAN_BEGIN(op, dealloc)
+#  define CPy_TRASHCAN_END(op) Py_TRASHCAN_END
+#endif
+
+
 #endif
 
 

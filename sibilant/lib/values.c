@@ -42,7 +42,7 @@ static void values_dealloc(PyObject *self) {
   // checked
 
   PyObject_GC_UnTrack(self);
-  Py_TRASHCAN_SAFE_BEGIN(self);
+  CPy_TRASHCAN_BEGIN(self, values_dealloc);
 
   Py_CLEAR(((SibValues *) self)->args);
   Py_CLEAR(((SibValues *) self)->kwds);
@@ -50,7 +50,7 @@ static void values_dealloc(PyObject *self) {
   // Py_TYPE(self)->tp_free(self);
 
   PyObject_GC_Del(self);
-  Py_TRASHCAN_SAFE_END(self);
+  CPy_TRASHCAN_END(self);
 }
 
 
